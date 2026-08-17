@@ -454,7 +454,7 @@ p { margin: 0 0 1em; }
   transition: transform .18s ease;
 }
 .chat-fab:hover { transform: scale(1.06); }
-.chat-fab svg { width: 28px; height: 28px; }
+.chat-fab-icon { width: 34px; height: 34px; object-fit: contain; pointer-events: none; }
 .chat-fab .badge {
   position: absolute;
   top: -2px;
