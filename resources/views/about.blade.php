@@ -109,14 +109,14 @@
             @foreach ($certificates as $cert)
                 <div class="cert-card">
                     @if ($cert->isImage())
-                        <a href="{{ route('certificates.file', $cert) }}" target="_blank" class="cert-thumb-wrap">
+                        <div class="cert-thumb-wrap cert-lightbox-trigger" data-cert-url="{{ route('certificates.file', $cert) }}" data-cert-label="{{ $cert->label }}" data-cert-type="image" role="button" tabindex="0">
                             <img src="{{ route('certificates.file', $cert) }}" alt="{{ $cert->label }}" class="cert-thumb">
-                        </a>
+                        </div>
                     @else
-                        <a href="{{ route('certificates.file', $cert) }}" target="_blank" class="cert-thumb-wrap cert-thumb-pdf">
+                        <div class="cert-thumb-wrap cert-thumb-pdf cert-lightbox-trigger" data-cert-url="{{ route('certificates.file', $cert) }}" data-cert-label="{{ $cert->label }}" data-cert-type="pdf" role="button" tabindex="0">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
                             <span>View PDF</span>
-                        </a>
+                        </div>
                     @endif
                     <span class="cert-label">{{ $cert->label }}</span>
                 </div>
@@ -124,6 +124,81 @@
         </div>
     </div>
 </section>
+
+<div id="certLightbox" class="cert-lightbox" role="dialog" aria-modal="true" aria-label="Certificate viewer" hidden>
+    <div class="cert-lightbox-backdrop"></div>
+    <div class="cert-lightbox-content">
+        <button class="cert-lightbox-close" aria-label="Close">&times;</button>
+        <div class="cert-lightbox-body"></div>
+        <div class="cert-lightbox-caption"></div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    var modal = document.getElementById('certLightbox');
+    if (!modal) return;
+    var backdrop = modal.querySelector('.cert-lightbox-backdrop');
+    var body = modal.querySelector('.cert-lightbox-body');
+    var caption = modal.querySelector('.cert-lightbox-caption');
+    var closeBtn = modal.querySelector('.cert-lightbox-close');
+
+    function openLightbox(url, label, type) {
+        body.innerHTML = '';
+        if (type === 'pdf') {
+            body.innerHTML = '<iframe src="' + url + '" class="cert-lightbox-embed" title="' + label + '"></iframe>';
+        } else {
+            var img = document.createElement('img');
+            img.src = url;
+            img.alt = label;
+            img.className = 'cert-lightbox-img';
+            body.appendChild(img);
+        }
+        caption.textContent = label || '';
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        requestAnimationFrame(function () { modal.classList.add('open'); });
+    }
+
+    function closeLightbox() {
+        modal.classList.remove('open');
+        document.body.style.overflow = '';
+        setTimeout(function () {
+            modal.hidden = true;
+            body.innerHTML = '';
+        }, 250);
+    }
+
+    document.addEventListener('click', function (e) {
+        var trigger = e.target.closest('.cert-lightbox-trigger');
+        if (trigger) {
+            e.preventDefault();
+            openLightbox(trigger.dataset.certUrl, trigger.dataset.certLabel, trigger.dataset.certType);
+            return;
+        }
+        if (e.target === backdrop || e.target === closeBtn) {
+            closeLightbox();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.hidden) {
+            closeLightbox();
+        }
+    });
+
+    document.querySelectorAll('.cert-lightbox-trigger').forEach(function (el) {
+        el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                el.click();
+            }
+        });
+    });
+})();
+</script>
+@endpush
 @endif
 
 <section class="section section-alt">
