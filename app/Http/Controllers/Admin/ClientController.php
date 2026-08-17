@@ -88,10 +88,11 @@ class ClientController extends Controller
             $colWidths = [14, 20, 24, 20, 20, 18, 30, 16, 26, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
 
             foreach ($headers as $col => $header) {
-                $cell = $sheet->getCellByColumnAndRow($col + 1, 1);
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                $cell = $sheet->getCell("{$colLetter}1");
                 $cell->setValue($header);
                 $cell->getStyle()->getFont()->setBold(true);
-                $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::columnLetterFromIndex($col + 1))->setWidth($colWidths[$col]);
+                $sheet->getColumnDimension($colLetter)->setWidth($colWidths[$col]);
             }
 
             $row = 2;
@@ -120,7 +121,8 @@ class ClientController extends Controller
                 ];
 
                 foreach ($values as $col => $value) {
-                    $sheet->getCellByColumnAndRow($col + 1, $row)->setValue($value);
+                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                    $sheet->getCell("{$colLetter}{$row}")->setValue($value);
                 }
                 $row++;
             }
