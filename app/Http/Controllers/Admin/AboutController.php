@@ -12,11 +12,17 @@ use Illuminate\View\View;
 
 class AboutController extends Controller
 {
-    public function edit(): View
+    public function edit(Request $request): View
     {
+        $about = AboutContent::instance();
+        $hasData = $about->mission !== null || CoreValue::count() > 0;
+        $editing = $request->boolean('edit') || ! $hasData;
+
         return view('admin.about', [
-            'about' => AboutContent::instance(),
+            'about' => $about,
             'coreValues' => CoreValue::ordered()->get(),
+            'editing' => $editing,
+            'hasData' => $hasData,
         ]);
     }
 
