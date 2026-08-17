@@ -155,7 +155,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::delete('/billings/{billing}', [AdminBillingController::class, 'destroy'])->name('billing.destroy');
 
     Route::get('/clients', [AdminClientController::class, 'index'])->name('clients.index');
-    Route::get('/clients/export/csv', [AdminClientController::class, 'exportCsv'])->name('clients.exportCsv');
+    Route::get('/clients/export/xlsx', [AdminClientController::class, 'exportXlsx'])->name('clients.exportXlsx');
     Route::get('/clients/export/pdf', [AdminClientController::class, 'exportPdf'])->name('clients.exportPdf');
     Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');
     Route::put('/clients/{client}', [AdminClientController::class, 'update'])->name('clients.update');

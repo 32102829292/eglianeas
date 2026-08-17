@@ -55,40 +55,49 @@ class ClientController extends Controller
         ]);
     }
 
-    public function exportCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportXlsx(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $q = trim((string) $request->get('q'));
         $clients = $this->getFilteredClients($q);
 
-        $this->logExport('csv', $clients->count(), $q);
+        $this->logExport('xlsx', $clients->count(), $q);
 
         if ($clients->isEmpty()) {
             abort(404, 'No clients found for the current filter.');
         }
 
-        $filename = 'Egliane-Client-Masterlist-' . now()->format('Y-m-d') . '.csv';
-
         $headers = [
-            'Content-Type' => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"Egliane-Client-Masterlist-" . now()->format('Y-m-d') . ".xlsx\"",
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
         ];
 
         return response()->stream(function () use ($clients) {
-            $handle = fopen('php://output', 'w');
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
 
-            fputcsv($handle, [
+            $headers = [
                 'Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business',
                 'BIR Registration Type', 'Business Address', 'Contact No.', 'Email Address',
                 '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
                 'TIN No.', "Mother's Maiden Name", "Father's Name", 'Status',
                 'Payment Status', 'Date Started', 'Remarks',
-            ]);
+            ];
 
+            $colWidths = [14, 20, 24, 20, 20, 18, 30, 16, 26, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
+
+            foreach ($headers as $col => $header) {
+                $cell = $sheet->getCellByColumnAndRow($col + 1, 1);
+                $cell->setValue($header);
+                $cell->getStyle()->getFont()->setBold(true);
+                $sheet->getColumnDimension(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::columnLetterFromIndex($col + 1))->setWidth($colWidths[$col]);
+            }
+
+            $row = 2;
             foreach ($clients as $client) {
                 $p = $client->profile;
-                fputcsv($handle, [
+                $values = [
                     $client->client_code ?? '',
                     $client->name,
                     $client->business_name ?? '',
@@ -108,10 +117,19 @@ class ClientController extends Controller
                     $p?->paymentStatusLabel() ?? '',
                     $p?->date_started?->format('m/d/Y') ?? '',
                     $p?->remarks ?? '',
-                ]);
+                ];
+
+                foreach ($values as $col => $value) {
+                    $sheet->getCellByColumnAndRow($col + 1, $row)->setValue($value);
+                }
+                $row++;
             }
 
-            fclose($handle);
+            $sheet->freezePane('A2');
+
+            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->setIncludeCharts(false);
+            $writer->save('php://output');
         }, 200, $headers);
     }
 
