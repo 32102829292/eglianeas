@@ -21,25 +21,19 @@
         Chatbot
     </a>
 
-    <div class="dash-nav-head">Client&rsquo;s Information</div>
+    <div class="dash-nav-head">Clients</div>
     <a href="{{ route('admin.clients.index') }}" class="{{ $active('admin.clients') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Clients
+        Client List
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Billing</div>
     <a href="{{ route('admin.billing.index') }}" class="{{ $active('admin.billing') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
         Billing
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Collections</div>
     <a href="{{ route('admin.collections.index') }}" class="{{ $active('admin.collections') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
         Collections
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Distribution</div>
     <a href="{{ route('admin.distribution.index') }}" class="{{ $active('admin.distribution') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
         Distribution
@@ -50,8 +44,6 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         Activity Logs
     </a>
-
-    <div class="dash-nav-head">Site Content</div>
     <a href="{{ route('admin.about') }}" class="{{ $active('admin.about') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
         About
@@ -76,25 +68,19 @@
         Security Settings
     </a>
 
-    <div class="dash-nav-head">Client&rsquo;s Information</div>
+    <div class="dash-nav-head">My Account</div>
     <a href="{{ route('client.profile.edit') }}" class="{{ $active('client.profile') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profile
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Billing</div>
     <a href="{{ route('client.billing.index') }}" class="{{ $active('client.billing') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
         Billing
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Collections</div>
     <a href="{{ route('client.collections.index') }}" class="{{ $active('client.collections') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
         Collections
     </a>
-
-    <div class="dash-nav-head">Client&rsquo;s Distribution</div>
     <a href="{{ route('client.documents.index') }}" class="{{ $active('client.documents') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
         Documents

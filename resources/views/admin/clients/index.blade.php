@@ -3,46 +3,48 @@
 @section('title', 'Clients — Egliane Accounting Services')
 
 @section('content')
-    <div class="page-head page-head-row">
-        <div>
+    <div class="page-header-bar">
+        <div class="page-header-left">
             <h1>Clients</h1>
             <p>Manage client accounts, their information, and account status.</p>
         </div>
-    </div>
-
-    <div class="filter-bar" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <form method="GET" action="{{ route('admin.clients.index') }}" style="flex:1; min-width:200px;">
-            <input type="search" name="q" value="{{ $q }}" placeholder="Search business, name, or email&hellip;" data-live-filter>
-            <button type="submit" class="btn btn-outline btn-sm">Filter</button>
-        </form>
-        <div style="position:relative;">
-            <button type="button" class="btn btn-primary btn-sm" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Download Masterlist
-            </button>
-            <div style="display:none; position:absolute; right:0; top:100%; margin-top:4px; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 6px 24px rgba(0,0,0,.12); z-index:20; min-width:180px; overflow:hidden;">
-                <a href="{{ route('admin.clients.exportXlsx', ['q' => $q]) }}" style="display:flex; align-items:center; gap:8px; padding:10px 16px; color:#1B1B3A; text-decoration:none; font-size:13px; font-weight:600; transition:background .15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Export as XLSX
-                </a>
-                <a href="{{ route('admin.clients.exportPdf', ['q' => $q]) }}" style="display:flex; align-items:center; gap:8px; padding:10px 16px; color:#1B1B3A; text-decoration:none; font-size:13px; font-weight:600; border-top:1px solid #e2e8f0; transition:background .15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                    Export as PDF
-                </a>
+        <div class="page-header-right">
+            <form method="GET" action="{{ route('admin.clients.index') }}" class="page-search">
+                <input type="search" name="q" value="{{ $q }}" placeholder="Search business, name, or email&hellip;" data-live-filter>
+                <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+            </form>
+            <div class="dropdown-wrap">
+                <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-dropdown="download-menu">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Masterlist
+                </button>
+                <div class="dropdown-menu" id="download-menu">
+                    <a href="{{ route('admin.clients.exportXlsx', ['q' => $q]) }}" class="dropdown-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Export as XLSX
+                    </a>
+                    <a href="{{ route('admin.clients.exportPdf', ['q' => $q]) }}" class="dropdown-item">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        Export as PDF
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="card">
+    <div class="card card-data">
+        <div class="card-head">
+            <span class="card-title">All Clients <span class="count-pill">{{ $clients->count() }}</span></span>
+        </div>
         <div class="table-wrap">
-            <table class="table">
+            <table class="table table-compact">
                 <thead>
                     <tr>
                         <th>Business</th>
                         <th>Contact</th>
                         <th>Status</th>
                         <th>Payment</th>
-                        <th>Outstanding</th>
+                        <th class="col-num">Outstanding</th>
                         <th>Since</th>
                         <th class="actions-cell">Actions</th>
                     </tr>
@@ -69,7 +71,7 @@
                                     <span class="muted">—</span>
                                 @endif
                             </td>
-                            <td>
+                            <td class="col-num">
                                 @if ($entry['outstanding'] > 0)
                                     <b class="text-danger">₱{{ number_format($entry['outstanding'], 2) }}</b>
                                 @else
@@ -83,7 +85,12 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty-cell">No clients found.</td></tr>
+                        <tr><td colspan="7" class="empty-cell">
+                            <div class="empty-state">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:.4;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                <div>No clients found.</div>
+                            </div>
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -101,11 +108,13 @@
             });
         });
         document.addEventListener('click', function (e) {
-            var btn = e.target.closest('[onclick*="style.display"]');
-            if (!btn) {
-                var dd = document.querySelector('.filter-bar [style*="position:relative"] > div[style*="position:absolute"]');
-                if (dd) dd.style.display = 'none';
+            var toggle = e.target.closest('[data-dropdown]');
+            if (toggle) {
+                var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+                if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                return;
             }
+            document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
         });
     </script>
 @endpush

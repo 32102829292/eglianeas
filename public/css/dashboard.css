@@ -345,6 +345,97 @@
 
 .inline-form { display: inline-flex; gap: 6px; align-items: center; }
 
+/* ---------- Page header bar ---------- */
+.page-header-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.page-header-left h1 { font-family: var(--font-head); font-size: 22px; font-weight: 700; color: var(--navy); margin: 0 0 2px; }
+.page-header-left p { color: var(--text-muted); font-size: 13px; margin: 0; }
+.page-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.page-search { display: flex; gap: 8px; align-items: center; }
+.page-search input {
+  padding: 8px 12px;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  font-size: 13px;
+  background: #fff;
+  min-width: 220px;
+}
+.page-search input:focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(90,179,240,.15); outline: none; }
+
+/* ---------- Dropdown ---------- */
+.dropdown-wrap { position: relative; }
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(0,0,0,.1);
+  z-index: 20;
+  min-width: 190px;
+  overflow: hidden;
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background .12s;
+}
+.dropdown-item:hover { background: var(--bg-alt); }
+
+/* ---------- Compact table ---------- */
+.table-compact td { padding: 8px 14px; }
+.table-compact th { padding: 8px 14px; }
+.col-num { text-align: right; }
+
+/* ---------- Count pill ---------- */
+.count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--bg-alt);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ---------- Empty state ---------- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* ---------- Card data variant ---------- */
+.card-data { padding: 0; }
+.card-data .card-head { padding: 14px 18px 0; margin-bottom: 0; }
+.card-data .table-wrap { border: none; border-radius: 0; }
+.card-data .table-wrap table { border-radius: 0; }
+
 /* ---------- Chatbot rule rows (admin settings) ---------- */
 .rule-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-bottom: 8px; }
 @media (max-width: 560px) { .rule-row { grid-template-columns: 1fr; } }
