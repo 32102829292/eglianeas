@@ -42,8 +42,8 @@ Route::get('/about', function () {
 
 Route::get('/certificates/{certificate}/file', function (\App\Models\CompanyCertificate $certificate) {
     abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($certificate->file_path), 404);
-    $mime = $certificate->mime_type ?: mime_content_type(storage_path('app/' . $certificate->file_path)) ?: 'application/octet-stream';
-    return response()->file(storage_path('app/' . $certificate->file_path), [
+    $mime = $certificate->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($certificate->file_path)) ?: 'application/octet-stream';
+    return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($certificate->file_path), [
         'Content-Type' => $mime,
         'Cache-Control' => 'public, max-age=86400',
     ]);
@@ -91,9 +91,9 @@ Route::middleware('auth')->group(function () {
         abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
         abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
 
-        $mime = $document->mime_type ?: mime_content_type(storage_path('app/' . $document->path)) ?: 'application/octet-stream';
+        $mime = $document->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path)) ?: 'application/octet-stream';
 
-        return response()->file(storage_path('app/' . $document->path), [
+        return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path), [
             'Content-Type' => $mime,
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
@@ -173,8 +173,8 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/distribution/{document}/file', function (\App\Models\Document $document) {
         abort_unless($document->client_id, 404);
         abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
-        $mime = $document->mime_type ?: mime_content_type(storage_path('app/' . $document->path)) ?: 'application/octet-stream';
-        return response()->file(storage_path('app/' . $document->path), [
+        $mime = $document->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path)) ?: 'application/octet-stream';
+        return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path), [
             'Content-Type' => $mime,
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
