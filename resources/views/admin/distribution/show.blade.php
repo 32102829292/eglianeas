@@ -36,6 +36,27 @@
                     </span>
                 </div>
                 <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="clientMap" /></div>
+                <div class="profile-row col-span-2" id="trackRow">
+                    <span class="profile-k">Distance tracker</span>
+                    <span class="profile-v">
+                        <button type="button" class="btn btn-primary btn-sm" id="trackStartBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+                            Track distance to this client
+                        </button>
+                        <div id="trackPanel" hidden>
+                            <div class="track-readout">
+                                <span class="track-arrow" id="trackArrow" title="Direction to client">&#9650;</span>
+                                <span class="track-distance" id="trackDistance">—</span>
+                                <span class="track-direction" id="trackDirection"></span>
+                            </div>
+                            <div class="track-actions">
+                                <a id="trackGmaps" href="#" target="_blank" rel="noopener" class="btn btn-outline btn-sm">Get directions</a>
+                                <button type="button" class="btn btn-outline btn-sm" id="trackStopBtn">Stop tracking</button>
+                            </div>
+                        </div>
+                        <div class="track-error" id="trackError" hidden></div>
+                    </span>
+                </div>
             </div>
         @else
             <p class="card-sub">No location pinned yet.</p>
@@ -353,6 +374,177 @@
                     if (bizAddrHidden && distAddress) bizAddrHidden.value = distAddress.value;
                 });
             }
+
+            /* ===== Distance tracker ===== */
+            var clientLat = @json((float) $profile->latitude);
+            var clientLng = @json((float) $profile->longitude);
+
+            var trackStartBtn = document.getElementById('trackStartBtn');
+            var trackStopBtn = document.getElementById('trackStopBtn');
+            var trackPanel = document.getElementById('trackPanel');
+            var trackError = document.getElementById('trackError');
+            var trackDistanceEl = document.getElementById('trackDistance');
+            var trackDirectionEl = document.getElementById('trackDirection');
+            var trackArrow = document.getElementById('trackArrow');
+            var trackGmaps = document.getElementById('trackGmaps');
+
+            var watchId = null;
+            var adminMarker = null;
+            var trackMap = null;
+
+            function trackShowError(msg) {
+                if (!trackError) return;
+                trackError.textContent = msg;
+                trackError.hidden = false;
+            }
+            function trackHideError() { if (trackError) trackError.hidden = true; }
+
+            function haversineKm(lat1, lon1, lat2, lon2) {
+                var R = 6371;
+                var toRad = function (d) { return d * Math.PI / 180; };
+                var dLat = toRad(lat2 - lat1);
+                var dLon = toRad(lon2 - lon1);
+                var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            }
+
+            function formatDistance(km) {
+                if (km < 1) return Math.round(km * 1000) + ' m away';
+                return km.toFixed(1) + ' km away';
+            }
+
+            function bearingDeg(lat1, lon1, lat2, lon2) {
+                var toRad = function (d) { return d * Math.PI / 180; };
+                var toDeg = function (r) { return r * 180 / Math.PI; };
+                var dLon = toRad(lon2 - lon1);
+                var y = Math.sin(dLon) * Math.cos(toRad(lat2));
+                var x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                        Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+                return (toDeg(Math.atan2(y, x)) + 360) % 360;
+            }
+
+            function bearingCompass(deg) {
+                var dirs = ['North', 'Northeast', 'East', 'Southeast', 'South', 'Southwest', 'West', 'Northwest'];
+                return dirs[Math.round(deg / 45) % 8];
+            }
+
+            function updateTrackReadout(adminLat, adminLng) {
+                var dist = haversineKm(adminLat, adminLng, clientLat, clientLng);
+                var bear = bearingDeg(adminLat, adminLng, clientLat, clientLng);
+
+                if (trackDistanceEl) trackDistanceEl.textContent = formatDistance(dist);
+                if (trackDirectionEl) trackDirectionEl.textContent = 'to the ' + bearingCompass(bear);
+                if (trackArrow) {
+                    trackArrow.style.transform = 'rotate(' + bear + 'deg)';
+                    trackArrow.setAttribute('data-bearing', bear);
+                }
+
+                var gmapsUrl = 'https://www.google.com/maps/dir/' +
+                    encodeURIComponent(adminLat + ',' + adminLng) + '/' +
+                    encodeURIComponent(clientLat + ',' + clientLng);
+                if (trackGmaps) trackGmaps.href = gmapsUrl;
+
+                if (trackMap && adminMarker) {
+                    adminMarker.setLatLng([adminLat, adminLng]);
+                }
+            }
+
+            function startTracking() {
+                trackHideError();
+                if (!navigator.geolocation) {
+                    trackShowError('Geolocation is not supported by your browser.');
+                    return;
+                }
+
+                trackMap = (typeof window.AddressMap === 'object') ? window.AddressMap.getMap('clientMap') : null;
+                if (!trackMap) {
+                    trackShowError('Map not loaded — please refresh the page.');
+                    return;
+                }
+
+                if (trackStartBtn) trackStartBtn.hidden = true;
+                if (trackPanel) trackPanel.hidden = false;
+
+                var navyIcon = L.divIcon({
+                    className: 'track-admin-marker',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        var aLat = pos.coords.latitude;
+                        var aLng = pos.coords.longitude;
+                        adminMarker = L.marker([aLat, aLng], { icon: navyIcon, interactive: false }).addTo(trackMap);
+                        updateTrackReadout(aLat, aLng);
+
+                        var midLat = (aLat + clientLat) / 2;
+                        var midLng = (aLng + clientLng) / 2;
+                        var dist = haversineKm(aLat, aLng, clientLat, clientLng);
+                        var fitZoom = dist < 1 ? 15 : dist < 5 ? 13 : dist < 20 ? 12 : 11;
+                        trackMap.setView([midLat, midLng], fitZoom);
+
+                        watchId = navigator.geolocation.watchPosition(
+                            function (p) { updateTrackReadout(p.coords.latitude, p.coords.longitude); },
+                            function (err) {
+                                if (err.code === err.PERMISSION_DENIED) {
+                                    trackShowError('Location access is needed to track distance — please allow location permission.');
+                                }
+                            },
+                            { enableHighAccuracy: true, maximumAge: 5000 }
+                        );
+                    },
+                    function (err) {
+                        if (err.code === err.PERMISSION_DENIED) {
+                            trackShowError('Location access is needed to track distance — please allow location permission.');
+                        } else if (err.code === err.POSITION_UNAVAILABLE) {
+                            trackShowError('Your location could not be determined. Make sure GPS is enabled.');
+                        } else {
+                            trackShowError('Could not get your location. Please try again.');
+                        }
+                        if (trackStartBtn) trackStartBtn.hidden = false;
+                        if (trackPanel) trackPanel.hidden = true;
+                    },
+                    { enableHighAccuracy: true, timeout: 15000 }
+                );
+            }
+
+            function stopTracking() {
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                if (adminMarker && trackMap) {
+                    trackMap.removeLayer(adminMarker);
+                    adminMarker = null;
+                }
+                if (trackStartBtn) trackStartBtn.hidden = false;
+                if (trackPanel) trackPanel.hidden = true;
+                trackHideError();
+            }
+
+            if (trackStartBtn) trackStartBtn.addEventListener('click', startTracking);
+            if (trackStopBtn) trackStopBtn.addEventListener('click', stopTracking);
+
+            /* ===== DeviceOrientation for compass-relative arrow (optional) ===== */
+            function tryDeviceOrientation() {
+                if (typeof DeviceOrientationEvent !== 'function') return;
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission().then(function (state) {
+                        if (state === 'granted') window.addEventListener('deviceorientation', applyOrientation);
+                    }).catch(function () {});
+                } else {
+                    window.addEventListener('deviceorientation', applyOrientation);
+                }
+            }
+            function applyOrientation(e) {
+                if (e.alpha == null || !trackArrow || (trackPanel && trackPanel.hidden)) return;
+                var bear = parseFloat(trackArrow.getAttribute('data-bearing') || '0');
+                trackArrow.style.transform = 'rotate(' + (bear - e.alpha) + 'deg)';
+            }
+            tryDeviceOrientation();
         })();
     </script>
 @endpush

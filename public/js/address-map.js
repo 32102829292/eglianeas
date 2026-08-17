@@ -18,6 +18,10 @@
 
   /* -------- public API -------- */
   var API = (window.AddressMap = {});
+  var instances = (API._instances = {});
+
+  /** Get a previously created Leaflet map instance by its container id. */
+  API.getMap = function (id) { return instances[id] || null; };
 
   /** Create a read-only map (no dragging, no zoom). */
   API.initReadonly = function (el, lat, lng) {
@@ -35,6 +39,7 @@
     L.tileLayer(TILE, { maxZoom: 19, attribution: ATTR }).addTo(map);
     L.marker([lat, lng]).addTo(map);
     map.setView([lat, lng], DEFAULT_ZOOM);
+    if (el && el.id) instances[el.id] = map;
     return map;
   };
 
@@ -70,6 +75,7 @@
       setMarker(lat, lng);
     }
 
+    if (el && el.id) instances[el.id] = map;
     return { map: map, marker: marker, setMarker: setMarker };
   };
 

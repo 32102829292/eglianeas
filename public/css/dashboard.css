@@ -620,3 +620,12 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .chart-canvas-wrap { position: relative; padding: 8px 0; }
 .chart-canvas-wrap canvas { max-height: 260px; }
 .chart-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 32px 16px; }
+
+/* ---------- Distance tracker ---------- */
+.track-readout { display: inline-flex; align-items: center; gap: 10px; margin-top: 8px; padding: 10px 14px; background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius); }
+.track-arrow { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 18px; color: var(--navy); transition: transform .3s ease; line-height: 1; }
+.track-distance { font-size: 16px; font-weight: 700; color: var(--navy); }
+.track-direction { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.track-actions { display: inline-flex; gap: 8px; margin-top: 8px; }
+.track-error { margin-top: 8px; padding: 8px 12px; background: #fef2f2; border: 1px solid var(--danger); border-radius: var(--radius); color: var(--danger); font-size: 13px; font-weight: 600; }
+.track-admin-marker { background: var(--navy); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--navy), 0 2px 6px rgba(0,0,0,.3); }
