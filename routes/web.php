@@ -40,6 +40,15 @@ Route::get('/about', function () {
     return view('about', compact('about', 'coreValues', 'certificates'));
 })->name('about.public');
 
+Route::get('/certificates/{certificate}/file', function (\App\Models\CompanyCertificate $certificate) {
+    abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($certificate->file_path), 404);
+    $mime = $certificate->mime_type ?: mime_content_type(storage_path('app/' . $certificate->file_path)) ?: 'application/octet-stream';
+    return response()->file(storage_path('app/' . $certificate->file_path), [
+        'Content-Type' => $mime,
+        'Cache-Control' => 'public, max-age=86400',
+    ]);
+})->name('certificates.file');
+
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 

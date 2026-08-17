@@ -81,11 +81,11 @@
             @foreach ($certificates as $cert)
                 <div class="cert-card">
                     @if ($cert->isImage())
-                        <a href="{{ Storage::disk('local')->url($cert->file_path) }}" target="_blank" class="cert-thumb-wrap">
-                            <img src="{{ Storage::disk('local')->url($cert->file_path) }}" alt="{{ $cert->label }}" class="cert-thumb">
+                        <a href="{{ route('certificates.file', $cert) }}" target="_blank" class="cert-thumb-wrap">
+                            <img src="{{ route('certificates.file', $cert) }}" alt="{{ $cert->label }}" class="cert-thumb">
                         </a>
                     @else
-                        <a href="{{ Storage::disk('local')->url($cert->file_path) }}" target="_blank" class="cert-thumb-wrap cert-thumb-pdf">
+                        <a href="{{ route('certificates.file', $cert) }}" target="_blank" class="cert-thumb-wrap cert-thumb-pdf">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg>
                             <span>View PDF</span>
                         </a>
