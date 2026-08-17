@@ -85,7 +85,7 @@
                                 <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="inline-form">
                                     @csrf
                                     <input type="hidden" name="status" value="paid">
-                                    <input type="date" name="paid_at" class="form-control-sm" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
+                                    <input type="date" name="paid_at" class="form-control-inline" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
                                     <button type="submit" class="link">Mark paid</button>
                                 </form>
                             </td>

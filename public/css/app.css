@@ -612,17 +612,6 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .flex { display: flex; } .items-center { align-items: center; } .justify-between { justify-content: space-between; } .gap-2 { gap: 8px; } .gap-3 { gap: 16px; }
 .checkbox-row input { accent-color: var(--navy); cursor: pointer; }
 
-/* Status badges (dashboard) */
-.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
-.badge-filed, .badge-pending, .badge-rejected, .badge-needs_review, .badge-admin, .badge-staff, .badge-client { color: #fff; }
-.badge-filed { background: var(--success); }
-.badge-pending { background: var(--warning); }
-.badge-rejected { background: var(--danger); }
-.badge-needs_review { background: var(--sky-deep); }
-.badge-admin { background: var(--navy); }
-.badge-staff { background: var(--sky-deep); }
-.badge-client { background: var(--text-muted); }
-
 /* Tables */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 table.data { width: 100%; border-collapse: collapse; font-size: 14px; background: #fff; }
