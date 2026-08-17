@@ -159,22 +159,14 @@
                         <input class="form-control" id="business_address" type="text" name="business_address" value="{{ old('business_address', $profile->business_address) }}" placeholder="e.g. 123 Rizal Avenue, Quezon City">
                         @error('business_address')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="latitude">Latitude</label>
-                        <input class="form-control" id="latitude" type="text" name="latitude" value="{{ old('latitude', $profile->latitude) }}" placeholder="14.5995" inputmode="decimal">
-                        @error('latitude')<div class="form-error">{{ $message }}</div>@enderror
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="longitude">Longitude</label>
-                        <input class="form-control" id="longitude" type="text" name="longitude" value="{{ old('longitude', $profile->longitude) }}" placeholder="120.9842" inputmode="decimal">
-                        @error('longitude')<div class="form-error">{{ $message }}</div>@enderror
-                    </div>
+                    <input type="hidden" id="latitude" name="latitude" value="{{ old('latitude', $profile->latitude) }}">
+                    <input type="hidden" id="longitude" name="longitude" value="{{ old('longitude', $profile->longitude) }}">
                     <div class="form-group col-span-2">
                         <button type="button" class="btn btn-outline btn-sm" id="locateAddressBtn">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                             Locate address
                         </button>
-                        <div class="form-hint">Coordinates are auto-filled from the business address above. You can drag the pin or edit the numbers to adjust.</div>
+                        <div class="form-hint">Coordinates are set automatically from the business address above. Drag the map pin to adjust.</div>
                         <div class="form-hint geo-status" id="geoStatus" hidden></div>
                         <div class="map-preview" id="mapPreview" hidden></div>
                     </div>
@@ -189,8 +181,6 @@
         @else
             <div class="profile-grid">
                 <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">Latitude</span><span class="profile-v">{{ $profile->latitude ?? '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">Longitude</span><span class="profile-v">{{ $profile->longitude ?? '—' }}</span></div>
                 @if ($profile->latitude !== null && $profile->longitude !== null)
                     <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="mapView" /></div>
                 @endif

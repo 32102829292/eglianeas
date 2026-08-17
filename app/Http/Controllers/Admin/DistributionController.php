@@ -199,11 +199,24 @@ class DistributionController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
         $validated = $request->validate([
-            'latitude' => ['required', 'numeric', 'between:-90,90'],
-            'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'business_address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
         ]);
 
         $profile = $client->getClientProfile();
+
+        $address = $validated['business_address'] ?? $profile->business_address;
+        $hasCoords = ! empty($validated['latitude']) && ! empty($validated['longitude']);
+
+        if ($address && ! $hasCoords) {
+            $coords = $this->geocodeAddress($address);
+            if ($coords) {
+                $validated['latitude'] = $coords['lat'];
+                $validated['longitude'] = $coords['lng'];
+            }
+        }
+
         $profile->update($validated);
 
         return back()->with('status', 'Client location updated.');
@@ -259,6 +272,53 @@ class DistributionController extends Controller
             return response()->json($data);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Geocoding request failed.'], 500);
+        }
+    }
+
+    private function geocodeAddress(string $address): ?array
+    {
+        $query = str_contains(strtolower($address), 'philippines')
+            ? $address
+            : $address.', Philippines';
+
+        $cacheKey = 'geocode:'.md5(strtolower(trim($query)));
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && isset($cached['lat'], $cached['lng'])) {
+            return $cached;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
+                'Accept' => 'application/json',
+            ])->timeout(8)->get('https://nominatim.openstreetmap.org/search', [
+                'q' => $query,
+                'format' => 'jsonv2',
+                'limit' => 1,
+                'countrycodes' => 'ph',
+            ]);
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            $results = $response->json();
+            if (empty($results[0])) {
+                return null;
+            }
+
+            $place = $results[0];
+            $data = [
+                'lat' => (float) $place['lat'],
+                'lng' => (float) $place['lon'],
+                'display_name' => $place['display_name'] ?? '',
+            ];
+
+            Cache::put($cacheKey, $data, now()->addDay());
+
+            return $data;
+        } catch (\Throwable) {
+            return null;
         }
     }
 }

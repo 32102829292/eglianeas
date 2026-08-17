@@ -28,8 +28,13 @@
         @if ($profile?->latitude !== null && $profile?->longitude !== null)
             <div class="profile-grid">
                 <div class="profile-row col-span-2"><span class="profile-k">Address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">Latitude</span><span class="profile-v">{{ $profile->latitude }}</span></div>
-                <div class="profile-row"><span class="profile-k">Longitude</span><span class="profile-v">{{ $profile->longitude }}</span></div>
+                <div class="profile-row col-span-2" id="coordToggleRow">
+                    <span class="profile-k">Coordinates</span>
+                    <span class="profile-v">
+                        <button type="button" class="btn btn-outline btn-sm" id="coordToggleBtn" onclick="var el=document.getElementById('coordValues'); el.hidden=!el.hidden; this.textContent=el.hidden?'Show':'Hide';">Show</button>
+                        <span id="coordValues" hidden>{{ $profile->latitude }}, {{ $profile->longitude }}</span>
+                    </span>
+                </div>
                 <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="clientMap" /></div>
             </div>
         @else
@@ -37,6 +42,7 @@
             <div class="form-hint mb-2">Ask the client to pin their business address in their Profile, or set it manually below.</div>
             <form method="POST" action="{{ route('admin.distribution.update-location', $client) }}" id="locationForm">
                 @csrf
+                <input type="hidden" name="business_address" value="{{ $profile->business_address ?? '' }}">
                 <div class="form-grid two">
                     <div class="form-group">
                         <label class="form-label" for="bizAddress">Business address</label>
@@ -50,13 +56,22 @@
                         </button>
                         <div class="form-hint geo-status" id="distGeoStatus" hidden></div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="distLat">Latitude</label>
-                        <input class="form-control" id="distLat" name="latitude" type="text" placeholder="14.5995" inputmode="decimal">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="distLng">Longitude</label>
-                        <input class="form-control" id="distLng" name="longitude" type="text" placeholder="120.9842" inputmode="decimal">
+                    <input type="hidden" id="distLat" name="latitude">
+                    <input type="hidden" id="distLng" name="longitude">
+                    <div class="form-group col-span-2">
+                        <button type="button" class="btn btn-outline btn-sm" onclick="var el=document.getElementById('distCoordValues'); el.hidden=!el.hidden; this.textContent=el.hidden?'Show coordinates':'Hide coordinates';">Show coordinates</button>
+                        <div id="distCoordValues" hidden style="margin-top:8px;">
+                            <div class="form-grid two">
+                                <div class="form-group">
+                                    <label class="form-label" for="distLatDisplay">Latitude</label>
+                                    <input class="form-control" id="distLatDisplay" type="text" placeholder="14.5995" inputmode="decimal">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="distLngDisplay">Longitude</label>
+                                    <input class="form-control" id="distLngDisplay" type="text" placeholder="120.9842" inputmode="decimal">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group col-span-2">
                         <div class="map-preview" id="distMap" hidden></div>
@@ -250,10 +265,31 @@
             var distMapEl = document.getElementById('distMap');
             var distLat = document.getElementById('distLat');
             var distLng = document.getElementById('distLng');
+            var distLatDisplay = document.getElementById('distLatDisplay');
+            var distLngDisplay = document.getElementById('distLngDisplay');
             var distGeoStatus = document.getElementById('distGeoStatus');
             var distLocateBtn = document.getElementById('distLocateBtn');
             var distAddress = document.getElementById('bizAddress');
             var distInstance = null;
+
+            function distSyncDisplay() {
+                if (distLatDisplay && distLat) distLatDisplay.value = distLat.value || '';
+                if (distLngDisplay && distLng) distLngDisplay.value = distLng.value || '';
+            }
+
+            function distSyncHidden() {
+                if (distLat && distLatDisplay && distLatDisplay.value) distLat.value = distLatDisplay.value;
+                if (distLng && distLngDisplay && distLngDisplay.value) distLng.value = distLngDisplay.value;
+            }
+
+            if (distLatDisplay) {
+                distLatDisplay.addEventListener('input', distSyncHidden);
+                distLatDisplay.addEventListener('change', distSyncHidden);
+            }
+            if (distLngDisplay) {
+                distLngDisplay.addEventListener('input', distSyncHidden);
+                distLngDisplay.addEventListener('change', distSyncHidden);
+            }
 
             function distShowGeo(msg, isError) {
                 if (!distGeoStatus) return;
@@ -265,11 +301,13 @@
             function distMapPin(lat, lng) {
                 if (distLat) distLat.value = Number(lat).toFixed(6);
                 if (distLng) distLng.value = Number(lng).toFixed(6);
+                distSyncDisplay();
             }
 
             function distSetPin(lat, lng) {
                 if (distLat) distLat.value = Number(lat).toFixed(6);
                 if (distLng) distLng.value = Number(lng).toFixed(6);
+                distSyncDisplay();
                 if (distMapEl) distMapEl.hidden = false;
 
                 if (typeof window.AddressMap === 'object' && typeof window.AddressMap.initInteractive === 'function') {
@@ -283,6 +321,8 @@
 
             if (distLocateBtn) {
                 distLocateBtn.addEventListener('click', function () {
+                    var bizAddrHidden = document.querySelector('input[name="business_address"]');
+                    if (bizAddrHidden && distAddress) bizAddrHidden.value = distAddress.value;
                     var q = (distAddress ? distAddress.value : '').trim();
                     if (!q) { distShowGeo('Enter an address first.', true); return; }
                     distShowGeo('Locating…', false);
@@ -303,6 +343,14 @@
                         }
                     })
                     .catch(function () { distShowGeo('Request failed.', true); });
+                });
+            }
+
+            var locForm = document.getElementById('locationForm');
+            if (locForm) {
+                locForm.addEventListener('submit', function () {
+                    var bizAddrHidden = document.querySelector('input[name="business_address"]');
+                    if (bizAddrHidden && distAddress) bizAddrHidden.value = distAddress.value;
                 });
             }
         })();
