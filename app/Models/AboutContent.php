@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class AboutContent extends Model
 {
+    protected $table = 'about_content';
+
     protected $fillable = ['mission', 'vision'];
 
     public static function instance(): static
