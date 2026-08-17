@@ -61,16 +61,16 @@
 
     <div class="card">
         <div class="table-wrap">
-            <table class="table">
-                <thead>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
                         <th>Business</th>
                         <th>Contact</th>
-                        <th>Bills</th>
-                        <th>Total billed</th>
-                        <th>Outstanding</th>
-                        <th>Status</th>
-                        <th class="actions-cell">Actions</th>
+                        <th class="text-center">Bills</th>
+                        <th class="text-end">Total billed</th>
+                        <th class="text-end">Outstanding</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -78,36 +78,37 @@
                         @php($client = $entry['user'])
                         <tr>
                             <td>
-                                <div class="cell-name">{{ $client->business_name ?: $client->name }}</div>
-                                <small class="muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
+                                <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
+                                <small class="text-muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
                             </td>
                             <td>
-                                <div class="cell-name">{{ $client->name }}</div>
-                                <small class="muted">{{ $client->email }}</small>
+                                <div class="fw-semibold">{{ $client->name }}</div>
+                                <small class="text-muted">{{ $client->email }}</small>
                             </td>
-                            <td>{{ $entry['billing_count'] }}</td>
-                            <td><b>{{ '₱'.number_format($entry['total_billed'], 2) }}</b></td>
-                            <td>
+                            <td class="text-center">{{ $entry['billing_count'] }}</td>
+                            <td class="text-end fw-semibold">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
+                            <td class="text-end">
                                 @if ($entry['outstanding'] > 0)
-                                    <b class="text-danger">₱{{ number_format($entry['outstanding'], 2) }}</b>
+                                    <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
-                                    <span class="muted">—</span>
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td>
+                            <td class="text-center">
                                 @if ($entry['status'] === 'none')
-                                    <span class="badge badge-neutral">No billing</span>
+                                    <span class="badge bg-secondary">No billing</span>
                                 @else
-                                    <span class="badge badge-{{ $entry['status'] }}">{{ App\Models\Billing::STATUSES[$entry['status']] }}</span>
+                                    @php($s = $entry['status'])
+                                    <span class="badge @if($s==='current') bg-success @elseif($s==='delinquent') bg-warning text-dark @elseif($s==='critical') bg-danger @else bg-secondary @endif">{{ App\Models\Billing::STATUSES[$s] }}</span>
                                 @endif
                             </td>
-                            <td class="actions-cell">
-                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline btn-sm">Open billing</a>
-                                <a href="{{ route('admin.billing.clientCsv', $client) }}" class="link">CSV</a>
+                            <td class="text-end">
+                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing</a>
+                                <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-link btn-sm">CSV</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty-cell">No clients found.</td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

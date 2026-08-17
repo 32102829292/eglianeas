@@ -44,31 +44,32 @@
 
     <div class="card">
         <div class="table-wrap">
-            <table class="table">
-                <thead>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
                         <th>Business</th>
                         <th>Period</th>
-                        <th>Total</th>
-                        <th>Status</th>
+                        <th class="text-end">Total</th>
+                        <th class="text-center">Status</th>
                         <th>Due date</th>
-                        <th class="actions-cell">Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($billings as $billing)
                         <tr>
                             <td>
-                                <div class="cell-name">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
-                                <small class="muted">{{ $billing->client?->name }}</small>
+                                <div class="fw-semibold">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
+                                <small class="text-muted">{{ $billing->client?->name }}</small>
                             </td>
                             <td>
-                                <div class="cell-name">{{ $billing->periodTitleUppercase() }} BILLING</div>
-                                <small class="muted">{{ $billing->period_label }}</small>
+                                <div class="fw-semibold">{{ $billing->periodTitleUppercase() }} BILLING</div>
+                                <small class="text-muted">{{ $billing->period_label }}</small>
                             </td>
-                            <td><b>{{ $billing->money($billing->total) }}</b></td>
-                            <td>
-                                <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>
+                            <td class="text-end fw-semibold">{{ $billing->money($billing->total) }}</td>
+                            <td class="text-center">
+                                @php($s = $billing->status)
+                                <span class="badge @if($s==='paid') bg-success @elseif($s==='unpaid') bg-danger @elseif($s==='overdue') bg-danger @elseif($s==='pending') bg-warning text-dark @else bg-secondary @endif">{{ $billing->statusLabel() }}</span>
                             </td>
                             <td>
                                 {{ $billing->due_date?->format('M j, Y') ?? '—' }}
@@ -76,22 +77,22 @@
                                     <div><small class="text-danger">{{ $billing->due_date?->diffForHumans() }}</small></div>
                                 @endif
                             </td>
-                            <td class="actions-cell">
-                                <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>
-                                <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="inline-form">
+                            <td class="text-end">
+                                <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a>
+                                <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">
                                     @csrf
-                                    <button type="submit" class="link">Send reminder</button>
+                                    <button type="submit" class="btn btn-link btn-sm">Send reminder</button>
                                 </form>
-                                <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="inline-form">
+                                <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">
                                     @csrf
                                     <input type="hidden" name="status" value="paid">
-                                    <input type="date" name="paid_at" class="form-control-inline" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
-                                    <button type="submit" class="link">Mark paid</button>
+                                    <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
+                                    <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
                                 </form>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="empty-cell">Nothing to collect right now.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">Nothing to collect right now.</td></tr>
                     @endforelse
                 </tbody>
             </table>

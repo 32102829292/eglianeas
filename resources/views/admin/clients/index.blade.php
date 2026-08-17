@@ -37,16 +37,16 @@
             <span class="card-title">All Clients <span class="count-pill">{{ $clients->count() }}</span></span>
         </div>
         <div class="table-wrap">
-            <table class="table table-compact">
-                <thead>
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
                     <tr>
                         <th>Business</th>
                         <th>Contact</th>
-                        <th>Status</th>
-                        <th>Payment</th>
-                        <th class="col-num">Outstanding</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center">Payment</th>
+                        <th class="text-end">Outstanding</th>
                         <th>Since</th>
-                        <th class="actions-cell">Actions</th>
+                        <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,43 +54,40 @@
                         @php($client = $entry['user'])
                         <tr data-filter-row>
                             <td>
-                                <div class="cell-name">{{ $client->business_name ?: $client->name }}</div>
-                                <small class="muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
+                                <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
+                                <small class="text-muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
                             </td>
                             <td>
-                                <div class="cell-name">{{ $client->name }}</div>
-                                <small class="muted">{{ $client->email }}</small>
+                                <div class="fw-semibold">{{ $client->name }}</div>
+                                <small class="text-muted">{{ $client->email }}</small>
                             </td>
-                            <td>
-                                <span class="badge badge-{{ $entry['status'] }}">{{ $statuses[$entry['status']] ?? $entry['status'] }}</span>
+                            <td class="text-center">
+                                @php($s = $entry['status'])
+                                <span class="badge @if($s==='current') bg-success @elseif($s==='delinquent') bg-warning text-dark @elseif($s==='critical') bg-danger @else bg-secondary @endif">{{ $statuses[$s] ?? $s }}</span>
                             </td>
-                            <td>
+                            <td class="text-center">
                                 @if ($entry['payment_status'])
-                                    <span class="badge badge-{{ $entry['payment_status'] }}">{{ ucfirst($entry['payment_status']) }}</span>
+                                    @php($p = $entry['payment_status'])
+                                    <span class="badge @if($p==='paid') bg-success @elseif($p==='unpaid') bg-danger @elseif($p==='partial') bg-warning text-dark @else bg-secondary @endif">{{ ucfirst($p) }}</span>
                                 @else
-                                    <span class="muted">—</span>
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td class="col-num">
+                            <td class="text-end">
                                 @if ($entry['outstanding'] > 0)
-                                    <b class="text-danger">₱{{ number_format($entry['outstanding'], 2) }}</b>
+                                    <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
-                                    <span class="muted">—</span>
+                                    <span class="text-muted">—</span>
                                 @endif
                             </td>
                             <td>{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</td>
-                            <td class="actions-cell">
-                                <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline btn-sm">View</a>
-                                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                            <td class="text-end">
+                                <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a>
+                                <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty-cell">
-                            <div class="empty-state">
-                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:.4;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                <div>No clients found.</div>
-                            </div>
-                        </td></tr>
+                        <tr><td colspan="7" class="text-center text-muted py-4">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>

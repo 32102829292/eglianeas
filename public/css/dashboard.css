@@ -250,38 +250,16 @@
 .status-value { font-weight: 800; text-transform: uppercase; font-size: 13px; letter-spacing: .06em; }
 .status-note { margin-left: auto; font-size: 12.5px; font-weight: 500; opacity: .85; }
 
-/* ---------- Tables ---------- */
+/* ---------- Tables (Bootstrap overrides) ---------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th {
-  text-align: left;
-  padding: 10px 14px;
-  background: var(--bg-alt);
-  color: var(--text-muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  border-bottom: 2px solid var(--border);
-  font-weight: 700;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-.table tbody tr:nth-child(even) td { background: #fafbfc; }
+.table { font-size: 14px; }
+.table th { font-size: 11px; letter-spacing: .04em; }
+.table td { vertical-align: middle; }
 .table tbody tr:last-child td { border-bottom: none; }
-.table tbody tr:hover td { background: var(--sky-soft); }
-.cell-name { font-weight: 600; color: var(--navy); }
-.amount-income { color: var(--success); font-weight: 700; }
-.amount-expense { color: var(--danger); font-weight: 700; }
-.ok-dot, .pending-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.ok-dot { background: var(--success); }
-.pending-dot { background: var(--warning); }
-.empty-cell { padding: 32px 14px; text-align: center; color: var(--text-muted); font-size: 13px; }
-.actions-cell { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; }
+.table .fw-semibold { font-weight: 600; }
 
-/* ---------- Badges ---------- */
-.badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; line-height: 1.4; white-space: nowrap; }
+/* ---------- Badges (Bootstrap overrides + legacy custom classes) ---------- */
+.badge { letter-spacing: .03em; }
 .badge-current, .badge-paid, .badge-reviewed, .badge-filed { background: var(--success); color: #fff; }
 .badge-pending, .badge-needs_review { background: var(--warning); color: #fff; }
 .badge-delinquent { background: #F08C2E; color: #fff; }
