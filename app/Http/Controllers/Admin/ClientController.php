@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\ClientProfile;
+use App\Models\MasterlistExportLog;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class ClientController extends Controller
@@ -51,6 +53,115 @@ class ClientController extends Controller
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
         ]);
+    }
+
+    public function exportCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        $q = trim((string) $request->get('q'));
+        $clients = $this->getFilteredClients($q);
+
+        $this->logExport('csv', $clients->count(), $q);
+
+        $filename = 'Egliane-Client-Masterlist-' . now()->format('Y-m-d') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+        ];
+
+        return response()->stream(function () use ($clients) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business',
+                'BIR Registration Type', 'Business Address', 'Contact Information', 'Contact No.',
+                'Email Address', 'Second Contact Information', '2nd Person Contact No.',
+                '2nd Person Email Address', 'Birth Date', 'Birth Date', 'TIN No.',
+                "Mother's Maiden Name", "Father's Name", 'Status', 'Payment Status', 'Date Started', 'Remarks',
+            ]);
+
+            foreach ($clients as $client) {
+                $p = $client->profile;
+                fputcsv($handle, [
+                    $client->client_code ?? '',
+                    $client->name,
+                    $client->business_name ?? '',
+                    $p?->business_type ?? '',
+                    $p?->line_of_business ?? '',
+                    $p?->bir_registration_type ?? '',
+                    $p?->business_address ?? '',
+                    $p?->contact_no ?? '',
+                    $p?->contact_no ?? '',
+                    $client->email,
+                    $p?->second_contact_no ?? '',
+                    $p?->second_contact_no ?? '',
+                    $p?->second_email ?? '',
+                    $p?->birth_date?->format('m/d/Y') ?? '',
+                    $p?->birth_date?->format('m/d/Y') ?? '',
+                    $p?->tin_no ?? '',
+                    $p?->mother_maiden_name ?? '',
+                    $p?->father_name ?? '',
+                    $p?->statusLabel() ?? '',
+                    $p?->paymentStatusLabel() ?? '',
+                    $p?->date_started?->format('m/d/Y') ?? '',
+                    $p?->remarks ?? '',
+                ]);
+            }
+
+            fclose($handle);
+        }, 200, $headers);
+    }
+
+    public function exportPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $q = trim((string) $request->get('q'));
+        $clients = $this->getFilteredClients($q);
+
+        $this->logExport('pdf', $clients->count(), $q);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.masterlist-pdf', [
+            'clients' => $clients,
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'Egliane-Client-Masterlist-' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    private function getFilteredClients(string $q): Collection
+    {
+        return User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->with('profile')
+            ->when($q !== '', function ($query) use ($q) {
+                $query->where(function ($query) use ($q) {
+                    $query->where('name', 'like', "%{$q}%")
+                        ->orWhere('business_name', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->get()
+            ->sortBy(fn (User $client) => strtolower($client->business_name ?: $client->name))
+            ->values();
+    }
+
+    private function logExport(string $format, int $count, string $query): void
+    {
+        MasterlistExportLog::create([
+            'admin_id' => auth()->id(),
+            'format' => $format,
+            'client_count' => $count,
+            'filter_query' => $query ?: null,
+            'exported_at' => now(),
+        ]);
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.masterlist_exported',
+            "Exported client masterlist as {$format} ({$count} clients)."
+        );
     }
 
     public function show(User $client): View
