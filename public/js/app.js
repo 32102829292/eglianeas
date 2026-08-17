@@ -1,0 +1,426 @@
+/* Egliane Accounting Services — global app logic */
+(function () {
+  'use strict';
+
+  var E = (window.egliane = window.egliane || {});
+
+  /* ---------- Install prompt ---------- */
+  E.deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    E.deferredPrompt = e;
+    window.dispatchEvent(new CustomEvent('egliane:installable'));
+  });
+
+  /* ---------- Service worker ---------- */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+  }
+
+  /* ---------- Offline banner + connectivity ---------- */
+  var banner = document.getElementById('offlineBanner');
+
+  function updateOnlineState() {
+    var offline = !navigator.onLine;
+    if (banner) banner.classList.toggle('show', offline);
+    document.body.classList.toggle('is-offline', offline);
+    window.dispatchEvent(new CustomEvent('egliane:connectivity', { detail: { offline: offline } }));
+  }
+
+  window.addEventListener('online', function () {
+    updateOnlineState();
+    E.flushOutbox();
+    E.flushUploads();
+  });
+  window.addEventListener('offline', updateOnlineState);
+  updateOnlineState();
+
+  /* ---------- Toast ---------- */
+  var toastEl = null;
+  E.toast = function (message) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(E.toast._t);
+    E.toast._t = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 3200);
+  };
+
+  /* ---------- Mobile nav toggle ---------- */
+  var navToggle = document.getElementById('navToggle');
+  var mobileNav = document.getElementById('mobileNav');
+  if (navToggle && mobileNav) {
+    navToggle.addEventListener('click', function () {
+      mobileNav.classList.toggle('open');
+    });
+  }
+
+  /* ---------- Notification bell dropdown ---------- */
+  var bellBtn = document.getElementById('bellBtn');
+  var bellDropdown = document.getElementById('bellDropdown');
+  if (bellBtn && bellDropdown) {
+    bellBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var open = bellDropdown.classList.toggle('open');
+      bellBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (e) {
+      if (bellDropdown.classList.contains('open') && !e.target.closest('#bellWrap')) {
+        bellDropdown.classList.remove('open');
+        bellBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && bellDropdown.classList.contains('open')) {
+        bellDropdown.classList.remove('open');
+        bellBtn.setAttribute('aria-expanded', 'false');
+        bellBtn.focus();
+      }
+    });
+  }
+
+  /* ---------- Mobile drawer ---------- */
+  var hamburger = document.getElementById('hamburgerBtn');
+  var drawer = document.getElementById('dashDrawer');
+  var backdrop = document.getElementById('dashDrawerBackdrop');
+  var drawerClose = document.getElementById('drawerClose');
+
+  function setDrawer(open) {
+    if (!drawer || !backdrop) return;
+    drawer.classList.toggle('open', open);
+    backdrop.classList.toggle('open', open);
+    if (hamburger) hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.body.style.overflow = open ? 'hidden' : '';
+  }
+
+  if (hamburger) hamburger.addEventListener('click', function () { setDrawer(true); });
+  if (drawerClose) drawerClose.addEventListener('click', function () { setDrawer(false); });
+  if (backdrop) backdrop.addEventListener('click', function () { setDrawer(false); });
+  if (drawer) {
+    drawer.addEventListener('click', function (e) {
+      if (e.target.closest('a')) setDrawer(false);
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer && drawer.classList.contains('open')) setDrawer(false);
+  });
+
+  /* ---------- Announcement dismiss ---------- */
+  var annClose = document.getElementById('announcementClose');
+  if (annClose) {
+    annClose.addEventListener('click', function () {
+      var bar = document.getElementById('announcementBar');
+      if (bar) bar.style.display = 'none';
+      try { localStorage.setItem('egliane:announcement:dismissed', '1'); } catch (e) {}
+    });
+  }
+
+  /* ---------- PWA install button ---------- */
+  document.addEventListener('egliane:installable', function () {
+    var installBtns = document.querySelectorAll('[data-install]');
+    for (var i = 0; i < installBtns.length; i++) {
+      installBtns[i].classList.remove('hidden');
+    }
+  });
+  document.addEventListener('click', function (e) {
+    var target = e.target.closest('[data-install]');
+    if (target && E.deferredPrompt) {
+      e.preventDefault();
+      E.deferredPrompt.prompt();
+      E.deferredPrompt.userChoice.then(function () {
+        E.deferredPrompt = null;
+        target.classList.add('hidden');
+      });
+    }
+  });
+
+  /* ---------- Offline action queue (outbox) ---------- */
+  E.getOutbox = function () {
+    try {
+      return JSON.parse(localStorage.getItem('egliane:outbox') || '[]');
+    } catch (e) {
+      return [];
+    }
+  };
+
+  E.pushOutbox = function (item) {
+    var queue = E.getOutbox();
+    var entry = { id: 'm' + Date.now(), at: Date.now() };
+    for (var key in item) {
+      if (Object.prototype.hasOwnProperty.call(item, key)) entry[key] = item[key];
+    }
+    queue.push(entry);
+    try { localStorage.setItem('egliane:outbox', JSON.stringify(queue)); } catch (e) {}
+  };
+
+  E.flushOutbox = function () {
+    var queue = E.getOutbox();
+    if (!queue.length) return;
+    try {
+      localStorage.setItem('egliane:outbox', '[]');
+      E.toast(queue.length + ' pending message(s) synced.');
+    } catch (e) {}
+  };
+
+  /* ---------- Offline document uploads (IndexedDB outbox) ---------- */
+  var uploadDB = null;
+  function openUploadDB() {
+    return new Promise(function (resolve, reject) {
+      if (uploadDB) { resolve(uploadDB); return; }
+      if (!('indexedDB' in window)) { reject(new Error('no indexeddb')); return; }
+      var req = indexedDB.open('egliane-uploads', 1);
+      req.onupgradeneeded = function () {
+        req.result.createObjectStore('uploads', { keyPath: 'id' });
+      };
+      req.onsuccess = function () {
+        uploadDB = req.result;
+        resolve(uploadDB);
+      };
+      req.onerror = function () { reject(req.error); };
+    });
+  }
+
+  E.queueUpload = function (item) {
+    return openUploadDB().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction('uploads', 'readwrite');
+        tx.objectStore('uploads').put(item);
+        tx.oncomplete = resolve;
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  };
+
+  function removeUpload(id) {
+    return openUploadDB().then(function (db) {
+      return new Promise(function (resolve) {
+        var tx = db.transaction('uploads', 'readwrite');
+        tx.objectStore('uploads').delete(id);
+        tx.oncomplete = resolve;
+      });
+    });
+  }
+
+  E.flushUploads = function () {
+    if (!('indexedDB' in window) || !navigator.onLine) return;
+    openUploadDB().then(function (db) {
+      var tx = db.transaction('uploads', 'readonly');
+      var req = tx.objectStore('uploads').getAll();
+      req.onsuccess = function () {
+        var items = req.result || [];
+        if (!items.length) return;
+        var token = document.querySelector('meta[name="csrf-token"]');
+        token = token ? token.getAttribute('content') : '';
+        items.forEach(function (item) {
+          var fd = new FormData();
+          fd.append('_token', token);
+          fd.append('file', item.file, item.file.name || 'file');
+          fd.append('notes', item.notes || '');
+          fetch(item.url, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function (res) {
+              if (res.ok) {
+                removeUpload(item.id);
+                E.toast('Queued upload "' + (item.file.name || 'file') + '" synced.');
+                return;
+              }
+              throw new Error('upload failed');
+            })
+            .catch(function () { /* keep queued, retry later */ });
+        });
+      };
+    }).catch(function () {});
+  };
+
+  /* ---------- Offline document upload form intercept ---------- */
+  var uploadForm = document.getElementById('uploadForm');
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', function (e) {
+      if (navigator.onLine) return;
+      e.preventDefault();
+      var fileInput = uploadForm.querySelector('input[type=file]');
+      var notesInput = uploadForm.querySelector('[name=notes]');
+      var file = fileInput && fileInput.files && fileInput.files[0];
+      if (!file) { E.toast('Choose a file first.'); return; }
+      E.queueUpload({
+        id: 'u' + Date.now(),
+        url: uploadForm.action,
+        file: file,
+        notes: notesInput ? notesInput.value : ''
+      }).then(function () {
+        uploadForm.reset();
+        E.toast('You are offline — file queued. It uploads automatically when you reconnect.');
+      }).catch(function () {
+        E.toast('Could not queue the file. Please try again.');
+      });
+    });
+  }
+
+  if (navigator.onLine) E.flushUploads();
+
+  /* ---------- Chatbot ---------- */
+  function Chatbot(opts) {
+    this.opts = opts || {};
+    this.cfg = null;
+    this.open = false;
+    this.messagesEl = null;
+    this.widgetEl = null;
+    this.fabEl = null;
+    this.lastRuleHit = false;
+    this.offline = !navigator.onLine;
+    this.build();
+    this.loadConfig();
+    this.bindConnectivity();
+    this.showWelcome();
+  }
+
+  Chatbot.prototype.build = function () {
+    var self = this;
+
+    this.fabEl = document.getElementById('chatFab');
+    this.widgetEl = document.getElementById('chatWidget');
+
+    if (!this.fabEl || !this.widgetEl) return;
+
+    this.fabEl.addEventListener('click', function () { self.toggle(true); });
+
+    var closeBtn = this.widgetEl.querySelector('.close-chat');
+    if (closeBtn) closeBtn.addEventListener('click', function () { self.toggle(false); });
+
+    this.messagesEl = this.widgetEl.querySelector('.chat-messages');
+    this.inputEl = this.widgetEl.querySelector('#chatInput');
+    this.sendBtn = this.widgetEl.querySelector('#chatSend');
+
+    var quickBtns = this.widgetEl.querySelectorAll('.chat-quick button');
+    for (var i = 0; i < quickBtns.length; i++) {
+      (function (btn) {
+        btn.addEventListener('click', function () {
+          self.userSay(btn.getAttribute('data-q') || btn.textContent);
+        });
+      })(quickBtns[i]);
+    }
+
+    this.sendBtn.addEventListener('click', function () { self.userSay(self.inputEl.value); });
+    this.inputEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') self.userSay(self.inputEl.value);
+    });
+  };
+
+  Chatbot.prototype.bindConnectivity = function () {
+    var self = this;
+    window.addEventListener('egliane:connectivity', function (ev) {
+      self.offline = ev.detail.offline;
+      if (self.inputEl) self.inputEl.disabled = self.offline;
+      if (self.sendBtn) self.sendBtn.disabled = self.offline;
+    });
+  };
+
+  Chatbot.prototype.loadConfig = function () {
+    var self = this;
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem('egliane:chatbot:cfg')); } catch (e) {}
+
+    if (cached) this.cfg = cached;
+
+    fetch('/chatbot/config')
+      .then(function (res) { return res.json(); })
+      .then(function (cfg) {
+        self.cfg = cfg;
+        try { localStorage.setItem('egliane:chatbot:cfg', JSON.stringify(cfg)); } catch (e) {}
+      })
+      .catch(function () { /* offline: keep cached cfg */ });
+  };
+
+  Chatbot.prototype.toggle = function (open) {
+    if (typeof open !== 'boolean') open = !this.open;
+    this.open = open;
+    if (this.widgetEl) this.widgetEl.classList.toggle('open', open);
+    if (open && this.inputEl) setTimeout(function () { this.inputEl.focus(); }.bind(this), 250);
+  };
+
+  Chatbot.prototype.showWelcome = function () {
+    var cfg = this.cfg;
+    var text = cfg && cfg.welcome_message ? cfg.welcome_message : 'Hello! How can I help you today?';
+    this.addMessage(text, 'bot');
+  };
+
+  Chatbot.prototype.addMessage = function (text, who, extra) {
+    if (!this.messagesEl) return;
+    var div = document.createElement('div');
+    div.className = 'msg msg-' + who;
+    var time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    div.innerHTML = text;
+    if (extra) div.classList.add(extra);
+    var meta = document.createElement('span');
+    meta.className = 'meta';
+    meta.textContent = time;
+    div.appendChild(meta);
+    this.messagesEl.appendChild(div);
+    this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
+    return div;
+  };
+
+  Chatbot.prototype.userSay = function (raw) {
+    if (!raw || !raw.trim()) return;
+    var text = raw.trim();
+    this.inputEl.value = '';
+    this.addMessage(this.escape(text), 'user');
+
+    if (this.offline) {
+      E.pushOutbox({ type: 'chat', text: text });
+      var queued = this.addMessage('You are offline — your message is queued and will sync when you reconnect.', 'bot', 'pending');
+      this.addMessage(this.respondTo(text), 'bot');
+      return;
+    }
+
+    var pending = this.addMessage('…', 'bot', 'pending');
+    var self = this;
+    setTimeout(function () {
+      if (pending && pending.parentNode) pending.parentNode.removeChild(pending);
+      self.addMessage(self.respondTo(text), 'bot');
+    }, 420);
+  };
+
+  Chatbot.prototype.respondTo = function (text) {
+    var cfg = this.cfg;
+    var rules = (cfg && cfg.rules) || [];
+    var normalized = text.toLowerCase();
+
+    for (var i = 0; i < rules.length; i++) {
+      var rule = rules[i];
+      if (!rule || !rule.keywords) continue;
+      for (var k = 0; k < rule.keywords.length; k++) {
+        if (normalized.indexOf(rule.keywords[k].toLowerCase()) !== -1) {
+          return this.markdown(rule.response);
+        }
+      }
+    }
+
+    var fb = (cfg && cfg.fallback_message) || "I'm not sure about that one yet.";
+    var url = (cfg && cfg.messenger_url) || 'https://www.facebook.com/profile.php?id=100063691286931';
+    return this.markdown(fb) +
+      '<br><br><a href="' + url + '" target="_blank" rel="noopener">Message us on Messenger →</a>';
+  };
+
+  Chatbot.prototype.markdown = function (text) {
+    return this.escape(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  };
+
+  Chatbot.prototype.escape = function (text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var root = document.getElementById('chatWidget');
+    if (root) window.egliane.chatbot = new Chatbot(root.getAttribute('data-config'));
+  });
+})();

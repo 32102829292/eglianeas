@@ -1,0 +1,132 @@
+/* Egliane Accounting Services — Service Worker (hand-rolled) */
+
+const VERSION = 'egliane-v2';
+const SHELL_CACHE = 'egliane-shell-' + VERSION;
+const DATA_CACHE = 'egliane-data-' + VERSION;
+
+const SHELL_ASSETS = [
+  '/',
+  '/offline.html',
+  '/manifest.json',
+  '/css/app.css',
+  '/css/auth.css',
+  '/css/dashboard.css',
+  '/js/app.js',
+  '/js/auth.js',
+  '/icons/icon-32.png',
+  '/icons/icon-180.png',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/maskable-192.png',
+  '/icons/maskable-512.png',
+  '/icons/emblem.svg',
+  '/icons/logo.svg',
+  '/icons/logo.png',
+  '/favicon.ico'
+];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(SHELL_CACHE)
+      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== SHELL_CACHE && key !== DATA_CACHE)
+            .map((key) => caches.delete(key))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+/* Cached pages (last viewed, network-first so fresh content wins when online) */
+self.addEventListener('fetch', (event) => {
+  const request = event.request;
+  const url = new URL(request.url);
+
+  if (request.method !== 'GET') {
+    return;
+  }
+
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  /* Navigation requests: network-first, fall back to cache, then offline page */
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(DATA_CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) {
+            return cached;
+          }
+          const offline = await caches.match('/offline.html');
+          if (offline) {
+            return offline;
+          }
+          return new Response('You are offline.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+        })
+    );
+    return;
+  }
+
+  /* Static shell assets: cache-first */
+  if (
+    url.pathname.startsWith('/css/') ||
+    url.pathname.startsWith('/js/') ||
+    url.pathname.startsWith('/icons/') ||
+    url.pathname === '/manifest.json' ||
+    url.pathname === '/favicon.ico'
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        const fetchPromise = fetch(request)
+          .then((response) => {
+            const copy = response.clone();
+            caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+            return response;
+          })
+          .catch(() => cached);
+        return cached || fetchPromise;
+      })
+    );
+    return;
+  }
+
+  /* Chatbot config & any other GET API-ish endpoints: network-first with cache fallback */
+  if (url.pathname === '/chatbot/config') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(DATA_CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(async () => (await caches.match(request)) || new Response(JSON.stringify({ offline: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        }))
+    );
+  }
+});
+
+/* Clean up old caches on message (so a deployed new SW purges stale pages) */
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

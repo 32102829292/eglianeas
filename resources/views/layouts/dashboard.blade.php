@@ -1,0 +1,117 @@
+@php
+    use Illuminate\Support\Str;
+    $user = auth()->user();
+    $routeName = request()->route() ? request()->route()->getName() : '';
+    $active = function (string $prefix) use ($routeName): string {
+        return Str::startsWith($routeName, $prefix) ? 'active' : '';
+    };
+    $unreadCount = $user->unreadNotificationsCount();
+    $recentNotifications = $user->notifications()->latest()->limit(8)->get();
+@endphp
+<!DOCTYPE html>
+<html lang="en">
+@include('layouts.head')
+<body class="dash-body">
+    <div class="offline-banner" id="offlineBanner">You&rsquo;re offline &mdash; showing previously loaded data.</div>
+
+    <div class="dash-topbar">
+        <div class="dash-topbar-inner">
+            <button class="hamburger" id="hamburgerBtn" aria-label="Toggle navigation" aria-expanded="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
+            <a href="{{ route('home') }}" class="brand">
+                <img src="/images/logo-icon.png" alt="Egliane logo" class="brand-logo">
+                <span class="brand-name">Egliane<small>Accounting Services</small></span>
+            </a>
+            <div class="dash-topbar-right">
+                <div class="dash-bell" id="bellWrap">
+                    <button type="button" class="bell-btn" id="bellBtn" aria-label="Notifications" aria-expanded="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        @if ($unreadCount > 0)
+                            <span class="bell-badge">{{ min($unreadCount, 99) }}</span>
+                        @endif
+                    </button>
+                    <div class="bell-dropdown" id="bellDropdown">
+                        <div class="bell-head">
+                            <span>Notifications</span>
+                            @if ($unreadCount > 0)
+                                <form method="POST" action="{{ route('notifications.read-all') }}" class="inline-form">
+                                    @csrf
+                                    <button type="submit" class="link-btn">Mark all read</button>
+                                </form>
+                            @endif
+                        </div>
+                        <div class="bell-list">
+                            @forelse ($recentNotifications as $notification)
+                                <a href="{{ route('notifications.open', $notification) }}" class="bell-item @if ($notification->isUnread()) unread @endif">
+                                    <div class="bell-item-title">{{ $notification->title }}</div>
+                                    @if ($notification->body)
+                                        <div class="bell-item-body">{{ Str::limit($notification->body, 90) }}</div>
+                                    @endif
+                                    @if (($notification->reminder_count ?? 1) > 1)
+                                        <div class="reminder-count">Reminded {{ $notification->reminder_count }} times</div>
+                                    @endif
+                                    <div class="bell-item-time">{{ $notification->created_at->diffForHumans() }}</div>
+                                </a>
+                            @empty
+                                <div class="bell-empty">No notifications yet.</div>
+                            @endforelse
+                        </div>
+                        <a href="{{ route('notifications.index') }}" class="bell-footer">View all notifications</a>
+                    </div>
+                </div>
+                <div class="dash-user-chip">
+                    <span class="avatar">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
+                    <span class="hidden-xs">{{ $user->name }}</span>
+                    <span class="dash-role">{{ ucfirst($user->role) }}</span>
+                </div>
+                <form method="POST" action="{{ route('logout') }}" class="inline-form">
+                    @csrf
+                    <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-drawer-backdrop" id="dashDrawerBackdrop"></div>
+    <nav class="dash-drawer" id="dashDrawer" aria-hidden="true">
+        <div class="dash-drawer-head">
+            <a href="{{ route('home') }}" class="brand">
+                <img src="/images/logo-icon.png" alt="Egliane logo" class="brand-logo">
+                <span class="brand-name">Egliane<small>Accounting Services</small></span>
+            </a>
+            <button type="button" class="drawer-close" id="drawerClose" aria-label="Close menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        @include('partials.dashboard-nav')
+    </nav>
+
+    <div class="dash-layout">
+        <aside class="dash-nav">
+            @include('partials.dashboard-nav')
+        </aside>
+
+        <main class="dash-main">
+            @if (session('status'))
+                <div class="alert alert-success">{{ session('status') }}</div>
+            @endif
+            @if ($errors->any())
+                <div class="alert alert-error">
+                    @foreach ($errors->all() as $error)
+                        <div>{{ $error }}</div>
+                    @endforeach
+                </div>
+            @endif
+            @yield('content')
+            {{ $slot ?? '' }}
+        </main>
+    </div>
+
+    @include('partials.chatbot')
+
+    <script src="/js/app.js" defer></script>
+    <script src="/js/auth.js" defer></script>
+    @stack('scripts')
+</body>
+</html>

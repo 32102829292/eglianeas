@@ -1,0 +1,86 @@
+<?php
+
+namespace App\Http\Controllers\Client;
+
+use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\View\View;
+
+class ProfileController extends Controller
+{
+    public function edit(Request $request): View
+    {
+        $profile = auth()->user()->getClientProfile();
+
+        $hasData = (bool) (auth()->user()->business_name
+            || $profile->business_type
+            || $profile->line_of_business
+            || $profile->bir_registration_type
+            || $profile->business_address
+            || $profile->contact_no
+            || $profile->second_contact_no
+            || $profile->second_email
+            || $profile->tin_no
+            || $profile->mother_maiden_name
+            || $profile->father_name);
+
+        $editParam = $request->query('edit');
+        $editSections = $editParam
+            ? array_values(array_filter(array_map('trim', explode(',', (string) $editParam))))
+            : [];
+
+        return view('client.profile', compact('profile', 'hasData', 'editSections'));
+    }
+
+    public function update(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'business_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'business_type' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'line_of_business' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'line_of_business_other' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'bir_registration_type' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'business_address' => ['sometimes', 'nullable', 'string', 'max:500'],
+            'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
+            'contact_no' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'second_contact_no' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'second_email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'birth_date' => ['sometimes', 'nullable', 'date', 'before:today'],
+            'tin_no' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'mother_maiden_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'father_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+        ]);
+
+        $user = auth()->user();
+
+        if (array_key_exists('business_name', $validated)) {
+            $user->business_name = $validated['business_name'] ?: null;
+            $user->save();
+        }
+
+        $profileData = $validated;
+        unset($profileData['business_name']);
+
+        if (($profileData['line_of_business'] ?? null) === 'Other') {
+            $profileData['line_of_business'] = ($profileData['line_of_business_other'] ?? null) ?: null;
+        }
+        unset($profileData['line_of_business_other']);
+
+        foreach ($profileData as $key => $value) {
+            if ($value === '') {
+                $profileData[$key] = null;
+            }
+        }
+
+        $profile = $user->getClientProfile();
+        $profile->fill($profileData);
+        $profile->save();
+
+        ActivityLog::record($user, 'client.profile_updated', 'Updated their client profile.');
+
+        return redirect()->route('client.profile.edit')->with('status', 'Profile updated.');
+    }
+}
