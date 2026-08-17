@@ -192,7 +192,7 @@
                 <div class="profile-row"><span class="profile-k">Latitude</span><span class="profile-v">{{ $profile->latitude ?? '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Longitude</span><span class="profile-v">{{ $profile->longitude ?? '—' }}</span></div>
                 @if ($profile->latitude !== null && $profile->longitude !== null)
-                    <div class="profile-row col-span-2"><span class="profile-k">Map</span><div class="map-preview" id="mapView" data-map-view></div></div>
+                    <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="mapView" /></div>
                 @endif
             </div>
         @endif
@@ -336,15 +336,10 @@
     </div>
 @endsection
 
-@push('styles')
-    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-@endpush
-
 @push('scripts')
     <script>
         var profileLat = @json($profile->latitude ? (float) $profile->latitude : null);
         var profileLng = @json($profile->longitude ? (float) $profile->longitude : null);
     </script>
-    <script src="/vendor/leaflet/leaflet.js" defer></script>
     <script src="/js/client.js" defer></script>
 @endpush

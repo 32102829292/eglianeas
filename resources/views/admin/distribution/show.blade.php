@@ -30,7 +30,7 @@
                 <div class="profile-row col-span-2"><span class="profile-k">Address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Latitude</span><span class="profile-v">{{ $profile->latitude }}</span></div>
                 <div class="profile-row"><span class="profile-k">Longitude</span><span class="profile-v">{{ $profile->longitude }}</span></div>
-                <div class="profile-row col-span-2"><span class="profile-k">Map</span><div class="map-preview" id="clientMap" data-map-view></div></div>
+                <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="clientMap" /></div>
             </div>
         @else
             <p class="card-sub">No location pinned yet.</p>
@@ -239,12 +239,7 @@
     </div>
 @endsection
 
-@push('styles')
-    <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-@endpush
-
 @push('scripts')
-    <script src="/vendor/leaflet/leaflet.js" defer></script>
     <script>
         (function () {
             'use strict';
@@ -252,33 +247,13 @@
             var csrfToken = document.querySelector('meta[name="csrf-token"]');
             var csrf = csrfToken ? csrfToken.getAttribute('content') : '';
 
-            /* ---------- Read-only client map ---------- */
-            var mapViewEl = document.getElementById('clientMap');
-            if (mapViewEl) {
-                var vLat = {{ $profile->latitude ? (float) $profile->latitude : 'null' }};
-                var vLng = {{ $profile->longitude ? (float) $profile->longitude : 'null' }};
-                if (vLat !== null && vLng !== null && typeof window.L === 'object') {
-                    var viewMap = L.map(mapViewEl, {
-                        scrollWheelZoom: false, dragging: false, touchZoom: false,
-                        doubleClickZoom: false, boxZoom: false, keyboard: false
-                    });
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                    }).addTo(viewMap);
-                    L.marker([vLat, vLng]).addTo(viewMap);
-                    viewMap.setView([vLat, vLng], 16);
-                }
-            }
-
-            /* ---------- Location form map ---------- */
             var distMapEl = document.getElementById('distMap');
             var distLat = document.getElementById('distLat');
             var distLng = document.getElementById('distLng');
             var distGeoStatus = document.getElementById('distGeoStatus');
             var distLocateBtn = document.getElementById('distLocateBtn');
             var distAddress = document.getElementById('bizAddress');
-            var locMap = null, locMarker = null;
+            var distInstance = null;
 
             function distShowGeo(msg, isError) {
                 if (!distGeoStatus) return;
@@ -286,22 +261,23 @@
                 distGeoStatus.textContent = msg;
                 distGeoStatus.hidden = false;
             }
+
+            function distMapPin(lat, lng) {
+                if (distLat) distLat.value = Number(lat).toFixed(6);
+                if (distLng) distLng.value = Number(lng).toFixed(6);
+            }
+
             function distSetPin(lat, lng) {
-                if (distLat) distLat.value = lat.toFixed(6);
-                if (distLng) distLng.value = lng.toFixed(6);
+                if (distLat) distLat.value = Number(lat).toFixed(6);
+                if (distLng) distLng.value = Number(lng).toFixed(6);
                 if (distMapEl) distMapEl.hidden = false;
-                if (typeof window.L === 'object') {
-                    if (!locMap) {
-                        locMap = L.map(distMapEl, { scrollWheelZoom: false });
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            maxZoom: 19,
-                            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                        }).addTo(locMap);
-                        locMap.on('click', function (e) { distSetPin(e.latlng.lat, e.latlng.lng); });
+
+                if (typeof window.AddressMap === 'object' && typeof window.AddressMap.initInteractive === 'function') {
+                    if (!distInstance) {
+                        distInstance = window.AddressMap.initInteractive(distMapEl, lat, lng, distMapPin);
+                    } else {
+                        distInstance.setMarker(lat, lng);
                     }
-                    if (locMarker) locMarker.setLatLng([lat, lng]);
-                    else locMarker = L.marker([lat, lng], { draggable: true }).addTo(locMap);
-                    locMap.setView([lat, lng], 16);
                 }
             }
 
