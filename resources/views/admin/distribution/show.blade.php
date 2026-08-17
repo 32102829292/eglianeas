@@ -391,6 +391,7 @@
             var watchId = null;
             var adminMarker = null;
             var trackMap = null;
+            var legendControl = null;
 
             function trackShowError(msg) {
                 if (!trackError) return;
@@ -467,17 +468,33 @@
                 if (trackStartBtn) trackStartBtn.hidden = true;
                 if (trackPanel) trackPanel.hidden = false;
 
-                var navyIcon = L.divIcon({
+                var adminIcon = L.divIcon({
                     className: 'track-admin-marker',
-                    iconSize: [16, 16],
-                    iconAnchor: [8, 8]
+                    html: '<span class="track-admin-dot"></span>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
                 });
+
+                legendControl = L.control({ position: 'bottomleft' });
+                legendControl.onAdd = function () {
+                    var div = L.DomUtil.create('div', 'track-legend');
+                    div.innerHTML =
+                        '<span class="track-legend-item">' +
+                            '<span class="track-legend-icon track-legend-pin"></span> ' +
+                            '{{ $client->business_name ?: $client->name }}' +
+                        '</span>' +
+                        '<span class="track-legend-item">' +
+                            '<span class="track-legend-icon track-legend-dot"></span> Your location' +
+                        '</span>';
+                    return div;
+                };
 
                 navigator.geolocation.getCurrentPosition(
                     function (pos) {
                         var aLat = pos.coords.latitude;
                         var aLng = pos.coords.longitude;
-                        adminMarker = L.marker([aLat, aLng], { icon: navyIcon, interactive: false }).addTo(trackMap);
+                        adminMarker = L.marker([aLat, aLng], { icon: adminIcon, interactive: false }).addTo(trackMap);
+                        legendControl.addTo(trackMap);
                         updateTrackReadout(aLat, aLng);
 
                         var midLat = (aLat + clientLat) / 2;
@@ -519,6 +536,9 @@
                 if (adminMarker && trackMap) {
                     trackMap.removeLayer(adminMarker);
                     adminMarker = null;
+                }
+                if (legendControl && trackMap) {
+                    trackMap.removeControl(legendControl);
                 }
                 if (trackStartBtn) trackStartBtn.hidden = false;
                 if (trackPanel) trackPanel.hidden = true;

@@ -13,6 +13,22 @@
   var ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
   var DEFAULT_ZOOM = 16;
 
+  var CLIENT_PIN_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36"><path d="M14 0C6.268 0 0 6.268 0 14c0 10.5 14 22 14 22s14-11.5 14-22C28 6.268 21.732 0 14 0z" fill="#38bdf8" stroke="#fff" stroke-width="2"/><circle cx="14" cy="13" r="5" fill="#fff"/></svg>';
+  var CLIENT_PIN_ICON = null;
+
+  function getClientPinIcon() {
+    if (CLIENT_PIN_ICON) return CLIENT_PIN_ICON;
+    if (typeof L === 'undefined') return null;
+    CLIENT_PIN_ICON = L.divIcon({
+      className: 'track-client-pin',
+      html: CLIENT_PIN_SVG,
+      iconSize: [28, 36],
+      iconAnchor: [14, 36],
+      popupAnchor: [0, -36]
+    });
+    return CLIENT_PIN_ICON;
+  }
+
   /* -------- queue (populated by inline scripts before this file loads) -------- */
   var queue = (window._addressMapQueue = window._addressMapQueue || []);
 
@@ -37,7 +53,8 @@
       keyboard: false,
     });
     L.tileLayer(TILE, { maxZoom: 19, attribution: ATTR }).addTo(map);
-    L.marker([lat, lng]).addTo(map);
+    var pinIcon = getClientPinIcon();
+    L.marker([lat, lng], pinIcon ? { icon: pinIcon } : {}).addTo(map);
     map.setView([lat, lng], DEFAULT_ZOOM);
     if (el && el.id) instances[el.id] = map;
     return map;

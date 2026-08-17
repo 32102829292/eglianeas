@@ -628,4 +628,22 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .track-direction { font-size: 13px; color: var(--text-muted); font-weight: 600; }
 .track-actions { display: inline-flex; gap: 8px; margin-top: 8px; }
 .track-error { margin-top: 8px; padding: 8px 12px; background: #fef2f2; border: 1px solid var(--danger); border-radius: var(--radius); color: var(--danger); font-size: 13px; font-weight: 600; }
-.track-admin-marker { background: var(--navy); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--navy), 0 2px 6px rgba(0,0,0,.3); }
+
+/* Client pin marker (sky-blue drop-pin) */
+.track-client-pin { background: none !important; border: none !important; }
+
+/* Admin dot marker (blue pulsing dot like Google Maps) */
+.track-admin-marker { background: none !important; border: none !important; }
+.track-admin-dot { display: block; width: 16px; height: 16px; background: var(--sky-deep); border: 2.5px solid #fff; border-radius: 50%; box-shadow: 0 0 0 2px var(--sky-deep), 0 2px 8px rgba(0,0,0,.35); animation: track-pulse 2s ease-out infinite; }
+@keyframes track-pulse {
+  0% { box-shadow: 0 0 0 2px var(--sky-deep), 0 0 0 6px rgba(56,189,248,.35), 0 2px 8px rgba(0,0,0,.35); }
+  70% { box-shadow: 0 0 0 2px var(--sky-deep), 0 0 0 14px rgba(56,189,248,0), 0 2px 8px rgba(0,0,0,.35); }
+  100% { box-shadow: 0 0 0 2px var(--sky-deep), 0 0 0 6px rgba(56,189,248,0), 0 2px 8px rgba(0,0,0,.35); }
+}
+
+/* Map legend */
+.track-legend { display: inline-flex; gap: 12px; padding: 6px 12px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-card); font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.track-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.track-legend-icon { display: inline-block; flex-shrink: 0; }
+.track-legend-pin { width: 12px; height: 16px; background: var(--sky); clip-path: polygon(50% 100%, 0% 35%, 0% 0%, 100% 0%, 100% 35%); border-radius: 50% 50% 0 0; }
+.track-legend-dot { width: 10px; height: 10px; background: var(--sky-deep); border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px var(--sky-deep); }
