@@ -62,6 +62,10 @@ class ClientController extends Controller
 
         $this->logExport('csv', $clients->count(), $q);
 
+        if ($clients->isEmpty()) {
+            abort(404, 'No clients found for the current filter.');
+        }
+
         $filename = 'Egliane-Client-Masterlist-' . now()->format('Y-m-d') . '.csv';
 
         $headers = [
@@ -76,10 +80,10 @@ class ClientController extends Controller
 
             fputcsv($handle, [
                 'Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business',
-                'BIR Registration Type', 'Business Address', 'Contact Information', 'Contact No.',
-                'Email Address', 'Second Contact Information', '2nd Person Contact No.',
-                '2nd Person Email Address', 'Birth Date', 'Birth Date', 'TIN No.',
-                "Mother's Maiden Name", "Father's Name", 'Status', 'Payment Status', 'Date Started', 'Remarks',
+                'BIR Registration Type', 'Business Address', 'Contact No.', 'Email Address',
+                '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
+                'TIN No.', "Mother's Maiden Name", "Father's Name", 'Status',
+                'Payment Status', 'Date Started', 'Remarks',
             ]);
 
             foreach ($clients as $client) {
@@ -93,12 +97,9 @@ class ClientController extends Controller
                     $p?->bir_registration_type ?? '',
                     $p?->business_address ?? '',
                     $p?->contact_no ?? '',
-                    $p?->contact_no ?? '',
                     $client->email,
                     $p?->second_contact_no ?? '',
-                    $p?->second_contact_no ?? '',
                     $p?->second_email ?? '',
-                    $p?->birth_date?->format('m/d/Y') ?? '',
                     $p?->birth_date?->format('m/d/Y') ?? '',
                     $p?->tin_no ?? '',
                     $p?->mother_maiden_name ?? '',
@@ -120,6 +121,10 @@ class ClientController extends Controller
         $clients = $this->getFilteredClients($q);
 
         $this->logExport('pdf', $clients->count(), $q);
+
+        if ($clients->isEmpty()) {
+            abort(404, 'No clients found for the current filter.');
+        }
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.masterlist-pdf', [
             'clients' => $clients,
