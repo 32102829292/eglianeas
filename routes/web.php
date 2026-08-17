@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AboutController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
@@ -31,6 +32,12 @@ Route::get('/chatbot/config', [ChatbotController::class, 'config'])->name('chatb
 require __DIR__.'/auth.php';
 
 Route::view('/terms', 'terms')->name('terms');
+
+Route::get('/about', function () {
+    $about = \App\Models\AboutContent::instance();
+    $coreValues = \App\Models\CoreValue::ordered()->get();
+    return view('about', compact('about', 'coreValues'));
+})->name('about.public');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
@@ -113,6 +120,9 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
 
     Route::get('/chatbot', [AdminChatbotController::class, 'edit'])->name('chatbot');
     Route::post('/chatbot', [AdminChatbotController::class, 'update'])->name('chatbot.update');
+
+    Route::get('/about', [AboutController::class, 'edit'])->name('about');
+    Route::post('/about', [AboutController::class, 'update'])->name('about.update');
 
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
 
