@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AboutContent;
 use App\Models\ActivityLog;
+use App\Models\CompanyCertificate;
 use App\Models\CoreValue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
 class AboutController extends Controller
@@ -21,6 +23,7 @@ class AboutController extends Controller
         return view('admin.about', [
             'about' => $about,
             'coreValues' => CoreValue::ordered()->get(),
+            'certificates' => CompanyCertificate::ordered()->get(),
             'editing' => $editing,
             'hasData' => $hasData,
         ]);
@@ -49,5 +52,40 @@ class AboutController extends Controller
         ActivityLog::record(auth()->user(), 'settings.about_updated', 'Updated the About page content.');
 
         return back()->with('status', 'About page content saved.');
+    }
+
+    public function uploadCertificate(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:100'],
+            'file' => ['required', 'file', 'extensions:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        $file = $request->file('file');
+        $path = $file->store('certificates');
+
+        CompanyCertificate::create([
+            'label' => $validated['label'],
+            'file_path' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'sort_order' => CompanyCertificate::max('sort_order') + 1,
+            'uploaded_at' => now(),
+        ]);
+
+        ActivityLog::record(auth()->user(), 'settings.certificate_uploaded', "Uploaded certificate: {$validated['label']}.");
+
+        return back()->with('status', 'Certificate uploaded.');
+    }
+
+    public function destroyCertificate(CompanyCertificate $certificate): RedirectResponse
+    {
+        Storage::disk('local')->delete($certificate->file_path);
+        $certificate->delete();
+
+        ActivityLog::record(auth()->user(), 'settings.certificate_deleted', "Removed certificate: {$certificate->label}.");
+
+        return back()->with('status', 'Certificate removed.');
     }
 }

@@ -36,7 +36,8 @@ Route::view('/terms', 'terms')->name('terms');
 Route::get('/about', function () {
     $about = \App\Models\AboutContent::instance();
     $coreValues = \App\Models\CoreValue::ordered()->get();
-    return view('about', compact('about', 'coreValues'));
+    $certificates = \App\Models\CompanyCertificate::ordered()->get();
+    return view('about', compact('about', 'coreValues', 'certificates'));
 })->name('about.public');
 
 Route::middleware('auth')->group(function () {
@@ -123,6 +124,8 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
 
     Route::get('/about', [AboutController::class, 'edit'])->name('about');
     Route::post('/about', [AboutController::class, 'update'])->name('about.update');
+    Route::post('/about/certificate', [AboutController::class, 'uploadCertificate'])->name('about.certificate.upload');
+    Route::delete('/about/certificate/{certificate}', [AboutController::class, 'destroyCertificate'])->name('about.certificate.destroy');
 
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
 

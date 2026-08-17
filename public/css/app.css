@@ -709,3 +709,15 @@ table.data tr:hover td { background: var(--bg-alt); }
   .landing { padding: 40px 16px 56px; }
   .login-card { padding: 24px 18px; }
 }
+
+/* ---------- Certificate gallery ---------- */
+.cert-gallery { display: grid; gap: 24px; grid-template-columns: 1fr; }
+@media (min-width: 560px) { .cert-gallery { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .cert-gallery { grid-template-columns: repeat(3, 1fr); } }
+.cert-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.cert-thumb-wrap { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4/3; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 10px; transition: box-shadow .2s; }
+.cert-thumb-wrap:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.cert-thumb { width: 100%; height: 100%; object-fit: contain; }
+.cert-thumb-pdf { flex-direction: column; gap: 8px; color: #64748b; }
+.cert-thumb-pdf span { font-size: 13px; font-weight: 600; }
+.cert-label { font-size: 14px; font-weight: 600; color: var(--text); }

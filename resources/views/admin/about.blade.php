@@ -6,7 +6,7 @@
     <div class="page-head page-head-row">
         <div>
             <h1>About Page</h1>
-            <p>Mission, Vision, and Core Values shown on the public About page.</p>
+            <p>Mission, Vision, Core Values, and Certificates shown on the public About page.</p>
         </div>
         @if (! $editing)
             <a href="{{ route('admin.about', ['edit' => 1]) }}" class="btn btn-outline btn-sm">
@@ -52,13 +52,42 @@
                 <p class="muted" style="margin-bottom:0;">No core values added yet.</p>
             @endif
         </div>
-    @else
+
         <div class="card">
             <div class="card-head">
-                <h2 class="card-title">Mission &amp; Vision</h2>
+                <h2 class="card-title">Certificates</h2>
             </div>
-            <form method="POST" action="{{ route('admin.about.update') }}">
-                @csrf
+            @if ($certificates->count())
+                <div class="cert-admin-grid">
+                    @foreach ($certificates as $cert)
+                        <div class="cert-admin-item">
+                            @if ($cert->isImage())
+                                <img src="{{ Storage::disk('local')->url($cert->file_path) }}" alt="{{ $cert->label }}" class="cert-admin-thumb">
+                            @else
+                                <div class="cert-admin-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                                </div>
+                            @endif
+                            <span class="cert-admin-label">{{ $cert->label }}</span>
+                            <form method="POST" action="{{ route('admin.about.certificate.destroy', $cert) }}" onsubmit="return confirm('Remove this certificate?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="link danger" style="font-size:12px;">Remove</button>
+                            </form>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="muted" style="margin-bottom:0;">No certificates uploaded yet.</p>
+            @endif
+        </div>
+    @else
+        <form method="POST" action="{{ route('admin.about.update') }}">
+            @csrf
+            <div class="card">
+                <div class="card-head">
+                    <h2 class="card-title">Mission &amp; Vision</h2>
+                </div>
                 <div class="form-group">
                     <label class="form-label" for="mission">Mission</label>
                     <textarea class="form-control" id="mission" name="mission" rows="3" maxlength="2000" required>{{ old('mission', $about->mission) }}</textarea>
@@ -69,9 +98,13 @@
                     <textarea class="form-control" id="vision" name="vision" rows="3" maxlength="2000" required>{{ old('vision', $about->vision) }}</textarea>
                     @error('vision')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
+            </div>
 
+            <div class="card">
+                <div class="card-head">
+                    <h2 class="card-title">Core Values</h2>
+                </div>
                 <div class="form-group">
-                    <label class="form-label">Core Values</label>
                     <div id="valueRows">
                         @foreach ($coreValues as $value)
                             <div class="rule-row">
@@ -88,13 +121,56 @@
                     </div>
                     <button type="button" class="btn btn-outline btn-sm mt-2" id="addValue">+ Add value</button>
                 </div>
+            </div>
 
-                <div class="btn-group-row">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    @if ($hasData)
-                        <a href="{{ route('admin.about') }}" class="btn btn-outline">Cancel</a>
-                    @endif
+            <div class="btn-group-row">
+                <button type="submit" class="btn btn-primary">Save</button>
+                @if ($hasData)
+                    <a href="{{ route('admin.about') }}" class="btn btn-outline">Cancel</a>
+                @endif
+            </div>
+        </form>
+
+        <div class="card" style="margin-top:20px;">
+            <div class="card-head">
+                <h2 class="card-title">Certificates</h2>
+            </div>
+            @if ($certificates->count())
+                <div class="cert-admin-grid" style="margin-bottom:20px;">
+                    @foreach ($certificates as $cert)
+                        <div class="cert-admin-item">
+                            @if ($cert->isImage())
+                                <img src="{{ Storage::disk('local')->url($cert->file_path) }}" alt="{{ $cert->label }}" class="cert-admin-thumb">
+                            @else
+                                <div class="cert-admin-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="32" height="32"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+                                </div>
+                            @endif
+                            <span class="cert-admin-label">{{ $cert->label }}</span>
+                            <form method="POST" action="{{ route('admin.about.certificate.destroy', $cert) }}" onsubmit="return confirm('Remove this certificate?');">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="link danger" style="font-size:12px;">Remove</button>
+                            </form>
+                        </div>
+                    @endforeach
                 </div>
+            @endif
+
+            <form method="POST" action="{{ route('admin.about.certificate.upload') }}" enctype="multipart/form-data">
+                @csrf
+                <div class="form-group">
+                    <label class="form-label" for="cert_label">Label</label>
+                    <input class="form-control" id="cert_label" name="label" type="text" maxlength="100" required placeholder="e.g. BIR Certificate of Registration">
+                    @error('label')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="cert_file">File</label>
+                    <input class="form-control" id="cert_file" name="file" type="file" accept=".pdf,.jpg,.jpeg,.png" required>
+                    <div class="form-hint">PDF, JPG, or PNG. Max 10 MB.</div>
+                    @error('file')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <button type="submit" class="btn btn-outline btn-sm">Upload certificate</button>
             </form>
         </div>
     @endif

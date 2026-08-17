@@ -667,3 +667,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .doc-watermark { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; z-index: 2; }
 .doc-watermark span { position: absolute; display: block; white-space: nowrap; font-size: 14px; font-weight: 700; color: rgba(0,0,0,.08); transform: rotate(-30deg); transform-origin: center; letter-spacing: .5px; }
 .doc-notice { margin-top: 12px; padding: 10px 14px; background: #fef9ee; border: 1px solid #f59e0b; border-radius: var(--radius); font-size: 13px; color: #92400e; font-weight: 600; }
+
+/* ---------- Certificate admin grid ---------- */
+.cert-admin-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.cert-admin-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px; background: var(--bg-alt); border: 1px solid var(--border-subtle); border-radius: var(--radius); text-align: center; }
+.cert-admin-thumb { width: 100%; aspect-ratio: 4/3; object-fit: contain; border-radius: 6px; background: #fff; }
+.cert-admin-icon { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4/3; background: #fff; border-radius: 6px; color: var(--text-muted); }
+.cert-admin-label { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
