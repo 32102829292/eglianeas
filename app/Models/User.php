@@ -31,6 +31,8 @@ class User extends Authenticatable
         'pin',
         'pin_set_at',
         'email_verified_at',
+        'confidentiality_acknowledged_at',
+        'confidentiality_ack_version',
     ];
 
     /**
@@ -57,6 +59,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'confidentiality_acknowledged_at' => 'datetime',
             'password' => 'hashed',
             'pin' => 'hashed',
             'pin_set_at' => 'datetime',
@@ -154,6 +157,11 @@ class User extends Authenticatable
     public function unreadNotificationsCount(): int
     {
         return $this->notifications()->unread()->count();
+    }
+
+    public function corViewLogs(): HasMany
+    {
+        return $this->hasMany(CorViewLog::class, 'viewed_by');
     }
 
     public function billings(): HasMany

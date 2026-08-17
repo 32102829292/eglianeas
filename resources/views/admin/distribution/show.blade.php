@@ -258,6 +258,10 @@
                                 <small class="muted">{{ $doc->sizeLabel() }} &middot; {{ $doc->created_at?->format('M j, Y') }}</small>
                             </div>
                             <div class="btn-row">
+                                <a href="{{ route('admin.distribution.view', $doc) }}" class="btn btn-outline btn-sm">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    View
+</a>
                                 <a href="{{ route('admin.distribution.download', $doc) }}" class="btn btn-outline btn-sm">Download</a>
                                 <form method="POST" action="{{ route('admin.distribution.destroy-softcopy', [$client, $doc]) }}" class="inline-form" onsubmit="return confirm('Delete this softcopy?');">
                                     @csrf

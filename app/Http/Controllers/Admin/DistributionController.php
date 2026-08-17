@@ -175,6 +175,25 @@ class DistributionController extends Controller
         return back()->with('status', 'Softcopy uploaded.');
     }
 
+    public function view(Document $document)
+    {
+        abort_unless($document->client_id, 404);
+        abort_unless(Storage::disk('local')->exists($document->path), 404);
+
+        $user = auth()->user();
+        \App\Models\CorViewLog::create([
+            'document_id' => $document->id,
+            'viewed_by' => $user->id,
+            'viewed_at' => now(),
+        ]);
+
+        return view('document-viewer', [
+            'document' => $document,
+            'viewerName' => $user->name,
+            'viewedAt' => now(),
+        ]);
+    }
+
     public function download(Document $document)
     {
         abort_unless($document->client_id, 404);

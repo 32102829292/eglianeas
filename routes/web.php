@@ -30,6 +30,8 @@ Route::get('/chatbot/config', [ChatbotController::class, 'config'])->name('chatb
 
 require __DIR__.'/auth.php';
 
+Route::view('/terms', 'terms')->name('terms');
+
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
@@ -48,9 +50,58 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
+    Route::get('/documents/{document}/view', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
+        $user = $request->user();
+        abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
+
+        \App\Models\CorViewLog::create([
+            'document_id' => $document->id,
+            'viewed_by' => $user->id,
+            'viewed_at' => now(),
+        ]);
+
+        return view('document-viewer', [
+            'document' => $document,
+            'viewerName' => $user->name,
+            'viewedAt' => now(),
+        ]);
+    })->name('documents.view');
+
+    Route::get('/documents/{document}/file', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
+        $user = $request->user();
+        abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
+
+        $mime = $document->mime_type ?: mime_content_type(storage_path('app/' . $document->path)) ?: 'application/octet-stream';
+
+        return response()->file(storage_path('app/' . $document->path), [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    })->name('documents.file');
 });
 
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/confidentiality/acknowledge', function () {
+        return view('admin.confidentiality-ack');
+    })->name('confidentiality.acknowledge');
+
+    Route::post('/confidentiality/acknowledge', function (\Illuminate\Http\Request $request) {
+        $request->validate(['agree' => 'accepted']);
+        $user = $request->user();
+        $user->update([
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => \App\Http\Middleware\EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
+        ]);
+        \App\Models\ActivityLog::record($user, 'admin.confidentiality_acknowledged', 'Acknowledged the confidentiality policy.');
+        return redirect()->route('admin.dashboard');
+    })->name('confidentiality.acknowledge.store');
+});
+
+Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
 
     Route::get('/profile', [AdminProfileController::class, 'index'])->name('profile.index');
@@ -96,6 +147,17 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::delete('/distribution/{client}/deliveries/{delivery}', [AdminDistributionController::class, 'destroyDelivery'])->name('distribution.destroy-delivery');
     Route::post('/distribution/{client}/softcopy', [AdminDistributionController::class, 'storeSoftcopy'])->name('distribution.store-softcopy');
     Route::get('/distribution/{document}/download', [AdminDistributionController::class, 'download'])->name('distribution.download');
+    Route::get('/distribution/{document}/view', [AdminDistributionController::class, 'view'])->name('distribution.view');
+    Route::get('/distribution/{document}/file', function (\App\Models\Document $document) {
+        abort_unless($document->client_id, 404);
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
+        $mime = $document->mime_type ?: mime_content_type(storage_path('app/' . $document->path)) ?: 'application/octet-stream';
+        return response()->file(storage_path('app/' . $document->path), [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    })->name('distribution.file');
     Route::delete('/distribution/{client}/softcopy/{document}', [AdminDistributionController::class, 'destroySoftcopy'])->name('distribution.destroy-softcopy');
     Route::post('/distribution/{client}/location', [AdminDistributionController::class, 'updateLocation'])->name('distribution.update-location');
     Route::post('/distribution/geocode', [AdminDistributionController::class, 'geocode'])->name('distribution.geocode');

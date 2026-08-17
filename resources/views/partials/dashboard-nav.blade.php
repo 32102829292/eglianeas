@@ -50,6 +50,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         Activity Logs
     </a>
+    <div class="dash-nav-conf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Confidential &mdash; do not share client data</span>
+    </div>
 @else
     <div class="dash-nav-head">Navigation</div>
     <a href="{{ route('client.dashboard') }}" class="{{ $active('client.dashboard') }}">

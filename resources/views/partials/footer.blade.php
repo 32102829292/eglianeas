@@ -16,6 +16,7 @@
                     <li><a href="{{ route('home') }}#about">About</a></li>
                     <li><a href="{{ route('login') }}">Login</a></li>
                     <li><a href="{{ route('register') }}">Sign Up</a></li>
+                    <li><a href="{{ route('terms') }}">Terms &amp; Confidentiality</a></li>
                 </ul>
             </div>
 

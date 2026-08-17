@@ -55,6 +55,12 @@
 
             <button type="button" class="btn btn-primary mt-2" id="enrollBiometric">Enable Face / Biometric login</button>
         </div>
+
+        <div class="card">
+            <h3 class="card-title">Confidentiality Policy</h3>
+            <p class="card-sub">All client information and documents are strictly confidential. Review the full policy anytime.</p>
+            <a href="{{ route('terms') }}" class="btn btn-outline" target="_blank">Read Terms &amp; Confidentiality</a>
+        </div>
     </div>
 @endsection
 

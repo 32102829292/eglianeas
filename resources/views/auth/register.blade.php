@@ -98,8 +98,10 @@
 
     <div id="termsModal" class="modal hidden">
         <div class="modal-card">
-            <h3>Terms &amp; Conditions</h3>
-            <p>By creating an account you agree to use this portal only for your own business records, to keep your login details private, and to submit accurate information. Documents you upload are reviewed by our accounting team. We may contact you at the email address you registered.</p>
+            <h3>Terms &amp; Confidentiality</h3>
+            <p>By creating an account you agree to use this portal only for your own business records, to keep your login details private, and to submit accurate information. Documents you upload are reviewed by our accounting team.</p>
+            <p>All client information, financial data, and documents accessible through this platform are strictly confidential. You agree not to disclose, share, screenshot, copy, or distribute any information obtained through this system to any party outside Egliane Accounting Services, without prior written authorization.</p>
+            <p>Read the full <a href="{{ route('terms') }}" target="_blank">Terms &amp; Confidentiality</a>.</p>
             <button type="button" class="btn btn-primary btn-block" data-modal-close="#termsModal">I understand</button>
         </div>
     </div>
