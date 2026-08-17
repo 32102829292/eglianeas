@@ -21,18 +21,30 @@
 
     <div class="stat-grid">
         <div class="stat-card stat-ok">
+            <div class="stat-icon stat-icon-ok">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+            </div>
             <span class="stat-label">Income ({{ now()->year }})</span>
             <b class="stat-value">&#8369; {{ number_format($stats['income'], 2) }}</b>
         </div>
         <div class="stat-card stat-danger">
+            <div class="stat-icon stat-icon-danger">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+            </div>
             <span class="stat-label">Expenses ({{ now()->year }})</span>
             <b class="stat-value">&#8369; {{ number_format($stats['expenses'], 2) }}</b>
         </div>
         <div class="stat-card">
+            <div class="stat-icon stat-icon-info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
             <span class="stat-label">Transactions</span>
             <b class="stat-value">{{ $stats['transactions'] }}</b>
         </div>
         <div class="stat-card {{ $stats['pendingFilings'] > 0 ? 'stat-warn' : 'stat-ok' }}">
+            <div class="stat-icon {{ $stats['pendingFilings'] > 0 ? 'stat-icon-warn' : 'stat-icon-ok' }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
             <span class="stat-label">Pending filings</span>
             <b class="stat-value">{{ $stats['pendingFilings'] }}</b>
         </div>
