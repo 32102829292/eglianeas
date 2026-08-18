@@ -8,7 +8,41 @@
             <h1>Billing</h1>
             <p>Create and manage quarterly billing statements per client.</p>
         </div>
-        <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing</a>
+        <div class="page-head-actions">
+            <div class="dropdown-wrap">
+                <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-dropdown="billing-download-menu">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Billing Summary
+                </button>
+                <div class="dropdown-menu billing-download-panel" id="billing-download-menu">
+                    <div class="billing-download-row">
+                        <label class="form-label" for="dl-quarter">Quarter</label>
+                        <select class="form-control form-control-sm" id="dl-quarter">
+                            <option value="">All Quarters</option>
+                            <option value="1">1st Quarter</option>
+                            <option value="2">2nd Quarter</option>
+                            <option value="3">3rd Quarter</option>
+                            <option value="4">4th Quarter</option>
+                        </select>
+                    </div>
+                    <div class="billing-download-row">
+                        <label class="form-label" for="dl-year">Year</label>
+                        <select class="form-control form-control-sm" id="dl-year"></select>
+                    </div>
+                    <div class="billing-download-btns">
+                        <a href="#" id="dl-xlsx" class="btn btn-outline-primary btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            XLSX
+                        </a>
+                        <a href="#" id="dl-pdf" class="btn btn-outline-danger btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing</a>
+        </div>
     </div>
 
     <div class="stat-grid">
@@ -127,3 +161,49 @@
         </div>
     </div>
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    var quarterSelect = document.getElementById('dl-quarter');
+    var yearSelect = document.getElementById('dl-year');
+    var xlsxLink = document.getElementById('dl-xlsx');
+    var pdfLink = document.getElementById('dl-pdf');
+    var xlsxBase = '{{ route("admin.billing.exportSummaryXlsx") }}';
+    var pdfBase = '{{ route("admin.billing.exportSummaryPdf") }}';
+
+    function buildUrl(base) {
+        var params = new URLSearchParams();
+        if (quarterSelect.value) params.set('quarter', quarterSelect.value);
+        if (yearSelect.value) params.set('year', yearSelect.value);
+        var qs = params.toString();
+        return qs ? base + '?' + qs : base;
+    }
+
+    function refreshLinks() {
+        xlsxLink.href = buildUrl(xlsxBase);
+        pdfLink.href = buildUrl(pdfBase);
+    }
+
+    fetch('{{ route("admin.billing.years") }}')
+        .then(function (r) { return r.json(); })
+        .then(function (years) {
+            var currentYear = new Date().getFullYear();
+            years.forEach(function (y) {
+                var opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                if (y === currentYear) opt.selected = true;
+                yearSelect.appendChild(opt);
+            });
+            if (!years.includes(currentYear) && years.length) {
+                yearSelect.value = years[0];
+            }
+            refreshLinks();
+        });
+
+    quarterSelect.addEventListener('change', refreshLinks);
+    yearSelect.addEventListener('change', refreshLinks);
+})();
+</script>
+@endpush

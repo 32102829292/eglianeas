@@ -9,6 +9,7 @@ use App\Models\FeeRate;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -455,5 +456,156 @@ class BillingController extends Controller
         ActivityLog::record(auth()->user(), 'billing.fee_rate_removed', "Removed fee preset of {$feeRate->amount}.");
 
         return back()->with('status', 'Fee preset removed.');
+    }
+
+    public function availableYears(): JsonResponse
+    {
+        $years = Billing::whereNotNull('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year');
+
+        return response()->json($years);
+    }
+
+    public function exportSummaryXlsx(Request $request): StreamedResponse
+    {
+        $validated = $request->validate([
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
+            'year' => ['required', 'integer'],
+        ]);
+
+        $quarter = $validated['quarter'] ?? null;
+        $year = (int) $validated['year'];
+        $billings = $this->getFilteredBillings($quarter, $year);
+
+        if ($billings->isEmpty()) {
+            abort(404, 'No billing records found for this period.');
+        }
+
+        $this->logBillingExport('xlsx', $billings->count(), $quarter, $year);
+
+        $periodLabel = $this->buildPeriodLabel($quarter, $year);
+
+        $headers = [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"Egliane-Billing-Summary-" . Str::slug($periodLabel) . '-' . now()->format('Y-m-d') . ".xlsx\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+        ];
+
+        return response()->stream(function () use ($billings, $periodLabel) {
+            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            $colHeaders = [
+                'Name', 'Sales', '2551Q (BIR)', '1701Q (BIR)', 'Cash In',
+                'Rate', 'Fees', '2551Q — Amount', '1701Q — Amount',
+                'Bookkeeping / Post-Closing Trial Balance', 'Amount (Total)',
+            ];
+
+            $colWidths = [24, 14, 14, 14, 14, 10, 14, 14, 14, 20, 14];
+
+            foreach ($colHeaders as $col => $header) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                $cell = $sheet->getCell("{$colLetter}1");
+                $cell->setValue($header);
+                $cell->getStyle()->getFont()->setBold(true);
+                $sheet->getColumnDimension($colLetter)->setWidth($colWidths[$col]);
+            }
+
+            $row = 2;
+            foreach ($billings as $billing) {
+                $client = $billing->client;
+                $rate = (float) $billing->rate_2551q;
+                $fees = (float) $billing->fee_2551q + (float) $billing->fee_1701q;
+
+                $values = [
+                    $client?->business_name ?: $client?->name ?? '',
+                    (float) $billing->sales,
+                    (float) $billing->tax_2551q,
+                    (float) $billing->tax_1701q,
+                    (float) $billing->cash_in,
+                    $rate > 0 ? $rate . '%' : '',
+                    $fees,
+                    (float) $billing->fee_2551q,
+                    (float) $billing->fee_1701q,
+                    (float) $billing->fee_bookkeeping,
+                    (float) $billing->total,
+                ];
+
+                foreach ($values as $col => $value) {
+                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                    $sheet->getCell("{$colLetter}{$row}")->setValue($value);
+                }
+                $row++;
+            }
+
+            $sheet->freezePane('A2');
+
+            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer->setIncludeCharts(false);
+            $writer->save('php://output');
+        }, 200, $headers);
+    }
+
+    public function exportSummaryPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $validated = $request->validate([
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
+            'year' => ['required', 'integer'],
+        ]);
+
+        $quarter = $validated['quarter'] ?? null;
+        $year = (int) $validated['year'];
+        $billings = $this->getFilteredBillings($quarter, $year);
+
+        if ($billings->isEmpty()) {
+            abort(404, 'No billing records found for this period.');
+        }
+
+        $this->logBillingExport('pdf', $billings->count(), $quarter, $year);
+
+        $periodLabel = $this->buildPeriodLabel($quarter, $year);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.summary-pdf', [
+            'billings' => $billings,
+            'periodLabel' => $periodLabel,
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'Egliane-Billing-Summary-' . Str::slug($periodLabel) . '-' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    private function getFilteredBillings(?int $quarter, int $year): Collection
+    {
+        return Billing::with('client')
+            ->where('year', $year)
+            ->when($quarter, fn ($query) => $query->where('quarter', $quarter))
+            ->orderBy('quarter')
+            ->get()
+            ->sortBy(fn (Billing $b) => strtolower($b->client?->business_name ?: $b->client?->name))
+            ->values();
+    }
+
+    private function buildPeriodLabel(?int $quarter, int $year): string
+    {
+        if ($quarter) {
+            return Billing::QUARTERS[$quarter] . ' Quarter ' . $year . ' Billing';
+        }
+
+        return 'All Quarters ' . $year . ' Billing';
+    }
+
+    private function logBillingExport(string $format, int $count, ?int $quarter, int $year): void
+    {
+        $period = $quarter ? 'Q' . $quarter . ' ' . $year : 'All Quarters ' . $year;
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.billing_summary_exported',
+            "Exported billing summary as {$format} ({$count} records, {$period})."
+        );
     }
 }

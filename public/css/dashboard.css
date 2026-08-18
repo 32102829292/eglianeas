@@ -922,3 +922,13 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 .dash-nav-link-sub:hover { background: var(--bg-alt); color: var(--text); }
 .dash-nav-link-sub svg { flex-shrink: 0; }
+
+/* ---------- Billing summary export panel ---------- */
+.page-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.billing-download-panel { padding: 14px; min-width: 210px; }
+.billing-download-row { margin-bottom: 10px; }
+.billing-download-row:last-of-type { margin-bottom: 12px; }
+.billing-download-row .form-label { font-size: 11px; font-weight: 600; margin-bottom: 3px; }
+.billing-download-row .form-control { width: 100%; }
+.billing-download-btns { display: flex; gap: 8px; }
+.billing-download-btns .btn { flex: 1; }
