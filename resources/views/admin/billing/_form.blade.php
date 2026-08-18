@@ -3,6 +3,14 @@
     $existingItems = $isEdit ? $billing->lineItems->keyBy(fn ($item) => $item->category.'_'.$item->form_type.'_'.$item->month) : collect();
     $professionalFeeRates = $feeRates->where('category', 'professional_fee');
     $bookkeepingFeeRates = $feeRates->where('category', 'bookkeeping_fee');
+    $existingItemsJson = $isEdit ? json_encode($existingItems->mapWithKeys(fn ($item) => [
+        $item->category . '_' . ($item->form_type ?? '') . '_' . ($item->month ?? 'null') => [
+            'amount' => $item->amount,
+            'fee_rate_id' => $item->fee_rate_id,
+        ],
+    ])->all()) : 'null';
+    $profFeeRatesJson = json_encode($professionalFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    $bookFeeRatesJson = json_encode($bookkeepingFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
 @endphp
 
 <div class="card">
@@ -95,8 +103,8 @@
     var isEdit = {{ $isEdit ? 'true' : 'false' }};
 
     var monthlyForms = @json($monthlyForms);
-    var profFeeRates = @json($professionalFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
-    var bookFeeRates = @json($bookkeepingFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    var profFeeRates = {!! $profFeeRatesJson !!};
+    var bookFeeRates = {!! $bookFeeRatesJson !!};
     var monthNames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'};
 
     function round2(v) { var n = parseFloat(v); return isNaN(n) ? 0 : Math.round(n * 100) / 100; }
@@ -344,12 +352,7 @@
                 var existingItems = null;
 
                 @if ($isEdit)
-                    existingItems = @json($existingItems->mapWithKeys(fn ($item) => [
-                        $item->category . '_' . ($item->form_type ?? '') . '_' . ($item->month ?? 'null') => [
-                            'amount' => $item->amount,
-                            'fee_rate_id' => $item->fee_rate_id,
-                        ],
-                    ])->all());
+                    existingItems = {!! $existingItemsJson !!};
                 @endif
 
                 buildLineItems(forms, existingItems);
