@@ -156,7 +156,7 @@
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Sales Submissions</h3>
-                <span class="badge bg-info text-dark">{{ Billing::QUARTERS[$missingQuarter] }} Q{{ $missingYear }}</span>
+                <span class="badge bg-info text-dark">{{ $missingQuarterLabel }} Q{{ $missingYear }}</span>
             </div>
             <div class="db-donut-wrap">
                 <canvas id="salesDonut" height="180"></canvas>
@@ -202,7 +202,7 @@
                         <div class="db-risk-badge bg-warning text-dark">Missing Sales</div>
                         <div class="db-risk-info">
                             <span class="db-risk-count">{{ $billingAlerts['missingSales'] }} client{{ $billingAlerts['missingSales'] === 1 ? '' : 's' }}</span>
-                            <span class="db-risk-desc">have not submitted sales for {{ Billing::QUARTERS[$missingQuarter] }} Q{{ $missingYear }}</span>
+                            <span class="db-risk-desc">have not submitted sales for {{ $missingQuarterLabel }} Q{{ $missingYear }}</span>
                         </div>
                     </div>
                 @endif

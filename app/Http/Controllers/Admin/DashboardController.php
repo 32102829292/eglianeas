@@ -159,6 +159,7 @@ class DashboardController extends Controller
             'dueBills' => $dueBills,
             'missingYear' => $year,
             'missingQuarter' => $quarter,
+            'missingQuarterLabel' => Billing::QUARTERS[$quarter],
             'billingAlerts' => [
                 'missingSales' => $missingSalesClients->count(),
                 'dueSoon' => $dueBills->where('due_date', '>=', now()->startOfDay())->count(),
