@@ -164,13 +164,22 @@
 
 @push('scripts')
 <script>
-(function () {
-    var quarterSelect = document.getElementById('dl-quarter');
-    var yearSelect = document.getElementById('dl-year');
-    var xlsxLink = document.getElementById('dl-xlsx');
-    var pdfLink = document.getElementById('dl-pdf');
-    var xlsxBase = '{{ route("admin.billing.exportSummaryXlsx") }}';
-    var pdfBase = '{{ route("admin.billing.exportSummaryPdf") }}';
+    document.addEventListener('click', function (e) {
+        var toggle = e.target.closest('[data-dropdown]');
+        if (toggle) {
+            var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+            if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+            return;
+        }
+        document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
+    });
+    (function () {
+        var quarterSelect = document.getElementById('dl-quarter');
+        var yearSelect = document.getElementById('dl-year');
+        var xlsxLink = document.getElementById('dl-xlsx');
+        var pdfLink = document.getElementById('dl-pdf');
+        var xlsxBase = '{{ route("admin.billing.exportSummaryXlsx") }}';
+        var pdfBase = '{{ route("admin.billing.exportSummaryPdf") }}';
 
     function buildUrl(base) {
         var params = new URLSearchParams();
