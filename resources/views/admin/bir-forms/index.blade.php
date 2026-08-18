@@ -38,7 +38,7 @@
                 <tbody>
                     @forelse ($clients as $entry)
                         @php($client = $entry['user'])
-                        @php($statuses = $client->birFormStatuses->pluck('applicable', 'form_type'))
+                        @php($statuses = $entry['statuses'])
                         <tr>
                             <td>
                                 <span class="badge bg-dark">{{ $client->client_code ?? '—' }}</span>

@@ -39,7 +39,12 @@ class BirFormStatus extends Model
         'client_id',
         'form_type',
         'status',
+        'applicable',
         'updated_by',
+    ];
+
+    protected $casts = [
+        'applicable' => 'boolean',
     ];
 
     public function client(): BelongsTo

@@ -17,7 +17,7 @@ class BirFormsController extends Controller
 
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
-            ->with('profile')
+            ->with('profile', 'birFormStatuses')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -28,11 +28,12 @@ class BirFormsController extends Controller
             ->orderBy('business_name')
             ->get()
             ->map(function (User $client): array {
-                $statuses = $client->birFormStatuses()->pluck('applicable', 'form_type');
+                $statuses = $client->birFormStatuses->pluck('applicable', 'form_type');
                 $applicableCount = $statuses->filter()->count();
 
                 return [
                     'user' => $client,
+                    'statuses' => $statuses,
                     'profile' => $client->profile,
                     'applicableCount' => $applicableCount,
                     'totalForms' => count(BirFormStatus::FORM_TYPES),
