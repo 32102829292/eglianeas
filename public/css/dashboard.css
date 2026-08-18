@@ -477,7 +477,7 @@
 /* ---------- Action pill (activity logs) ---------- */
 .code-pill {
   display: inline-block;
-  font-family: var(--font-body);
+  font-family:var(--font-body);
   font-size: 12px;
   font-weight: 600;
   color: var(--navy);
@@ -802,5 +802,123 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* ---------- Subordinate sidebar link ---------- */
 .dash-nav-link-sub { display: flex; align-items: center; gap: 6px; padding: 8px 14px; margin-top: 10px; font-size: 12px; font-weight: 500; color: var(--text-muted); text-decoration: none; border-radius: var(--radius); transition: background .15s, color .15s; }
+
+/* ============================================================
+   Dashboard redesign — all new components
+   ============================================================ */
+
+/* --- Welcome banner --- */
+.db-welcome {
+  display: flex; align-items: center; gap: 24px;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-soft) 100%);
+  color: #fff; border-radius: var(--radius); padding: 32px; margin-bottom: 20px;
+  overflow: hidden; position: relative;
+}
+.db-welcome-text { flex: 1; min-width: 0; }
+.db-welcome-text h1 { font-size: 22px; margin: 0 0 6px; color: #fff; }
+.db-welcome-text p { font-size: 14px; color: rgba(255,255,255,.75); margin: 0 0 16px; }
+.db-welcome-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.db-welcome-art { flex: 0 0 120px; }
+.db-welcome-art svg { width: 120px; height: 120px; }
+
+/* --- Feature shortcut cards --- */
+.db-feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+.db-feature-card {
+  display: flex; align-items: center; gap: 14px;
+  background: #fff; border: none; border-radius: var(--radius); padding: 18px 20px;
+  box-shadow: var(--shadow-card); text-decoration: none; color: var(--text);
+  transition: box-shadow .2s ease, transform .15s ease;
+}
+.db-feature-card:hover { box-shadow: var(--shadow-card-hover); transform: translateY(-1px); text-decoration: none; }
+.db-feature-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 42px; }
+.db-feature-icon svg { width: 20px; height: 20px; }
+.db-feature-title { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+.db-feature-desc { font-size: 12.5px; color: var(--text-muted); line-height: 1.4; }
+
+/* --- Metric cards --- */
+.db-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+.db-metric-card {
+  background: #fff; border: none; border-radius: var(--radius); padding: 18px;
+  box-shadow: var(--shadow-card); overflow: hidden;
+}
+.db-metric-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.db-metric-head .stat-icon { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.db-metric-head .stat-icon svg { width: 15px; height: 15px; }
+.db-metric-value { font-family: var(--font-head); font-size: 24px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+.db-sparkline { width: 100%; height: 32px; display: block; }
+
+/* --- Quick links --- */
+.db-quick-links { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.db-quick-link {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 16px; background: #fff; border: none; border-radius: var(--radius);
+  box-shadow: var(--shadow-card); text-decoration: none; color: var(--text);
+  font-size: 12.5px; font-weight: 600; min-width: 90px; text-align: center;
+  transition: box-shadow .2s ease, transform .15s ease;
+}
+.db-quick-link:hover { box-shadow: var(--shadow-card-hover); transform: translateY(-1px); text-decoration: none; color: var(--sky-deep); }
+.db-ql-icon { width: 38px; height: 38px; border-radius: 10px; background: var(--sky-soft); color: var(--sky-deep); display: flex; align-items: center; justify-content: center; }
+.db-ql-icon svg { width: 18px; height: 18px; }
+
+/* --- Widget grid (3-col) --- */
+.db-widget-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* Deadline list */
+.db-deadline-list { display: flex; flex-direction: column; }
+.db-deadline-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.db-deadline-item:last-child { border-bottom: none; }
+.db-deadline-date { display: flex; flex-direction: column; align-items: center; min-width: 40px; }
+.db-dday { font-size: 18px; font-weight: 700; color: var(--navy); line-height: 1; }
+.db-dmonth { font-size: 10px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: .04em; }
+.db-deadline-info { flex: 1; min-width: 0; }
+.db-deadline-name { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.db-deadline-period { font-size: 12px; color: var(--text-muted); }
+
+/* Donut */
+.db-donut-wrap { position: relative; padding: 8px 0; }
+.db-donut-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.db-donut-pct { display: block; font-family: var(--font-head); font-size: 22px; font-weight: 700; color: var(--navy); }
+.db-donut-label { display: block; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+.db-donut-legend { display: flex; gap: 16px; justify-content: center; font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.db-donut-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+
+/* --- Alert grid (2-col) --- */
+.db-alert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* Risk list */
+.db-risk-list { display: flex; flex-direction: column; gap: 10px; }
+.db-risk-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--bg-alt); }
+.db-risk-badge { padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; color: #fff; }
+.db-risk-info { display: flex; flex-direction: column; gap: 1px; }
+.db-risk-count { font-weight: 700; font-size: 13px; }
+.db-risk-desc { font-size: 12px; color: var(--text-muted); }
+
+/* Activity feed */
+.db-activity-feed { display: flex; flex-direction: column; }
+.db-activity-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.db-activity-item:last-child { border-bottom: none; }
+.db-activity-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); margin-top: 6px; flex: 0 0 8px; }
+.db-activity-body { flex: 1; min-width: 0; }
+.db-activity-text { font-size: 13px; line-height: 1.4; }
+.db-activity-text strong { font-weight: 600; }
+.db-activity-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* --- Chart grid (3-col) --- */
+.db-chart-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* --- Responsive --- */
+@media (max-width: 1024px) {
+  .db-metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .db-widget-grid, .db-chart-grid { grid-template-columns: 1fr; }
+  .db-alert-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .db-welcome { flex-direction: column; text-align: center; padding: 24px 16px; }
+  .db-welcome-art { display: none; }
+  .db-welcome-actions { justify-content: center; }
+  .db-feature-grid { grid-template-columns: 1fr; }
+  .db-metric-grid { grid-template-columns: 1fr 1fr; }
+  .db-quick-links { justify-content: center; }
+}
 .dash-nav-link-sub:hover { background: var(--bg-alt); color: var(--text); }
 .dash-nav-link-sub svg { flex-shrink: 0; }
