@@ -248,10 +248,10 @@
 (function () {
     'use strict';
 
-    var bsData = @json($analytics['charts']['billingStatus']);
-    var csData = @json($analytics['charts']['clientStatus']);
-    var btData = @json($analytics['charts']['businessType']);
-    var lobData = @json($analytics['charts']['lineOfBusiness']);
+    var bsData = {!! json_encode($analytics['charts']['billingStatus']) !!};
+    var csData = {!! json_encode($analytics['charts']['clientStatus']) !!};
+    var btData = {!! json_encode($analytics['charts']['businessType']) !!};
+    var lobData = {!! json_encode($analytics['charts']['lineOfBusiness']) !!};
 
     var total = function (d) { return d.reduce(function (s, v) { return s + v.count; }, 0); };
     var labels = function (d) { return d.map(function (v) { return v.label; }); };
