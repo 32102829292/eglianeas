@@ -167,9 +167,13 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');
-
     Route::get('/bir-forms', [AdminBirFormsController::class, 'index'])->name('bir-forms.index');
+
     Route::post('/bir-forms/{client}/toggle', [AdminBirFormsController::class, 'toggleApplicable'])->name('bir-forms.toggle');
+
+    Route::get('/bir-forms/export/xlsx', [AdminBirFormsController::class, 'exportXlsx'])->name('bir-forms.exportXlsx');
+
+    Route::get('/bir-forms/export/pdf', [AdminBirFormsController::class, 'exportPdf'])->name('bir-forms.exportPdf');
 
     Route::get('/distribution', [AdminDistributionController::class, 'index'])->name('distribution.index');
     Route::get('/distribution/{client}', [AdminDistributionController::class, 'show'])->name('distribution.show');
