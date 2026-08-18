@@ -932,3 +932,37 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .billing-download-row .form-control { width: 100%; }
 .billing-download-btns { display: flex; gap: 8px; }
 .billing-download-btns .btn { flex: 1; }
+
+/* ---------- Billing line items ---------- */
+.line-items-section { margin-bottom: 20px; }
+.line-items-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border);
+}
+.line-item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-light, #f0f0f4);
+}
+.line-item-row:last-child { border-bottom: none; }
+.line-item-label {
+  flex: 1;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+}
+.line-item-input {
+  width: 160px;
+  flex-shrink: 0;
+}
+.line-item-input .form-control { width: 100%; text-align: right; }
+.line-item-cash-in { background: #f8fafc; border-radius: var(--radius-sm); padding: 8px 10px; }

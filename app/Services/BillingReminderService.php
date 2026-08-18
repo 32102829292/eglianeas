@@ -4,53 +4,9 @@ namespace App\Services;
 
 use App\Models\Billing;
 use App\Models\Notification;
-use App\Models\User;
 
 class BillingReminderService
 {
-    /**
-     * Remind clients who have not yet submitted their Sales for the current
-     * quarter. Runs on the scheduler daily and keeps bumping the same grouped
-     * notification until the client submits.
-     */
-    public static function remindMissingSales(): int
-    {
-        $year = Billing::currentYear();
-        $quarter = Billing::currentQuarter();
-        $sent = 0;
-
-        $clients = User::query()->where('role', User::ROLE_CLIENT)->get();
-
-        foreach ($clients as $client) {
-            $submitted = Billing::query()
-                ->where('client_id', $client->id)
-                ->where('year', $year)
-                ->where('quarter', $quarter)
-                ->whereNotNull('sales_submitted_at')
-                ->exists();
-
-            if ($submitted) {
-                continue;
-            }
-
-            $group = "billing_missing_sales:{$client->id}:{$year}:{$quarter}";
-            $period = Billing::QUARTERS[$quarter].' Quarter '.$year;
-
-            Notification::remind(
-                $client->id,
-                $group,
-                'Sales submission needed',
-                "Please submit your Sales for the {$period} billing.",
-                'billing_missing',
-                route('client.billing.index')
-            );
-
-            $sent++;
-        }
-
-        return $sent;
-    }
-
     /**
      * Remind clients about unpaid bills starting one week before the due date,
      * escalating the wording once the bill is past due. Auto-marks past-due

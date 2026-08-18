@@ -140,6 +140,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
 
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
+    Route::get('/billings/applicable-forms', [AdminBillingController::class, 'applicableForms'])->name('billing.applicableForms');
     Route::get('/billings/settings', [AdminBillingController::class, 'settings'])->name('billing.settings');
     Route::post('/billings/settings', [AdminBillingController::class, 'updateSettings'])->name('billing.settings.update');
     Route::post('/billings/fee-rates', [AdminBillingController::class, 'storeFeeRate'])->name('billing.feeRates.store');
@@ -206,8 +207,6 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::post('/geocode', [ClientGeocodeController::class, 'search'])->name('geocode')->middleware('throttle:60,1');
 
     Route::get('/billing', [ClientBillingController::class, 'index'])->name('billing.index');
-    Route::post('/billing', [ClientBillingController::class, 'submitSales'])->name('billing.submit');
-    Route::get('/billing/period-data', [ClientBillingController::class, 'periodData'])->name('billing.period-data');
     Route::get('/billing/{billing}', [ClientBillingController::class, 'show'])->name('billing.show');
 
     Route::get('/collections', [ClientCollectionController::class, 'index'])->name('collections.index');

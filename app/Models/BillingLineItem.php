@@ -4,44 +4,58 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class FeeRate extends Model
+class BillingLineItem extends Model
 {
     use HasFactory;
 
+    public const CATEGORY_BIR_REMITTANCE = 'bir_remittance';
     public const CATEGORY_PROFESSIONAL_FEE = 'professional_fee';
     public const CATEGORY_BOOKKEEPING_FEE = 'bookkeeping_fee';
 
     public const CATEGORIES = [
+        self::CATEGORY_BIR_REMITTANCE => 'BIR Remittance',
         self::CATEGORY_PROFESSIONAL_FEE => 'Professional Fee',
         self::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping Fee',
     ];
 
     protected $fillable = [
-        'label',
-        'amount',
+        'billing_id',
         'category',
-        'sort_order',
-        'active',
+        'form_type',
+        'label',
+        'month',
+        'amount',
+        'fee_rate_id',
     ];
 
     protected function casts(): array
     {
         return [
+            'month' => 'integer',
             'amount' => 'float',
-            'sort_order' => 'integer',
-            'active' => 'boolean',
         ];
     }
 
-    public function scopeActive($query)
+    public function billing(): BelongsTo
     {
-        return $query->where('active', true);
+        return $this->belongsTo(Billing::class);
     }
 
-    public function scopeOrdered($query)
+    public function feeRate(): BelongsTo
     {
-        return $query->orderBy('sort_order')->orderBy('amount');
+        return $this->belongsTo(FeeRate::class);
+    }
+
+    public function money(): string
+    {
+        return '₱'.number_format($this->amount, 2);
+    }
+
+    public function scopeRemittances($query)
+    {
+        return $query->where('category', self::CATEGORY_BIR_REMITTANCE);
     }
 
     public function scopeProfessionalFees($query)
@@ -54,8 +68,8 @@ class FeeRate extends Model
         return $query->where('category', self::CATEGORY_BOOKKEEPING_FEE);
     }
 
-    public function money(): string
+    public function scopeCashIn($query)
     {
-        return '₱'.number_format($this->amount, 2);
+        return $query->where('category', self::CATEGORY_BIR_REMITTANCE)->whereNull('form_type');
     }
 }

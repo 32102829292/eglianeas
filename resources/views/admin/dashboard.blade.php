@@ -108,13 +108,6 @@
             <a href="{{ route('admin.billing.index') }}">Manage billing</a>
         </div>
         <div class="alert-list">
-            <div class="alert-list-item @if ($billingAlerts['missingSales']) alert-warn @endif">
-                <div class="alert-list-main">
-                    <b>Missing sales</b>
-                    <small>{{ App\Models\Billing::QUARTERS[$missingQuarter] }} Quarter {{ $missingYear }} &mdash; clients who have not submitted their sales are reminded daily.</small>
-                </div>
-                <span class="alert-list-count">{{ $billingAlerts['missingSales'] }} client{{ $billingAlerts['missingSales'] === 1 ? '' : 's' }}</span>
-            </div>
             <div class="alert-list-item @if ($billingAlerts['dueSoon']) alert-warn @endif">
                 <div class="alert-list-main">
                     <b>Bills due within 7 days</b>

@@ -59,7 +59,6 @@
                         <thead>
                             <tr>
                                 <th>Quarter</th>
-                                <th>Sales</th>
                                 <th>Total</th>
                                 <th>Status</th>
                                 <th>Due date</th>
@@ -74,7 +73,6 @@
                                         <div class="cell-name">{{ $billing->periodTitleUppercase() }} BILLING</div>
                                         <small class="muted">{{ $billing->period_label }}</small>
                                     </td>
-                                    <td>{{ $billing->money($billing->sales) }}</td>
                                     <td><b>{{ $billing->money($billing->total) }}</b></td>
                                     <td>
                                         <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>

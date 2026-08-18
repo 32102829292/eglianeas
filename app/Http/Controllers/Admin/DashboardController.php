@@ -16,19 +16,6 @@ class DashboardController extends Controller
 {
     public function __invoke(): View
     {
-        $year = Billing::currentYear();
-        $quarter = Billing::currentQuarter();
-
-        $missingSalesClients = User::query()
-            ->where('role', User::ROLE_CLIENT)
-            ->whereDoesntHave('billings', function ($query) use ($year, $quarter) {
-                $query->where('year', $year)
-                    ->where('quarter', $quarter)
-                    ->whereNotNull('sales_submitted_at');
-            })
-            ->orderBy('name')
-            ->get();
-
         $dueBills = Billing::query()
             ->with('client')
             ->whereIn('status', [Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
@@ -82,12 +69,8 @@ class DashboardController extends Controller
             'recentUsers' => User::query()->latest()->limit(8)->get(),
             'recentFilings' => Filing::query()->with('client')->latest()->limit(8)->get(),
             'recentActivity' => ActivityLog::query()->with('user')->latest()->limit(10)->get(),
-            'missingSalesClients' => $missingSalesClients,
             'dueBills' => $dueBills,
-            'missingYear' => $year,
-            'missingQuarter' => $quarter,
             'billingAlerts' => [
-                'missingSales' => $missingSalesClients->count(),
                 'dueSoon' => $dueBills->where('due_date', '>=', now()->startOfDay())->count(),
                 'overdue' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
                 'outstanding' => (float) (

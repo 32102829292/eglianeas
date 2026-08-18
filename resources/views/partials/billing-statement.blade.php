@@ -1,3 +1,10 @@
+@php
+    $grouped = $billing->lineItems->groupBy('category');
+    $remittances = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE, collect());
+    $professionalFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE, collect());
+    $bookkeepingFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE, collect());
+@endphp
+
 <div class="statement">
     @if ($billing->isPaid())
         <div class="paid-stamp" aria-hidden="true">
@@ -15,23 +22,41 @@
         {{ $billing->client?->business_name ?: $billing->client?->name }}
     </div>
 
-    <div class="statement-block">
-        <div class="statement-row statement-sales"><span>SALES</span><span>{{ $billing->money($billing->sales) }}</span></div>
-    </div>
+    @if ($remittances->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">BIR REMITTANCES</div>
+            @foreach ($remittances as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
 
-    <div class="statement-block">
-        <div class="statement-block-title">BIR REMITTANCES</div>
-        <div class="statement-row"><span>2551Q ({{ $billing->rate_2551q }}%)</span><span>{{ $billing->money($billing->tax_2551q) }}</span></div>
-        <div class="statement-row"><span>1701Q</span><span>{{ $billing->money($billing->tax_1701q) }}</span></div>
-        <div class="statement-row"><span>CASH IN</span><span>{{ $billing->money($billing->cash_in) }}</span></div>
-    </div>
+    @if ($professionalFees->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">PROFESSIONAL FEES (FILING)</div>
+            @foreach ($professionalFees as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
 
-    <div class="statement-block">
-        <div class="statement-block-title">RATE FEES (PROFESSIONAL / FILING)</div>
-        <div class="statement-row"><span>2551Q</span><span>{{ $billing->money($billing->fee_2551q) }}</span></div>
-        <div class="statement-row"><span>1701Q</span><span>{{ $billing->money($billing->fee_1701q) }}</span></div>
-        <div class="statement-row"><span>BOOKKEEPING / POST CLOSING TRIAL BALANCE</span><span>{{ $billing->money($billing->fee_bookkeeping) }}</span></div>
-    </div>
+    @if ($bookkeepingFees->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">BOOKKEEPING / POST-CLOSING TRIAL BALANCE</div>
+            @foreach ($bookkeepingFees as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
 
     <div class="statement-total">
         <span>TOTAL AMOUNT:</span>

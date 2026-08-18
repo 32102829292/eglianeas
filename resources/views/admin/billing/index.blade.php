@@ -76,28 +76,6 @@
         </div>
     </div>
 
-    @if ($missingSalesClients->count())
-        <div class="alert-strip">
-            <div class="alert-strip-head">
-                <b>Missing sales &mdash; {{ App\Models\Billing::QUARTERS[$missingQuarter] }} Quarter {{ $missingYear }}</b>
-                <small>These clients have not submitted their sales for the current quarter and are being reminded daily.</small>
-            </div>
-            <div class="alert-strip-body">
-                @foreach ($missingSalesClients as $client)
-                    <span class="alert-chip">
-                        {{ $client->name }}
-                        <small>{{ $client->business_name }}</small>
-                        <a href="{{ route('admin.billing.create') }}" class="alert-chip-link">Add sales</a>
-                    </span>
-                @endforeach
-            </div>
-        </div>
-    @else
-        <div class="alert-strip alert-strip-ok">
-            All clients have submitted their sales for {{ App\Models\Billing::QUARTERS[$missingQuarter] }} Quarter {{ $missingYear }}.
-        </div>
-    @endif
-
     <div class="filter-bar">
         <form method="GET" action="{{ route('admin.billing.index') }}">
             <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;">
@@ -145,7 +123,7 @@
                                     <span class="badge bg-secondary">No billing</span>
                                 @else
                                     @php($s = $entry['status'])
-                                    <span class="badge @if($s==='current') bg-success @elseif($s==='delinquent') bg-warning text-dark @elseif($s==='critical') bg-danger @else bg-secondary @endif">{{ App\Models\Billing::STATUSES[$s] }}</span>
+                                    <span class="badge @if($s === 'paid') bg-success @elseif($s === 'overdue') bg-danger @elseif($s === 'unpaid') bg-warning text-dark @else bg-secondary @endif">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>
                                 @endif
                             </td>
                             <td class="text-end">

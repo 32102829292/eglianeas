@@ -30,57 +30,63 @@
         <p>{{ $periodLabel }} &mdash; Generated {{ now()->format('F j, Y \a\t g:i A') }}</p>
     </div>
 
+    @php
+        $allFormTypes = $allFormTypes ?? [];
+        $totalCols = 1 + count($allFormTypes) + 1 + count($allFormTypes) + 1 + 1;
+        $colWidth = round(100 / $totalCols, 1);
+    @endphp
+
     <table class="masterlist">
         <colgroup>
-            <col width="12%">
-            <col width="8%">
-            <col width="8%">
-            <col width="8%">
-            <col width="8%">
-            <col width="6%">
-            <col width="8%">
-            <col width="8%">
-            <col width="8%">
-            <col width="12%">
-            <col width="8%">
+            <col width="{{ $colWidth * 1.5 }}%">
+            @foreach ($allFormTypes as $ft)
+                <col width="{{ $colWidth }}%">
+            @endforeach
+            <col width="{{ $colWidth }}%">
+            @foreach ($allFormTypes as $ft)
+                <col width="{{ $colWidth }}%">
+            @endforeach
+            <col width="{{ $colWidth }}%">
+            <col width="{{ $colWidth }}%">
         </colgroup>
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Sales</th>
-                <th>2551Q (BIR)</th>
-                <th>1701Q (BIR)</th>
+                <th>Client</th>
+                @foreach ($allFormTypes as $ft)
+                    <th>{{ $ft }} (BIR)</th>
+                @endforeach
                 <th>Cash In</th>
-                <th>Rate</th>
-                <th>Fees</th>
-                <th>2551Q &mdash; Amount</th>
-                <th>1701Q &mdash; Amount</th>
-                <th>Bookkeeping / Post-Closing TB</th>
-                <th>Amount (Total)</th>
+                @foreach ($allFormTypes as $ft)
+                    <th>Fee — {{ $ft }}</th>
+                @endforeach
+                <th>Bookkeeping</th>
+                <th>Total</th>
             </tr>
         </thead>
         <tbody>
             @forelse ($billings as $billing)
                 @php
                     $client = $billing->client;
-                    $rate = (float) $billing->rate_2551q;
-                    $fees = (float) $billing->fee_2551q + (float) $billing->fee_1701q;
+                    $lineItems = $billing->lineItems;
                 @endphp
                 <tr>
                     <td>{{ $client?->business_name ?: $client?->name ?? '' }}</td>
-                    <td class="text-right">{{ number_format($billing->sales, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->tax_2551q, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->tax_1701q, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->cash_in, 2) }}</td>
-                    <td class="text-right">{{ $rate > 0 ? $rate . '%' : '' }}</td>
-                    <td class="text-right">{{ number_format($fees, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->fee_2551q, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->fee_1701q, 2) }}</td>
-                    <td class="text-right">{{ number_format($billing->fee_bookkeeping, 2) }}</td>
+                    @foreach ($allFormTypes as $ft)
+                        @php $item = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE)->where('form_type', $ft)->first(); @endphp
+                        <td class="text-right">{{ $item ? number_format($item->amount, 2) : '—' }}</td>
+                    @endphp
+                    @php $cashIn = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE)->whereNull('form_type')->first(); @endphp
+                    <td class="text-right">{{ $cashIn ? number_format($cashIn->amount, 2) : '—' }}</td>
+                    @foreach ($allFormTypes as $ft)
+                        @php $item = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE)->where('form_type', $ft)->first(); @endphp
+                        <td class="text-right">{{ $item ? number_format($item->amount, 2) : '—' }}</td>
+                    @endforeach
+                    @php $book = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->first(); @endphp
+                    <td class="text-right">{{ $book ? number_format($book->amount, 2) : '—' }}</td>
                     <td class="text-right">{{ number_format($billing->total, 2) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="11" class="empty-cell">No billing records found for this period.</td></tr>
+                <tr><td colspan="{{ $totalCols }}" class="empty-cell">No billing records found for this period.</td></tr>
             @endforelse
         </tbody>
     </table>
