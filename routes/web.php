@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AboutController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AnnouncementController;
+use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
@@ -166,6 +167,9 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');
+
+    Route::get('/bir-forms', [AdminBirFormsController::class, 'index'])->name('bir-forms.index');
+    Route::post('/bir-forms/{client}/toggle', [AdminBirFormsController::class, 'toggleApplicable'])->name('bir-forms.toggle');
 
     Route::get('/distribution', [AdminDistributionController::class, 'index'])->name('distribution.index');
     Route::get('/distribution/{client}', [AdminDistributionController::class, 'show'])->name('distribution.show');

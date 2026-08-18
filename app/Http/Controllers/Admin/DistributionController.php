@@ -36,13 +36,14 @@ class DistributionController extends Controller
             ->get()
             ->map(function (User $client): array {
                 $statuses = $client->birFormStatuses()->pluck('status', 'form_type');
-                $filed = $statuses->filter(fn (string $s) => $s === BirFormStatus::STATUS_FILED)->count();
+                $applicableForms = $client->birFormStatuses()->where('applicable', true)->pluck('status', 'form_type');
+                $filed = $applicableForms->filter(fn (string $s) => $s === BirFormStatus::STATUS_FILED)->count();
                 $softcopyCount = $client->documents()->whereNotNull('form_type')->count();
 
                 return [
                     'user' => $client,
                     'filed' => $filed,
-                    'total' => count(BirFormStatus::FORM_TYPES),
+                    'total' => $applicableForms->count(),
                     'softcopies' => $softcopyCount,
                 ];
             });
@@ -60,17 +61,25 @@ class DistributionController extends Controller
         $profile = $client->profile;
 
         $birStatuses = $client->birFormStatuses()
+            ->where('applicable', true)
             ->get()
             ->pluck('status', 'form_type')
             ->toArray();
 
+        $applicableFormTypes = $client->birFormStatuses()
+            ->where('applicable', true)
+            ->pluck('form_type')
+            ->toArray();
+
         $deliveries = $client->documentDeliveries()
+            ->whereIn('form_type', $applicableFormTypes)
             ->orderByDesc('date_received')
             ->orderByDesc('created_at')
             ->get();
 
         $softcopies = $client->documents()
             ->whereNotNull('form_type')
+            ->whereIn('form_type', $applicableFormTypes)
             ->orderByDesc('created_at')
             ->get()
             ->groupBy('form_type');
@@ -81,7 +90,7 @@ class DistributionController extends Controller
             'birStatuses' => $birStatuses,
             'deliveries' => $deliveries,
             'softcopies' => $softcopies,
-            'formTypes' => BirFormStatus::FORM_TYPES,
+            'formTypes' => $applicableFormTypes,
             'statuses' => BirFormStatus::STATUSES,
             'methods' => DocumentDelivery::METHODS,
         ]);

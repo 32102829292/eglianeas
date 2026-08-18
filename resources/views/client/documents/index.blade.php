@@ -16,17 +16,23 @@
             <span class="badge badge-{{ $filedCount > 0 ? 'current' : 'neutral' }}">{{ $filedCount }}/{{ count($formTypes) }} filed</span>
         </div>
         <p class="card-sub">Status of your BIR form filings as tracked by Egliane.</p>
-        <div class="bir-checklist">
-            @foreach ($formTypes as $ft)
-                @php($current = $birStatuses[$ft] ?? null)
-                <div class="bir-checklist-item">
-                    <span class="bir-checklist-type">{{ $ft }}</span>
-                    <span class="badge badge-{{ $current === 'filed' ? 'current' : ($current === 'not_applicable' ? 'neutral' : 'critical') }}">
-                        {{ $current ? $statuses[$current] : 'Not Filed' }}
-                    </span>
-                </div>
-            @endforeach
-        </div>
+        @if (count($formTypes) > 0)
+            <div class="bir-checklist">
+                @foreach ($formTypes as $ft)
+                    @php($current = $birStatuses[$ft] ?? null)
+                    <div class="bir-checklist-item">
+                        <span class="bir-checklist-type">{{ $ft }}</span>
+                        <span class="badge badge-{{ $current === 'filed' ? 'current' : 'critical' }}">
+                            {{ $current ? $statuses[$current] : 'Not Filed' }}
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div class="empty-state">
+                <p>No BIR forms have been assigned to your account yet.</p>
+            </div>
+        @endif
     </div>
 
     {{-- Softcopy Documents --}}

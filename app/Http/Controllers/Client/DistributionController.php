@@ -14,13 +14,20 @@ class DistributionController extends Controller
     {
         $user = auth()->user();
 
+        $applicableFormTypes = $user->birFormStatuses()
+            ->where('applicable', true)
+            ->pluck('form_type')
+            ->toArray();
+
         $birStatuses = $user->birFormStatuses()
+            ->where('applicable', true)
             ->get()
             ->pluck('status', 'form_type')
             ->toArray();
 
         $softcopies = $user->documents()
             ->whereNotNull('form_type')
+            ->whereIn('form_type', $applicableFormTypes)
             ->orderByDesc('created_at')
             ->get()
             ->groupBy('form_type');
@@ -28,7 +35,7 @@ class DistributionController extends Controller
         return view('client.documents.index', [
             'birStatuses' => $birStatuses,
             'softcopies' => $softcopies,
-            'formTypes' => BirFormStatus::FORM_TYPES,
+            'formTypes' => $applicableFormTypes,
             'statuses' => BirFormStatus::STATUSES,
         ]);
     }
