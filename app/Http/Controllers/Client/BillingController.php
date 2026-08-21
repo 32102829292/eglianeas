@@ -23,16 +23,19 @@ class BillingController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $summary = $user->billings()->get()->reduce(
+        $allBillings = $user->billings()->get();
+        $summary = $allBillings->reduce(
             function (array $carry, Billing $billing): array {
                 $carry['billed'] += (float) $billing->total;
                 if ($billing->isPaid()) {
                     $carry['paid'] += (float) $billing->total;
+                } else {
+                    $carry['outstanding'] += (float) $billing->total;
                 }
 
                 return $carry;
             },
-            ['billed' => 0.0, 'paid' => 0.0]
+            ['billed' => 0.0, 'paid' => 0.0, 'outstanding' => 0.0]
         );
 
         return view('client.billing.index', [

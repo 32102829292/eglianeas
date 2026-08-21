@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Notification;
+use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -58,6 +59,18 @@ class CollectionController extends Controller
             $overdue ? 'billing_overdue' : 'billing_due',
             route('client.collections.index')
         );
+
+        $client = \App\Models\User::find($billing->client_id);
+        if ($client) {
+            PushNotificationService::send(
+                $client,
+                $overdue ? 'Billing overdue' : 'Billing payment due',
+                $overdue
+                    ? "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is now overdue."
+                    : "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is due on {$billing->due_date?->format('F j, Y')}.",
+                route('client.collections.index')
+            );
+        }
 
         ActivityLog::record(auth()->user(), 'admin.collection_reminded', "Sent a manual payment reminder for {$billing->period_label} to {$billing->client?->name}.");
 

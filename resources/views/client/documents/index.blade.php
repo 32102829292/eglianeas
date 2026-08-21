@@ -1,10 +1,10 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Distribution — Egliane Accounting Services')
+@section('title', 'Document Distribution — Egliane Accounting Services')
 
 @section('content')
     <div class="page-head">
-        <h1>Distribution</h1>
+        <h1>Document Distribution</h1>
         <p>Your BIR form checklist and softcopy documents.</p>
     </div>
 

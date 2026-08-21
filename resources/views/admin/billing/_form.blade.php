@@ -78,7 +78,7 @@
         </div>
 
         <div class="btn-group-row">
-            <button type="submit" class="btn btn-primary">{{ $isEdit ? 'Save changes' : 'Create billing' }}</button>
+            <button type="submit" class="btn btn-primary">{{ $isEdit ? 'Save changes' : 'Create billing statement' }}</button>
             <a href="{{ $isEdit ? route('admin.billing.show', $billing->client) : route('admin.billing.index') }}" class="btn btn-outline">Cancel</a>
         </div>
     </form>

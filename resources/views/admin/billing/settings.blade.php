@@ -8,7 +8,10 @@
             <h1>Billing Settings</h1>
             <p>Default tax rates and fee amount presets by category.</p>
         </div>
-        <a href="{{ route('admin.billing.index') }}" class="btn btn-outline btn-sm">Back to Billing</a>
+        <div class="btn-row">
+            <a href="{{ route('admin.billing.paymentSettings') }}" class="btn btn-outline btn-sm">Payment Settings</a>
+            <a href="{{ route('admin.billing.index') }}" class="btn btn-outline btn-sm">Back to Billing Statements</a>
+        </div>
     </div>
 
     <div class="card">

@@ -36,7 +36,7 @@
         <div class="card-head">
             <span class="card-title">All Clients <span class="count-pill">{{ $clients->count() }}</span></span>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
@@ -53,19 +53,19 @@
                     @forelse ($clients as $entry)
                         @php($client = $entry['user'])
                         <tr data-filter-row>
-                            <td>
+                            <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
                                 <small class="text-muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
                             </td>
-                            <td>
+                            <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
                                 <small class="text-muted">{{ $client->email }}</small>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" data-col="Status">
                                 @php($s = $entry['status'])
                                 <span class="badge @if($s==='current') bg-success @elseif($s==='delinquent') bg-warning text-dark @elseif($s==='critical') bg-danger @else bg-secondary @endif">{{ $statuses[$s] ?? $s }}</span>
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" data-col="Payment">
                                 @if ($entry['payment_status'])
                                     @php($p = $entry['payment_status'])
                                     <span class="badge @if($p==='paid') bg-success @elseif($p==='unpaid') bg-danger @elseif($p==='partial') bg-warning text-dark @else bg-secondary @endif">{{ ucfirst($p) }}</span>
@@ -73,15 +73,15 @@
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td class="text-end">
+                            <td class="text-end" data-col="Outstanding">
                                 @if ($entry['outstanding'] > 0)
                                     <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td>{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</td>
-                            <td class="text-end">
+                            <td data-col="Since">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</td>
+                            <td class="text-end" data-col="Actions">
                                 <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a>
                                 <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a>
                             </td>
@@ -91,6 +91,22 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($clients as $entry)
+                    @php($client = $entry['user'])
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $entry['status']){{ $statuses[$s] ?? $s }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Payment</span><span class="cv-value">{{ $entry['payment_status'] ? ucfirst($entry['payment_status']) : '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a> <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a></span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection
@@ -111,6 +127,7 @@
                 if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
                 return;
             }
+            if (e.target.closest('.dropdown-menu')) return;
             document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
         });
     </script>

@@ -6,6 +6,8 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
+use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
+use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
@@ -19,11 +21,14 @@ use App\Http\Controllers\Client\CollectionController as ClientCollectionControll
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
 use App\Http\Controllers\Client\DistributionController as ClientDistributionController;
 use App\Http\Controllers\Client\GeocodeController as ClientGeocodeController;
+use App\Http\Controllers\Client\OtherServiceController as ClientOtherServiceController;
+use App\Http\Controllers\Client\ServiceTrackerController as ClientServiceTrackerController;
 use App\Http\Controllers\Client\ProfileController as ClientProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -38,7 +43,8 @@ Route::get('/about', function () {
     $about = \App\Models\AboutContent::instance();
     $coreValues = \App\Models\CoreValue::ordered()->get();
     $certificates = \App\Models\CompanyCertificate::ordered()->get();
-    return view('about', compact('about', 'coreValues', 'certificates'));
+    $teamMembers = \App\Models\TeamMember::ordered()->get();
+    return view('about', compact('about', 'coreValues', 'certificates', 'teamMembers'));
 })->name('about.public');
 
 Route::get('/certificates/{certificate}/file', function (\App\Models\CompanyCertificate $certificate) {
@@ -68,6 +74,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications/{notification}/open', [NotificationController::class, 'open'])->name('notifications.open');
     Route::post('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+
+    Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
+    Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe');
+    Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey'])->name('push.vapid-key');
+
+    Route::get('/payment-image/{type}/{index?}', [\App\Http\Controllers\Admin\BillingController::class, 'paymentImage'])->name('payment.image');
 
     Route::get('/documents/{document}/view', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
         $user = $request->user();
@@ -143,6 +155,8 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/billings/applicable-forms', [AdminBillingController::class, 'applicableForms'])->name('billing.applicableForms');
     Route::get('/billings/settings', [AdminBillingController::class, 'settings'])->name('billing.settings');
     Route::post('/billings/settings', [AdminBillingController::class, 'updateSettings'])->name('billing.settings.update');
+    Route::get('/billings/payment-settings', [AdminBillingController::class, 'paymentSettings'])->name('billing.paymentSettings');
+    Route::post('/billings/payment-settings', [AdminBillingController::class, 'updatePaymentSettings'])->name('billing.paymentSettings.update');
     Route::post('/billings/fee-rates', [AdminBillingController::class, 'storeFeeRate'])->name('billing.feeRates.store');
     Route::delete('/billings/fee-rates/{feeRate}', [AdminBillingController::class, 'destroyFeeRate'])->name('billing.feeRates.destroy');
     Route::get('/billings/create', [AdminBillingController::class, 'create'])->name('billing.create');
@@ -168,6 +182,31 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');
+
+    Route::get('/other-services', [AdminOtherServiceController::class, 'billing'])->name('other-services.billing');
+    Route::get('/other-services/fill-up', [AdminOtherServiceController::class, 'fillUp'])->name('other-services.fill-up');
+    Route::post('/other-services', [AdminOtherServiceController::class, 'store'])->name('other-services.store');
+    Route::get('/other-services/collections', [AdminOtherServiceController::class, 'collections'])->name('other-services.collections');
+    Route::post('/other-services/{otherService}/pay', [AdminOtherServiceController::class, 'pay'])->name('other-services.pay');
+    Route::get('/other-services/{otherService}/receipt', [AdminOtherServiceController::class, 'receipt'])->name('other-services.receipt');
+    Route::delete('/other-services/{otherService}', [AdminOtherServiceController::class, 'destroy'])->name('other-services.destroy');
+    Route::get('/other-services/settings', [AdminOtherServiceController::class, 'settings'])->name('other-services.settings');
+    Route::post('/other-services/service-types', [AdminOtherServiceController::class, 'storeServiceType'])->name('other-services.service-types.store');
+    Route::delete('/other-services/service-types/{serviceType}', [AdminOtherServiceController::class, 'destroyServiceType'])->name('other-services.service-types.destroy');
+    Route::get('/other-services/clients-json', [AdminOtherServiceController::class, 'clientsJson'])->name('other-services.clientsJson');
+
+    Route::get('/service-tracker', [AdminServiceTrackerController::class, 'index'])->name('service-tracker.index');
+    Route::get('/service-tracker/create', [AdminServiceTrackerController::class, 'create'])->name('service-tracker.create');
+    Route::post('/service-tracker', [AdminServiceTrackerController::class, 'store'])->name('service-tracker.store');
+    Route::post('/service-tracker/assignment/{assignment}/toggle', [AdminServiceTrackerController::class, 'toggleAssignment'])->name('service-tracker.toggle-assignment');
+    Route::get('/service-tracker/summary', [AdminServiceTrackerController::class, 'summary'])->name('service-tracker.summary');
+    Route::get('/service-tracker/concerns', [AdminServiceTrackerController::class, 'concerns'])->name('service-tracker.concerns');
+    Route::post('/service-tracker/concerns', [AdminServiceTrackerController::class, 'storeConcern'])->name('service-tracker.concerns.store');
+    Route::delete('/service-tracker/concerns/{concern}', [AdminServiceTrackerController::class, 'destroyConcern'])->name('service-tracker.concerns.destroy');
+    Route::put('/service-tracker/concerns/{concern}', [AdminServiceTrackerController::class, 'updateConcern'])->name('service-tracker.concerns.update');
+    Route::post('/service-tracker/concerns/{concern}/review', [AdminServiceTrackerController::class, 'markReviewed'])->name('service-tracker.concerns.review');
+    Route::get('/service-tracker/clients-json', [AdminServiceTrackerController::class, 'clientsJson'])->name('service-tracker.clientsJson');
+
     Route::get('/bir-forms', [AdminBirFormsController::class, 'index'])->name('bir-forms.index');
 
     Route::post('/bir-forms/{client}/toggle', [AdminBirFormsController::class, 'toggleApplicable'])->name('bir-forms.toggle');
@@ -210,6 +249,14 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::get('/billing/{billing}', [ClientBillingController::class, 'show'])->name('billing.show');
 
     Route::get('/collections', [ClientCollectionController::class, 'index'])->name('collections.index');
+
+    Route::get('/other-services', [ClientOtherServiceController::class, 'billing'])->name('other-services.billing');
+    Route::get('/other-services/collections', [ClientOtherServiceController::class, 'collections'])->name('other-services.collections');
+    Route::get('/other-services/{otherService}/receipt', [ClientOtherServiceController::class, 'receipt'])->name('other-services.receipt');
+
+    Route::get('/service-tracker', [ClientServiceTrackerController::class, 'index'])->name('service-tracker.index');
+    Route::get('/service-tracker/concerns', [ClientServiceTrackerController::class, 'concerns'])->name('service-tracker.concerns');
+    Route::post('/service-tracker/concerns', [ClientServiceTrackerController::class, 'storeConcern'])->name('service-tracker.concerns.store');
 
     Route::get('/documents', [ClientDistributionController::class, 'index'])->name('documents.index');
     Route::get('/documents/{document}/download', [ClientDistributionController::class, 'download'])->name('documents.download');

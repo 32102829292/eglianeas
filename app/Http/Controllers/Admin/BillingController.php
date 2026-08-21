@@ -11,11 +11,13 @@ use App\Models\FeeRate;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -165,6 +167,11 @@ class BillingController extends Controller
             'link' => route('client.billing.show', $billing),
         ]);
 
+        $client = User::find($billing->client_id);
+        if ($client) {
+            PushNotificationService::send($client, 'New billing statement', "A new billing for {$billing->periodTitle()} is available. Total: {$billing->money($billing->total)}.", route('client.billing.show', $billing));
+        }
+
         ActivityLog::record(auth()->user(), 'admin.billing_created', "Created {$billing->period_label} for {$billing->client?->name}.");
 
         return redirect()->route('admin.billing.index')->with('status', 'Billing record created.');
@@ -222,6 +229,11 @@ class BillingController extends Controller
                 'type' => 'payment',
                 'link' => route('client.collections.index'),
             ]);
+
+            $client = User::find($billing->client_id);
+            if ($client) {
+                PushNotificationService::send($client, 'Payment received', "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} has been marked as paid.", route('client.collections.index'));
+            }
 
             Notification::resolveGroup($billing->client_id, "billing_due:{$billing->id}");
         }
@@ -439,6 +451,91 @@ class BillingController extends Controller
         return back()->with('status', 'Billing settings saved.');
     }
 
+    public function paymentSettings(): View
+    {
+        return view('admin.billing.payment-settings', [
+            'gcashNumber' => Setting::get('gcash_number', ''),
+            'gcashQrCode' => Setting::get('gcash_qr_code', ''),
+            'bankAccounts' => Setting::get('bank_accounts', []),
+        ]);
+    }
+
+    public function updatePaymentSettings(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'gcash_number' => ['nullable', 'string', 'max:30'],
+            'gcash_qr_code' => ['nullable', 'file', 'image', 'max:2048'],
+            'bank_accounts' => ['nullable', 'array'],
+            'bank_accounts.*.bank_name' => ['nullable', 'string', 'max:100'],
+            'bank_accounts.*.account_number' => ['nullable', 'string', 'max:50'],
+            'bank_accounts.*.account_name' => ['nullable', 'string', 'max:100'],
+            'bank_accounts.*.bank_qr_code' => ['nullable', 'file', 'image', 'max:2048'],
+            'bank_accounts.*.existing_bank_qr_code' => ['nullable', 'string'],
+        ]);
+
+        Setting::set('gcash_number', $validated['gcash_number'] ?? '');
+
+        if ($request->hasFile('gcash_qr_code')) {
+            $oldPath = Setting::get('gcash_qr_code');
+            if ($oldPath) {
+                Storage::disk('local')->delete($oldPath);
+            }
+            $path = $request->file('gcash_qr_code')->store('payment-images');
+            Setting::set('gcash_qr_code', $path);
+        }
+
+        $bankAccounts = $validated['bank_accounts'] ?? [];
+        $bankAccounts = array_filter($bankAccounts, function ($account) {
+            return ! empty(trim($account['bank_name'] ?? '')) || ! empty(trim($account['account_number'] ?? ''));
+        });
+        $bankAccounts = array_values($bankAccounts);
+
+        foreach ($bankAccounts as $i => &$account) {
+            $account['bank_name'] = trim($account['bank_name'] ?? '');
+            $account['account_number'] = trim($account['account_number'] ?? '');
+            $account['account_name'] = trim($account['account_name'] ?? '');
+
+            if ($request->hasFile("bank_accounts.{$i}.bank_qr_code")) {
+                if (! empty($account['existing_bank_qr_code'])) {
+                    Storage::disk('local')->delete($account['existing_bank_qr_code']);
+                }
+                $path = $request->file("bank_accounts.{$i}.bank_qr_code")->store('payment-images');
+                $account['bank_qr_code'] = $path;
+            } else {
+                // Keep existing QR code path if no new file uploaded
+                $existing = $account['existing_bank_qr_code'] ?? '';
+                $account['bank_qr_code'] = $existing;
+            }
+            unset($account['existing_bank_qr_code']);
+        }
+        unset($account);
+
+        Setting::set('bank_accounts', $bankAccounts);
+
+        ActivityLog::record(auth()->user(), 'billing.payment_settings_updated', 'Payment details settings updated.');
+
+        return back()->with('status', 'Payment details saved.');
+    }
+
+    public function paymentImage(string $type, int $index = 0)
+    {
+        if ($type === 'gcash') {
+            $path = Setting::get('gcash_qr_code');
+        } else {
+            $accounts = Setting::get('bank_accounts', []);
+            $path = $accounts[$index]['bank_qr_code'] ?? null;
+        }
+
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        $mime = mime_content_type(Storage::disk('local')->path($path)) ?: 'image/png';
+
+        return response()->file(Storage::disk('local')->path($path), [
+            'Content-Type' => $mime,
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
     public function storeFeeRate(Request $request): RedirectResponse
     {
         $validated = $request->validate([
@@ -629,7 +726,7 @@ class BillingController extends Controller
     private function getFilteredBillings(?int $quarter, int $year): Collection
     {
         return Billing::with('lineItems')
-            ->with('client')
+            ->with('client.birFormStatuses')
             ->where('year', $year)
             ->when($quarter, fn ($query) => $query->where('quarter', $quarter))
             ->orderBy('quarter')

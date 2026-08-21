@@ -201,6 +201,68 @@
 @endpush
 @endif
 
+<section class="section">
+    <div class="container">
+        <div class="section-head">
+            <span class="eyebrow">People</span>
+            <h2>Meet Our Team</h2>
+            <p>The people behind Egliane's reliable accounting services.</p>
+        </div>
+        @php
+            $teamByRank = $teamMembers->groupBy('rank');
+            $rankOrder = ['Managerial', 'Supervisory', 'Supervisory / Specialist', 'Technical Specialist / Advisory', 'Rank and File / Analyst', 'Rank and File / Specialist', 'Rank and File'];
+        @endphp
+        <div class="team-grid">
+            @foreach ($rankOrder as $rank)
+                @if ($teamByRank->has($rank))
+                    @foreach ($teamByRank[$rank] as $member)
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <h3 class="team-name">{{ $member->name }}</h3>
+                            <span class="team-position">{{ $member->position }}</span>
+                            @if ($member->reports_to)
+                                <span class="team-reports-to">Reports to: {{ $member->reports_to }}</span>
+                            @endif
+                            <p class="team-duties">{{ $member->duties }}</p>
+                            @if ($member->supervises)
+                                <div class="team-supervises">
+                                    <span class="team-supervises-label">Supervises</span>
+                                    <p>{{ $member->supervises }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                @endif
+            @endforeach
+            @foreach ($teamByRank as $rank => $members)
+                @if (!in_array($rank, $rankOrder))
+                    @foreach ($members as $member)
+                        <div class="team-card">
+                            <div class="team-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <h3 class="team-name">{{ $member->name }}</h3>
+                            <span class="team-position">{{ $member->position }}</span>
+                            @if ($member->reports_to)
+                                <span class="team-reports-to">Reports to: {{ $member->reports_to }}</span>
+                            @endif
+                            <p class="team-duties">{{ $member->duties }}</p>
+                            @if ($member->supervises)
+                                <div class="team-supervises">
+                                    <span class="team-supervises-label">Supervises</span>
+                                    <p>{{ $member->supervises }}</p>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                @endif
+            @endforeach
+        </div>
+    </div>
+</section>
+
 <section class="section section-alt">
     <div class="container">
         <div class="cta-band">

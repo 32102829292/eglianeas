@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Announcement;
+use App\Models\User;
+use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -35,6 +37,9 @@ class AnnouncementController extends Controller
         ]));
 
         ActivityLog::record(auth()->user(), 'settings.announcement_posted', 'Posted a new announcement.');
+
+        $title = $validated['title'] ?: 'New Announcement';
+        PushNotificationService::sendToClients($title, $validated['body'], route('home'));
 
         return back()->with('status', 'Announcement posted.');
     }

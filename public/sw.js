@@ -1,6 +1,6 @@
 /* Egliane Accounting Services — Service Worker (hand-rolled) */
 
-const VERSION = 'egliane-v2';
+const VERSION = 'egliane-v7';
 const SHELL_CACHE = 'egliane-shell-' + VERSION;
 const DATA_CACHE = 'egliane-data-' + VERSION;
 
@@ -13,15 +13,15 @@ const SHELL_ASSETS = [
   '/css/dashboard.css',
   '/js/app.js',
   '/js/auth.js',
+  '/js/push.js',
   '/icons/icon-32.png',
   '/icons/icon-180.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/maskable-192.png',
   '/icons/maskable-512.png',
-  '/icons/emblem.svg',
-  '/icons/logo.svg',
-  '/icons/logo.png',
+  '/icons/logo-header.png',
+  '/icons/apple-touch-icon.png',
   '/favicon.ico'
 ];
 
@@ -129,4 +129,50 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+/* ---------- Push notifications ---------- */
+self.addEventListener('push', (event) => {
+  console.log('[SW push] event received:', event);
+  let data = { title: 'Egliane', body: '', url: '/' };
+
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  console.log('[SW push] showing notification:', data.title, data.body, data.url);
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-32.png',
+      vibrate: [200, 100, 200],
+      data: { url: data.url || '/' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW notificationclick] clicked:', event.notification.title);
+  event.notification.close();
+
+  var url = (event.notification.data && event.notification.data.url) || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if (client.url.indexOf(self.location.origin) === 0 && 'focus' in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
 });

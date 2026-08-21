@@ -174,6 +174,33 @@
             </form>
         </div>
     @endif
+
+        <div class="card">
+            <div class="card-head">
+                <h2 class="card-title">Team Members</h2>
+            </div>
+            @if ($teamMembers->count())
+                <div class="team-admin-grid">
+                    @foreach ($teamMembers as $member)
+                        <div class="team-admin-card">
+                            <div class="team-admin-avatar">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                            </div>
+                            <div class="team-admin-info">
+                                <h3>{{ $member->name }}</h3>
+                                <span class="team-admin-position">{{ $member->position }}</span>
+                                <span class="team-admin-rank">{{ $member->rank }}</span>
+                                @if ($member->reports_to)
+                                    <span class="team-admin-reports">Reports to: {{ $member->reports_to }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="muted" style="margin-bottom:0;">No team members added yet.</p>
+            @endif
+        </div>
 @endsection
 
 @push('scripts')

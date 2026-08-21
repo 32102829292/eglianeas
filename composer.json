@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "*",
+        "laravel-notification-channels/webpush": "*",
         "laravel/breeze": "^2.4",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",

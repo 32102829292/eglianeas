@@ -286,3 +286,11 @@
 .btn-group-row .btn { flex: 1; }
 
 .opt-tag { font-style: normal; font-size: 11px; color: var(--text-muted); }
+
+/* ---------- Auth responsive fixes ---------- */
+.code-inputs { gap: 6px; }
+.code-input { flex: 1; max-width: 48px; width: auto; height: 48px; font-size: 20px; }
+
+.remember-row { flex-wrap: wrap; }
+
+.verify-actions { flex-wrap: wrap; gap: 10px; justify-content: center; }

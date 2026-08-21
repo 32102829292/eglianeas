@@ -1,14 +1,14 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Collections — Egliane Accounting Services')
+@section('title', 'Collections & Follow-ups — Egliane Accounting Services')
 
 @section('content')
     <div class="page-head page-head-row">
         <div>
-            <h1>Collections</h1>
+            <h1>Collections &amp; Follow-ups</h1>
             <p>Track unpaid, pending, and overdue billings and follow up with clients.</p>
         </div>
-        <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing</a>
+        <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing statement</a>
     </div>
 
     <div class="stat-grid">
@@ -55,7 +55,7 @@
     </div>
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
@@ -70,26 +70,26 @@
                 <tbody>
                     @forelse ($billings as $billing)
                         <tr>
-                            <td>
+                            <td data-col="Business">
                                 <div class="fw-semibold">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
                                 <small class="text-muted">{{ $billing->client?->name }}</small>
                             </td>
-                            <td>
+                            <td data-col="Period">
                                 <div class="fw-semibold">{{ $billing->periodTitleUppercase() }} BILLING</div>
                                 <small class="text-muted">{{ $billing->period_label }}</small>
                             </td>
-                            <td class="text-end fw-semibold">{{ $billing->money($billing->total) }}</td>
-                            <td class="text-center">
+                            <td class="text-end fw-semibold" data-col="Total">{{ $billing->money($billing->total) }}</td>
+                            <td class="text-center" data-col="Status">
                                 @php($s = $billing->status)
                                 <span class="badge @if($s==='paid') bg-success @elseif($s==='unpaid') bg-danger @elseif($s==='overdue') bg-danger @elseif($s==='pending') bg-warning text-dark @else bg-secondary @endif">{{ $billing->statusLabel() }}</span>
                             </td>
-                            <td>
+                            <td data-col="Due date">
                                 {{ $billing->due_date?->format('M j, Y') ?? '—' }}
                                 @if ($billing->status === 'overdue')
                                     <div><small class="text-danger">{{ $billing->due_date?->diffForHumans() }}</small></div>
                                 @endif
                             </td>
-                            <td class="text-end">
+                            <td class="text-end" data-col="Actions">
                                 <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a>
                                 <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">
                                     @csrf
@@ -108,6 +108,20 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($billings as $billing)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $billing->client?->business_name ?: $billing->client?->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
+                        <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $billing->statusLabel() }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-link btn-sm">Send reminder</button></form> <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">@csrf <input type="hidden" name="status" value="paid"> <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"> <button type="submit" class="btn btn-link btn-sm">Mark paid</button></form></span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">Nothing to collect right now.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

@@ -92,6 +92,30 @@
   var backdrop = document.getElementById('dashDrawerBackdrop');
   var drawerClose = document.getElementById('drawerClose');
 
+  /* REGRESSION WARNING: Two independent layout bugs on mobile (<=900px):
+     1. nav.dashDrawer must stay position:fixed so it never enters .dash-layout's flex
+        flow. If it does, content shifts right and clips the left edge at 375-440px.
+        (Regressed 3 times — JS enforces inline position:fixed as safety net.)
+     2. .dash-layout must use align-items:stretch (not flex-start) in column mode so
+        main.dash-main doesn't take intrinsic content width and exceed the viewport.
+        (Caused 22px+ overflow — max-width:100% on .dash-main is the belt-and-suspenders.)
+     Verify: main.dash-main computed width <= viewport width at 375-440px.
+     Do NOT remove without confirming document.body.scrollWidth == window.innerWidth. */
+  var MOBILE_BP = 600;
+  function verifyMobileLayout() {
+    if (window.innerWidth > MOBILE_BP) return;
+    if (drawer) drawer.style.position = 'fixed';
+    if (backdrop) backdrop.style.position = 'fixed';
+    var main = document.querySelector('.dash-main');
+    if (main) {
+      var mainW = Math.round(main.getBoundingClientRect().width);
+      var vpW = window.innerWidth;
+      if (mainW > vpW) {
+        console.warn('[Egliane layout] OVERFLOW: .dash-main width (' + mainW + 'px) > viewport (' + vpW + 'px) on mobile. Content will shift right.');
+      }
+    }
+  }
+
   function setDrawer(open) {
     if (!drawer || !backdrop) return;
     drawer.classList.toggle('open', open);
@@ -99,6 +123,7 @@
     if (hamburger) hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     document.body.style.overflow = open ? 'hidden' : '';
+    verifyMobileLayout();
   }
 
   if (hamburger) hamburger.addEventListener('click', function () { setDrawer(true); });
@@ -420,6 +445,7 @@
   };
 
   document.addEventListener('DOMContentLoaded', function () {
+    verifyMobileLayout();
     var root = document.getElementById('chatWidget');
     if (root) window.egliane.chatbot = new Chatbot(root.getAttribute('data-config'));
   });

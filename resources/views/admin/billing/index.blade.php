@@ -1,11 +1,11 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Billing — Egliane Accounting Services')
+@section('title', 'Billing Statements — Egliane Accounting Services')
 
 @section('content')
     <div class="page-head page-head-row">
         <div>
-            <h1>Billing</h1>
+            <h1>Billing Statements</h1>
             <p>Create and manage quarterly billing statements per client.</p>
         </div>
         <div class="page-head-actions">
@@ -41,7 +41,8 @@
                     </div>
                 </div>
             </div>
-            <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing</a>
+            <a href="{{ route('admin.billing.paymentSettings') }}" class="btn btn-outline btn-sm">Payment Settings</a>
+            <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing statement</a>
         </div>
     </div>
 
@@ -84,7 +85,7 @@
     </div>
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
@@ -101,33 +102,33 @@
                     @forelse ($entries as $entry)
                         @php($client = $entry['user'])
                         <tr>
-                            <td>
+                            <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
                                 <small class="text-muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
                             </td>
-                            <td>
+                            <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
                                 <small class="text-muted">{{ $client->email }}</small>
                             </td>
-                            <td class="text-center">{{ $entry['billing_count'] }}</td>
-                            <td class="text-end fw-semibold">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
-                            <td class="text-end">
+                            <td class="text-center" data-col="Bills">{{ $entry['billing_count'] }}</td>
+                            <td class="text-end fw-semibold" data-col="Total billed">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
+                            <td class="text-end" data-col="Outstanding">
                                 @if ($entry['outstanding'] > 0)
                                     <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif
                             </td>
-                            <td class="text-center">
+                            <td class="text-center" data-col="Status">
                                 @if ($entry['status'] === 'none')
-                                    <span class="badge bg-secondary">No billing</span>
+                                    <span class="badge bg-secondary">No billing statements</span>
                                 @else
                                     @php($s = $entry['status'])
-                                    <span class="badge @if($s === 'paid') bg-success @elseif($s === 'overdue') bg-danger @elseif($s === 'unpaid') bg-warning text-dark @else bg-secondary @endif">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>
+                                    <span class="badge badge-{{ $s }}">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>
                                 @endif
                             </td>
-                            <td class="text-end">
-                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing</a>
+                            <td class="text-end" data-col="Actions">
+                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing statement</a>
                                 <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-link btn-sm">CSV</a>
                             </td>
                         </tr>
@@ -136,6 +137,22 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($entries as $entry)
+                    @php($client = $entry['user'])
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $entry['status'] === 'none' ? 'No billing statements' : (App\Models\Billing::STATUSES[$entry['status']] ?? ucfirst($entry['status'])) }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing statement</a> <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-link btn-sm">CSV</a></span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection
@@ -149,6 +166,7 @@
             if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
             return;
         }
+        if (e.target.closest('.dropdown-menu')) return;
         document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
     });
     (function () {

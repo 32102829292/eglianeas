@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use NotificationChannels\WebPush\HasPushSubscriptions;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasPushSubscriptions;
 
     public const ROLE_ADMIN = 'admin';
     public const ROLE_CLIENT = 'client';
@@ -182,6 +183,21 @@ class User extends Authenticatable
     public function documentDeliveries(): HasMany
     {
         return $this->hasMany(DocumentDelivery::class, 'client_id');
+    }
+
+    public function otherServices(): HasMany
+    {
+        return $this->hasMany(OtherService::class, 'client_id');
+    }
+
+    public function trackerInstances(): HasMany
+    {
+        return $this->hasMany(TrackerInstance::class, 'client_id');
+    }
+
+    public function clientConcerns(): HasMany
+    {
+        return $this->hasMany(ClientConcern::class, 'client_id');
     }
 
     public static function isRole(string $role): bool

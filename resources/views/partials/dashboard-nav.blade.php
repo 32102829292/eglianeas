@@ -28,19 +28,45 @@
     </a>
     <a href="{{ route('admin.billing.index') }}" class="{{ $active('admin.billing') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
-        Billing
+        Billing Statements
+    </a>
+    <a href="{{ route('admin.billing.paymentSettings') }}" class="{{ $active('admin.billing.paymentSettings') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Payment Settings
     </a>
     <a href="{{ route('admin.collections.index') }}" class="{{ $active('admin.collections') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
-        Collections
+        Collections &amp; Follow-ups
     </a>
     <a href="{{ route('admin.distribution.index') }}" class="{{ $active('admin.distribution') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
-        Distribution
+        Document Distribution
     </a>
     <a href="{{ route('admin.bir-forms.index') }}" class="{{ $active('admin.bir-forms') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         BIR Forms
+    </a>
+
+    <div class="dash-nav-head">Other Services</div>
+    <a href="{{ route('admin.other-services.fill-up') }}" class="{{ $active('admin.other-services.fill-up') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        Fill Up Form
+    </a>
+    <a href="{{ route('admin.other-services.billing') }}" class="{{ $active('admin.other-services.billing') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
+        Billing Statements
+    </a>
+    <a href="{{ route('admin.other-services.collections') }}" class="{{ $active('admin.other-services.collections') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
+        Collections &amp; Follow-ups
+    </a>
+    <a href="{{ route('admin.service-tracker.index') }}" class="{{ $active('admin.service-tracker') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Service Tracker
+    </a>
+    <a href="{{ route('admin.service-tracker.concerns') }}" class="{{ $active('admin.service-tracker.concerns') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+        Client Concerns
     </a>
 
     <div class="dash-nav-head">System</div>
@@ -79,16 +105,35 @@
     </a>
     <a href="{{ route('client.billing.index') }}" class="{{ $active('client.billing') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
-        Billing
+        Billing Statements
     </a>
     <a href="{{ route('client.collections.index') }}" class="{{ $active('client.collections') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
-        Collections
+        Collections &amp; Follow-ups
     </a>
     <a href="{{ route('client.documents.index') }}" class="{{ $active('client.documents') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
         Documents
     </a>
+
+    <div class="dash-nav-head">Other Services</div>
+    <a href="{{ route('client.other-services.billing') }}" class="{{ $active('client.other-services.billing') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
+        Billing Statements
+    </a>
+    <a href="{{ route('client.other-services.collections') }}" class="{{ $active('client.other-services.collections') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
+        Collections &amp; Follow-ups
+    </a>
+    <a href="{{ route('client.service-tracker.index') }}" class="{{ $active('client.service-tracker') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Service Tracker
+    </a>
+    <a href="{{ route('client.service-tracker.concerns') }}" class="{{ $active('client.service-tracker.concerns') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
+        Concerns
+    </a>
+
     <a href="{{ route('about.public') }}" class="dash-nav-link-sub">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>
         About Egliane

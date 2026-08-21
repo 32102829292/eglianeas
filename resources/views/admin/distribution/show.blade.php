@@ -1,11 +1,11 @@
 @extends('layouts.dashboard')
 
-@section('title', ($client->business_name ?: $client->name).' — Distribution — Egliane Accounting Services')
+@section('title', ($client->business_name ?: $client->name).' — Document Distribution — Egliane Accounting Services')
 
 @section('content')
     <a href="{{ route('admin.distribution.index') }}" class="back-link no-print">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-        Back to Distribution
+        Back to Document Distribution
     </a>
 
     <div class="page-head page-head-row">
@@ -181,7 +181,7 @@
         </form>
 
         @if ($deliveries->isNotEmpty())
-            <div class="table-wrap mt-2">
+            <div class="table-wrap table-card-view mt-2">
                 <table class="table">
                     <thead>
                         <tr>
@@ -197,13 +197,13 @@
                     <tbody>
                         @foreach ($deliveries as $del)
                             <tr>
-                                <td><span class="code-pill">{{ $del->form_type }}</span></td>
-                                <td>{{ $del->methodLabel() }}</td>
-                                <td>{{ $del->date_received?->format('M j, Y') ?? '—' }}</td>
-                                <td>{{ $del->timeLabel() ?? '—' }}</td>
-                                <td>{{ $del->remarks ?: '—' }}</td>
-                                <td>{{ $del->no_file_flag ? 'Yes' : '—' }}</td>
-                                <td class="actions-cell">
+                                <td data-col="Form Type"><span class="code-pill">{{ $del->form_type }}</span></td>
+                                <td data-col="Method">{{ $del->methodLabel() }}</td>
+                                <td data-col="Date">{{ $del->date_received?->format('M j, Y') ?? '—' }}</td>
+                                <td data-col="Time">{{ $del->timeLabel() ?? '—' }}</td>
+                                <td data-col="Remarks">{{ $del->remarks ?: '—' }}</td>
+                                <td data-col="No File">{{ $del->no_file_flag ? 'Yes' : '—' }}</td>
+                                <td data-col="Actions" class="actions-cell">
                                     <form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return confirm('Remove this delivery entry?');">
                                         @csrf
                                         @method('DELETE')
@@ -214,6 +214,22 @@
                         @endforeach
                     </tbody>
                 </table>
+
+                <div class="card-view-list">
+                    @forelse ($deliveries as $del)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Form Type</span><span class="cv-value">{{ $del->form_type }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Method</span><span class="cv-value">{{ $del->methodLabel() }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $del->date_received?->format('M j, Y') ?? '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Time</span><span class="cv-value">{{ $del->timeLabel() ?? '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Remarks</span><span class="cv-value">{{ $del->remarks ?: '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">No File</span><span class="cv-value">{{ $del->no_file_flag ? 'Yes' : '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return confirm('Remove this delivery entry?');">@csrf @method('DELETE')<button type="submit" class="link danger">Remove</button></form></span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No deliveries logged yet.</p>
+                    @endforelse
+                </div>
             </div>
         @else
             <div class="form-hint mt-2">No deliveries logged yet.</div>
@@ -225,7 +241,7 @@
         <div class="card-head">
             <h2 class="card-title">Softcopy files</h2>
         </div>
-        <p class="card-sub">Upload digital copies of documents per form type. The client can view and download these from their Distribution page.</p>
+        <p class="card-sub">Upload digital copies of documents per form type. The client can view and download these from their Document Distribution page.</p>
         <form method="POST" action="{{ route('admin.distribution.store-softcopy', $client) }}" enctype="multipart/form-data">
             @csrf
             <div class="form-grid two">

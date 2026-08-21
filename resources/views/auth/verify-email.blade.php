@@ -12,7 +12,7 @@
         </div>
     @endif
 
-    <div class="flex items-center justify-between gap-3" style="margin-top: 22px;">
+    <div class="flex items-center justify-between gap-3 verify-actions" style="margin-top: 22px;">
         <form method="POST" action="{{ route('verification.send') }}">
             @csrf
             <button type="submit" class="btn btn-primary">

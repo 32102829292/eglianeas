@@ -60,11 +60,18 @@
                         <a href="{{ route('notifications.index') }}" class="bell-footer">View all notifications</a>
                     </div>
                 </div>
+                <button type="button" class="topbar-icon-btn" data-push-toggle data-push-state="disabled" aria-label="Enable push notifications" title="Push notifications: OFF">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                </button>
                 <div class="dash-user-chip">
                     <span class="avatar">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
                     <span class="hidden-xs">{{ $user->name }}</span>
                     <span class="dash-role">{{ ucfirst($user->role) }}</span>
                 </div>
+                <button type="button" class="btn btn-outline-light btn-sm hidden" data-install>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;margin-right:4px;vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Install
+                </button>
                 <form method="POST" action="{{ route('logout') }}" class="inline-form">
                     @csrf
                     <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
@@ -112,6 +119,7 @@
 
     <script src="/js/app.js" defer></script>
     <script src="/js/auth.js" defer></script>
+    <script src="/js/push.js" defer></script>
     @stack('scripts')
 </body>
 </html>

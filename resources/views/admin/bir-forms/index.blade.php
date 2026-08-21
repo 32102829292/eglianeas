@@ -6,7 +6,7 @@
     <div class="page-head page-head-row">
         <div>
             <h1>BIR Forms</h1>
-            <p>Select which BIR forms apply to each client. Only checked forms appear on the Distribution page.</p>
+            <p>Select which BIR forms apply to each client. Only checked forms appear on the Document Distribution page.</p>
         </div>
         <div class="page-head-actions">
             <div class="dropdown-wrap">

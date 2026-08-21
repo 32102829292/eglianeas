@@ -3,6 +3,10 @@
     $remittances = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE, collect());
     $professionalFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE, collect());
     $bookkeepingFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE, collect());
+    $gcashNumber = \App\Models\Setting::get('gcash_number', '');
+    $gcashQrCode = \App\Models\Setting::get('gcash_qr_code', '');
+    $bankAccounts = \App\Models\Setting::get('bank_accounts', []);
+    $hasPaymentInfo = $gcashNumber || $gcashQrCode || count($bankAccounts) > 0;
 @endphp
 
 <div class="statement">
@@ -71,5 +75,45 @@
 
     @if ($billing->isPaid())
         <div class="statement-paid-note">Date paid: {{ $billing->paid_at?->format('F j, Y') ?? '—' }}</div>
+    @endif
+
+    @if ($hasPaymentInfo)
+        <div class="statement-divider"></div>
+        <div class="statement-block-title">PAYMENT DETAILS</div>
+
+        @if ($gcashNumber || $gcashQrCode)
+            <div class="payment-method">
+                <div class="payment-method-info">
+                    <div class="payment-method-label">GCash</div>
+                    @if ($gcashNumber)
+                        <div class="payment-method-number">{{ $gcashNumber }}</div>
+                    @endif
+                </div>
+                @if ($gcashQrCode)
+                    <img src="{{ route('payment.image', 'gcash') }}" alt="GCash QR Code" class="payment-qr">
+                @endif
+            </div>
+        @endif
+
+        @foreach ($bankAccounts as $i => $bank)
+            @if (! empty($bank['bank_name']) || ! empty($bank['account_number']))
+                <div class="payment-method">
+                    <div class="payment-method-info">
+                        @if (! empty($bank['bank_name']))
+                            <div class="payment-method-label">{{ $bank['bank_name'] }}</div>
+                        @endif
+                        @if (! empty($bank['account_name']))
+                            <div class="payment-method-detail">{{ $bank['account_name'] }}</div>
+                        @endif
+                        @if (! empty($bank['account_number']))
+                            <div class="payment-method-number">{{ $bank['account_number'] }}</div>
+                        @endif
+                    </div>
+                    @if (! empty($bank['bank_qr_code']))
+                        <img src="{{ route('payment.image', ['type' => 'bank', 'index' => $i]) }}" alt="{{ $bank['bank_name'] ?? 'Bank' }} QR Code" class="payment-qr">
+                    @endif
+                </div>
+            @endif
+        @endforeach
     @endif
 </div>

@@ -7,6 +7,7 @@ use App\Models\AboutContent;
 use App\Models\ActivityLog;
 use App\Models\CompanyCertificate;
 use App\Models\CoreValue;
+use App\Models\TeamMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -24,6 +25,7 @@ class AboutController extends Controller
             'about' => $about,
             'coreValues' => CoreValue::ordered()->get(),
             'certificates' => CompanyCertificate::ordered()->get(),
+            'teamMembers' => TeamMember::ordered()->get(),
             'editing' => $editing,
             'hasData' => $hasData,
         ]);

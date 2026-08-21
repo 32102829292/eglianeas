@@ -1,6 +1,6 @@
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#1B1B3A">
     <meta name="description" content="Egliane Accounting Services — bookkeeping, tax filing, BIR compliance, financial statements, payroll and consulting for your business.">

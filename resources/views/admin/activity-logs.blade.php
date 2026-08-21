@@ -17,7 +17,7 @@
     </form>
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table">
                 <thead>
                     <tr><th>User</th><th>Action</th><th>Details</th><th>IP</th><th>When</th></tr>
@@ -25,17 +25,31 @@
                 <tbody>
                     @forelse ($logs as $log)
                         <tr>
-                            <td class="cell-name">{{ $log->user?->name ?? 'Guest' }}</td>
-                            <td><code class="code-pill">{{ $log->action }}</code></td>
-                            <td class="muted">{{ $log->description }}</td>
-                            <td class="muted">{{ $log->ip_address }}</td>
-                            <td class="muted">{{ $log->created_at->diffForHumans() }}</td>
+                            <td data-col="User" class="cell-name">{{ $log->user?->name ?? 'Guest' }}</td>
+                            <td data-col="Action"><code class="code-pill">{{ $log->action }}</code></td>
+                            <td data-col="Details" class="muted">{{ $log->description }}</td>
+                            <td data-col="IP" class="muted">{{ $log->ip_address }}</td>
+                            <td data-col="When" class="muted">{{ $log->created_at->diffForHumans() }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="empty-cell">No activity found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
+
+            <div class="card-view-list">
+                @forelse ($logs as $log)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">User</span><span class="cv-value">{{ $log->user?->name ?? 'Guest' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Action</span><span class="cv-value"><code class="code-pill">{{ $log->action }}</code></span></div>
+                        <div class="cv-row"><span class="cv-label">Details</span><span class="cv-value">{{ $log->description }}</span></div>
+                        <div class="cv-row"><span class="cv-label">IP</span><span class="cv-value">{{ $log->ip_address }}</span></div>
+                        <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No activity found.</p>
+                @endforelse
+            </div>
         </div>
         {{ $logs->links('pagination.simple') }}
     </div>

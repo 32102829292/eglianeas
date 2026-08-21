@@ -14,28 +14,28 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             </div>
             <span class="stat-label">Clients</span>
-            <b class="stat-value">{{ $stats['clients'] }}</b>
+            <b class="stat-value">{{ $stats['clients'] ?? 0 }}</b>
         </div>
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
             </div>
             <span class="stat-label">Transactions</span>
-            <b class="stat-value">{{ $stats['transactions'] }}</b>
+            <b class="stat-value">{{ $stats['transactions'] ?? 0 }}</b>
         </div>
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </div>
             <span class="stat-label">Filings</span>
-            <b class="stat-value">{{ $stats['filings'] }}</b>
+            <b class="stat-value">{{ $stats['filings'] ?? 0 }}</b>
         </div>
         <div class="stat-card stat-warn">
             <div class="stat-icon stat-icon-warn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <span class="stat-label">Pending filings</span>
-            <b class="stat-value">{{ $stats['pendingFilings'] }}</b>
+            <b class="stat-value">{{ $stats['pendingFilings'] ?? 0 }}</b>
         </div>
     </div>
 
@@ -45,10 +45,10 @@
             <div class="card">
                 <div class="card-head">
                     <h3 class="card-title">Billing status</h3>
-                    <a href="{{ route('admin.billing.index') }}">Manage billing</a>
+                    <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
                 </div>
                 <div class="chart-canvas-wrap">
-                    @php $bsTotal = $analytics['charts']['billingStatus']->sum('count'); @endphp
+                    @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
                     @if ($bsTotal > 0)
                         <canvas id="billingStatusChart" height="200"></canvas>
                     @else
@@ -63,7 +63,7 @@
                     <a href="{{ route('admin.clients.index') }}">View clients</a>
                 </div>
                 <div class="chart-canvas-wrap">
-                    @php $csTotal = $analytics['charts']['clientStatus']->sum('count'); @endphp
+                    @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
                     @if ($csTotal > 0)
                         <canvas id="clientStatusChart" height="200"></canvas>
                     @else
@@ -76,8 +76,8 @@
                 <div class="card-head">
                     <h3 class="card-title">Business types</h3>
                 </div>
-                <div class="chart-canvas-wrap">
-                    @php $btTotal = $analytics['charts']['businessType']->sum('count'); @endphp
+                <div class="chart-canvas-wrap chart-bar-wrap">
+                    @php $btTotal = collect($analytics['charts']['businessType'] ?? [])->sum('count'); @endphp
                     @if ($btTotal > 0)
                         <canvas id="businessTypesChart" height="150"></canvas>
                     @else
@@ -90,8 +90,8 @@
                 <div class="card-head">
                     <h3 class="card-title">Lines of business</h3>
                 </div>
-                <div class="chart-canvas-wrap">
-                    @php $lobTotal = $analytics['charts']['lineOfBusiness']->sum('count'); @endphp
+                <div class="chart-canvas-wrap chart-bar-wrap">
+                    @php $lobTotal = collect($analytics['charts']['lineOfBusiness'] ?? [])->sum('count'); @endphp
                     @if ($lobTotal > 0)
                         <canvas id="lobChart" height="150"></canvas>
                     @else
@@ -105,29 +105,29 @@
     <div class="card">
         <div class="card-head">
             <h3 class="card-title">Billing reminders</h3>
-            <a href="{{ route('admin.billing.index') }}">Manage billing</a>
+            <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
         </div>
         <div class="alert-list">
-            <div class="alert-list-item @if ($billingAlerts['dueSoon']) alert-warn @endif">
+            <div class="alert-list-item @if ($billingAlerts['dueSoon'] ?? false) alert-warn @endif">
                 <div class="alert-list-main">
                     <b>Bills due within 7 days</b>
                     <small>Unpaid bills entering the reminder window. Reminders start one week before the due date.</small>
                 </div>
-                <span class="alert-list-count">{{ $billingAlerts['dueSoon'] }}</span>
+                <span class="alert-list-count">{{ $billingAlerts['dueSoon'] ?? 0 }}</span>
             </div>
-            <div class="alert-list-item @if ($billingAlerts['overdue']) alert-danger @endif">
+            <div class="alert-list-item @if ($billingAlerts['overdue'] ?? false) alert-danger @endif">
                 <div class="alert-list-main">
                     <b>Overdue bills</b>
                     <small>Past-due bills, escalated wording until marked paid.</small>
                 </div>
-                <span class="alert-list-count">{{ $billingAlerts['overdue'] }}</span>
+                <span class="alert-list-count">{{ $billingAlerts['overdue'] ?? 0 }}</span>
             </div>
-            <div class="alert-list-item @if ($billingAlerts['outstanding'] > 0) alert-warn @endif">
+            <div class="alert-list-item @if (($billingAlerts['outstanding'] ?? 0) > 0) alert-warn @endif">
                 <div class="alert-list-main">
                     <b>Outstanding balance</b>
                     <small>Pending + unpaid + overdue billing totals.</small>
                 </div>
-                <span class="alert-list-count">₱{{ number_format($billingAlerts['outstanding'], 2) }}</span>
+                <span class="alert-list-count">₱{{ number_format($billingAlerts['outstanding'] ?? 0, 2) }}</span>
             </div>
         </div>
 
@@ -197,7 +197,7 @@
                             <tr>
                                 <td>{{ $filing->type }}</td>
                                 <td class="cell-name">{{ $filing->client?->name ?? '—' }}</td>
-                                <td><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] }}</span></td>
+                                <td><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] ?? ucfirst($filing->status ?? 'unknown') }}</span></td>
                             </tr>
                         @empty
                             <tr><td colspan="3" class="empty-cell">No filings yet.</td></tr>
@@ -241,10 +241,10 @@
 (function () {
     'use strict';
 
-    var bsData = {!! json_encode($analytics['charts']['billingStatus']) !!};
-    var csData = {!! json_encode($analytics['charts']['clientStatus']) !!};
-    var btData = {!! json_encode($analytics['charts']['businessType']) !!};
-    var lobData = {!! json_encode($analytics['charts']['lineOfBusiness']) !!};
+    var bsData = {!! json_encode($analytics['charts']['billingStatus'] ?: []) !!};
+    var csData = {!! json_encode($analytics['charts']['clientStatus'] ?: []) !!};
+    var btData = {!! json_encode($analytics['charts']['businessType'] ?: []) !!};
+    var lobData = {!! json_encode($analytics['charts']['lineOfBusiness'] ?: []) !!};
 
     var total = function (d) { return d.reduce(function (s, v) { return s + v.count; }, 0); };
     var labels = function (d) { return d.map(function (v) { return v.label; }); };
@@ -273,6 +273,12 @@
         }
     };
 
+    var isMobile = window.innerWidth <= 640;
+
+    var legendMobile = isMobile
+        ? { usePointStyle: true, padding: 6, font: { size: 10 }, boxWidth: 8 }
+        : { usePointStyle: true, padding: 14, font: { size: 12 }, boxWidth: 12 };
+
     if (document.getElementById('billingStatusChart')) {
         new Chart(document.getElementById('billingStatusChart'), {
             type: 'doughnut',
@@ -280,13 +286,16 @@
                 labels: labels(bsData),
                 datasets: [{
                     data: counts(bsData),
-                    backgroundColor: ['#F59E0B', '#1B1B3A', '#F97316', '#22C55E'],
+                    backgroundColor: ['#F59E0B', '#1B1B3A', '#F97316', '#22C55E', '#5AB3F0', '#8B5CF6'],
                     borderWidth: 0,
                 }],
             },
             options: {
                 plugins: {
-                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14 } },
+                    legend: {
+                        position: 'bottom',
+                        labels: legendMobile,
+                    },
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
@@ -299,7 +308,7 @@
                 },
                 cutout: '65%',
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
             },
             plugins: [pctLabel],
         });
@@ -312,13 +321,16 @@
                 labels: labels(csData),
                 datasets: [{
                     data: counts(csData),
-                    backgroundColor: ['#22C55E', '#F59E0B', '#F97316', '#EF4444'],
+                    backgroundColor: ['#22C55E', '#F59E0B', '#F97316', '#EF4444', '#5AB3F0', '#8B5CF6'],
                     borderWidth: 0,
                 }],
             },
             options: {
                 plugins: {
-                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14 } },
+                    legend: {
+                        position: 'bottom',
+                        labels: legendMobile,
+                    },
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
@@ -331,7 +343,7 @@
                 },
                 cutout: '65%',
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
             },
             plugins: [pctLabel],
         });
@@ -340,6 +352,13 @@
     function makeBarChart(canvasId, data, color) {
         var el = document.getElementById(canvasId);
         if (!el) return;
+
+        if (isMobile && data.length > 0) {
+            var h = Math.max(180, data.length * 34 + 60);
+            el.parentElement.style.height = h + 'px';
+            el.style.height = h + 'px';
+        }
+
         new Chart(el, {
             type: 'bar',
             data: {
@@ -352,13 +371,31 @@
             },
             options: {
                 indexAxis: 'y',
+                layout: { padding: { top: 4, bottom: 4, right: 8 } },
                 plugins: { legend: { display: false } },
                 scales: {
-                    x: { beginAtZero: true, ticks: { precision: 0 } },
-                    y: { grid: { display: false } },
+                    x: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, font: { size: isMobile ? 10 : 12 }, maxTicksLimit: isMobile ? 5 : 10 },
+                        grid: { display: !isMobile },
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: isMobile ? 11 : 12 },
+                            autoSkip: false,
+                            callback: function (value) {
+                                var label = this.getLabelForValue(value);
+                                if (!isMobile) return label;
+                                var max = Math.floor(((this.chart.chartArea || {}).right || 300) / 7);
+                                if (label.length > max) return label.substring(0, max - 1) + '\u2026';
+                                return label;
+                            }
+                        },
+                    },
                 },
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
             },
         });
     }

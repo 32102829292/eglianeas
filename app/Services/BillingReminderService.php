@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Billing;
 use App\Models\Notification;
+use App\Models\User;
 
 class BillingReminderService
 {
@@ -45,6 +46,11 @@ class BillingReminderService
                 $overdue ? 'billing_overdue' : 'billing_due',
                 route('client.collections.index')
             );
+
+            $client = User::find($billing->client_id);
+            if ($client) {
+                PushNotificationService::send($client, $title, $body, route('client.collections.index'));
+            }
 
             $sent++;
         }

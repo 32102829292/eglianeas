@@ -1,10 +1,10 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Collections — Egliane Accounting Services')
+@section('title', 'Collections & Follow-ups — Egliane Accounting Services')
 
 @section('content')
     <div class="page-head">
-        <h1>Collections</h1>
+        <h1>Collections &amp; Follow-ups</h1>
         <p>The payment status of each billing period.</p>
     </div>
 
@@ -65,7 +65,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="empty-cell">No billing records yet.</td></tr>
+                        <tr><td colspan="5" class="empty-cell">No billing statements yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

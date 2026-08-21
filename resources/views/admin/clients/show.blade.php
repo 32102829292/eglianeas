@@ -26,8 +26,8 @@
             <p>{{ $client->name }} &middot; {{ $client->email }}</p>
         </div>
         <div class="btn-row">
-            <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline">Billing</a>
-            <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline">Distribution</a>
+            <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline">Billing Statements</a>
+            <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline">Document Distribution</a>
             <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-primary">Edit profile</a>
         </div>
     </div>

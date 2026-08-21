@@ -50,7 +50,7 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; overflow-x: hidden; }
 
 body {
   margin: 0;
@@ -68,6 +68,9 @@ h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 700; color: var(--n
 p { margin: 0 0 1em; }
 
 .container { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+
+/* Ensure content never renders behind the fixed chat FAB */
+main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -438,7 +441,7 @@ p { margin: 0 0 1em; }
 .chat-fab {
   position: fixed;
   right: 18px;
-  bottom: 18px;
+  bottom: calc(18px + env(safe-area-inset-bottom));
   z-index: 55;
   width: 58px;
   height: 58px;
@@ -473,7 +476,7 @@ p { margin: 0 0 1em; }
 .chat-widget {
   position: fixed;
   right: 14px;
-  bottom: 86px;
+  bottom: calc(86px + env(safe-area-inset-bottom));
   z-index: 55;
   width: min(92vw, 360px);
   max-height: 70vh;
@@ -779,3 +782,32 @@ table.data tr:hover td { background: var(--sky-soft); }
 .cert-lightbox-img { display: block; max-width: 85vw; max-height: 78vh; object-fit: contain; border-radius: 4px; }
 .cert-lightbox-embed { width: 80vw; height: 78vh; border: none; border-radius: 4px; }
 .cert-lightbox-caption { padding: 12px 20px; font-size: 13px; font-weight: 600; color: var(--text); text-align: center; border-top: 1px solid var(--border); background: #fff; }
+
+/* ---------- Team section ---------- */
+.team-grid { display: grid; gap: 24px; grid-template-columns: 1fr; }
+@media (min-width: 560px) { .team-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 900px) { .team-grid { grid-template-columns: repeat(3, 1fr); } }
+.team-card {
+  background: #fff;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  border-radius: 12px;
+  padding: 28px 24px;
+  text-align: center;
+  transition: box-shadow .2s;
+}
+.team-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.team-avatar {
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: var(--sky-soft, #e3f2fd);
+  color: var(--sky-deep, #2e9bde);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 14px;
+}
+.team-name { font-size: 16px; font-weight: 700; color: var(--navy, #1B1B3A); margin: 0 0 4px; }
+.team-position { display: block; font-size: 13px; font-weight: 600; color: var(--sky-deep, #2e9bde); margin-bottom: 4px; }
+.team-reports-to { display: block; font-size: 12px; color: var(--muted-text, #6B7280); margin-bottom: 10px; }
+.team-duties { font-size: 13px; color: var(--text, #1B1B3A); line-height: 1.6; text-align: left; margin: 0 0 12px; }
+.team-supervises { background: var(--bg-alt, #F5F8FC); border-radius: 8px; padding: 10px 12px; text-align: left; }
+.team-supervises-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted-text, #6B7280); display: block; margin-bottom: 4px; }
+.team-supervises p { font-size: 12px; color: var(--text, #1B1B3A); margin: 0; line-height: 1.5; }

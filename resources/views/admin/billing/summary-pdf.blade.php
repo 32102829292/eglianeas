@@ -32,13 +32,14 @@
 
     @php
         $allFormTypes = $allFormTypes ?? [];
-        $totalCols = 1 + count($allFormTypes) + 1 + count($allFormTypes) + 1 + 1;
+        $totalCols = 1 + 1 + count($allFormTypes) + 1 + count($allFormTypes) + 1 + 1;
         $colWidth = round(100 / $totalCols, 1);
     @endphp
 
     <table class="masterlist">
         <colgroup>
             <col width="{{ $colWidth * 1.5 }}%">
+            <col width="{{ $colWidth * 1.2 }}%">
             @foreach ($allFormTypes as $ft)
                 <col width="{{ $colWidth }}%">
             @endforeach
@@ -52,6 +53,7 @@
         <thead>
             <tr>
                 <th>Client</th>
+                <th>BIR Forms Filed</th>
                 @foreach ($allFormTypes as $ft)
                     <th>{{ $ft }} (BIR)</th>
                 @endforeach
@@ -68,13 +70,20 @@
                 @php
                     $client = $billing->client;
                     $lineItems = $billing->lineItems;
+                    $filedForms = $client?->birFormStatuses
+                        ->where('status', \App\Models\BirFormStatus::STATUS_FILED)
+                        ->pluck('form_type')
+                        ->sort()
+                        ->values()
+                        ->implode(', ');
                 @endphp
                 <tr>
                     <td>{{ $client?->business_name ?: $client?->name ?? '' }}</td>
+                    <td>{{ $filedForms ?: '—' }}</td>
                     @foreach ($allFormTypes as $ft)
                         @php $item = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE)->where('form_type', $ft)->first(); @endphp
                         <td class="text-right">{{ $item ? number_format($item->amount, 2) : '—' }}</td>
-                    @endphp
+                    @endforeach
                     @php $cashIn = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE)->whereNull('form_type')->first(); @endphp
                     <td class="text-right">{{ $cashIn ? number_format($cashIn->amount, 2) : '—' }}</td>
                     @foreach ($allFormTypes as $ft)
@@ -86,7 +95,7 @@
                     <td class="text-right">{{ number_format($billing->total, 2) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="{{ $totalCols }}" class="empty-cell">No billing records found for this period.</td></tr>
+                <tr><td colspan="{{ $totalCols }}" class="empty-cell">No billing statements found for this period.</td></tr>
             @endforelse
         </tbody>
     </table>
