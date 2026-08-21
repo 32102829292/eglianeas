@@ -1,0 +1,38 @@
+# Environment + secrets
+.env
+.env.*
+!.env.example
+
+# Dependencies (rebuilt in Docker)
+node_modules
+vendor
+
+# Version control
+.git
+.gitignore
+
+# IDE / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+storage/logs/*.log
+npm-debug.log*
+
+# Build artifacts (rebuilt in Docker)
+public/build
+public/hot
+
+# Docker itself
+Dockerfile
+docker-entrypoint.sh
+.dockerignore
+
+# Misc
+*.md
+tests
+.phpunit.result.cache
