@@ -183,5 +183,5 @@ file_put_contents(__DIR__.'/../public/favicon.ico', icoFromPng($png32, 32));
 echo "wrote favicon.ico\n";
 
 // Apple touch icon (any-purpose 180).
-copy($dir.'/icon-180.png', __DIR__.'/../public/icons/apple-touch-icon.png');
+copy($dir.'/icon-180.png', __DIR__.'/../public/pwa-icons/apple-touch-icon.png');
 echo "wrote apple-touch-icon.png\n";

@@ -21,8 +21,8 @@ class PushNotificationService
                 $notification = (new WebPushMessage())
                     ->title($title)
                     ->body($body)
-                    ->icon('/icons/icon-192.png')
-                    ->badge('/icons/icon-32.png')
+                    ->icon('/pwa-icons/icon-192.png')
+                    ->badge('/pwa-icons/icon-32.png')
                     ->data(['url' => $url])
                     ->vibrate([200, 100, 200]);
 

@@ -14,14 +14,14 @@ const SHELL_ASSETS = [
   '/js/app.js',
   '/js/auth.js',
   '/js/push.js',
-  '/icons/icon-32.png',
-  '/icons/icon-180.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/maskable-192.png',
-  '/icons/maskable-512.png',
-  '/icons/logo-header.png',
-  '/icons/apple-touch-icon.png',
+  '/pwa-icons/icon-32.png',
+  '/pwa-icons/icon-180.png',
+  '/pwa-icons/icon-192.png',
+  '/pwa-icons/icon-512.png',
+  '/pwa-icons/maskable-192.png',
+  '/pwa-icons/maskable-512.png',
+  '/pwa-icons/logo-header.png',
+  '/pwa-icons/apple-touch-icon.png',
   '/favicon.ico'
 ];
 
@@ -88,7 +88,7 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.startsWith('/css/') ||
     url.pathname.startsWith('/js/') ||
-    url.pathname.startsWith('/icons/') ||
+    url.pathname.startsWith('/pwa-icons/') ||
     url.pathname === '/manifest.json' ||
     url.pathname === '/favicon.ico'
   ) {
@@ -149,8 +149,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-32.png',
+      icon: '/pwa-icons/icon-192.png',
+      badge: '/pwa-icons/icon-32.png',
       vibrate: [200, 100, 200],
       data: { url: data.url || '/' }
     })

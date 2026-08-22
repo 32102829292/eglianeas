@@ -18,7 +18,7 @@
                     @foreach ($announcements as $announcement)
                         <article class="feed-card">
                             <div class="feed-avatar" aria-hidden="true">
-                                <img src="/icons/icon-32.png" alt="">
+                                <img src="/pwa-icons/icon-32.png" alt="">
                             </div>
                             <div class="feed-body">
                                 <div class="feed-meta">

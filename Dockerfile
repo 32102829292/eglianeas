@@ -38,11 +38,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Apache: enable rewrite, disable built-in /icons/ alias, set DocumentRoot to Laravel's public/
+# Apache: enable rewrite + set DocumentRoot to Laravel's public/
 RUN a2enmod rewrite \
-    && echo "ServerName localhost" >> /etc/apache2/apache2.conf \
-    && (a2disconf apache2-doc 2>/dev/null || true) \
-    && rm -f /etc/apache2/conf-enabled/apache2-doc.conf
+    && echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Apache vhost: point DocumentRoot at Laravel public/
 RUN sed -i 's|DocumentRoot /var/www/html$|DocumentRoot /var/www/html/public|' /etc/apache2/sites-enabled/000-default.conf \
