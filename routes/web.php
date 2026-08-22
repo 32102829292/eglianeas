@@ -279,5 +279,13 @@ Route::get('/debug-check-xk92j', function () {
     $output['SESSION_DOMAIN'] = config('session.domain');
     $output['SESSION_SECURE_COOKIE'] = config('session.secure');
 
+    $logPath = storage_path('logs/laravel.log');
+    if (file_exists($logPath)) {
+        $lines = file($logPath);
+        $output['log_tail'] = array_slice($lines, -50);
+    } else {
+        $output['log_tail'] = ['No log file found at ' . $logPath];
+    }
+
     return response()->json($output, 200, [], JSON_PRETTY_PRINT);
 });
