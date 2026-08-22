@@ -59,7 +59,7 @@
                             <td>{{ $concern->proposed_solution ?? '—' }}</td>
                             <td>
                                 @php($s = $concern->status)
-                                <span class="badge {{ $s === 'frequent' ? 'bg-danger' : ($s === 'seldom' ? 'bg-warning text-dark' : 'bg-secondary') }}">{{ $concern->statusLabel() }}</span>
+                                <span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span>
                             </td>
                         </tr>
                     @empty

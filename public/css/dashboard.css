@@ -63,24 +63,9 @@
 .bell-btn:hover { background: rgba(255,255,255,.18); }
 .bell-btn svg { width: 20px; height: 20px; }
 
-/* ---------- Topbar icon buttons (push toggle, etc.) ---------- */
-.topbar-icon-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255,255,255,.1);
-  color: #fff;
-  cursor: pointer;
-}
-.topbar-icon-btn:hover { background: rgba(255,255,255,.18); }
-.topbar-icon-btn svg { width: 20px; height: 20px; }
-.topbar-icon-btn[data-push-state="enabled"] { color: var(--sky); background: rgba(90,179,240,.2); }
-.topbar-icon-btn[data-push-state="enabled"] svg line { display: none; }
+/* Push toggle lives on the Security settings page (push.js manages state) */
+.push-toggle-btn[data-push-state="enabled"] .bell-slash { display: none; }
+
 .bell-badge {
   position: absolute;
   top: -3px;
@@ -323,16 +308,7 @@
 .table-card-view .cv-card .cv-label { color: var(--text-muted); font-weight: 600; flex-shrink: 0; font-size: 12px; }
 .table-card-view .cv-card .cv-value { font-weight: 500; color: var(--text); text-align: right; min-width: 0; word-break: break-word; }
 
-/* ---------- Badges (Bootstrap overrides + legacy custom classes) ---------- */
-.badge { letter-spacing: .03em; }
-.badge-current, .badge-paid, .badge-reviewed, .badge-filed { background: var(--success); color: #fff; }
-.badge-pending, .badge-needs_review { background: var(--warning); color: #fff; }
-.badge-delinquent { background: #F08C2E; color: #fff; }
-.badge-critical, .badge-unpaid, .badge-overdue, .badge-rejected { background: var(--danger); color: #fff; }
-.badge-partial { background: var(--warning); color: #fff; }
-.badge-neutral, .badge-client { background: var(--muted-text); color: #fff; }
-.badge-admin { background: var(--navy); color: #fff; }
-.badge-staff { background: var(--sky-deep); color: #fff; }
+/* Badges: unified system lives in app.css */
 
 /* ---------- Inline form controls (date inputs, etc.) ---------- */
 .form-control-inline {
@@ -390,9 +366,7 @@
 .pagination-wrap .pagination { margin-top: 0; }
 .pagination-info { font-size: 12px; color: var(--muted-text); }
 
-/* ---------- Empty states ---------- */
-.empty-state { text-align: center; color: var(--text-muted); padding: 34px 16px; font-size: 14px; }
-.empty-state svg { width: 40px; height: 40px; margin: 0 auto 10px; color: var(--border); }
+/* Empty states: canonical component lives in app.css */
 
 /* ---------- Form grids ---------- */
 .form-grid { display: grid; grid-template-columns: 1fr; gap: 0 16px; }
@@ -417,6 +391,50 @@
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .filter-bar select:focus, .filter-bar input:focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(90, 179, 240, 0.2); }
+
+/* ---------- Page toolbar (unified search/filter + secondary actions) ---------- */
+.page-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.page-toolbar-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.search-combo {
+  display: inline-flex;
+  align-items: stretch;
+  background: #fff;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-btn);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.search-combo:focus-within { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(90, 179, 240, 0.2); }
+.search-combo .search-icon { align-self: center; width: 16px; height: 16px; margin-left: 12px; color: var(--text-muted); flex-shrink: 0; pointer-events: none; }
+.search-combo input {
+  border: none;
+  background: transparent;
+  padding: 9px 10px 9px 8px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--text);
+  min-width: 220px;
+  outline: none;
+}
+.search-combo input:focus-visible { outline: none; }
+.search-combo-btn {
+  border: none;
+  border-left: 1.5px solid var(--border-subtle);
+  background: var(--bg-alt);
+  color: var(--navy);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 14px;
+  cursor: pointer;
+  border-radius: 0 calc(var(--radius-btn) - 1.5px) calc(var(--radius-btn) - 1.5px) 0;
+  transition: background var(--transition-fast);
+}
+.search-combo-btn:hover { background: #E8EEF6; }
+.page-toolbar .btn-sm { padding-block: 8px; }
+@media (max-width: 560px) {
+  .search-combo { flex: 1 1 100%; }
+  .search-combo input { min-width: 0; flex: 1; width: auto; }
+}
 
 .inline-form { display: inline-flex; gap: 6px; align-items: center; }
 
@@ -495,15 +513,7 @@
   line-height: 1;
 }
 
-/* ---------- Empty state ---------- */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  color: var(--text-muted);
-  font-size: 13px;
-}
+/* Empty state: canonical component lives in app.css */
 
 /* ---------- Card data variant ---------- */
 .card-data { padding: 0; }

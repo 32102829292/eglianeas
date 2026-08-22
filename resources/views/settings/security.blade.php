@@ -56,6 +56,16 @@
             <button type="button" class="btn btn-primary mt-2" id="enrollBiometric">Enable Face / Biometric login</button>
         </div>
 
+        {{-- Push notifications --}}
+        <div class="card">
+            <h3 class="card-title">Push notifications</h3>
+            <p class="card-sub">Get browser notifications for billing reminders, announcements and filing updates &mdash; even when this tab is closed. You can turn them off anytime.</p>
+            <button type="button" id="pushToggleBtn" class="btn btn-primary push-toggle-btn mt-2" data-push-toggle data-push-state="disabled">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line class="bell-slash" x1="1" y1="1" x2="23" y2="23"/></svg>
+                <span class="push-toggle-label">Enable push notifications</span>
+            </button>
+        </div>
+
         <div class="card">
             <h3 class="card-title">Confidentiality Policy</h3>
             <p class="card-sub">All client information and documents are strictly confidential. Review the full policy anytime.</p>
@@ -78,5 +88,21 @@ document.addEventListener('click', function (e) {
         if (data.ok) { window.location.reload(); }
     });
 });
+
+// Push toggle button: keep label/style in sync with subscription state (state itself is managed by push.js)
+(function () {
+    var btn = document.getElementById('pushToggleBtn');
+    if (!btn) return;
+    var label = btn.querySelector('.push-toggle-label');
+    function sync() {
+        var on = btn.getAttribute('data-push-state') === 'enabled';
+        if (label) label.textContent = on ? 'Disable push notifications' : 'Enable push notifications';
+        btn.classList.toggle('btn-primary', !on);
+        btn.classList.toggle('btn-outline', on);
+    }
+    new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['data-push-state'] });
+    // push.js resolves the real subscription state asynchronously after DOMContentLoaded
+    window.addEventListener('load', function () { setTimeout(sync, 300); });
+})();
 </script>
 @endpush

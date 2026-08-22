@@ -81,7 +81,7 @@
                             <td class="text-end fw-semibold" data-col="Total">{{ $billing->money($billing->total) }}</td>
                             <td class="text-center" data-col="Status">
                                 @php($s = $billing->status)
-                                <span class="badge @if($s==='paid') bg-success @elseif($s==='unpaid') bg-danger @elseif($s==='overdue') bg-danger @elseif($s==='pending') bg-warning text-dark @else bg-secondary @endif">{{ $billing->statusLabel() }}</span>
+                                <span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @elseif($s==='pending') badge-warn @else badge-neutral @endif">{{ $billing->statusLabel() }}</span>
                             </td>
                             <td data-col="Due date">
                                 {{ $billing->due_date?->format('M j, Y') ?? '—' }}

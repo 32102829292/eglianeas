@@ -9,39 +9,6 @@
             <p>Create and manage quarterly billing statements per client.</p>
         </div>
         <div class="page-head-actions">
-            <div class="dropdown-wrap">
-                <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-dropdown="billing-download-menu">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    Download Billing Summary
-                </button>
-                <div class="dropdown-menu billing-download-panel" id="billing-download-menu">
-                    <div class="billing-download-row">
-                        <label class="form-label" for="dl-quarter">Quarter</label>
-                        <select class="form-control form-control-sm" id="dl-quarter">
-                            <option value="">All Quarters</option>
-                            <option value="1">1st Quarter</option>
-                            <option value="2">2nd Quarter</option>
-                            <option value="3">3rd Quarter</option>
-                            <option value="4">4th Quarter</option>
-                        </select>
-                    </div>
-                    <div class="billing-download-row">
-                        <label class="form-label" for="dl-year">Year</label>
-                        <select class="form-control form-control-sm" id="dl-year"></select>
-                    </div>
-                    <div class="billing-download-btns">
-                        <a href="#" id="dl-xlsx" class="btn btn-outline-primary btn-sm">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                            XLSX
-                        </a>
-                        <a href="#" id="dl-pdf" class="btn btn-outline-danger btn-sm">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                            PDF
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <a href="{{ route('admin.billing.paymentSettings') }}" class="btn btn-outline btn-sm">Payment Settings</a>
             <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create billing statement</a>
         </div>
     </div>
@@ -77,11 +44,47 @@
         </div>
     </div>
 
-    <div class="filter-bar">
-        <form method="GET" action="{{ route('admin.billing.index') }}">
-            <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;">
-            <button type="submit" class="btn btn-outline btn-sm">Filter</button>
+    <div class="page-toolbar">
+        <form class="search-combo" method="GET" action="{{ route('admin.billing.index') }}" role="search">
+            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;" aria-label="Search billing statements">
+            <button type="submit" class="search-combo-btn">Filter</button>
         </form>
+        <div class="page-toolbar-group">
+            <div class="dropdown-wrap">
+                <button type="button" class="btn btn-outline btn-sm dropdown-toggle" data-dropdown="billing-download-menu">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download Billing Summary
+                </button>
+                <div class="dropdown-menu billing-download-panel" id="billing-download-menu">
+                    <div class="billing-download-row">
+                        <label class="form-label" for="dl-quarter">Quarter</label>
+                        <select class="form-control form-control-sm" id="dl-quarter">
+                            <option value="">All Quarters</option>
+                            <option value="1">1st Quarter</option>
+                            <option value="2">2nd Quarter</option>
+                            <option value="3">3rd Quarter</option>
+                            <option value="4">4th Quarter</option>
+                        </select>
+                    </div>
+                    <div class="billing-download-row">
+                        <label class="form-label" for="dl-year">Year</label>
+                        <select class="form-control form-control-sm" id="dl-year"></select>
+                    </div>
+                    <div class="billing-download-btns">
+                        <a href="#" id="dl-xlsx" class="btn btn-outline-primary btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            XLSX
+                        </a>
+                        <a href="#" id="dl-pdf" class="btn btn-outline-danger btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                            PDF
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <a href="{{ route('admin.billing.paymentSettings') }}" class="btn btn-outline btn-sm">Payment Settings</a>
+        </div>
     </div>
 
     <div class="card">
@@ -121,7 +124,7 @@
                             </td>
                             <td class="text-center" data-col="Status">
                                 @if ($entry['status'] === 'none')
-                                    <span class="badge bg-secondary">No billing statements</span>
+                                    <span class="badge badge-neutral">No billing statements</span>
                                 @else
                                     @php($s = $entry['status'])
                                     <span class="badge badge-{{ $s }}">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>

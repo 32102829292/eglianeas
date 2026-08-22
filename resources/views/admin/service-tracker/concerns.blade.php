@@ -130,7 +130,7 @@
                             <td data-col="Issue">
                                 {{ Str::limit($concern->description_of_issue, 80) }}
                                 @if ($concern->isNew())
-                                    <span class="badge bg-success" style="margin-left:6px;">New</span>
+                                    <span class="badge badge-success badge-new">New</span>
                                 @endif
                             </td>
                             <td data-col="Related Service">{{ $concern->relatedService?->name ?? '—' }}</td>
@@ -143,13 +143,13 @@
                             </td>
                             <td data-col="Frequency" class="text-center">
                                 @php($s = $concern->status)
-                                <span class="badge {{ $s === 'frequent' ? 'bg-danger' : ($s === 'seldom' ? 'bg-warning text-dark' : 'bg-secondary') }}">{{ $concern->statusLabel() }}</span>
+                                <span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span>
                             </td>
                             <td data-col="Source" class="text-center">
                                 @if ($concern->isClientSubmitted())
-                                    <span class="badge bg-info text-dark">Client</span>
+                                    <span class="badge badge-info">Client</span>
                                 @else
-                                    <span class="badge bg-light text-dark">Staff</span>
+                                    <span class="badge badge-neutral">Staff</span>
                                 @endif
                             </td>
                             <td data-col="Actions" class="text-end">
@@ -218,11 +218,11 @@
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $concern->client?->business_name ?: $concern->client?->name }}<br><small class="text-muted">{{ $concern->client?->name }}</small></span></div>
-                        <div class="cv-row"><span class="cv-label">Issue</span><span class="cv-value">{{ Str::limit($concern->description_of_issue, 80) }}@if ($concern->isNew()) <span class="badge bg-success">New</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Issue</span><span class="cv-value">{{ Str::limit($concern->description_of_issue, 80) }}@if ($concern->isNew()) <span class="badge badge-success">New</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Related Service</span><span class="cv-value">{{ $concern->relatedService?->name ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">@if ($concern->proposed_solution){{ Str::limit($concern->proposed_solution, 60) }}@else<span class="text-muted">—</span>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Frequency</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'bg-danger' : ($s === 'seldom' ? 'bg-warning text-dark' : 'bg-secondary') }}">{{ $concern->statusLabel() }}</span></span></div>
-                        <div class="cv-row"><span class="cv-label">Source</span><span class="cv-value">@if ($concern->isClientSubmitted())<span class="badge bg-info text-dark">Client</span>@else<span class="badge bg-light text-dark">Staff</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Frequency</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Source</span><span class="cv-value">@if ($concern->isClientSubmitted())<span class="badge badge-info">Client</span>@else<span class="badge badge-neutral">Staff</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm text-success">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return confirm('Delete this concern?');">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form></span></div>
                         <div class="cv-edit-form" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
                             <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">

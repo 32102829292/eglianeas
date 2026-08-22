@@ -63,12 +63,12 @@
                             </td>
                             <td class="text-center" data-col="Status">
                                 @php($s = $entry['status'])
-                                <span class="badge @if($s==='current') bg-success @elseif($s==='delinquent') bg-warning text-dark @elseif($s==='critical') bg-danger @else bg-secondary @endif">{{ $statuses[$s] ?? $s }}</span>
+                                <span class="badge @if($s==='current') badge-success @elseif($s==='delinquent') badge-warn @elseif($s==='critical') badge-danger @else badge-neutral @endif">{{ $statuses[$s] ?? $s }}</span>
                             </td>
                             <td class="text-center" data-col="Payment">
                                 @if ($entry['payment_status'])
                                     @php($p = $entry['payment_status'])
-                                    <span class="badge @if($p==='paid') bg-success @elseif($p==='unpaid') bg-danger @elseif($p==='partial') bg-warning text-dark @else bg-secondary @endif">{{ ucfirst($p) }}</span>
+                                    <span class="badge @if($p==='paid') badge-success @elseif($p==='unpaid') badge-danger @elseif($p==='partial') badge-warn @else badge-neutral @endif">{{ ucfirst($p) }}</span>
                                 @else
                                     <span class="text-muted">—</span>
                                 @endif

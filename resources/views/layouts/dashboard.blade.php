@@ -60,9 +60,6 @@
                         <a href="{{ route('notifications.index') }}" class="bell-footer">View all notifications</a>
                     </div>
                 </div>
-                <button type="button" class="topbar-icon-btn" data-push-toggle data-push-state="disabled" aria-label="Enable push notifications" title="Push notifications: OFF">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                </button>
                 <div class="dash-user-chip">
                     <span class="avatar">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
                     <span class="hidden-xs">{{ $user->name }}</span>

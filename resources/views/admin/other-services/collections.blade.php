@@ -81,7 +81,7 @@
                             <td data-col="Amount" class="text-end fw-semibold">{{ $service->money() }}</td>
                             <td data-col="Status" class="text-center">
                                 @php($s = $service->status)
-                                <span class="badge @if($s==='paid') bg-success @elseif($s==='unpaid') bg-danger @elseif($s==='overdue') bg-danger @else bg-secondary @endif">{{ $service->statusLabel() }}</span>
+                                <span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @else badge-neutral @endif">{{ $service->statusLabel() }}</span>
                             </td>
                             <td data-col="Due date">
                                 {{ $service->due_date?->format('M j, Y') ?? '—' }}
@@ -111,7 +111,7 @@
                         <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $service->client?->business_name ?: $service->client?->name }}<br><small class="text-muted">{{ $service->client?->name }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $service->serviceName() }}<br><small class="text-muted">{{ $service->requested_at?->format('M j, Y') }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $service->status)<span class="badge @if($s==='paid') bg-success @elseif($s==='unpaid') bg-danger @elseif($s==='overdue') bg-danger @else bg-secondary @endif">{{ $service->statusLabel() }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $service->status)<span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @else badge-neutral @endif">{{ $service->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $service->due_date?->format('M j, Y') ?? '—' }}@if ($service->status === 'overdue')<br><small class="text-danger">{{ $service->due_date?->diffForHumans() }}</small>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.other-services.pay', $service) }}" class="d-inline-flex align-items-center gap-1">@csrf<input type="hidden" name="status" value="paid"><input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"><button type="submit" class="btn btn-link btn-sm">Mark paid</button></form></span></div>
                     </div>

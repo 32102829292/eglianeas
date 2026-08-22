@@ -59,7 +59,7 @@
                         @php($statuses = $entry['statuses'])
                         <tr>
                             <td>
-                                <span class="badge bg-dark">{{ $client->client_code ?? '—' }}</span>
+                                <span class="badge badge-navy">{{ $client->client_code ?? '—' }}</span>
                             </td>
                             <td>
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
@@ -86,7 +86,7 @@
                                 </td>
                             @endforeach
                             <td class="text-center">
-                                <span class="badge @if($entry['applicableCount'] > 0) bg-success @else bg-secondary @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
+                                <span class="badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
                             </td>
                         </tr>
                     @empty

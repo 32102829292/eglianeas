@@ -33,7 +33,7 @@
                         @php($client = $entry['user'])
                         <tr>
                             <td data-col="Client Code">
-                                <span class="badge bg-dark">{{ $client->client_code ?? '—' }}</span>
+                                <span class="badge badge-navy">{{ $client->client_code ?? '—' }}</span>
                             </td>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
@@ -44,7 +44,7 @@
                                 <small class="text-muted">{{ $client->email }}</small>
                             </td>
                             <td class="text-center" data-col="BIR Forms">
-                                <span class="badge @if($entry['filed'] > 0) bg-success @else bg-secondary @endif">{{ $entry['filed'] }}/{{ $entry['total'] }}</span>
+                                <span class="badge @if($entry['filed'] > 0) badge-success @else badge-neutral @endif">{{ $entry['filed'] }}/{{ $entry['total'] }}</span>
                             </td>
                             <td class="text-center" data-col="Softcopies">{{ $entry['softcopies'] }}</td>
                             <td class="text-end" data-col="Actions">

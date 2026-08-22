@@ -55,14 +55,14 @@
                             <td class="fw-semibold">{{ $instance->service?->name }}</td>
                             <td class="text-center">
                                 @php($s = $instance->status)
-                                <span class="badge {{ $s === 'done' ? 'bg-success' : 'bg-warning text-dark' }}">{{ $instance->statusLabel() }}</span>
+                                <span class="badge {{ $s === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
                                     <div><small class="text-muted">{{ $instance->completionPercent() }}% complete</small></div>
                                 @endif
                             </td>
                             <td>
                                 @forelse ($instance->assignments as $a)
-                                    <span class="badge {{ $a->completed ? 'bg-success' : 'bg-secondary' }}">{{ $a->staff_name }} {{ $a->completed ? '✓' : '○' }}</span>
+                                    <span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->staff_name }} {{ $a->completed ? '✓' : '○' }}</span>
                                 @empty
                                     <span class="text-muted">—</span>
                                 @endforelse
