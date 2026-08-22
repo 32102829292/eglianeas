@@ -42,6 +42,7 @@ class RegisteredUserController extends Controller
             'terms' => ['accepted'],
         ], [
             'email.regex' => 'Please use a valid Gmail address (e.g. you@gmail.com).',
+            'email.unique' => 'An account with this Gmail address already exists. Please log in instead.',
             'pin.regex' => 'Your PIN must be exactly 4 digits.',
             'pin_confirmation.same' => 'The PIN confirmation does not match.',
             'terms.accepted' => 'You must agree to the terms and conditions.',
@@ -59,7 +60,10 @@ class RegisteredUserController extends Controller
 
         $this->sendCode($user);
 
-        session(['verification_user_id' => $user->id]);
+        session([
+            'verification_user_id' => $user->id,
+            'verification_sent_at' => now()->getTimestamp(),
+        ]);
         session(['setup_face' => $request->boolean('setup_face')]);
 
         ActivityLog::record($user, 'account.created', 'New client account created.');
