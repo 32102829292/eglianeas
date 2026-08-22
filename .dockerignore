@@ -27,9 +27,8 @@ npm-debug.log*
 public/build
 public/hot
 
-# Docker itself
+# Docker metadata (not needed inside the image)
 Dockerfile
-docker-entrypoint.sh
 .dockerignore
 
 # Misc
