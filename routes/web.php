@@ -261,3 +261,23 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::get('/documents', [ClientDistributionController::class, 'index'])->name('documents.index');
     Route::get('/documents/{document}/download', [ClientDistributionController::class, 'download'])->name('documents.download');
 });
+
+Route::get('/debug-check-xk92j', function () {
+    $output = [];
+
+    $output['sessions_table'] = \Illuminate\Support\Facades\Schema::hasTable('sessions');
+    $output['users_confidentiality_column'] = \Illuminate\Support\Facades\Schema::hasColumn('users', 'confidentiality_acknowledged_at');
+    $output['users_confidentiality_version_column'] = \Illuminate\Support\Facades\Schema::hasColumn('users', 'confidentiality_ack_version');
+
+    $output['tables'] = collect(\Illuminate\Support\Facades\DB::select(
+        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename"
+    ))->pluck('tablename')->toArray();
+
+    $output['APP_ENV'] = config('app.env');
+    $output['APP_URL'] = config('app.url');
+    $output['SESSION_DRIVER'] = config('session.driver');
+    $output['SESSION_DOMAIN'] = config('session.domain');
+    $output['SESSION_SECURE_COOKIE'] = config('session.secure');
+
+    return response()->json($output, 200, [], JSON_PRETTY_PRINT);
+});
