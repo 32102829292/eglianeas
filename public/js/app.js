@@ -19,6 +19,15 @@
     });
   }
 
+  /* ---------- bfcache guard ----------
+     iOS Safari restores form pages from the back/forward cache byte-for-byte,
+     including the CSRF token rendered under a previous session. Submitting
+     after session expiry/logout then yields "419 Page Expired". Reload to get
+     fresh HTML + a valid token whenever the page comes out of bfcache. */
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) window.location.reload();
+  });
+
   /* ---------- Offline banner + connectivity ---------- */
   var banner = document.getElementById('offlineBanner');
 

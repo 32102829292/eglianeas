@@ -1,6 +1,6 @@
 /* Egliane Accounting Services — Service Worker (hand-rolled) */
 
-const VERSION = 'egliane-v7';
+const VERSION = 'egliane-v8';
 const SHELL_CACHE = 'egliane-shell-' + VERSION;
 const DATA_CACHE = 'egliane-data-' + VERSION;
 
@@ -57,6 +57,16 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  /* Auth pages: bypass the SW entirely. Cached copies carry stale CSRF
+     tokens, which cause "419 Page Expired" on submit after session expiry. */
+  if (
+    url.pathname === '/login' ||
+    url.pathname === '/register' ||
+    url.pathname.indexOf('/password/') === 0
+  ) {
     return;
   }
 
