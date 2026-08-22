@@ -8,7 +8,7 @@
             <h1>Payment Settings</h1>
             <p>GCash and bank account information shown on receipts.</p>
         </div>
-        <a href="{{ route('admin.billing.settings') }}" class="btn btn-outline btn-sm">Back to Billing Settings</a>
+        <a href="{{ route('admin.billing.index') }}" class="btn btn-outline btn-sm">Back to Billing Statements</a>
     </div>
 
     <form method="POST" action="{{ route('admin.billing.paymentSettings.update') }}" enctype="multipart/form-data">
