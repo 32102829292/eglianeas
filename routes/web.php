@@ -261,3 +261,16 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::get('/documents', [ClientDistributionController::class, 'index'])->name('documents.index');
     Route::get('/documents/{document}/download', [ClientDistributionController::class, 'download'])->name('documents.download');
 });
+
+Route::get('/debug-files-xk92j', function () {
+    $iconsPath = public_path('icons');
+    return response()->json([
+        'icons_dir_exists' => is_dir($iconsPath),
+        'icon_32_exists'   => File::exists(public_path('icons/icon-32.png')),
+        'icon_180_exists'  => File::exists(public_path('icons/icon-180.png')),
+        'icon_192_exists'  => File::exists(public_path('icons/icon-192.png')),
+        'icon_512_exists'  => File::exists(public_path('icons/icon-512.png')),
+        'favicon_exists'   => File::exists(public_path('favicon.ico')),
+        'all_files'        => File::isDirectory($iconsPath) ? glob($iconsPath . '/*') : [],
+    ], 200, [], JSON_PRETTY_PRINT);
+});
