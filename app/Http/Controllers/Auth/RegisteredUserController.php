@@ -34,7 +34,6 @@ class RegisteredUserController extends Controller
                 'lowercase',
                 'email',
                 'max:255',
-                'unique:users,email',
                 'regex:/@gmail\.com$/i',
             ],
             'pin' => ['required', 'string', 'regex:/^\d{4}$/'],
@@ -42,11 +41,26 @@ class RegisteredUserController extends Controller
             'terms' => ['accepted'],
         ], [
             'email.regex' => 'Please use a valid Gmail address (e.g. you@gmail.com).',
-            'email.unique' => 'An account with this Gmail address already exists. Please log in instead.',
             'pin.regex' => 'Your PIN must be exactly 4 digits.',
             'pin_confirmation.same' => 'The PIN confirmation does not match.',
             'terms.accepted' => 'You must agree to the terms and conditions.',
         ]);
+
+        $existingUser = User::query()->where('email', $request->email)->first();
+
+        if ($existingUser !== null && $existingUser->hasVerifiedEmail()) {
+            return back()->withInput()->with('email_registered', true);
+        }
+
+        if ($existingUser !== null) {
+            session(['verification_user_id' => $existingUser->id]);
+
+            $this->seedCooldownFromLastCode($existingUser);
+
+            return redirect()
+                ->route('verify.account')
+                ->with('status', 'You already started signing up with '.$existingUser->email.' but haven\'t verified it yet. Enter your code below, or request a new one.');
+        }
 
         $user = User::create([
             'name' => $request->name,
@@ -189,6 +203,15 @@ class RegisteredUserController extends Controller
         }
 
         return redirect()->intended($user->getDashboardRoute());
+    }
+
+    private function seedCooldownFromLastCode(User $user): void
+    {
+        $last = VerificationCode::query()->where('user_id', $user->id)->latest()->first();
+
+        if ($last !== null && $last->created_at->getTimestamp() > now()->getTimestamp() - 60) {
+            session(['verification_sent_at' => $last->created_at->getTimestamp()]);
+        }
     }
 
     private function sendCode(User $user): void

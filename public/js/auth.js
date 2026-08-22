@@ -383,6 +383,17 @@
             message = result.data.error;
           }
           if (pinError) { pinError.textContent = message; pinError.hidden = false; }
+          if (result.data && result.data.unverified) {
+            var resendRow = document.getElementById('verifyResendRow');
+            var goVerify = document.getElementById('goVerifyBtn');
+            if (resendRow) resendRow.hidden = false;
+            if (goVerify && !goVerify.getAttribute('data-wired')) {
+              goVerify.setAttribute('data-wired', '1');
+              goVerify.addEventListener('click', function () {
+                window.location.assign('/verify-account');
+              });
+            }
+          }
           if (loginPad) loginPad.clear();
         })
         .catch(function () {

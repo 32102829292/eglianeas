@@ -59,6 +59,9 @@
         <p class="form-hint text-center">Enter your 4-digit PIN. First time? Set up a PIN under Security settings.</p>
         <div class="form-error text-center" id="pinError" hidden></div>
         @error('pin')<div class="form-error text-center">{{ $message }}</div>@enderror
+        <p class="text-center mt-1" id="verifyResendRow" hidden>
+            <button type="button" class="link-style" id="goVerifyBtn">Resend verification code</button>
+        </p>
     </form>
 </div>
 

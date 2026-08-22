@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\User;
+use App\Models\VerificationCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,9 +31,20 @@ class PinLoginController extends Controller
         }
 
         if (! $user->hasVerifiedEmail()) {
-            throw ValidationException::withMessages([
-                'pin' => 'Please verify your email before logging in.',
-            ]);
+            session(['verification_user_id' => $user->id]);
+
+            $this->seedCooldownFromLastCode($user);
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'errors' => ['pin' => ['Please verify your email before logging in.']],
+                    'unverified' => true,
+                ], 422);
+            }
+
+            return redirect()
+                ->route('verify.account')
+                ->with('status', 'Please verify your email before logging in. Enter the code we emailed you, or request a new one below.');
         }
 
         Auth::login($user);
@@ -50,5 +62,14 @@ class PinLoginController extends Controller
         }
 
         return redirect()->intended($user->getDashboardRoute());
+    }
+
+    private function seedCooldownFromLastCode(User $user): void
+    {
+        $last = VerificationCode::query()->where('user_id', $user->id)->latest()->first();
+
+        if ($last !== null && $last->created_at->getTimestamp() > now()->getTimestamp() - 60) {
+            session(['verification_sent_at' => $last->created_at->getTimestamp()]);
+        }
     }
 }

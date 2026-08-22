@@ -5,6 +5,10 @@
 @section('content')
     <h1 class="auth-title">Verify your email</h1>
 
+    @if (session('status'))
+        <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
+
     @if (! empty($noPending))
         <p class="auth-sub">We couldn&rsquo;t find a pending registration. Please create an account first.</p>
         <a href="{{ route('register') }}" class="btn btn-primary btn-block mt-2">Create an account</a>

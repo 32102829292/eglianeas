@@ -6,21 +6,23 @@
     <h1 class="auth-title">Create your account</h1>
     <p class="auth-sub">Free to sign up. Bookkeeping, tax filing and document storage — all in one place.</p>
 
-    <div class="register-steps">
-        @php $regSteps = ['Details', 'Email', 'Security']; @endphp
-        @foreach ($regSteps as $i => $label)
-            <div class="register-step {{ $i === 0 ? 'active' : '' }}" data-step-marker="{{ $i }}">
-                <span>{{ $i + 1 }}</span>
-                <small>{{ $label }}</small>
-            </div>
-        @endforeach
-    </div>
+@php $regStartStep = (old('name') && session('email_registered')) ? 1 : 0; @endphp
+
+<div class="register-steps">
+    @php $regSteps = ['Details', 'Email', 'Security']; @endphp
+    @foreach ($regSteps as $i => $label)
+        <div class="register-step {{ $i === $regStartStep ? 'active' : '' }}" data-step-marker="{{ $i }}">
+            <span>{{ $i + 1 }}</span>
+            <small>{{ $label }}</small>
+        </div>
+    @endforeach
+</div>
 
     <form method="POST" action="{{ route('register') }}" id="registerForm" novalidate>
         @csrf
 
         {{-- Step 1: name + business --}}
-        <div class="reg-step-panel active" data-step="0">
+        <div class="reg-step-panel {{ $regStartStep === 0 ? 'active' : '' }}" data-step="0">
             <div class="form-group">
                 <label class="form-label" for="name">Full name</label>
                 <input class="form-control" id="name" type="text" name="name" value="{{ old('name') }}" required autocomplete="name" placeholder="Juan Dela Cruz">
@@ -35,12 +37,15 @@
         </div>
 
         {{-- Step 2: email --}}
-        <div class="reg-step-panel" data-step="1">
+        <div class="reg-step-panel {{ $regStartStep === 1 ? 'active' : '' }}" data-step="1">
             <div class="form-group">
                 <label class="form-label" for="email">Email</label>
                 <input class="form-control" id="email" type="email" name="email" value="{{ old('email') }}" required autocomplete="email" placeholder="you@gmail.com">
                 <p class="form-hint">Use your Gmail address — your verification code and filing notices will be sent here.</p>
                 @error('email')<div class="form-error">{{ $message }}</div>@enderror
+                @if (session('email_registered'))
+                    <div class="form-error">This email is already registered. Please <a href="{{ route('login') }}">log in</a> instead.</div>
+                @endif
             </div>
             <div class="btn-group-row">
                 <button type="button" class="btn btn-outline" data-back="0">Back</button>
