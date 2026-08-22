@@ -282,7 +282,7 @@ Route::get('/debug-check-xk92j', function () {
     $logPath = storage_path('logs/laravel.log');
     if (file_exists($logPath)) {
         $lines = file($logPath);
-        $output['log_tail'] = array_slice($lines, -50);
+        $output['log_tail'] = array_slice($lines, -150);
     } else {
         $output['log_tail'] = ['No log file found at ' . $logPath];
     }
