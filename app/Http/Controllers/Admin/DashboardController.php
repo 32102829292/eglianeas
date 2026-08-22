@@ -41,13 +41,13 @@ class DashboardController extends Controller
             ->pluck('count', 'status');
 
         $businessTypeCounts = ClientProfile::query()
-            ->selectRaw('COALESCE(NULLIF(business_type, ""), "Unspecified") as bucket, count(*) as count')
+            ->selectRaw("COALESCE(NULLIF(business_type, ''), 'Unspecified') as bucket, count(*) as count")
             ->groupBy('bucket')
             ->orderByDesc('count')
             ->pluck('count', 'bucket');
 
         $lobCounts = ClientProfile::query()
-            ->selectRaw('COALESCE(NULLIF(line_of_business, ""), "Unspecified") as bucket, count(*) as count')
+            ->selectRaw("COALESCE(NULLIF(line_of_business, ''), 'Unspecified') as bucket, count(*) as count")
             ->groupBy('bucket')
             ->orderByDesc('count')
             ->pluck('count', 'bucket');
