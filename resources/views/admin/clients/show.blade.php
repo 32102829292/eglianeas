@@ -125,7 +125,7 @@
             </div>
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd contact number</span><span class="profile-v">{{ $profile->second_contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>

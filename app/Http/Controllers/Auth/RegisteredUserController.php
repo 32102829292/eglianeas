@@ -32,6 +32,8 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $secondIsPhone = $request->input('second_contact_channel', ClientProfile::SECOND_CONTACT_CHANNEL_PHONE) === ClientProfile::SECOND_CONTACT_CHANNEL_PHONE;
+
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'business_name' => ['required', 'string', 'max:255'],
@@ -53,7 +55,10 @@ class RegisteredUserController extends Controller
             'business_address' => ['required', 'string', 'max:500'],
             'contact_no' => ['required', 'string', 'regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/'],
             'second_contact_name' => ['required', 'string', 'max:255'],
-            'second_contact_no' => ['required', 'string', 'regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/'],
+            'second_contact_channel' => ['required', 'string', Rule::in(ClientProfile::SECOND_CONTACT_CHANNELS)],
+            'second_contact_no' => $secondIsPhone
+                ? ['required', 'string', 'regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/']
+                : ['required', 'string', 'max:255'],
             'second_email' => ['required', 'email', 'max:255'],
             'birth_date' => ['required', 'date', 'after:1900-01-01', 'before:today'],
             'tin_no' => ['required', 'string', 'regex:/^\d{3}-?\d{3}-?\d{3}(-?\d{3})?$/'],
@@ -72,7 +77,8 @@ class RegisteredUserController extends Controller
             'contact_no.required' => 'Please enter your contact number.',
             'contact_no.regex' => 'Enter a valid PH mobile or landline number (e.g. 0917 123 4567).',
             'second_contact_name.required' => "Please enter your 2nd contact's name.",
-            'second_contact_no.required' => "Please enter your 2nd contact's number.",
+            'second_contact_channel.required' => 'Please choose how to contact your 2nd person.',
+            'second_contact_no.required' => "Please enter your 2nd contact's number or handle.",
             'second_contact_no.regex' => "Enter a valid PH number for your 2nd contact (e.g. 0918 765 4321).",
             'second_email.required' => 'Please enter a 2nd email address.',
             'second_email.email' => 'Please enter a valid 2nd email address.',
@@ -122,6 +128,7 @@ class RegisteredUserController extends Controller
                 'business_address' => $request->business_address,
                 'contact_no' => $request->contact_no,
                 'second_contact_name' => $request->second_contact_name,
+                'second_contact_channel' => $request->second_contact_channel,
                 'second_contact_no' => $request->second_contact_no,
                 'second_email' => $request->second_email,
                 'birth_date' => $request->birth_date,

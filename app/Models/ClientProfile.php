@@ -56,6 +56,25 @@ class ClientProfile extends Model
         'Exempt',
     ];
 
+    public const SECOND_CONTACT_CHANNEL_PHONE = 'phone';
+    public const SECOND_CONTACT_CHANNEL_VIBER = 'viber';
+    public const SECOND_CONTACT_CHANNEL_FACEBOOK = 'facebook';
+    public const SECOND_CONTACT_CHANNEL_TELEGRAM = 'telegram';
+
+    public const SECOND_CONTACT_CHANNELS = [
+        self::SECOND_CONTACT_CHANNEL_PHONE,
+        self::SECOND_CONTACT_CHANNEL_VIBER,
+        self::SECOND_CONTACT_CHANNEL_FACEBOOK,
+        self::SECOND_CONTACT_CHANNEL_TELEGRAM,
+    ];
+
+    public const SECOND_CONTACT_CHANNEL_LABELS = [
+        self::SECOND_CONTACT_CHANNEL_PHONE => 'Phone',
+        self::SECOND_CONTACT_CHANNEL_VIBER => 'Viber',
+        self::SECOND_CONTACT_CHANNEL_FACEBOOK => 'Facebook',
+        self::SECOND_CONTACT_CHANNEL_TELEGRAM => 'Telegram',
+    ];
+
     protected $fillable = [
         'user_id',
         'business_type',
@@ -66,6 +85,7 @@ class ClientProfile extends Model
         'longitude',
         'contact_no',
         'second_contact_name',
+        'second_contact_channel',
         'second_contact_no',
         'second_email',
         'birth_date',
@@ -106,5 +126,20 @@ class ClientProfile extends Model
             'unpaid' => 'Unpaid',
             default => null,
         };
+    }
+
+    public function secondContactChannelLabel(): string
+    {
+        return self::SECOND_CONTACT_CHANNEL_LABELS[$this->second_contact_channel]
+            ?? self::SECOND_CONTACT_CHANNEL_LABELS[self::SECOND_CONTACT_CHANNEL_PHONE];
+    }
+
+    public function getSecondContactDisplayAttribute(): string
+    {
+        if (empty($this->second_contact_no)) {
+            return '';
+        }
+
+        return $this->secondContactChannelLabel().': '.$this->second_contact_no;
     }
 }

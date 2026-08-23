@@ -89,7 +89,7 @@
                     <td>{{ $p?->contact_no ?? '' }}</td>
                     <td>{{ $client->email }}</td>
                     <td>{{ $p?->second_contact_name ?? '' }}</td>
-<td>{{ $p?->second_contact_no ?? '' }}</td>
+<td>{{ $p?->second_contact_display ?? '' }}</td>
                     <td>{{ $p?->second_email ?? '' }}</td>
                     <td>{{ $p?->birth_date?->format('m/d/Y') ?? '' }}</td>
                     <td>{{ $p?->tin_no ?? '' }}</td>

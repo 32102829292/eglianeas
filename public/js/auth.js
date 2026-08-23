@@ -762,6 +762,40 @@
     }
   }
 
+  /* 2nd contact channel selector: shared by signup wizard + client/admin profile forms */
+  function wireSecondContactChannel(sel, input) {
+    var placeholders = {
+      phone: '0918 765 4321',
+      viber: '@username or link',
+      facebook: 'facebook.com/yourprofile',
+      telegram: '@username or t.me/you'
+    };
+    var phonePattern = '(?:\\+63|0)[\\d\\s\\-()]{7,17}';
+    var sync = function () {
+      var ch = sel.value;
+      input.placeholder = placeholders[ch] || '';
+      if (ch === 'phone') {
+        input.setAttribute('pattern', phonePattern);
+        input.setAttribute('title', 'PH mobile or landline, e.g. 0918 765 4321');
+        input.type = 'tel';
+      } else {
+        input.removeAttribute('pattern');
+        input.removeAttribute('title');
+        input.type = 'text';
+      }
+    };
+    sel.addEventListener('change', sync);
+    sync();
+  }
+
+  (function () {
+    var sel = document.getElementById('second_contact_channel');
+    var input = document.getElementById('second_contact_no');
+    if (sel && input && typeof wireSecondContactChannel === 'function') {
+      wireSecondContactChannel(sel, input);
+    }
+  })();
+
   /* ================= Security settings: enroll biometric ================= */
   var enrollBtn = document.getElementById('enrollBiometric');
   if (enrollBtn) {

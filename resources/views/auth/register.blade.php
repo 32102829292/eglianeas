@@ -161,9 +161,19 @@
                 @error('second_contact_name')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="second_contact_no">2nd contact no.</label>
-                <input class="form-control" id="second_contact_no" type="tel" name="second_contact_no" value="{{ old('second_contact_no') }}" placeholder="0918 765 4321" required
-                    pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0918 765 4321">
+                <label class="form-label" for="second_contact_channel">2nd contact number / handle</label>
+                <div class="form-inline-row">
+                    <select class="form-control" id="second_contact_channel" name="second_contact_channel" required data-second-channel>
+                        @foreach (\App\Models\ClientProfile::SECOND_CONTACT_CHANNELS as $ch)
+                            <option value="{{ $ch }}" {{ old('second_contact_channel', 'phone') === $ch ? 'selected' : '' }}>{{ ['phone' => 'Phone Number', 'viber' => 'Viber', 'facebook' => 'Facebook', 'telegram' => 'Telegram'][$ch] }}</option>
+                        @endforeach
+                    </select>
+                    <input class="form-control" id="second_contact_no" type="text" name="second_contact_no" value="{{ old('second_contact_no') }}" placeholder="0918 765 4321" required
+                        @if (old('second_contact_channel', 'phone') === 'phone')
+                            pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0918 765 4321"
+                        @endif>
+                </div>
+                @error('second_contact_channel')<div class="form-error">{{ $message }}</div>@enderror
                 @error('second_contact_no')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">

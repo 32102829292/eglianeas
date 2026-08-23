@@ -207,8 +207,19 @@
                         @error('contact_no')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
-                        <label class="form-label" for="second_contact_no">2nd person contact number</label>
-                        <input class="form-control" id="second_contact_no" type="tel" name="second_contact_no" value="{{ old('second_contact_no', $profile->second_contact_no) }}" placeholder="+63 917 000 0000">
+                        <label class="form-label" for="second_contact_channel">2nd person contact channel</label>
+                        <div class="form-inline-row">
+                            <select class="form-control" id="second_contact_channel" name="second_contact_channel" data-second-channel>
+                                @foreach (\App\Models\ClientProfile::SECOND_CONTACT_CHANNELS as $ch)
+                                    <option value="{{ $ch }}" {{ old('second_contact_channel', $profile->second_contact_channel ?? 'phone') === $ch ? 'selected' : '' }}>{{ ['phone' => 'Phone Number', 'viber' => 'Viber', 'facebook' => 'Facebook', 'telegram' => 'Telegram'][$ch] }}</option>
+                                @endforeach
+                            </select>
+                            <input class="form-control" id="second_contact_no" type="text" name="second_contact_no" value="{{ old('second_contact_no', $profile->second_contact_no) }}" placeholder="0918 765 4321"
+                                @if (old('second_contact_channel', $profile->second_contact_channel ?? 'phone') === 'phone')
+                                    pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0918 765 4321"
+                                @endif>
+                        </div>
+                        @error('second_contact_channel')<div class="form-error">{{ $message }}</div>@enderror
                         @error('second_contact_no')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
@@ -232,7 +243,7 @@
         @else
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd person contact number</span><span class="profile-v">{{ $profile->second_contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd person contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd person email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>

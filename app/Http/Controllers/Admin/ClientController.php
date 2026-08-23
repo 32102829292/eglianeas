@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ClientController extends Controller
@@ -109,7 +110,7 @@ class ClientController extends Controller
                     $p?->contact_no ?? '',
                     $client->email,
                     $p?->second_contact_name ?? '',
-                    $p?->second_contact_no ?? '',
+                    $p?->second_contact_display ?? '',
                     $p?->second_email ?? '',
                     $p?->birth_date?->format('m/d/Y') ?? '',
                     $p?->tin_no ?? '',
@@ -241,7 +242,13 @@ class ClientController extends Controller
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'contact_no' => ['nullable', 'string', 'max:40'],
-            'second_contact_no' => ['nullable', 'string', 'max:40'],
+            'second_contact_channel' => ['nullable', 'string', Rule::in(ClientProfile::SECOND_CONTACT_CHANNELS)],
+            'second_contact_no' => array_merge(
+                ['nullable', 'string', 'max:255'],
+                (($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE) === ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)
+                    ? ['regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/']
+                    : []
+            ),
             'second_email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'tin_no' => ['nullable', 'string', 'max:40'],
