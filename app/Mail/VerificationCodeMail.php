@@ -13,8 +13,11 @@ class VerificationCodeMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(public string $code, public string $name = '')
-    {
+    public function __construct(
+        public string $code,
+        public string $name = '',
+        public int $expiresInMinutes = 15,
+    ) {
     }
 
     public function envelope(): Envelope
