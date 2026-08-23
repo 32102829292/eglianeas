@@ -262,4 +262,3 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::get('/documents/{document}/download', [ClientDistributionController::class, 'download'])->name('documents.download');
 });
 
-Route::get('/debug-mail-xk92j', \App\Http\Controllers\DebugMailController::class);
