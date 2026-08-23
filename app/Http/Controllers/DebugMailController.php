@@ -15,6 +15,8 @@ class DebugMailController extends Controller
 
         $summary = [
             'mailer' => config('mail.default'),
+            'default_transport' => config('mail.mailers.'.config('mail.default').'.transport'),
+            'brevo_key_set' => ! empty(config('services.brevo.key')),
             'smtp' => [
                 'host' => $smtp['host'] ?? null,
                 'port' => $smtp['port'] ?? null,
