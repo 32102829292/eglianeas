@@ -151,22 +151,24 @@
             </div>
             <div class="form-group">
                 <label class="form-label" for="contact_no">Contact no.</label>
-                <input class="form-control" id="contact_no" type="tel" name="contact_no" value="{{ old('contact_no') }}" required autocomplete="tel" placeholder="0917 123 4567">
+                <input class="form-control" id="contact_no" type="tel" name="contact_no" value="{{ old('contact_no') }}" required autocomplete="tel" placeholder="0917 123 4567"
+                    pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0917 123 4567">
                 @error('contact_no')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="second_contact_name">2nd contact name <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="second_contact_name" type="text" name="second_contact_name" value="{{ old('second_contact_name') }}" placeholder="Maria Dela Cruz">
+                <label class="form-label" for="second_contact_name">2nd contact name</label>
+                <input class="form-control" id="second_contact_name" type="text" name="second_contact_name" value="{{ old('second_contact_name') }}" required placeholder="Maria Dela Cruz">
                 @error('second_contact_name')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="second_contact_no">2nd contact no. <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="second_contact_no" type="tel" name="second_contact_no" value="{{ old('second_contact_no') }}" placeholder="0918 765 4321">
+                <label class="form-label" for="second_contact_no">2nd contact no.</label>
+                <input class="form-control" id="second_contact_no" type="tel" name="second_contact_no" value="{{ old('second_contact_no') }}" placeholder="0918 765 4321" required
+                    pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0918 765 4321">
                 @error('second_contact_no')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="second_email">2nd email <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="second_email" type="email" name="second_email" value="{{ old('second_email') }}" placeholder="maria@gmail.com">
+                <label class="form-label" for="second_email">2nd email</label>
+                <input class="form-control" id="second_email" type="email" name="second_email" value="{{ old('second_email') }}" required placeholder="maria@example.com">
                 @error('second_email')<div class="form-error">{{ $message }}</div>@enderror
             </div>
 
@@ -178,25 +180,27 @@
 
         {{-- Step 4: Personal / tax info --}}
         <div class="reg-step-panel {{ $regStartStep === 3 ? 'active' : '' }}" data-step="3">
-            <p class="form-hint">Used for your BIR registrations and filings. You can also complete these later under Profile.</p>
+            <p class="form-hint">Used for your BIR registrations and filings.</p>
             <div class="form-group">
-                <label class="form-label" for="birth_date">Birth date <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="birth_date" type="date" name="birth_date" value="{{ old('birth_date') }}" max="{{ now()->subDay()->toDateString() }}">
+                <label class="form-label" for="birth_date">Birth date</label>
+                <input class="form-control" id="birth_date" type="date" name="birth_date" value="{{ old('birth_date') }}" required
+                    min="1900-01-02" max="{{ now()->subDay()->toDateString() }}">
                 @error('birth_date')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="tin_no">TIN no. <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="tin_no" type="text" name="tin_no" value="{{ old('tin_no') }}" placeholder="123-456-789">
+                <label class="form-label" for="tin_no">TIN no.</label>
+                <input class="form-control" id="tin_no" type="text" name="tin_no" value="{{ old('tin_no') }}" placeholder="123-456-789"
+                    pattern="\d{3}-?\d{3}-?\d{3}(-?\d{3})?" title="e.g. 123-456-789 or 123-456-789-000" required>
                 @error('tin_no')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="mother_maiden_name">Mother&rsquo;s maiden name <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="mother_maiden_name" type="text" name="mother_maiden_name" value="{{ old('mother_maiden_name') }}" placeholder="Juanita Santos">
+                <label class="form-label" for="mother_maiden_name">Mother&rsquo;s maiden name</label>
+                <input class="form-control" id="mother_maiden_name" type="text" name="mother_maiden_name" value="{{ old('mother_maiden_name') }}" placeholder="Juanita Santos" required>
                 @error('mother_maiden_name')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="father_name">Father&rsquo;s name <em class="opt-tag">(optional)</em></label>
-                <input class="form-control" id="father_name" type="text" name="father_name" value="{{ old('father_name') }}" placeholder="Pedro Dela Cruz">
+                <label class="form-label" for="father_name">Father&rsquo;s name</label>
+                <input class="form-control" id="father_name" type="text" name="father_name" value="{{ old('father_name') }}" placeholder="Pedro Dela Cruz" required>
                 @error('father_name')<div class="form-error">{{ $message }}</div>@enderror
             </div>
 

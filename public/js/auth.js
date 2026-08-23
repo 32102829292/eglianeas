@@ -668,7 +668,7 @@
       if (el.closest('[hidden]')) continue;
       var val = (el.value || '').trim();
       var ok = val.length > 0;
-      if (ok && el.type === 'email') {
+      if (ok && el.type === 'email' && el.id === 'email') {
         var gmailOk = /^[^\s@]+@gmail\.com$/i.test(val);
         el.setCustomValidity(gmailOk ? '' : 'Please use a valid Gmail address (e.g. you@gmail.com)');
         ok = gmailOk;
