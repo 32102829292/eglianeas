@@ -65,6 +65,7 @@ class ClientProfile extends Model
         'latitude',
         'longitude',
         'contact_no',
+        'second_contact_name',
         'second_contact_no',
         'second_email',
         'birth_date',

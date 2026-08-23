@@ -80,12 +80,12 @@ class ClientController extends Controller
             $headers = [
                 'Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business',
                 'BIR Registration Type', 'Business Address', 'Contact No.', 'Email Address',
-                '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
+                '2nd Person Name', '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
                 'TIN No.', "Mother's Maiden Name", "Father's Name", 'Status',
                 'Payment Status', 'Date Started', 'Remarks',
             ];
 
-            $colWidths = [14, 20, 24, 20, 20, 18, 30, 16, 26, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
+            $colWidths = [14, 20, 24, 20, 20, 18, 30, 16, 26, 18, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
 
             foreach ($headers as $col => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
@@ -108,6 +108,7 @@ class ClientController extends Controller
                     $p?->business_address ?? '',
                     $p?->contact_no ?? '',
                     $client->email,
+                    $p?->second_contact_name ?? '',
                     $p?->second_contact_no ?? '',
                     $p?->second_email ?? '',
                     $p?->birth_date?->format('m/d/Y') ?? '',

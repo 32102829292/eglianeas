@@ -15,6 +15,14 @@ Route::middleware('guest')->group(function () {
 
     Route::post('register', [RegisteredUserController::class, 'store']);
 
+    Route::get('register/check-email', [RegisteredUserController::class, 'checkEmail'])
+        ->name('register.checkEmail')
+        ->middleware('throttle:30,1');
+
+    Route::post('register/resume-verify', [RegisteredUserController::class, 'resumeVerify'])
+        ->name('register.resumeVerify')
+        ->middleware('throttle:10,1');
+
     Route::get('verify-account', [RegisteredUserController::class, 'verifyForm'])
         ->name('verify.account');
 

@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\VerificationCodeMail;
+use App\Models\ClientProfile;
 use App\Models\User;
 use App\Models\VerificationCode;
 use App\Models\ActivityLog;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,13 +16,18 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class RegisteredUserController extends Controller
 {
     public function create(): View
     {
-        return view('auth.register');
+        return view('auth.register', [
+            'businessTypes' => ClientProfile::BUSINESS_TYPES,
+            'lineOfBusinessOptions' => ClientProfile::LINE_OF_BUSINESS_OPTIONS,
+            'birRegistrationTypes' => ClientProfile::BIR_REGISTRATION_TYPES,
+        ]);
     }
 
     public function store(Request $request): RedirectResponse
@@ -39,27 +46,46 @@ class RegisteredUserController extends Controller
             'pin' => ['required', 'string', 'regex:/^\d{4}$/'],
             'pin_confirmation' => ['required', 'same:pin'],
             'terms' => ['accepted'],
+            'business_type' => ['required', 'string', Rule::in(ClientProfile::BUSINESS_TYPES)],
+            'line_of_business' => ['required', 'string', Rule::in(ClientProfile::LINE_OF_BUSINESS_OPTIONS)],
+            'line_of_business_other' => ['nullable', 'required_if:line_of_business,Other', 'string', 'max:255'],
+            'bir_registration_type' => ['required', 'string', Rule::in(ClientProfile::BIR_REGISTRATION_TYPES)],
+            'business_address' => ['required', 'string', 'max:500'],
+            'contact_no' => ['required', 'string', 'max:40'],
+            'second_contact_name' => ['nullable', 'string', 'max:255'],
+            'second_contact_no' => ['nullable', 'string', 'max:40'],
+            'second_email' => ['nullable', 'email', 'max:255'],
+            'birth_date' => ['nullable', 'date', 'before:today'],
+            'tin_no' => ['nullable', 'string', 'max:40'],
+            'mother_maiden_name' => ['nullable', 'string', 'max:255'],
+            'father_name' => ['nullable', 'string', 'max:255'],
         ], [
             'email.regex' => 'Please use a valid Gmail address (e.g. you@gmail.com).',
             'pin.regex' => 'Your PIN must be exactly 4 digits.',
             'pin_confirmation.same' => 'The PIN confirmation does not match.',
             'terms.accepted' => 'You must agree to the terms and conditions.',
+            'business_type.required' => 'Please select your business type.',
+            'line_of_business.required' => 'Please select your line of business.',
+            'line_of_business_other.required_if' => 'Please describe your line of business.',
+            'bir_registration_type.required' => 'Please select your BIR registration type.',
+            'business_address.required' => 'Please enter your business address.',
+            'contact_no.required' => 'Please enter your contact number.',
+            'birth_date.before' => 'Birth date must be in the past.',
+            'second_email.email' => 'Please enter a valid 2nd email address.',
         ]);
 
-        $existingUser = User::query()->where('email', $request->email)->first();
+        $check = $this->classifyEmail($request->input('email'));
 
-        if ($existingUser !== null && $existingUser->hasVerifiedEmail()) {
+        if ($check['status'] === 'verified') {
             return back()->withInput()->with('email_registered', true);
         }
 
-        if ($existingUser !== null) {
-            session(['verification_user_id' => $existingUser->id]);
-
-            $this->seedCooldownFromLastCode($existingUser);
+        if ($check['status'] === 'unverified') {
+            $this->startVerificationSession($check['user']);
 
             return redirect()
                 ->route('verify.account')
-                ->with('status', 'You already started signing up with '.$existingUser->email.' but haven\'t verified it yet. Enter your code below, or request a new one.');
+                ->with('status', 'You already started signing up with '.$check['user']->email." but haven't verified it yet. Enter your code below, or request a new one.");
         }
 
         $user = User::create([
@@ -72,6 +98,28 @@ class RegisteredUserController extends Controller
             'role' => User::ROLE_CLIENT,
         ]);
 
+        $lineOfBusiness = $request->string('line_of_business')->toString() === 'Other'
+            ? ($request->string('line_of_business_other')->toString() ?: null)
+            : $request->string('line_of_business')->toString();
+
+        ClientProfile::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'business_type' => $request->business_type,
+                'line_of_business' => $lineOfBusiness,
+                'bir_registration_type' => $request->bir_registration_type,
+                'business_address' => $request->business_address,
+                'contact_no' => $request->contact_no,
+                'second_contact_name' => $request->second_contact_name,
+                'second_contact_no' => $request->second_contact_no,
+                'second_email' => $request->second_email,
+                'birth_date' => $request->birth_date,
+                'tin_no' => $request->tin_no,
+                'mother_maiden_name' => $request->mother_maiden_name,
+                'father_name' => $request->father_name,
+            ]
+        );
+
         $this->sendCode($user);
 
         session([
@@ -83,6 +131,36 @@ class RegisteredUserController extends Controller
         ActivityLog::record($user, 'account.created', 'New client account created.');
 
         return redirect()->route('verify.account');
+    }
+
+    public function checkEmail(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'regex:/@gmail\.com$/i'],
+        ], [
+            'email.regex' => 'Please use a valid Gmail address (e.g. you@gmail.com).',
+        ]);
+
+        return response()->json(['status' => $this->classifyEmail($request->input('email'))['status']]);
+    }
+
+    public function resumeVerify(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'regex:/@gmail\.com$/i'],
+        ], [
+            'email.regex' => 'Please use a valid Gmail address (e.g. you@gmail.com).',
+        ]);
+
+        $check = $this->classifyEmail($request->input('email'));
+
+        if ($check['status'] !== 'unverified') {
+            return response()->json(['message' => 'This email cannot be resumed as an unverified signup.'], 409);
+        }
+
+        $this->startVerificationSession($check['user']);
+
+        return response()->json(['redirect' => route('verify.account')]);
     }
 
     public function resendCode(Request $request): RedirectResponse
@@ -203,6 +281,27 @@ class RegisteredUserController extends Controller
         }
 
         return redirect()->intended($user->getDashboardRoute());
+    }
+
+    private function classifyEmail(string $email): array
+    {
+        $user = User::query()->where('email', $email)->first();
+
+        if ($user === null) {
+            return ['status' => 'available'];
+        }
+
+        return [
+            'status' => $user->hasVerifiedEmail() ? 'verified' : 'unverified',
+            'user' => $user,
+        ];
+    }
+
+    private function startVerificationSession(User $user): void
+    {
+        session(['verification_user_id' => $user->id]);
+
+        $this->seedCooldownFromLastCode($user);
     }
 
     private function seedCooldownFromLastCode(User $user): void

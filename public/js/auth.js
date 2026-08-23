@@ -549,6 +549,76 @@
   var regPad = regKeypad ? wireKeypad(regKeypad, { onOk: function (pin) { regOnOk(pin); } }) : null;
   if (regPad) regPad.phase = 'set';
 
+  /* ---- Early duplicate-email check ---- */
+  var regEmail = document.getElementById('email');
+  var emailTakenBox = document.getElementById('emailTakenBox');
+  var emailUnverifiedBox = document.getElementById('emailUnverifiedBox');
+  var resumeVerifyBtn = document.getElementById('resumeVerifyBtn');
+  var emailCheckTimer = null;
+
+  function hideEmailBoxes() {
+    if (emailTakenBox) emailTakenBox.hidden = true;
+    if (emailUnverifiedBox) emailUnverifiedBox.hidden = true;
+  }
+
+  function showEmailBox(status) {
+    hideEmailBoxes();
+    if (status === 'verified' && emailTakenBox) emailTakenBox.hidden = false;
+    if (status === 'unverified' && emailUnverifiedBox) emailUnverifiedBox.hidden = false;
+  }
+
+  function checkRegEmail() {
+    if (!regEmail) return Promise.resolve('unknown');
+    var val = regEmail.value.trim();
+    if (!/^[^\s@]+@gmail\.com$/i.test(val)) { hideEmailBoxes(); return Promise.resolve('unknown'); }
+    return fetch(regEmail.getAttribute('data-check-url') + '?email=' + encodeURIComponent(val), {
+      headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var status = data && data.status ? data.status : 'unknown';
+        if (status === 'verified' || status === 'unverified') showEmailBox(status);
+        else hideEmailBoxes();
+        return status;
+      })
+      .catch(function () { return 'unknown'; });
+  }
+
+  if (regEmail) {
+    regEmail.addEventListener('blur', function () {
+      if (emailCheckTimer) clearTimeout(emailCheckTimer);
+      emailCheckTimer = setTimeout(checkRegEmail, 400);
+    });
+    regEmail.addEventListener('input', function () {
+      if (emailCheckTimer) clearTimeout(emailCheckTimer);
+      hideEmailBoxes();
+    });
+  }
+
+  if (resumeVerifyBtn) {
+    resumeVerifyBtn.addEventListener('click', function () {
+      if (!regEmail) return;
+      var tokenEl = document.querySelector('#registerForm input[name="_token"]');
+      resumeVerifyBtn.disabled = true;
+      fetch(regEmail.getAttribute('data-resume-url'), {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': tokenEl ? tokenEl.value : ''
+        },
+        body: JSON.stringify({ email: regEmail.value.trim() })
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (data && data.redirect) window.location.href = data.redirect;
+          else resumeVerifyBtn.disabled = false;
+        })
+        .catch(function () { resumeVerifyBtn.disabled = false; });
+    });
+  }
+
   function regOnOk(pin) {
     if (!regPad) return;
     if (regPad.phase === 'set') {
@@ -567,14 +637,9 @@
       return;
     }
     if (regPinError) regPinError.hidden = true;
-    if (regTerms && !regTerms.checked) {
-      if (termsError) { termsError.textContent = 'Please accept the terms and conditions to continue.'; termsError.hidden = false; }
-      return;
-    }
-    if (termsError) termsError.hidden = true;
     regPin.value = regPad.firstPin;
     regPinConfirm.value = pin;
-    document.getElementById('registerForm').submit();
+    if (regPhaseLabel) regPhaseLabel.textContent = 'PIN set \u2713';
   }
 
   function showRegStep(step) {
@@ -585,7 +650,7 @@
     for (var j = 0; j < regForms.length; j++) {
       regForms[j].classList.toggle('active', j === step);
     }
-    if (step === 2 && regPad) {
+    if (step === 0 && regPad && !(regPin && regPin.value)) {
       regPad.phase = 'set';
       regPad.clear();
       if (regPhaseLabel) regPhaseLabel.textContent = 'Set your PIN';
@@ -593,34 +658,70 @@
   }
 
   function validateRegStep(step) {
-    var validators = {
-      0: function () {
-        var name = document.getElementById('name');
-        var biz = document.getElementById('business_name');
-        return { ok: name.value.trim().length >= 2 && biz.value.trim().length >= 2, fields: [name, biz] };
-      },
-      1: function () {
-        var email = document.getElementById('email');
-        var ok = /^[^\s@]+@gmail\.com$/i.test(email.value.trim());
-        return { ok: ok, fields: [email] };
+    var panel = regForms[step];
+    if (!panel) return true;
+
+    var firstBad = null;
+    var reqs = panel.querySelectorAll('input[required], select[required]');
+    for (var i = 0; i < reqs.length; i++) {
+      var el = reqs[i];
+      if (el.closest('[hidden]')) continue;
+      var val = (el.value || '').trim();
+      var ok = val.length > 0;
+      if (ok && el.type === 'email') {
+        var gmailOk = /^[^\s@]+@gmail\.com$/i.test(val);
+        el.setCustomValidity(gmailOk ? '' : 'Please use a valid Gmail address (e.g. you@gmail.com)');
+        ok = gmailOk;
+      } else {
+        el.setCustomValidity('');
       }
-    };
-    var result = validators[step]();
-    for (var i = 0; i < result.fields.length; i++) {
-      var errBox = result.fields[i].parentNode.querySelector('.form-error');
-      if (errBox) errBox.classList.toggle('hidden', result.ok);
+      if (!ok && !firstBad) firstBad = el;
     }
-    return result.ok;
+
+    if (step === 0) {
+      var termsOk = !regTerms || regTerms.checked;
+      var pinOk = !!(regPin && regPin.value && regPinConfirm && regPinConfirm.value);
+      if (termsError) termsError.hidden = termsOk;
+      if (regPinError && !pinOk) {
+        regPinError.textContent = regPin && regPad && regPad.get().length > 0 ? 'Confirm your PIN using the OK button.' : 'Choose a 4-digit PIN.';
+        regPinError.hidden = false;
+      } else if (regPinError) {
+        regPinError.hidden = true;
+      }
+      if (!termsOk && !firstBad) firstBad = regTerms;
+      if (!pinOk) return false;
+    }
+
+    if (firstBad) {
+      if (firstBad.reportValidity) firstBad.reportValidity();
+      else firstBad.focus();
+      return false;
+    }
+    return true;
   }
 
   if (regSteps.length) {
     for (var s = 0; s < regNext.length; s++) {
       (function (btn) {
+        if (btn.id === 'regStep1Next') return;
         btn.addEventListener('click', function () {
           var step = parseInt(btn.getAttribute('data-next'), 10);
           if (validateRegStep(step - 1)) showRegStep(step);
         });
       })(regNext[s]);
+    }
+
+    var step1Next = document.getElementById('regStep1Next');
+    if (step1Next) {
+      step1Next.addEventListener('click', function () {
+        step1Next.disabled = true;
+        checkRegEmail().then(function (status) {
+          step1Next.disabled = false;
+          if (status === 'verified' || status === 'unverified') return;
+          if (!validateRegStep(0)) return;
+          showRegStep(1);
+        });
+      });
     }
     for (var b = 0; b < regBack.length; b++) {
       (function (btn) {
@@ -633,13 +734,31 @@
     var submitRegBtn = document.getElementById('submitReg');
     if (submitRegBtn) {
       submitRegBtn.addEventListener('click', function () {
-        var pin = regPad ? regPad.get() : '';
-        if (pin.length < 4) {
-          if (regPinError) { regPinError.textContent = 'Enter a 4-digit PIN.'; regPinError.hidden = false; }
+        if (!validateRegStep(3)) return;
+        if (!(regPin && regPin.value && regPinConfirm && regPinConfirm.value)) {
+          if (regPinError) {
+            regPinError.textContent = 'Please complete your PIN first.';
+            regPinError.hidden = false;
+          }
+          showRegStep(0);
           return;
         }
-        regOnOk(pin);
+        document.getElementById('registerForm').submit();
       });
+    }
+
+    var lobSel = document.getElementById('line_of_business');
+    var lobOtherGroup = document.getElementById('lobOtherGroup');
+    var lobOtherInput = document.getElementById('line_of_business_other');
+    if (lobSel && lobOtherGroup && lobOtherInput) {
+      var syncLobOther = function () {
+        var isOther = lobSel.value === 'Other';
+        lobOtherGroup.hidden = !isOther;
+        lobOtherInput.required = isOther;
+        if (!isOther) lobOtherInput.value = '';
+      };
+      lobSel.addEventListener('change', syncLobOther);
+      syncLobOther();
     }
   }
 

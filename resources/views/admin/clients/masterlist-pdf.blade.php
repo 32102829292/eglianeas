@@ -62,7 +62,8 @@
                 <th>Business Address</th>
                 <th>Contact No.</th>
                 <th>Email Address</th>
-                <th>2nd Contact No.</th>
+                <th>2nd Contact Name</th>
+<th>2nd Contact No.</th>
                 <th>2nd Email</th>
                 <th>Birth Date</th>
                 <th>TIN No.</th>
@@ -87,7 +88,8 @@
                     <td>{{ $p?->business_address ?? '' }}</td>
                     <td>{{ $p?->contact_no ?? '' }}</td>
                     <td>{{ $client->email }}</td>
-                    <td>{{ $p?->second_contact_no ?? '' }}</td>
+                    <td>{{ $p?->second_contact_name ?? '' }}</td>
+<td>{{ $p?->second_contact_no ?? '' }}</td>
                     <td>{{ $p?->second_email ?? '' }}</td>
                     <td>{{ $p?->birth_date?->format('m/d/Y') ?? '' }}</td>
                     <td>{{ $p?->tin_no ?? '' }}</td>
