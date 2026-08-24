@@ -22,6 +22,11 @@
 
     // DomPDF core fonts cannot render the peso glyph; use Php notation.
     $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
+
+    // Defaults if rendered without controller-computed values.
+    $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
+    $rowsPerPage = 4;
+    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20 - 10) / $rowsPerPage, 2);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -30,7 +35,9 @@
     <title>Billing Statements</title>
     <style>
         @page {
-            size: A4 portrait;
+            /* Must mirror the controller's paper selection — an explicit size here
+               would override DomPDF's setPaper(). */
+            size: {{ $paperSize === 'letter' ? 'Letter' : 'A4' }} portrait;
             margin: 10mm;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -38,16 +45,18 @@
         table { width: 100%; border-collapse: collapse; }
 
         /* Each statement renders as one row of two receipt cells (Taxpayer's + Egliane's copy).
-           Three rows per page = 6 receipts; DomPDF has no CSS Grid, so the 2-column
-           grid is built with a table, which it paginates reliably. */
+           Four rows per page = 8 receipts; DomPDF has no CSS Grid, so the 2-column
+           grid is built with a table, which it paginates reliably. Row slots are
+           computed in the controller from the selected paper size so the four rows
+           always fill the page evenly (A4: 66.75mm, Letter: 62.35mm per slot). */
         .pair {
             width: 100%;
+            height: {{ $rowSlotMm }}mm;
             page-break-inside: avoid;
-            margin-bottom: 5pt;
         }
         .pair.new-page { page-break-before: always; }
 
-        .cell { width: 50%; vertical-align: top; padding: 0 3mm; }
+        .cell { width: 50%; vertical-align: middle; padding: 0 3mm; }
         .cell.first { padding-left: 0; }
         .cell.second {
             padding-right: 0;
@@ -106,7 +115,7 @@
 <body>
 
     @forelse ($billings as $billing)
-        <table class="pair {{ ! $loop->first && ($loop->iteration - 1) % 3 === 0 ? 'new-page' : '' }}">
+        <table class="pair {{ ! $loop->first && ($loop->iteration - 1) % $rowsPerPage === 0 ? 'new-page' : '' }}">
             <tr>
                 <td class="cell first">
                     @include('admin.billing.partials.statement-cell', ['copyLabel' => "Taxpayer's Copy"])

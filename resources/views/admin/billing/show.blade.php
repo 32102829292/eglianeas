@@ -14,6 +14,10 @@
             <p>{{ $client->name }} &middot; {{ $client->email }} &middot; {{ $client->profile?->line_of_business ?? '—' }}</p>
         </div>
         <div class="btn-row">
+            <select id="batchPaperSize" class="form-control form-control-sm batch-paper-select" aria-label="Paper size" hidden>
+                <option value="a4" selected>A4</option>
+                <option value="letter">Letter</option>
+            </select>
             <button type="button" id="printBatchBtn" class="btn btn-outline" hidden>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print selected (<span id="printBatchCount">0</span>)
@@ -125,6 +129,7 @@
         (function () {
             var printBtn = document.getElementById('printBatchBtn');
             var countEl = document.getElementById('printBatchCount');
+            var paperSelect = document.getElementById('batchPaperSize');
             if (!printBtn || !countEl) return;
 
             function checkedBoxes() {
@@ -135,6 +140,7 @@
                 var n = checkedBoxes().length;
                 countEl.textContent = n;
                 printBtn.hidden = n === 0;
+                paperSelect.hidden = n === 0;
             }
 
             document.addEventListener('change', function (e) {
@@ -157,6 +163,7 @@
                 if (!ids.length) return;
                 var params = new URLSearchParams();
                 ids.forEach(function (id) { params.append('ids[]', id); });
+                params.append('paper', paperSelect && paperSelect.value === 'letter' ? 'letter' : 'a4');
                 window.location.href = '{{ route("admin.billing.printBatch") }}?' + params.toString();
             });
         })();

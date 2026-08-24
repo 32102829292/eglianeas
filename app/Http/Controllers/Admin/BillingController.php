@@ -767,7 +767,10 @@ class BillingController extends Controller
         $validated = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:60'],
             'ids.*' => ['integer'],
+            'paper' => ['nullable', 'string', 'in:a4,letter'],
         ]);
+
+        $paperSize = strtolower($validated['paper'] ?? 'a4');
 
         $billings = collect($validated['ids'])
             ->map(fn ($id) => Billing::with(['client.profile', 'lineItems'])->find($id))
@@ -781,14 +784,24 @@ class BillingController extends Controller
         ActivityLog::record(
             auth()->user(),
             'admin.billing_batch_printed',
-            'Printed a batch of '.$billings->count().' billing statement(s).'
+            'Printed a batch of '.$billings->count().' billing statement(s) on '.strtoupper($paperSize).' paper.'
         );
+
+        // Even 4-row distribution: page height minus @page margins and the
+        // fixed payment-details footer zone, split into equal row slots.
+        $rowsPerPage = 4;
+        $pageHeightMm = ['a4' => 297.0, 'letter' => 279.4][$paperSize];
+        $pageMarginMm = 10;
+        $footerReserveMm = 10;
+        $rowSlotMm = round(($pageHeightMm - (2 * $pageMarginMm) - $footerReserveMm) / $rowsPerPage, 2);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.statements-pdf', [
             'billings' => $billings,
             'gcashNumber' => Setting::get('gcash_number', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
-        ])->setPaper('a4', 'portrait');
+            'paperSize' => $paperSize,
+            'rowSlotMm' => $rowSlotMm,
+        ])->setPaper($paperSize, 'portrait');
 
         $filename = 'Egliane-Billing-Statements-'.now()->format('Y-m-d').'.pdf';
 
