@@ -23,10 +23,8 @@
     // DomPDF core fonts cannot render the peso glyph; use Php notation.
     $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
 
-    // Defaults if rendered without controller-computed values.
     $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
     $rowsPerPage = 4;
-    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20 - 10) / $rowsPerPage, 2);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -41,22 +39,30 @@
             margin: 10mm;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 7pt; color: #111; }
+        /* DomPDF starts stacked block content ~6.5mm above the declared @page
+           margin; pad the body so receipts begin at the full 10mm margin. */
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 7pt; color: #111; padding-top: 10.2mm; }
         table { width: 100%; border-collapse: collapse; }
 
         /* Each statement renders as one row of two receipt cells (Taxpayer's + Egliane's copy).
            Four rows per page = 8 receipts; DomPDF has no CSS Grid, so the 2-column
-           grid is built with a table, which it paginates reliably. Row slots are
-           computed in the controller from the selected paper size so the four rows
-           always fill the page evenly (A4: 66.75mm, Letter: 62.35mm per slot). */
+           grid is built with a table, which it paginates reliably. Rows keep their
+           natural content height with a fixed gap between them — DomPDF's
+           vertical centering and fixed-height slots both misbehave, so we accept
+           a small amount of variable bottom whitespace per page. */
         .pair {
             width: 100%;
-            height: {{ $rowSlotMm }}mm;
             page-break-inside: avoid;
+            /* Spacing must live in PADDING, not margin: DomPDF carries a bottom
+               margin across a forced page break, which pushed the next page's
+               first receipt up into the top margin area. */
         }
         .pair.new-page { page-break-before: always; }
 
-        .cell { width: 50%; vertical-align: middle; padding: 0 3mm; }
+        .cell {
+            width: 50%;
+            padding: 0 3mm 8mm;
+        }
         .cell.first { padding-left: 0; }
         .cell.second {
             padding-right: 0;
