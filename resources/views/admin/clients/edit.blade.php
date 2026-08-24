@@ -217,6 +217,20 @@
             </div>
         </div>
 
+        <div class="card" id="bir-forms-card">
+            <div class="card-head"><h2 class="card-title">BIR Forms</h2></div>
+            <div class="form-hint mb-2">Choose which BIR forms apply to this client. Billing line items, filing checklists, and the BIR forms matrix are generated from this list.</div>
+            <div class="bir-form-grid">
+                @foreach ($formTypes as $type)
+                    <label class="bir-form-check {{ $applicableForms->contains($type) ? 'is-checked' : '' }}">
+                        <input type="checkbox" name="bir_forms[]" value="{{ $type }}" @checked($applicableForms->contains($type))>
+                        <span>{{ $type }}</span>
+                    </label>
+                @endforeach
+            </div>
+            @error('bir_forms.*')<div class="form-error">{{ $message }}</div>@enderror
+        </div>
+
         <div class="card">
             <div class="card-head"><h2 class="card-title">Internal remarks</h2></div>
             <div class="form-grid two">
@@ -282,6 +296,14 @@
                 }
                 lobSelect.addEventListener('change', syncLobOther);
                 syncLobOther();
+            }
+
+            var birFormsCard = document.getElementById('bir-forms-card');
+            if (birFormsCard) {
+                birFormsCard.addEventListener('change', function (e) {
+                    var label = e.target.closest('.bir-form-check');
+                    if (label) label.classList.toggle('is-checked', e.target.checked);
+                });
             }
         })();
     </script>

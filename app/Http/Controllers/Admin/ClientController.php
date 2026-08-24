@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
+use App\Models\BirFormStatus;
 use App\Models\ClientProfile;
 use App\Models\MasterlistExportLog;
 use App\Models\User;
@@ -24,13 +25,7 @@ class ClientController extends Controller
             ->where('role', User::ROLE_CLIENT)
             ->with('profile')
             ->withCount(['billings', 'documents'])
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%{$q}%")
-                        ->orWhere('business_name', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%");
-                });
-            })
+            ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
             ->get()
             ->map(function (User $client): array {
                 $profile = $client->profile;
@@ -157,18 +152,31 @@ class ClientController extends Controller
         return $pdf->download($filename);
     }
 
+    private function applySearch($query, string $q): void
+    {
+        $digits = preg_replace('/[^0-9]/', '', $q);
+
+        $query->where(function ($query) use ($q, $digits) {
+            $query->where('name', 'like', "%{$q}%")
+                ->orWhere('business_name', 'like', "%{$q}%")
+                ->orWhere('email', 'like', "%{$q}%")
+                ->orWhereHas('profile', function ($profile) use ($q, $digits) {
+                    $profile->where('tin_no', 'like', "%{$q}%");
+
+                    if ($digits !== '') {
+                        $normalized = "REPLACE(REPLACE(tin_no, '-', ''), ' ', '')";
+                        $profile->orWhereRaw("{$normalized} like ?", ["%{$digits}%"]);
+                    }
+                });
+        });
+    }
+
     private function getFilteredClients(string $q): Collection
     {
         return User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with('profile')
-            ->when($q !== '', function ($query) use ($q) {
-                $query->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%{$q}%")
-                        ->orWhere('business_name', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%");
-                });
-            })
+            ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
             ->get()
             ->sortBy(fn (User $client) => strtolower($client->business_name ?: $client->name))
             ->values();
@@ -202,6 +210,10 @@ class ClientController extends Controller
             'profile' => $profile,
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
+            'applicableForms' => $client->birFormStatuses()
+                ->where('applicable', true)
+                ->orderBy('form_type')
+                ->pluck('form_type'),
             'billingStats' => [
                 'count' => $client->billings()->count(),
                 'paid' => $client->billings()->where('status', Billing::STATUS_PAID)->sum('total'),
@@ -215,6 +227,8 @@ class ClientController extends Controller
     {
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
+        [$formTypes, $applicableForms] = $this->birFormData($client);
+
         return view('admin.clients.edit', [
             'client' => $client,
             'profile' => $client->getClientProfile(),
@@ -223,6 +237,8 @@ class ClientController extends Controller
             'businessTypes' => ClientProfile::BUSINESS_TYPES,
             'lobOptions' => ClientProfile::LINE_OF_BUSINESS_OPTIONS,
             'regTypes' => ClientProfile::BIR_REGISTRATION_TYPES,
+            'formTypes' => $formTypes,
+            'applicableForms' => $applicableForms,
         ]);
     }
 
@@ -258,6 +274,8 @@ class ClientController extends Controller
             'payment_status' => ['nullable', 'in:paid,partial,unpaid'],
             'date_started' => ['nullable', 'date'],
             'remarks' => ['nullable', 'string', 'max:1000'],
+            'bir_forms' => ['nullable', 'array'],
+            'bir_forms.*' => ['string', 'in:'.implode(',', BirFormStatus::FORM_TYPES)],
         ]);
 
         if (($validated['line_of_business'] ?? null) === 'Other') {
@@ -292,9 +310,47 @@ class ClientController extends Controller
         $profile->fill($profileData);
         $profile->save();
 
+        $this->syncBirForms($request, $client);
+
         $displayName = $client->business_name ?: $client->name;
         ActivityLog::record(auth()->user(), 'admin.client_updated', "Updated the client record for {$displayName}.");
 
         return redirect()->route('admin.clients.show', $client)->with('status', 'Client record updated.');
+    }
+
+    private function birFormData(User $client): array
+    {
+        $formTypes = collect(BirFormStatus::FORM_TYPES)
+            ->merge($client->birFormStatuses->pluck('form_type'))
+            ->unique()
+            ->sort()
+            ->values();
+        $applicableForms = $client->birFormStatuses
+            ->where('applicable', true)
+            ->pluck('form_type');
+
+        return [$formTypes, $applicableForms];
+    }
+
+    private function syncBirForms(Request $request, User $client): void
+    {
+        $known = collect(BirFormStatus::FORM_TYPES);
+
+        $selected = collect($request->input('bir_forms', []))
+            ->map(fn ($type) => strtoupper(trim((string) $type)))
+            ->filter(fn ($type) => $known->contains($type))
+            ->unique()
+            ->values();
+
+        foreach ($client->birFormStatuses as $status) {
+            $status->update(['applicable' => $selected->contains($status->form_type)]);
+        }
+
+        foreach ($selected as $formType) {
+            BirFormStatus::firstOrCreate(
+                ['client_id' => $client->id, 'form_type' => $formType],
+                ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
+            );
+        }
     }
 }

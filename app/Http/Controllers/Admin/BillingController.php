@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Mail\BillingStatementMail;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
@@ -17,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -95,6 +97,43 @@ class BillingController extends Controller
         $billing->load('lineItems');
 
         return view('admin.billing.receipt', compact('billing'));
+    }
+
+    public function sendEmail(Request $request, Billing $billing): RedirectResponse
+    {
+        $validated = $request->validate([
+            'email' => ['nullable', 'email', 'max:255'],
+        ]);
+
+        $client = $billing->client;
+        abort_unless($client, 404, 'This billing has no client.');
+
+        $recipient = $validated['email'] ?? $client->email;
+
+        if (! $recipient) {
+            return back()->with('error', 'This client has no registered email address.');
+        }
+
+        if (config('mail.default') === 'brevo' && ! config('services.brevo.key')) {
+            return back()->with('error', 'Brevo is not configured yet (missing BREVO_API_KEY). The statement was not sent.');
+        }
+
+        try {
+            Mail::to($recipient)->send(new BillingStatementMail($billing->loadMissing(['client.profile', 'lineItems'])));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'The email could not be sent: '.$e->getMessage());
+        }
+
+        $label = $billing->period_label;
+        ActivityLog::record(
+            auth()->user(),
+            'admin.billing_emailed',
+            "Emailed the {$label} billing statement to {$recipient}."
+        );
+
+        return back()->with('status', "Billing statement sent to {$recipient}.");
     }
 
     public function csv(Billing $billing): StreamedResponse
@@ -721,6 +760,39 @@ class BillingController extends Controller
         $filename = 'Egliane-Billing-Summary-' . Str::slug($periodLabel) . '-' . now()->format('Y-m-d') . '.pdf';
 
         return $pdf->download($filename);
+    }
+
+    public function printBatch(Request $request): \Symfony\Component\HttpFoundation\Response
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:60'],
+            'ids.*' => ['integer'],
+        ]);
+
+        $billings = collect($validated['ids'])
+            ->map(fn ($id) => Billing::with(['client.profile', 'lineItems'])->find($id))
+            ->filter()
+            ->values();
+
+        if ($billings->isEmpty()) {
+            abort(404, 'No billing statements found.');
+        }
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.billing_batch_printed',
+            'Printed a batch of '.$billings->count().' billing statement(s).'
+        );
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.statements-pdf', [
+            'billings' => $billings,
+            'gcashNumber' => Setting::get('gcash_number', ''),
+            'bankAccounts' => Setting::get('bank_accounts', []),
+        ])->setPaper('a4', 'portrait');
+
+        $filename = 'Egliane-Billing-Statements-'.now()->format('Y-m-d').'.pdf';
+
+        return $pdf->stream($filename);
     }
 
     private function getFilteredBillings(?int $quarter, int $year): Collection

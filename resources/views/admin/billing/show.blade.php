@@ -14,6 +14,10 @@
             <p>{{ $client->name }} &middot; {{ $client->email }} &middot; {{ $client->profile?->line_of_business ?? '—' }}</p>
         </div>
         <div class="btn-row">
+            <button type="button" id="printBatchBtn" class="btn btn-outline" hidden>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print selected (<span id="printBatchCount">0</span>)
+            </button>
             <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-outline">Export CSV</a>
             <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">New billing</a>
         </div>
@@ -58,6 +62,7 @@
                     <table class="table">
                         <thead>
                             <tr>
+                                <th class="print-check-cell"><input type="checkbox" data-batch-check-all aria-label="Select all statements for {{ $year }}"></th>
                                 <th>Quarter</th>
                                 <th>Total</th>
                                 <th>Status</th>
@@ -69,6 +74,7 @@
                         <tbody>
                             @foreach ($billings as $billing)
                                 <tr>
+                                    <td class="print-check-cell"><input type="checkbox" class="batch-print-check" value="{{ $billing->id }}" aria-label="Select {{ $billing->period_label }} for printing"></td>
                                     <td data-col="Quarter">
                                         <div class="cell-name">{{ $billing->periodTitleUppercase() }} BILLING</div>
                                         <small class="muted">{{ $billing->period_label }}</small>
@@ -91,6 +97,7 @@
                     <div class="card-view-list">
                         @forelse ($billings as $billing)
                             <div class="cv-card">
+                                <div class="cv-row"><span class="cv-label">Print</span><span class="cv-value"><input type="checkbox" class="batch-print-check" value="{{ $billing->id }}" aria-label="Select {{ $billing->period_label }} for printing"></span></div>
                                 <div class="cv-row"><span class="cv-label">Quarter</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
                                 <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
                                 <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $billing->statusLabel() }}</span></div>
@@ -112,3 +119,46 @@
         </div>
     @endforelse
 @endsection
+
+@push('scripts')
+    <script>
+        (function () {
+            var printBtn = document.getElementById('printBatchBtn');
+            var countEl = document.getElementById('printBatchCount');
+            if (!printBtn || !countEl) return;
+
+            function checkedBoxes() {
+                return Array.prototype.slice.call(document.querySelectorAll('.batch-print-check:checked'));
+            }
+
+            function refresh() {
+                var n = checkedBoxes().length;
+                countEl.textContent = n;
+                printBtn.hidden = n === 0;
+            }
+
+            document.addEventListener('change', function (e) {
+                if (e.target.matches('.batch-print-check')) {
+                    refresh();
+                    return;
+                }
+                if (e.target.matches('[data-batch-check-all]')) {
+                    var table = e.target.closest('table');
+                    if (!table) return;
+                    table.querySelectorAll('.batch-print-check').forEach(function (cb) {
+                        cb.checked = e.target.checked;
+                    });
+                    refresh();
+                }
+            });
+
+            printBtn.addEventListener('click', function () {
+                var ids = checkedBoxes().map(function (cb) { return cb.value; });
+                if (!ids.length) return;
+                var params = new URLSearchParams();
+                ids.forEach(function (id) { params.append('ids[]', id); });
+                window.location.href = '{{ route("admin.billing.printBatch") }}?' + params.toString();
+            });
+        })();
+    </script>
+@endpush

@@ -176,6 +176,22 @@
 
         <div class="card">
             <div class="card-head">
+                <h3 class="card-title">BIR forms</h3>
+                <a href="{{ route('admin.clients.edit', $client) }}#bir-forms-card" class="link">Edit</a>
+            </div>
+            @if ($applicableForms->isNotEmpty())
+                <div class="bir-form-badges">
+                    @foreach ($applicableForms as $type)
+                        <span class="badge badge-neutral bir-form-badge">{{ $type }}</span>
+                    @endforeach
+                </div>
+            @else
+                <div class="form-hint">No BIR forms configured for this client yet.</div>
+            @endif
+        </div>
+
+        <div class="card">
+            <div class="card-head">
                 <h3 class="card-title">Internal remarks</h3>
                 <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
             </div>

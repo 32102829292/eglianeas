@@ -152,6 +152,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
 
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
+    Route::get('/billings/print-batch', [AdminBillingController::class, 'printBatch'])->name('billing.printBatch');
     Route::get('/billings/applicable-forms', [AdminBillingController::class, 'applicableForms'])->name('billing.applicableForms');
     Route::get('/billings/settings', [AdminBillingController::class, 'settings'])->name('billing.settings');
     Route::post('/billings/settings', [AdminBillingController::class, 'updateSettings'])->name('billing.settings.update');
@@ -164,6 +165,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/billings/{billing}/edit', [AdminBillingController::class, 'edit'])->name('billing.edit');
     Route::put('/billings/{billing}', [AdminBillingController::class, 'update'])->name('billing.update');
     Route::post('/billings/{billing}/pay', [AdminBillingController::class, 'pay'])->name('billing.pay');
+    Route::post('/billings/{billing}/send-email', [AdminBillingController::class, 'sendEmail'])->name('billing.sendEmail');
     Route::get('/billings/{billing}/receipt', [AdminBillingController::class, 'receipt'])->name('billing.receipt');
     Route::get('/billings/{billing}/csv', [AdminBillingController::class, 'csv'])->name('billing.csv');
     Route::get('/billings/{client}/export', [AdminBillingController::class, 'clientCsv'])->name('billing.clientCsv');

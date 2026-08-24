@@ -2,6 +2,14 @@
 
 @section('title', 'Clients — Egliane Accounting Services')
 
+@php
+    $maskTin = function (?string $value): string {
+        if (! $value) { return ''; }
+        $clean = preg_replace('/\D/', '', $value) ?? '';
+        return str_repeat('X', max(strlen($clean) - 3, 0)).substr($clean, -3);
+    };
+@endphp
+
 @section('content')
     <div class="page-header-bar">
         <div class="page-header-left">
@@ -10,7 +18,7 @@
         </div>
         <div class="page-header-right">
             <form method="GET" action="{{ route('admin.clients.index') }}" class="page-search">
-                <input type="search" name="q" value="{{ $q }}" placeholder="Search business, name, or email&hellip;" data-live-filter>
+                <input type="search" name="q" value="{{ $q }}" placeholder="Search name, business, email, or TIN&hellip;" data-live-filter>
                 <button type="submit" class="btn btn-outline btn-sm">Filter</button>
             </form>
             <div class="dropdown-wrap">
@@ -56,6 +64,9 @@
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
                                 <small class="text-muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
+                                @if ($entry['profile']?->tin_no)
+                                    <small class="text-muted d-block">TIN {{ $maskTin($entry['profile']->tin_no) }}</small>
+                                @endif
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>

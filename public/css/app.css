@@ -472,7 +472,8 @@ main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
   border: none;
   color: var(--navy);
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.527));
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -480,6 +481,15 @@ main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
   transition: transform .18s ease;
 }
 .chat-fab:hover { transform: scale(1.06); }
+.chat-fab.dragging {
+  cursor: grabbing;
+  transform: scale(1.06);
+  transition: none;
+}
+.chat-fab.dragging:hover { transform: scale(1.06); }
+.chat-fab.snapping {
+  transition: left .22s ease, top .22s ease, bottom .22s ease, transform .18s ease;
+}
 .chat-fab-icon { width: 106%; height: 106%; object-fit: cover; object-position: center; pointer-events: none; }
 .chat-fab .badge {
   position: absolute;

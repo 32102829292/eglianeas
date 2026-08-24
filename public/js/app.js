@@ -300,6 +300,9 @@
   if (navigator.onLine) E.flushUploads();
 
   /* ---------- Chatbot ---------- */
+  var CHAT_POS_KEY = 'egliane:chatbot:pos';
+  var CHAT_EDGE = 18;
+
   function Chatbot(opts) {
     this.opts = opts || {};
     this.cfg = null;
@@ -309,6 +312,7 @@
     this.fabEl = null;
     this.lastRuleHit = false;
     this.offline = !navigator.onLine;
+    this.dragged = false;
     this.build();
     this.loadConfig();
     this.bindConnectivity();
@@ -323,7 +327,12 @@
 
     if (!this.fabEl || !this.widgetEl) return;
 
-    this.fabEl.addEventListener('click', function () { self.toggle(true); });
+    this.fabEl.addEventListener('click', function () {
+      if (self.suppressClick) return;
+      self.toggle(true);
+    });
+
+    this.initDrag();
 
     var closeBtn = this.widgetEl.querySelector('.close-chat');
     if (closeBtn) closeBtn.addEventListener('click', function () { self.toggle(false); });
@@ -345,7 +354,158 @@
     this.inputEl.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') self.userSay(self.inputEl.value);
     });
+
+    this.restorePosition();
+    window.addEventListener('resize', function () {
+      if (self.dragged) self.placeWidget();
+    });
   };
+
+  Chatbot.prototype.readSavedPosition = function () {
+    try {
+      var pos = JSON.parse(localStorage.getItem(CHAT_POS_KEY));
+      if (pos && (pos.side === 'left' || pos.side === 'right') && typeof pos.bottom === 'number') return pos;
+    } catch (e) {}
+    return null;
+  };
+
+  Chatbot.prototype.restorePosition = function () {
+    var pos = this.readSavedPosition();
+    if (!pos) return;
+    var fab = this.fabEl;
+    fab.style.top = 'auto';
+    fab.style.left = 'auto';
+    fab.style.right = 'auto';
+    fab.style[pos.side] = CHAT_EDGE + 'px';
+    this.dragged = true;
+    this.applyBottom(Math.max(pos.bottom, 0));
+    this.placeWidget();
+  };
+
+  Chatbot.prototype.applyBottom = function (bottom) {
+    var vh = window.innerHeight;
+    var h = this.fabEl.offsetHeight || 58;
+    bottom = Math.min(Math.max(bottom, 12), Math.max(vh - h - 12, 12));
+    this.fabEl.style.bottom = 'calc(' + Math.round(bottom) + 'px + env(safe-area-inset-bottom))';
+  };
+
+  Chatbot.prototype.initDrag = function () {
+    var self = this;
+    var fab = this.fabEl;
+    var THRESHOLD = 6;
+    var startX = 0, startY = 0, startLeft = 0, startTop = 0;
+    var dragging = false, pointerId = null;
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    fab.addEventListener('pointerdown', function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      pointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      var rect = fab.getBoundingClientRect();
+      startLeft = rect.left;
+      startTop = rect.top;
+      dragging = false;
+      try { fab.setPointerCapture(pointerId); } catch (err) {}
+    });
+
+    fab.addEventListener('pointermove', function (e) {
+      if (pointerId === null || e.pointerId !== pointerId) return;
+      var dx = e.clientX - startX;
+      var dy = e.clientY - startY;
+
+      if (!dragging) {
+        if (Math.sqrt(dx * dx + dy * dy) < THRESHOLD) return;
+        dragging = true;
+        self.dragged = true;
+        fab.classList.add('dragging');
+      }
+
+      var margin = 8;
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var w = fab.offsetWidth || 58, h = fab.offsetHeight || 58;
+      var left = clamp(startLeft + dx, margin, vw - w - margin);
+      var top = clamp(startTop + dy, margin, vh - h - margin);
+
+      fab.style.right = 'auto';
+      fab.style.bottom = 'auto';
+      fab.style.left = Math.round(left) + 'px';
+      fab.style.top = Math.round(top) + 'px';
+
+      e.preventDefault();
+    });
+
+    function endDrag(e) {
+      if (pointerId === null || (e.pointerId !== undefined && e.pointerId !== pointerId)) return;
+      try { fab.releasePointerCapture(pointerId); } catch (err) {}
+      pointerId = null;
+
+      if (!dragging) return;
+      dragging = false;
+      fab.classList.remove('dragging');
+      self.suppressClick = true;
+      setTimeout(function () { self.suppressClick = false; }, 0);
+
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var rect = fab.getBoundingClientRect();
+      var side = (rect.left + rect.width / 2) < vw / 2 ? 'left' : 'right';
+
+      fab.classList.add('snapping');
+      fab.style.top = 'auto';
+      fab.style.left = 'auto';
+      fab.style.right = 'auto';
+      fab.style[side] = CHAT_EDGE + 'px';
+      var bottom = vh - rect.top - rect.height;
+      self.applyBottom(bottom);
+      setTimeout(function () { fab.classList.remove('snapping'); }, 240);
+
+      try {
+        localStorage.setItem(CHAT_POS_KEY, JSON.stringify({ side: side, bottom: bottom }));
+      } catch (err) {}
+
+      self.placeWidget();
+    }
+
+    fab.addEventListener('pointerup', endDrag);
+    fab.addEventListener('pointercancel', endDrag);
+  };
+
+  Chatbot.prototype.placeWidget = function () {
+    if (!this.widgetEl || !this.dragged) return;
+
+    var widget = this.widgetEl;
+    var fabRect = this.fabEl.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    widget.style.right = 'auto';
+    widget.style.left = 'auto';
+    widget.style.bottom = 'auto';
+    widget.style.top = 'auto';
+
+    var w = widget.offsetWidth || Math.min(vw * 0.92, 360);
+    var gap = 10;
+
+    if ((fabRect.left + fabRect.width / 2) < vw / 2) {
+      widget.style.left = Math.round(clampEdge(fabRect.left, 8, Math.max(vw - w - 8, 8))) + 'px';
+    } else {
+      widget.style.right = Math.round(clampEdge(vw - fabRect.right, 8, Math.max(vw - w - 8, 8))) + 'px';
+    }
+
+    var spaceAbove = fabRect.top;
+    var spaceBelow = vh - fabRect.bottom;
+
+    if (spaceAbove > spaceBelow) {
+      widget.style.bottom = Math.round(vh - fabRect.top + gap) + 'px';
+    } else {
+      widget.style.top = Math.round(fabRect.bottom + gap) + 'px';
+    }
+  };
+
+  function clampEdge(value, min, max) {
+    return Math.min(Math.max(value, min), max);
+  }
 
   Chatbot.prototype.bindConnectivity = function () {
     var self = this;

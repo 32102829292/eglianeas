@@ -2,7 +2,17 @@
    Egliane — Dashboard layout & components
    ============================================================ */
 
-.dash-body { background: var(--bg-alt); min-height: 100vh; }
+.dash-body {
+  background-color: var(--bg-alt);
+  /* Ledger-grid texture: subtle accounting-paper dots + faint sky wash up top.
+     Kept at very low opacity so cards/content stay dominant. */
+  background-image:
+    radial-gradient(rgba(27, 27, 58, .05) 1px, transparent 1.15px),
+    linear-gradient(180deg, rgba(90, 179, 240, .07), rgba(90, 179, 240, 0) 300px);
+  background-size: 22px 22px, 100% 100%;
+  background-repeat: repeat, no-repeat;
+  min-height: 100vh;
+}
 
 .dash-topbar {
   background: var(--navy);
@@ -1130,3 +1140,37 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .team-admin-rank { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--navy); background: var(--sky-soft); border-radius: 4px; padding: 2px 6px; margin: 4px 0; }
 .team-admin-reports { display: block; font-size: 11px; color: var(--text-muted); }
 @media (max-width: 768px) { .team-admin-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Client BIR forms management ---------- */
+.bir-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+.bir-form-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.bir-form-check input { accent-color: var(--sky-deep); margin: 0; }
+.bir-form-check:hover { border-color: var(--sky-deep); color: var(--navy); }
+.bir-form-check.is-checked {
+  background: var(--sky-soft);
+  border-color: var(--sky-deep);
+  color: var(--navy);
+}
+.bir-form-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.bir-form-badge { font-size: 12.5px; padding: 4px 12px; }
+
+/* ---------- Batch statement printing ---------- */
+.print-check-cell { width: 34px; text-align: center; }
+.print-check-cell input { cursor: pointer; }
