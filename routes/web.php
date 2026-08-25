@@ -177,10 +177,13 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::delete('/billings/{billing}', [AdminBillingController::class, 'destroy'])->name('billing.destroy');
 
     Route::get('/clients', [AdminClientController::class, 'index'])->name('clients.index');
+    Route::get('/clients/create', [AdminClientController::class, 'create'])->name('clients.create');
+    Route::post('/clients', [AdminClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/export/xlsx', [AdminClientController::class, 'exportXlsx'])->name('clients.exportXlsx');
     Route::get('/clients/export/pdf', [AdminClientController::class, 'exportPdf'])->name('clients.exportPdf');
     Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');
     Route::put('/clients/{client}', [AdminClientController::class, 'update'])->name('clients.update');
+    Route::delete('/clients/{client}', [AdminClientController::class, 'destroy'])->name('clients.destroy');
     Route::get('/clients/{client}', [AdminClientController::class, 'show'])->name('clients.show');
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');

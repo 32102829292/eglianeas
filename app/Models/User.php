@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use NotificationChannels\WebPush\HasPushSubscriptions;
@@ -13,7 +14,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasPushSubscriptions;
+    use HasFactory, Notifiable, HasPushSubscriptions, SoftDeletes;
 
     public const ROLE_ADMIN = 'admin';
     public const ROLE_CLIENT = 'client';

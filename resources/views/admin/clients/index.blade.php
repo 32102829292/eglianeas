@@ -17,6 +17,10 @@
             <p>Manage client accounts, their information, and account status.</p>
         </div>
         <div class="page-header-right">
+            <a href="{{ route('admin.clients.create') }}" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Client
+            </a>
             <form method="GET" action="{{ route('admin.clients.index') }}" class="page-search">
                 <input type="search" name="q" value="{{ $q }}" placeholder="Search name, business, email, or TIN&hellip;" data-live-filter>
                 <button type="submit" class="btn btn-outline btn-sm">Filter</button>
@@ -95,6 +99,11 @@
                             <td class="text-end" data-col="Actions">
                                 <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a>
                                 <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a>
+                                <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this client? This action can be undone by support.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-link btn-sm text-danger">Delete</button>
+                                </form>
                             </td>
                         </tr>
                     @empty
@@ -112,7 +121,7 @@
                         <div class="cv-row"><span class="cv-label">Payment</span><span class="cv-value">{{ $entry['payment_status'] ? ucfirst($entry['payment_status']) : '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a> <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a> <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a> <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this client?')">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form></span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>

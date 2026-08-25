@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -49,6 +50,48 @@ class ClientController extends Controller
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
         ]);
+    }
+
+    public function create(): View
+    {
+        return view('admin.clients.create');
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'business_name' => ['nullable', 'string', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'role' => User::ROLE_CLIENT,
+            'business_name' => $validated['business_name'] ?? null,
+            'email_verified_at' => now(),
+        ]);
+
+        $user->getClientProfile();
+
+        ActivityLog::record(auth()->user(), 'admin.client_created', "Created client account for {$user->name} ({$user->email}).");
+
+        return redirect()->route('admin.clients.show', $user)->with('status', 'Client account created.');
+    }
+
+    public function destroy(User $client): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $displayName = $client->business_name ?: $client->name;
+        $client->delete();
+
+        ActivityLog::record(auth()->user(), 'admin.client_deleted', "Deleted client account for {$displayName}.");
+
+        return redirect()->route('admin.clients.index')->with('status', 'Client account deleted.');
     }
 
     public function exportXlsx(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
