@@ -84,6 +84,21 @@ class Billing extends Model
         return $this->lineItems()->bookkeepingFees();
     }
 
+    public function postClosingTb()
+    {
+        return $this->lineItems()->postClosingTb();
+    }
+
+    public function inventoryListItems()
+    {
+        return $this->lineItems()->inventoryList();
+    }
+
+    public function otherAttachmentItems()
+    {
+        return $this->lineItems()->otherAttachment();
+    }
+
     public function cashInItem()
     {
         return $this->lineItems()->cashIn();

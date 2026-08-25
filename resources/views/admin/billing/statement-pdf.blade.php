@@ -3,7 +3,10 @@
     $categories = [
         \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE => 'BIR REMITTANCES',
         \App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE => 'PROFESSIONAL FEES (FILING)',
-        \App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'BOOKKEEPING / POST-CLOSING TRIAL BALANCE',
+        \App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'BOOKKEEPING',
+        \App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB => 'POST-CLOSING TRIAL BALANCE',
+        \App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST => 'INVENTORY LIST (NOTARIZED)',
+        \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'OTHER ATTACHMENT',
     ];
 
     $gcashNumber = $gcashNumber ?? '';

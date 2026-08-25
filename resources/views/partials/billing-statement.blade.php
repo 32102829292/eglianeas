@@ -3,6 +3,9 @@
     $remittances = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE, collect());
     $professionalFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE, collect());
     $bookkeepingFees = $grouped->get(\App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE, collect());
+    $postClosingTb = $grouped->get(\App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB, collect());
+    $inventoryList = $grouped->get(\App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST, collect());
+    $otherAttachment = $grouped->get(\App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT, collect());
     $gcashNumber = \App\Models\Setting::get('gcash_number', '');
     $gcashQrCode = \App\Models\Setting::get('gcash_qr_code', '');
     $bankAccounts = \App\Models\Setting::get('bank_accounts', []);
@@ -52,8 +55,44 @@
 
     @if ($bookkeepingFees->isNotEmpty())
         <div class="statement-block">
-            <div class="statement-block-title">BOOKKEEPING / POST-CLOSING TRIAL BALANCE</div>
+            <div class="statement-block-title">BOOKKEEPING</div>
             @foreach ($bookkeepingFees as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    @if ($postClosingTb->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">POST-CLOSING TRIAL BALANCE</div>
+            @foreach ($postClosingTb as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    @if ($inventoryList->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">INVENTORY LIST (NOTARIZED)</div>
+            @foreach ($inventoryList as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    @if ($otherAttachment->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">OTHER ATTACHMENT</div>
+            @foreach ($otherAttachment as $item)
                 <div class="statement-row">
                     <span>{{ $item->label }}</span>
                     <span>{{ $billing->money($item->amount) }}</span>

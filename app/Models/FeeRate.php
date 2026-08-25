@@ -11,10 +11,16 @@ class FeeRate extends Model
 
     public const CATEGORY_PROFESSIONAL_FEE = 'professional_fee';
     public const CATEGORY_BOOKKEEPING_FEE = 'bookkeeping_fee';
+    public const CATEGORY_POST_CLOSING_TB = 'post_closing_tb';
+    public const CATEGORY_INVENTORY_LIST = 'inventory_list';
+    public const CATEGORY_OTHER_ATTACHMENT = 'other_attachment';
 
     public const CATEGORIES = [
         self::CATEGORY_PROFESSIONAL_FEE => 'Professional Fee',
         self::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping Fee',
+        self::CATEGORY_POST_CLOSING_TB => 'Post-Closing Trial Balance',
+        self::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
+        self::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
     ];
 
     protected $fillable = [
@@ -52,6 +58,21 @@ class FeeRate extends Model
     public function scopeBookkeepingFees($query)
     {
         return $query->where('category', self::CATEGORY_BOOKKEEPING_FEE);
+    }
+
+    public function scopePostClosingTb($query)
+    {
+        return $query->where('category', self::CATEGORY_POST_CLOSING_TB);
+    }
+
+    public function scopeInventoryList($query)
+    {
+        return $query->where('category', self::CATEGORY_INVENTORY_LIST);
+    }
+
+    public function scopeOtherAttachment($query)
+    {
+        return $query->where('category', self::CATEGORY_OTHER_ATTACHMENT);
     }
 
     public function money(): string

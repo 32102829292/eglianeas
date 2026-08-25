@@ -445,7 +445,10 @@ class BillingController extends Controller
             BillingLineItem::CATEGORY_PROFESSIONAL_FEE => $formType
                 ? "Professional Fee — {$formType}" . ($month ? " ({$monthNames[$month]})" : '')
                 : 'Professional Fee',
-            BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping / Post-Closing Trial Balance',
+            BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping',
+            BillingLineItem::CATEGORY_POST_CLOSING_TB => 'Post-Closing Trial Balance',
+            BillingLineItem::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
+            BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
             default => $formType ?? 'Line Item',
         };
     }
@@ -628,7 +631,7 @@ class BillingController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'label' => ['nullable', 'string', 'max:120'],
-            'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee'],
+            'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment'],
         ]);
 
         FeeRate::query()->create([
@@ -721,6 +724,18 @@ class BillingController extends Controller
             $colHeaders[] = 'Bookkeeping Fee';
             $colWidths[] = 14;
 
+            // Post-Closing TB
+            $colHeaders[] = 'Post-Closing TB';
+            $colWidths[] = 16;
+
+            // Inventory List
+            $colHeaders[] = 'Inventory List';
+            $colWidths[] = 16;
+
+            // Other Attachment
+            $colHeaders[] = 'Other Attachment';
+            $colWidths[] = 16;
+
             $colHeaders[] = 'Total';
             $colWidths[] = 14;
 
@@ -757,6 +772,18 @@ class BillingController extends Controller
                 // Bookkeeping
                 $bookItem = $lineItems->where('category', BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->first();
                 $values[] = $bookItem ? (float) $bookItem->amount : 0;
+
+                // Post-Closing TB
+                $ptbItem = $lineItems->where('category', BillingLineItem::CATEGORY_POST_CLOSING_TB)->first();
+                $values[] = $ptbItem ? (float) $ptbItem->amount : 0;
+
+                // Inventory List
+                $invItem = $lineItems->where('category', BillingLineItem::CATEGORY_INVENTORY_LIST)->first();
+                $values[] = $invItem ? (float) $invItem->amount : 0;
+
+                // Other Attachment
+                $oaItem = $lineItems->where('category', BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->first();
+                $values[] = $oaItem ? (float) $oaItem->amount : 0;
 
                 // Total
                 $values[] = (float) $billing->total;

@@ -62,6 +62,9 @@
                     <th>Fee — {{ $ft }}</th>
                 @endforeach
                 <th>Bookkeeping</th>
+                <th>Post-Closing TB</th>
+                <th>Inventory List</th>
+                <th>Other Attachment</th>
                 <th>Total</th>
             </tr>
         </thead>
@@ -92,6 +95,12 @@
                     @endforeach
                     @php $book = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->first(); @endphp
                     <td class="text-right">{{ $book ? number_format($book->amount, 2) : '—' }}</td>
+                    @php $ptb = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB)->first(); @endphp
+                    <td class="text-right">{{ $ptb ? number_format($ptb->amount, 2) : '—' }}</td>
+                    @php $inv = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST)->first(); @endphp
+                    <td class="text-right">{{ $inv ? number_format($inv->amount, 2) : '—' }}</td>
+                    @php $oa = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->first(); @endphp
+                    <td class="text-right">{{ $oa ? number_format($oa->amount, 2) : '—' }}</td>
                     <td class="text-right">{{ number_format($billing->total, 2) }}</td>
                 </tr>
             @empty

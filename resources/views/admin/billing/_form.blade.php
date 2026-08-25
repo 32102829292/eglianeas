@@ -3,14 +3,21 @@
     $existingItems = $isEdit ? $billing->lineItems->keyBy(fn ($item) => $item->category.'_'.$item->form_type.'_'.$item->month) : collect();
     $professionalFeeRates = $feeRates->where('category', 'professional_fee');
     $bookkeepingFeeRates = $feeRates->where('category', 'bookkeeping_fee');
+    $ptbFeeRates = $feeRates->where('category', 'post_closing_tb');
+    $invFeeRates = $feeRates->where('category', 'inventory_list');
+    $oaFeeRates = $feeRates->where('category', 'other_attachment');
     $existingItemsJson = $isEdit ? json_encode($existingItems->mapWithKeys(fn ($item) => [
         $item->category . '_' . ($item->form_type ?? '') . '_' . ($item->month ?? 'null') => [
             'amount' => $item->amount,
             'fee_rate_id' => $item->fee_rate_id,
+            'label' => $item->label,
         ],
     ])->all()) : 'null';
     $profFeeRatesJson = json_encode($professionalFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
     $bookFeeRatesJson = json_encode($bookkeepingFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    $ptbFeeRatesJson = json_encode($ptbFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    $invFeeRatesJson = json_encode($invFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    $oaFeeRatesJson = json_encode($oaFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
 @endphp
 
 <div class="card">
@@ -105,6 +112,10 @@
     var monthlyForms = @json($monthlyForms);
     var profFeeRates = {!! $profFeeRatesJson !!};
     var bookFeeRates = {!! $bookFeeRatesJson !!};
+    var ptbFeeRates = {!! $ptbFeeRatesJson !!};
+    var invFeeRates = {!! $invFeeRatesJson !!};
+    var oaFeeRates = {!! $oaFeeRatesJson !!};
+    var allFeeRateCategories = ['professional_fee', 'bookkeeping_fee', 'post_closing_tb', 'inventory_list', 'other_attachment'];
     var monthNames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'};
 
     function round2(v) { var n = parseFloat(v); return isNaN(n) ? 0 : Math.round(n * 100) / 100; }
@@ -172,7 +183,13 @@
         if (category === 'professional_fee' && formType) {
             displayLabel = 'Fee — ' + formType + (month ? ' (' + monthNames[month] + ')' : '');
         } else if (category === 'bookkeeping_fee') {
-            displayLabel = 'Bookkeeping / Post-Closing TB';
+            displayLabel = 'Bookkeeping';
+        } else if (category === 'post_closing_tb') {
+            displayLabel = 'Post-Closing Trial Balance';
+        } else if (category === 'inventory_list') {
+            displayLabel = 'Inventory List (Notarized)';
+        } else if (category === 'other_attachment') {
+            displayLabel = 'Other Attachment';
         } else if (category === 'bir_remittance' && !formType) {
             displayLabel = 'Cash In';
         }
@@ -184,8 +201,16 @@
         var inputWrap = document.createElement('div');
         inputWrap.className = 'line-item-input';
 
-        if (category === 'professional_fee' || category === 'bookkeeping_fee') {
-            var rates = category === 'bookkeeping_fee' ? bookFeeRates : profFeeRates;
+        var feeRateMap = {
+            'professional_fee': profFeeRates,
+            'bookkeeping_fee': bookFeeRates,
+            'post_closing_tb': ptbFeeRates,
+            'inventory_list': invFeeRates,
+            'other_attachment': oaFeeRates
+        };
+
+        if (feeRateMap[category]) {
+            var rates = feeRateMap[category];
             var select = buildFeeSelect('line_items[' + idx + '][amount]', rates, amount, feeRateId);
             select.dataset.lineAmount = '1';
             select.dataset.feeRateSelect = '1';
@@ -269,27 +294,27 @@
 
         var remRows = [];
         var feeRows = [];
-        var hasBookkeeping = false;
+        var bookRow = null;
+        var ptbRow = null;
+        var invRow = null;
+        var oaRow = null;
         var hasCashIn = false;
-        var bookkeepingAmount = null;
-        var bookkeepingFeeRateId = null;
 
-        // Check if existing items have bookkeeping
+        // Detect existing items for new categories
+        var bookExisting = null;
+        var ptbExisting = null;
+        var invExisting = null;
+        var oaExisting = null;
+
         if (existingItems) {
             Object.keys(existingItems).forEach(function (key) {
-                if (key.startsWith('bookkeeping_fee_')) {
-                    hasBookkeeping = true;
-                    bookkeepingAmount = existingItems[key].amount;
-                    bookkeepingFeeRateId = existingItems[key].fee_rate_id;
-                }
-                if (key === 'bir_remittance__') {
-                    hasCashIn = true;
-                }
+                if (key.startsWith('bookkeeping_fee_')) bookExisting = existingItems[key];
+                if (key.startsWith('post_closing_tb_')) ptbExisting = existingItems[key];
+                if (key.startsWith('inventory_list_')) invExisting = existingItems[key];
+                if (key.startsWith('other_attachment_')) oaExisting = existingItems[key];
+                if (key === 'bir_remittance__') hasCashIn = true;
             });
         }
-
-        // Default: show bookkeeping if applicable or if editing and it exists
-        if (!existingItems) hasBookkeeping = true;
 
         // BIR Remittances
         applicableForms.forEach(function (ft) {
@@ -330,10 +355,21 @@
         if (remRows.length) container.appendChild(buildSection('BIR Remittances', remRows));
         if (feeRows.length) container.appendChild(buildSection('Professional Fees', feeRows));
 
-        if (hasBookkeeping) {
-            var bookRow = buildLineItemRow(idx++, 'bookkeeping_fee', null, null, 'Bookkeeping / Post-Closing TB', bookkeepingAmount, bookkeepingFeeRateId);
-            container.appendChild(buildSection('Bookkeeping Fee', [bookRow]));
-        }
+        // Bookkeeping — always show (default in create, or from existing)
+        bookRow = buildLineItemRow(idx++, 'bookkeeping_fee', null, null, 'Bookkeeping', bookExisting ? bookExisting.amount : '', bookExisting ? bookExisting.fee_rate_id : null);
+        container.appendChild(buildSection('Bookkeeping Fee', [bookRow]));
+
+        // Post-Closing Trial Balance — always show
+        ptbRow = buildLineItemRow(idx++, 'post_closing_tb', null, null, 'Post-Closing Trial Balance', ptbExisting ? ptbExisting.amount : '', ptbExisting ? ptbExisting.fee_rate_id : null);
+        container.appendChild(buildSection('Post-Closing Trial Balance', [ptbRow]));
+
+        // Inventory List (Notarized) — always show
+        invRow = buildLineItemRow(idx++, 'inventory_list', null, null, 'Inventory List (Notarized)', invExisting ? invExisting.amount : '', invExisting ? invExisting.fee_rate_id : null);
+        container.appendChild(buildSection('Inventory List (Notarized)', [invRow]));
+
+        // Other Attachment — always show
+        oaRow = buildLineItemRow(idx++, 'other_attachment', null, null, 'Other Attachment', oaExisting ? oaExisting.amount : '', oaExisting ? oaExisting.fee_rate_id : null);
+        container.appendChild(buildSection('Other Attachment', [oaRow]));
 
         computeTotal();
     }
