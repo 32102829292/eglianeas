@@ -8,7 +8,7 @@ return [
 
     'welcome_message' => 'Hello! I am the Egliane Assistant. I can help you with filing status, documents, services, pricing and more. How can I help you today?',
 
-    'messenger_url' => 'https://www.facebook.com/profile.php?id=100063691286931',
+    'messenger_url' => 'https://www.facebook.com/harris.egliane.2025',
 
     'fallback_message' => "I'm not sure about that one yet. For anything else, message us on Facebook Messenger and our team will help you right away.",
 
