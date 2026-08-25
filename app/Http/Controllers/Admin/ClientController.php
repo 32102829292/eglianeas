@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\BirFormStatus;
+use App\Models\ClientInfoEntry;
 use App\Models\ClientProfile;
 use App\Models\MasterlistExportLog;
 use App\Models\User;
@@ -403,5 +404,58 @@ class ClientController extends Controller
                 ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
             );
         }
+    }
+
+    public function storeInfoEntry(Request $request, User $client): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $validated = $request->validate([
+            'key'   => ['required', 'string', 'max:255'],
+            'value' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $maxOrder = $client->infoEntries()->max('sort_order') ?? 0;
+
+        $client->infoEntries()->create([
+            'key' => $validated['key'],
+            'value' => $validated['value'] ?? null,
+            'sort_order' => $maxOrder + 1,
+        ]);
+
+        ActivityLog::record(auth()->user(), 'admin.client_info_added', "Added info entry \"{$validated['key']}\" for {$client->name}.");
+
+        return redirect()->route('admin.clients.show', $client)->with('status', 'Info entry added.');
+    }
+
+    public function updateInfoEntry(Request $request, User $client, ClientInfoEntry $entry): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+        abort_unless($entry->user_id === $client->id, 404);
+
+        $validated = $request->validate([
+            'key'   => ['sometimes', 'required', 'string', 'max:255'],
+            'value' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $entry->fill($validated);
+        $entry->save();
+
+        ActivityLog::record(auth()->user(), 'admin.client_info_updated', "Updated info entry \"{$entry->key}\" for {$client->name}.");
+
+        return redirect()->route('admin.clients.show', $client)->with('status', 'Info entry updated.');
+    }
+
+    public function destroyInfoEntry(User $client, ClientInfoEntry $entry): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+        abort_unless($entry->user_id === $client->id, 404);
+
+        $entryName = $entry->key;
+        $entry->delete();
+
+        ActivityLog::record(auth()->user(), 'admin.client_info_deleted', "Deleted info entry \"{$entryName}\" for {$client->name}.");
+
+        return redirect()->route('admin.clients.show', $client)->with('status', 'Info entry deleted.');
     }
 }

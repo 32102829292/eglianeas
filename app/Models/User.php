@@ -178,7 +178,12 @@ class User extends Authenticatable
 
     public function birFormStatuses(): HasMany
     {
-        return $this->hasMany(BirFormStatus::class, 'client_id');
+        return $this->hasMany(BirFormStatus::class);
+    }
+
+    public function infoEntries(): HasMany
+    {
+        return $this->hasMany(ClientInfoEntry::class)->orderBy('sort_order');
     }
 
     public function documentDeliveries(): HasMany

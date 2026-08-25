@@ -204,6 +204,72 @@
                 <div class="form-hint">No remarks yet.</div>
             @endif
         </div>
+
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Custom info entries</h3>
+            </div>
+            @if ($client->infoEntries->isNotEmpty())
+                <div class="profile-grid">
+                    @foreach ($client->infoEntries as $entry)
+                        <div class="profile-row">
+                            <span class="profile-k">{{ $entry->key }}</span>
+                            <span class="profile-v">
+                                {{ $entry->value ?: '—' }}
+                                <button type="button" class="btn btn-link btn-sm text-muted edit-info-btn"
+                                        data-entry-id="{{ $entry->id }}"
+                                        data-key="{{ $entry->key }}"
+                                        data-value="{{ $entry->value }}"
+                                        style="margin-left:4px;">Edit</button>
+                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" style="display:inline;" onsubmit="return confirm('Delete this entry?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-link btn-sm text-danger" style="margin-left:2px;">Del</button>
+                                </form>
+                            </span>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <div class="form-hint">No custom info entries yet.</div>
+            @endif
+
+            <div class="section-divider"></div>
+
+            <form method="POST" action="{{ route('admin.clients.storeInfoEntry', $client) }}" class="form-inline" id="addInfoForm">
+                @csrf
+                <div class="form-grid two">
+                    <div class="form-group">
+                        <label class="form-label" for="info-key">Key</label>
+                        <input class="form-control" id="info-key" name="key" type="text" placeholder="e.g. Fiscal Year End" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="info-value">Value</label>
+                        <input class="form-control" id="info-value" name="value" type="text" placeholder="e.g. December 31">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Add entry</button>
+            </form>
+
+            <div id="edit-info-modal" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);">
+                <form method="POST" id="edit-info-form" class="form-inline">
+                    @csrf
+                    @method('PUT')
+                    <div class="form-grid two">
+                        <div class="form-group">
+                            <label class="form-label">Key</label>
+                            <input class="form-control" id="edit-info-key" name="key" type="text" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Value</label>
+                            <input class="form-control" id="edit-info-value" name="value" type="text">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm mt-2">Save</button>
+                    <button type="button" class="btn btn-outline btn-sm mt-2 cancel-edit-info">Cancel</button>
+                </form>
+            </div>
+        </div>
     </div>
 @endsection
 
@@ -223,6 +289,27 @@
                 text.textContent = text.getAttribute('data-full') || text.textContent;
                 btn.textContent = 'Hide';
                 btn.setAttribute('data-showing', '1');
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            var editBtn = e.target.closest('.edit-info-btn');
+            if (editBtn) {
+                var id = editBtn.getAttribute('data-entry-id');
+                var key = editBtn.getAttribute('data-key');
+                var value = editBtn.getAttribute('data-value');
+                var modal = document.getElementById('edit-info-modal');
+                var form = document.getElementById('edit-info-form');
+                var base = '{{ route('admin.clients.updateInfoEntry', [$client, "__ID__"]) }}'.replace('__ID__', id);
+                form.setAttribute('action', base);
+                document.getElementById('edit-info-key').value = key;
+                document.getElementById('edit-info-value').value = value;
+                modal.style.display = 'block';
+                return;
+            }
+            if (e.target.closest('.cancel-edit-info')) {
+                document.getElementById('edit-info-modal').style.display = 'none';
+                return;
             }
         });
     </script>

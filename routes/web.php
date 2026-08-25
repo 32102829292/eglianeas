@@ -184,6 +184,9 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');
     Route::put('/clients/{client}', [AdminClientController::class, 'update'])->name('clients.update');
     Route::delete('/clients/{client}', [AdminClientController::class, 'destroy'])->name('clients.destroy');
+    Route::post('/clients/{client}/info-entries', [AdminClientController::class, 'storeInfoEntry'])->name('clients.storeInfoEntry');
+    Route::put('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'updateInfoEntry'])->name('clients.updateInfoEntry');
+    Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
     Route::get('/clients/{client}', [AdminClientController::class, 'show'])->name('clients.show');
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
