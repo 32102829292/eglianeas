@@ -21,6 +21,8 @@ class WebauthnController extends Controller
             return response()->json(['error' => 'Unauthenticated.'], 401);
         }
 
+        abort_if(session('impersonator_id'), 403, 'Biometric changes are not available while viewing as another user.');
+
         $options = $webauthn->creationOptionsForBrowser($user);
 
         return response()->json($options);
@@ -33,6 +35,8 @@ class WebauthnController extends Controller
         if ($user === null) {
             return response()->json(['error' => 'Unauthenticated.'], 401);
         }
+
+        abort_if(session('impersonator_id'), 403, 'Biometric changes are not available while viewing as another user.');
 
         $request->validate([
             'credential' => ['required', 'array'],
@@ -68,6 +72,8 @@ class WebauthnController extends Controller
 
     public function destroy(Request $request, WebauthnService $webauthn, int $id): JsonResponse
     {
+        abort_if(session('impersonator_id'), 403, 'Biometric changes are not available while viewing as another user.');
+
         $credential = WebauthnCredential::query()
             ->where('id', $id)
             ->where('user_id', Auth::id())

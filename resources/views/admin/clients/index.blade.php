@@ -97,6 +97,13 @@
                             </td>
                             <td data-col="Since">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</td>
                             <td class="text-end" data-col="Actions">
+                                <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return confirm('View the application as {{ addslashes($client->business_name ?: $client->name) }}? You can exit anytime from the top banner.')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline btn-sm" title="Login as this client">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        Login as
+                                    </button>
+                                </form>
                                 <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a>
                                 <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this client? This action can be undone by support.')">

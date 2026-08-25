@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        $middleware->append(\App\Http\Middleware\ImpersonationBanner::class);
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'admin.confidentiality' => \App\Http\Middleware\EnsureAdminConfidentialityAcknowledged::class,

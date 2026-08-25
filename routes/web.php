@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
+use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
@@ -188,6 +189,8 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::put('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'updateInfoEntry'])->name('clients.updateInfoEntry');
     Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
     Route::get('/clients/{client}', [AdminClientController::class, 'show'])->name('clients.show');
+    Route::post('/clients/{client}/impersonate', [ImpersonateController::class, 'start'])->name('clients.impersonate');
+    Route::post('/impersonate/stop', [ImpersonateController::class, 'stop'])->name('impersonate.stop');
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');

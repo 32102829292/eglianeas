@@ -13,6 +13,8 @@ class SecurityController extends Controller
 {
     public function index(): \Illuminate\View\View
     {
+        abort_if(session('impersonator_id'), 403, 'Security settings are not available while viewing as another user.');
+
         return view('settings.security', [
             'user' => Auth::user(),
             'credentials' => Auth::user()->webauthnCredentials()->latest()->get(),
@@ -21,6 +23,7 @@ class SecurityController extends Controller
 
     public function setPin(Request $request): RedirectResponse
     {
+        abort_if(session('impersonator_id'), 403, 'PIN changes are not available while viewing as another user.');
         $request->validate([
             'current_password' => ['required', 'current_password'],
             'pin' => ['required', 'string', 'regex:/^\d{4}$/'],

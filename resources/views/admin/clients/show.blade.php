@@ -26,6 +26,13 @@
             <p>{{ $client->name }} &middot; {{ $client->email }}</p>
         </div>
         <div class="btn-row">
+            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return confirm('View the application as {{ addslashes($client->business_name ?: $client->name) }}? You can exit anytime from the top banner.')">
+                @csrf
+                <button type="submit" class="btn btn-outline">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Login as Client
+                </button>
+            </form>
             <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline">Billing Statements</a>
             <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline">Document Distribution</a>
             <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-primary">Edit profile</a>

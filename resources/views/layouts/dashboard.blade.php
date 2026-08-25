@@ -12,6 +12,7 @@
 <html lang="en">
 @include('layouts.head')
 <body class="dash-body">
+    @include('partials.impersonation-banner')
     <div class="offline-banner" id="offlineBanner">You&rsquo;re offline &mdash; showing previously loaded data.</div>
 
     <div class="dash-topbar">
