@@ -41,7 +41,7 @@
             <div class="card-head"><h2 class="card-title">Account</h2></div>
             <div class="form-grid two">
                 <div class="form-group">
-                    <label class="form-label" for="name">Client name</label>
+                    <label class="form-label" for="name">Taxpayer name</label>
                     <input class="form-control" id="name" name="name" type="text" value="{{ old('name', $client->name) }}" required>
                     @error('name')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
@@ -93,6 +93,11 @@
             <div class="card-head"><h2 class="card-title">Business information</h2></div>
             <div class="form-grid two">
                 <div class="form-group">
+                    <label class="form-label" for="taxpayer_name">Taxpayer's name</label>
+                    <input class="form-control" id="taxpayer_name" name="taxpayer_name" type="text" value="{{ old('taxpayer_name', $profile->taxpayer_name) }}" placeholder="Registered taxpayer name (if different from business name)">
+                    @error('taxpayer_name')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="business_type">Business type</label>
                     <select class="form-control" id="business_type" name="business_type">
                         <option value="">Select business type</option>
@@ -101,6 +106,16 @@
                         @endforeach
                     </select>
                     @error('business_type')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="taxpayer_type">Type of taxpayer</label>
+                    <select class="form-control" id="taxpayer_type" name="taxpayer_type">
+                        <option value="">Select taxpayer type</option>
+                        @foreach (\App\Models\ClientProfile::TAXPAYER_TYPES as $type)
+                            <option value="{{ $type }}" @selected(old('taxpayer_type', $profile->taxpayer_type) === $type)>{{ $type }}</option>
+                        @endforeach
+                    </select>
+                    @error('taxpayer_type')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="line_of_business">Line of business</label>
@@ -157,6 +172,11 @@
                     <label class="form-label" for="contact_no">Contact number</label>
                     <input class="form-control" id="contact_no" name="contact_no" type="tel" value="{{ old('contact_no', $profile->contact_no) }}" placeholder="+63 917 000 0000">
                     @error('contact_no')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="second_contact_name">2nd contact name</label>
+                    <input class="form-control" id="second_contact_name" name="second_contact_name" type="text" value="{{ old('second_contact_name', $profile->second_contact_name) }}" placeholder="Name of 2nd contact person">
+                    @error('second_contact_name')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="second_contact_channel">2nd person contact channel</label>

@@ -79,7 +79,7 @@
                 @method('PATCH')
                 <div class="profile-grid">
                     <div class="form-group">
-                        <label class="form-label" for="client_name">Client name</label>
+                        <label class="form-label" for="client_name">Taxpayer name</label>
                         <input class="form-control" id="client_name" type="text" value="{{ $user->name }}" disabled>
                         <div class="form-hint">Contact Egliane to change your registered name.</div>
                     </div>
@@ -87,6 +87,11 @@
                         <label class="form-label" for="business_name">Business name</label>
                         <input class="form-control" id="business_name" type="text" name="business_name" value="{{ old('business_name', $user->business_name) }}">
                         @error('business_name')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="taxpayer_name">Taxpayer's name</label>
+                        <input class="form-control" id="taxpayer_name" type="text" name="taxpayer_name" value="{{ old('taxpayer_name', $profile->taxpayer_name) }}" placeholder="If different from business name">
+                        @error('taxpayer_name')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="business_type">Business type</label>
@@ -97,6 +102,16 @@
                             @endforeach
                         </select>
                         @error('business_type')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="taxpayer_type">Type of taxpayer</label>
+                        <select class="form-control" id="taxpayer_type" name="taxpayer_type">
+                            <option value="">Select taxpayer type</option>
+                            @foreach (\App\Models\ClientProfile::TAXPAYER_TYPES as $type)
+                                <option value="{{ $type }}" @selected((string) old('taxpayer_type', $profile->taxpayer_type) === $type)>{{ $type }}</option>
+                            @endforeach
+                        </select>
+                        @error('taxpayer_type')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="line_of_business">Line of business</label>
@@ -132,9 +147,11 @@
             </form>
         @else
             <div class="profile-grid">
-                <div class="profile-row"><span class="profile-k">Client name</span><span class="profile-v">{{ $user->name }}</span></div>
+                <div class="profile-row"><span class="profile-k">Taxpayer name</span><span class="profile-v">{{ $user->name }}</span></div>
                 <div class="profile-row"><span class="profile-k">Business name</span><span class="profile-v">{{ $user->business_name ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Taxpayer's name</span><span class="profile-v">{{ $profile->taxpayer_name ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Business type</span><span class="profile-v">{{ $profile->business_type ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Type of taxpayer</span><span class="profile-v">{{ $profile->taxpayer_type ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Line of business</span><span class="profile-v">{{ $profile->line_of_business ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">BIR registration type</span><span class="profile-v">{{ $profile->bir_registration_type ?: '—' }}</span></div>
             </div>
@@ -207,6 +224,11 @@
                         @error('contact_no')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                     <div class="form-group">
+                        <label class="form-label" for="second_contact_name">2nd contact name</label>
+                        <input class="form-control" id="second_contact_name" type="text" name="second_contact_name" value="{{ old('second_contact_name', $profile->second_contact_name) }}" placeholder="Name of 2nd contact person">
+                        @error('second_contact_name')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-group">
                         <label class="form-label" for="second_contact_channel">2nd person contact channel</label>
                         <div class="form-inline-row">
                             <select class="form-control" id="second_contact_channel" name="second_contact_channel" data-second-channel>
@@ -243,6 +265,7 @@
         @else
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd person contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd person email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>

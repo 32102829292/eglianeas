@@ -74,14 +74,14 @@ class ClientController extends Controller
             $sheet = $spreadsheet->getActiveSheet();
 
             $headers = [
-                'Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business',
-                'BIR Registration Type', 'Business Address', 'Contact No.', 'Email Address',
-                '2nd Person Name', '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
+                'Client ID', 'Taxpayer Name', 'Business Name', 'Taxpayer\'s Name', 'Business Type', 'Type of Taxpayer',
+                'Line of Business', 'BIR Registration Type', 'Business Address', 'Contact No.', 'Email Address',
+                '2nd Contact Name', '2nd Person Contact No.', '2nd Person Email Address', 'Birth Date',
                 'TIN No.', "Mother's Maiden Name", "Father's Name", 'Status',
                 'Payment Status', 'Date Started', 'Remarks',
             ];
 
-            $colWidths = [14, 20, 24, 20, 20, 18, 30, 16, 26, 18, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
+            $colWidths = [14, 20, 24, 24, 20, 18, 20, 18, 30, 16, 26, 18, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
 
             foreach ($headers as $col => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
@@ -98,7 +98,9 @@ class ClientController extends Controller
                     $client->client_code ?? '',
                     $client->name,
                     $client->business_name ?? '',
+                    $p?->taxpayer_name ?? '',
                     $p?->business_type ?? '',
+                    $p?->taxpayer_type ?? '',
                     $p?->line_of_business ?? '',
                     $p?->bir_registration_type ?? '',
                     $p?->business_address ?? '',
@@ -235,6 +237,7 @@ class ClientController extends Controller
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
             'businessTypes' => ClientProfile::BUSINESS_TYPES,
+            'taxpayerTypes' => ClientProfile::TAXPAYER_TYPES,
             'lobOptions' => ClientProfile::LINE_OF_BUSINESS_OPTIONS,
             'regTypes' => ClientProfile::BIR_REGISTRATION_TYPES,
             'formTypes' => $formTypes,
@@ -250,7 +253,9 @@ class ClientController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email,'.$client->id],
             'business_name' => ['nullable', 'string', 'max:255'],
+            'taxpayer_name' => ['nullable', 'string', 'max:255'],
             'business_type' => ['nullable', 'string', 'max:120'],
+            'taxpayer_type' => ['nullable', 'string', 'max:120'],
             'line_of_business' => ['nullable', 'string', 'max:255'],
             'line_of_business_other' => ['nullable', 'string', 'max:255'],
             'bir_registration_type' => ['nullable', 'string', 'max:120'],
@@ -258,12 +263,15 @@ class ClientController extends Controller
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'contact_no' => ['nullable', 'string', 'max:40'],
+            'second_contact_name' => ['nullable', 'string', 'max:255'],
             'second_contact_channel' => ['nullable', 'string', Rule::in(ClientProfile::SECOND_CONTACT_CHANNELS)],
             'second_contact_no' => array_merge(
                 ['nullable', 'string', 'max:255'],
-                (($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE) === ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)
-                    ? ['regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/']
-                    : []
+                in_array(($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE), ClientProfile::SECOND_CONTACT_URL_CHANNELS, true)
+                    ? ['url', 'regex:/^https?:\/\/.+/']
+                    : (($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE) === ClientProfile::SECOND_CONTACT_CHANNEL_PHONE
+                        ? ['regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/']
+                        : [])
             ),
             'second_email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before:today'],

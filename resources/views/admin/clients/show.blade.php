@@ -34,7 +34,7 @@
 
     <div class="profile-meta">
         <div class="profile-meta-chip">
-            <span class="meta-k">Client Code</span>
+            <span class="meta-k">Taxpayer ID</span>
             <span class="meta-v code-pill">{{ $client->client_code ?? '—' }}</span>
         </div>
         <div class="profile-meta-chip">
@@ -100,7 +100,9 @@
             </div>
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Business name</span><span class="profile-v">{{ $client->business_name ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Taxpayer's name</span><span class="profile-v">{{ $profile->taxpayer_name ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Business type</span><span class="profile-v">{{ $profile->business_type ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Type of taxpayer</span><span class="profile-v">{{ $profile->taxpayer_type ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Line of business</span><span class="profile-v">{{ $profile->line_of_business ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">BIR registration</span><span class="profile-v">{{ $profile->bir_registration_type ?: '—' }}</span></div>
             </div>
@@ -125,6 +127,7 @@
             </div>
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>

@@ -37,6 +37,13 @@ class ClientProfile extends Model
         'One Person Corporation (OPC)',
     ];
 
+    public const TAXPAYER_TYPES = [
+        'Mixed Income Earner',
+        'Self-Employed',
+        'Corporation',
+        'Cooperative',
+    ];
+
     public const LINE_OF_BUSINESS_OPTIONS = [
         'Retail & Wholesale',
         'Food & Beverage',
@@ -68,6 +75,11 @@ class ClientProfile extends Model
         self::SECOND_CONTACT_CHANNEL_TELEGRAM,
     ];
 
+    public const SECOND_CONTACT_URL_CHANNELS = [
+        self::SECOND_CONTACT_CHANNEL_FACEBOOK,
+        self::SECOND_CONTACT_CHANNEL_TELEGRAM,
+    ];
+
     public const SECOND_CONTACT_CHANNEL_LABELS = [
         self::SECOND_CONTACT_CHANNEL_PHONE => 'Phone',
         self::SECOND_CONTACT_CHANNEL_VIBER => 'Viber',
@@ -77,7 +89,9 @@ class ClientProfile extends Model
 
     protected $fillable = [
         'user_id',
+        'taxpayer_name',
         'business_type',
+        'taxpayer_type',
         'line_of_business',
         'bir_registration_type',
         'business_address',

@@ -31,39 +31,44 @@
 
     <table class="masterlist">
         <colgroup>
-            <col width="4.5%">
+            <col width="4%">
+            <col width="5%">
             <col width="5.5%">
+            <col width="5.5%">
+            <col width="5%">
+            <col width="4.5%">
+            <col width="5%">
+            <col width="6%">
+            <col width="4%">
             <col width="6.5%">
-            <col width="5.5%">
-            <col width="6%">
+            <col width="4%">
             <col width="5%">
-            <col width="7.5%">
-            <col width="4.5%">
-            <col width="7%">
-            <col width="4.5%">
-            <col width="6%">
-            <col width="4.5%">
-            <col width="4.5%">
-            <col width="5.5%">
+            <col width="4%">
+            <col width="4%">
             <col width="5%">
+            <col width="4.5%">
+            <col width="4%">
+            <col width="4%">
             <col width="4%">
             <col width="4.5%">
             <col width="4.5%">
-            <col width="5%">
+            <col width="4%">
         </colgroup>
         <thead>
             <tr>
                 <th>Client ID</th>
-                <th>Client Name</th>
+                <th>Taxpayer Name</th>
                 <th>Business Name</th>
+                <th>Taxpayer's Name</th>
                 <th>Business Type</th>
+                <th>Type of Taxpayer</th>
                 <th>Line of Business</th>
                 <th>BIR Reg. Type</th>
                 <th>Business Address</th>
                 <th>Contact No.</th>
                 <th>Email Address</th>
                 <th>2nd Contact Name</th>
-<th>2nd Contact No.</th>
+                <th>2nd Contact No.</th>
                 <th>2nd Email</th>
                 <th>Birth Date</th>
                 <th>TIN No.</th>
@@ -82,14 +87,16 @@
                     <td>{{ $client->client_code ?? '' }}</td>
                     <td>{{ $client->name }}</td>
                     <td>{{ $client->business_name ?? '' }}</td>
+                    <td>{{ $p?->taxpayer_name ?? '' }}</td>
                     <td>{{ $p?->business_type ?? '' }}</td>
+                    <td>{{ $p?->taxpayer_type ?? '' }}</td>
                     <td>{{ $p?->line_of_business ?? '' }}</td>
                     <td>{{ $p?->bir_registration_type ?? '' }}</td>
                     <td>{{ $p?->business_address ?? '' }}</td>
                     <td>{{ $p?->contact_no ?? '' }}</td>
                     <td>{{ $client->email }}</td>
                     <td>{{ $p?->second_contact_name ?? '' }}</td>
-<td>{{ $p?->second_contact_display ?? '' }}</td>
+                    <td>{{ $p?->second_contact_display ?? '' }}</td>
                     <td>{{ $p?->second_email ?? '' }}</td>
                     <td>{{ $p?->birth_date?->format('m/d/Y') ?? '' }}</td>
                     <td>{{ $p?->tin_no ?? '' }}</td>
@@ -101,7 +108,7 @@
                     <td>{{ $p?->remarks ?? '' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="19" class="empty-cell">No clients found.</td></tr>
+                <tr><td colspan="22" class="empty-cell">No clients found.</td></tr>
             @endforelse
         </tbody>
     </table>

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Client;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\ClientProfile;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -40,7 +42,9 @@ class ProfileController extends Controller
     {
         $validated = $request->validate([
             'business_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'taxpayer_name' => ['sometimes', 'nullable', 'string', 'max:255'],
             'business_type' => ['sometimes', 'nullable', 'string', 'max:120'],
+            'taxpayer_type' => ['sometimes', 'nullable', 'string', 'max:120'],
             'line_of_business' => ['sometimes', 'nullable', 'string', 'max:255'],
             'line_of_business_other' => ['sometimes', 'nullable', 'string', 'max:255'],
             'bir_registration_type' => ['sometimes', 'nullable', 'string', 'max:120'],
@@ -48,7 +52,16 @@ class ProfileController extends Controller
             'latitude' => ['sometimes', 'nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['sometimes', 'nullable', 'numeric', 'between:-180,180'],
             'contact_no' => ['sometimes', 'nullable', 'string', 'max:40'],
-            'second_contact_no' => ['sometimes', 'nullable', 'string', 'max:40'],
+            'second_contact_name' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'second_contact_channel' => ['sometimes', 'nullable', 'string', Rule::in(ClientProfile::SECOND_CONTACT_CHANNELS)],
+            'second_contact_no' => array_merge(
+                ['sometimes', 'nullable', 'string', 'max:255'],
+                in_array(($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE), ClientProfile::SECOND_CONTACT_URL_CHANNELS, true)
+                    ? ['url', 'regex:/^https?:\/\/.+/']
+                    : (($request->input('second_contact_channel') ?? ClientProfile::SECOND_CONTACT_CHANNEL_PHONE) === ClientProfile::SECOND_CONTACT_CHANNEL_PHONE
+                        ? ['regex:/^(?:\+63|0)[\d\s\-()]{7,17}$/']
+                        : [])
+            ),
             'second_email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'birth_date' => ['sometimes', 'nullable', 'date', 'before:today'],
             'tin_no' => ['sometimes', 'nullable', 'string', 'max:40'],
