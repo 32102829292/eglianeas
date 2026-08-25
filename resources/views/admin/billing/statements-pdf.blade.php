@@ -25,6 +25,11 @@
 
     $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
     $rowsPerPage = 4;
+    // Fixed equal-height slots (label-sheet grid). Computed by the controller
+    // from the selected paper size: page height minus @page margins minus the
+    // payment-details footer reserve, divided by rows per page.
+    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20 - 10) / $rowsPerPage, 2);
+    $density = $density ?? 'normal';
 @endphp
 <!DOCTYPE html>
 <html>
@@ -40,33 +45,36 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         /* DomPDF starts stacked block content ~6.5mm above the declared @page
-           margin; pad the body so receipts begin at the full 10mm margin. */
+           margin; pad the body so the grid begins at the full 10mm margin. */
         body { font-family: Helvetica, Arial, sans-serif; font-size: 7pt; color: #111; padding-top: 10.2mm; }
         table { width: 100%; border-collapse: collapse; }
 
-        /* Each statement renders as one row of two receipt cells (Taxpayer's + Egliane's copy).
-           Four rows per page = 8 receipts; DomPDF has no CSS Grid, so the 2-column
-           grid is built with a table, which it paginates reliably. Rows keep their
-           natural content height with a fixed gap between them — DomPDF's
-           vertical centering and fixed-height slots both misbehave, so we accept
-           a small amount of variable bottom whitespace per page. */
+        /* Label-sheet grid: each statement renders as one row of two bordered,
+           exactly equal cells (Taxpayer's Copy + Egliane's Copy). Four rows per
+           page = 8 receipts. Cells are fixed-height slots; borders on the tds
+           form the grid lines (border-collapse merges the centre divider).
+           Spacing must live INSIDE cells — DomPDF carries bottom margins across
+           forced page breaks, which pushed following content off-page. */
         .pair {
             width: 100%;
             page-break-inside: avoid;
-            /* Spacing must live in PADDING, not margin: DomPDF carries a bottom
-               margin across a forced page break, which pushed the next page's
-               first receipt up into the top margin area. */
         }
         .pair.new-page { page-break-before: always; }
 
         .cell {
             width: 50%;
-            padding: 0 3mm 8mm;
+            border: 1pt solid #333;
+            padding: 1.5mm 2mm;
+            vertical-align: top;
         }
-        .cell.first { padding-left: 0; }
-        .cell.second {
-            padding-right: 0;
-            border-left: 1pt dashed #9aa3ad; /* cutting guide between copies */
+
+        /* Fixed-height content window. The height lives here, NOT on the td:
+           DomPDF treats td height as a minimum, so oversized statements grew
+           the row (+~3.5mm per row, cascading) and spilled past the borders.
+           A block div with overflow:hidden cannot exceed its box. */
+        .slot {
+            height: {{ round($rowSlotMm - 3.7, 2) }}mm;
+            overflow: hidden;
         }
 
         .copy-tag {
@@ -104,6 +112,30 @@
         .signer { font-weight: bold; color: #1B1B3A; }
         .note { font-size: 6.2pt; color: #666; }
 
+        /* Density tiers applied uniformly to the whole sheet when statements
+           would not fit their fixed slots at full size. */
+        .compact { font-size: 6.4pt; }
+        .compact .brand { font-size: 6.9pt; }
+        .compact .client { font-size: 7pt; }
+        .compact .period { font-size: 5.8pt; }
+        .compact .section-title { font-size: 5.3pt; padding-top: 1.5pt; }
+        .compact .item-row td { padding: .5pt 0; }
+        .compact .total-row td { font-size: 7pt; padding-top: 2pt; }
+        .compact .sign-row td { padding-top: 2pt; }
+        .compact .note { font-size: 5.6pt; }
+
+        .tiny { font-size: 5.7pt; }
+        .tiny .brand { font-size: 6.2pt; }
+        .tiny .client { font-size: 6.4pt; }
+        .tiny .period { font-size: 5.2pt; }
+        .tiny .copy-tag { font-size: 5pt; }
+        .tiny .section-title { font-size: 4.8pt; padding-top: 1pt; }
+        .tiny .item-row td { padding: .3pt 0; }
+        .tiny .amount { width: 40pt; }
+        .tiny .total-row td { font-size: 6.3pt; padding-top: 1.5pt; }
+        .tiny .sign-row td { padding-top: 1.5pt; }
+        .tiny .note { font-size: 5pt; }
+
         .batch-footer {
             position: fixed;
             bottom: -0.5mm;
@@ -116,6 +148,7 @@
             background: #fff;
         }
         .batch-footer b { color: #1B1B3A; letter-spacing: .5pt; }
+        .batch-footer .oversize-note { color: #c0392b; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -123,11 +156,15 @@
     @forelse ($billings as $billing)
         <table class="pair {{ ! $loop->first && ($loop->iteration - 1) % $rowsPerPage === 0 ? 'new-page' : '' }}">
             <tr>
-                <td class="cell first">
-                    @include('admin.billing.partials.statement-cell', ['copyLabel' => "Taxpayer's Copy"])
+                <td class="cell">
+                    <div class="slot">
+                        @include('admin.billing.partials.statement-cell', ['copyLabel' => "Taxpayer's Copy"])
+                    </div>
                 </td>
-                <td class="cell second">
-                    @include('admin.billing.partials.statement-cell', ['copyLabel' => "Egliane Accounting Services' Copy"])
+                <td class="cell">
+                    <div class="slot">
+                        @include('admin.billing.partials.statement-cell', ['copyLabel' => "Egliane Accounting Services' Copy"])
+                    </div>
                 </td>
             </tr>
         </table>
@@ -138,6 +175,9 @@
     @if (! empty($paymentBits))
         <div class="batch-footer">
             <b>PAYMENT DETAILS</b> &nbsp;&mdash;&nbsp; {{ implode(' &nbsp;&middot;&nbsp; ', $paymentBits) }}
+            @if (! empty($overflowIds))
+                <br><span class="oversize-note">OVERSIZE WARNING:</span> statements {{ implode(', ', $overflowIds) }} exceed the fixed cell size even at minimum scale &mdash; content truncated. Reduce line items or print fewer statements per page.
+            @endif
         </div>
     @endif
 

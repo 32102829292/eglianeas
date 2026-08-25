@@ -1,6 +1,6 @@
 @php($clientName = $billing->client?->business_name ?: $billing->client?->name)
 <div class="copy-tag">{{ $copyLabel }}</div>
-<table class="stmt">
+<table class="stmt {{ $density ?? 'normal' }}">
     <tr class="head-row">
         <td>
             <span class="brand">EGLIANE ACCOUNTING SERVICES</span><br>

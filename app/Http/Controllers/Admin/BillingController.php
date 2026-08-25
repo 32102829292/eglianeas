@@ -784,17 +784,83 @@ class BillingController extends Controller
         ActivityLog::record(
             auth()->user(),
             'admin.billing_batch_printed',
-            'Printed a batch of '.$billings->count().' billing statement(s) on '.strtoupper($paperSize).' paper.'
+            self::batchPrintLogMessage($billings, $paperSize)
         );
+
+        // Label-sheet grid: fixed equal-height cells (4 rows x 2 copies = 8
+        // receipts/page). Slot height = page height minus @page margins minus
+        // the payment-details footer reserve, split per row.
+        $rowsPerPage = 4;
+        $pageHeightMm = ['a4' => 297.0, 'letter' => 279.4][$paperSize];
+        $rowSlotMm = round(($pageHeightMm - 20 - 10) / $rowsPerPage, 2);
+        $slotPt = $rowSlotMm * 72 / 25.4;
+
+        [$density, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.statements-pdf', [
             'billings' => $billings,
             'gcashNumber' => Setting::get('gcash_number', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
             'paperSize' => $paperSize,
+            'rowSlotMm' => $rowSlotMm,
+            'density' => $density,
+            'overflowIds' => $overflowIds,
         ])->setPaper($paperSize, 'portrait');
 
         return $pdf->stream('Egliane-Billing-Statements-'.now()->format('Y-m-d').'.pdf');
+    }
+
+    /**
+     * Estimated natural height of one statement receipt in pt at the given
+     * density tier (normal/compact/tiny), mirroring the PDF template metrics.
+     */
+    public static function estimateStatementHeightPt(Billing $billing, string $density): float
+    {
+        $scale = ['normal' => 1.0, 'compact' => 0.87, 'tiny' => 0.75][$density] ?? 1.0;
+
+        $items = $billing->lineItems->filter(fn ($i) => (float) $i->amount != 0.0)->count();
+        $cats = $billing->lineItems->pluck('category')->unique()->count();
+
+        return (52.5 + 9.1 * $cats + 10.1 * $items) * $scale + 8.5; // + cell padding
+    }
+
+    /**
+     * Pick the largest type tier at which EVERY statement fits its fixed cell;
+     * statements that exceed the slot even at "tiny" are flagged for the
+     * printed oversize warning instead of being silently truncated.
+     *
+     * @return array{0: string, 1: array<int>} density + offending billing ids
+     */
+    public static function chooseBatchDensity($billings, float $slotPt): array
+    {
+        $billings = collect($billings)->values();
+
+        foreach (['normal', 'compact', 'tiny'] as $density) {
+            if ($billings->every(fn (Billing $b) => self::estimateStatementHeightPt($b, $density) <= $slotPt)) {
+                return [$density, []];
+            }
+        }
+
+        $overflowIds = $billings
+            ->filter(fn (Billing $b) => self::estimateStatementHeightPt($b, 'tiny') > $slotPt)
+            ->pluck('id')
+            ->all();
+
+        return ['tiny', $overflowIds];
+    }
+
+    private static function batchPrintLogMessage($billings, string $paperSize): string
+    {
+        $msg = 'Printed a batch of '.$billings->count().' billing statement(s) on '.strtoupper($paperSize).' paper.';
+
+        $slotPt = round((['a4' => 297.0, 'letter' => 279.4][$paperSize] - 30) / 4 * 72 / 25.4, 2);
+        [, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);
+
+        if ($overflowIds) {
+            $msg .= ' Oversized (truncated in print): #'.implode(', #', $overflowIds).'.';
+        }
+
+        return $msg;
     }
 
     private function getFilteredBillings(?int $quarter, int $year): Collection
