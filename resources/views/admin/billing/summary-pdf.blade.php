@@ -32,7 +32,7 @@
 
     @php
         $allFormTypes = $allFormTypes ?? [];
-        $totalCols = 1 + 1 + count($allFormTypes) + 1 + count($allFormTypes) + 1 + 1;
+        $totalCols = 1 + 1 + count($allFormTypes) + 1 + count($allFormTypes) + 1 + 1 + 1 + 1;
         $colWidth = round(100 / $totalCols, 1);
     @endphp
 
@@ -65,6 +65,7 @@
                 <th>Post-Closing TB</th>
                 <th>Inventory List</th>
                 <th>Other Attachment</th>
+                <th>Data Entry</th>
                 <th>Total</th>
             </tr>
         </thead>
@@ -101,6 +102,8 @@
                     <td class="text-right">{{ $inv ? number_format($inv->amount, 2) : '—' }}</td>
                     @php $oa = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->first(); @endphp
                     <td class="text-right">{{ $oa ? number_format($oa->amount, 2) : '—' }}</td>
+                    @php $de = $lineItems->where('category', \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY)->first(); @endphp
+                    <td class="text-right">{{ $de ? number_format($de->amount, 2) : '—' }}</td>
                     <td class="text-right">{{ number_format($billing->total, 2) }}</td>
                 </tr>
             @empty

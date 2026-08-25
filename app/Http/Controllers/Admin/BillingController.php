@@ -449,6 +449,7 @@ class BillingController extends Controller
             BillingLineItem::CATEGORY_POST_CLOSING_TB => 'Post-Closing Trial Balance',
             BillingLineItem::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
             BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
+            BillingLineItem::CATEGORY_DATA_ENTRY => 'Data Entry',
             default => $formType ?? 'Line Item',
         };
     }
@@ -631,7 +632,7 @@ class BillingController extends Controller
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'label' => ['nullable', 'string', 'max:120'],
-            'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment'],
+                    'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment,data_entry'],
         ]);
 
         FeeRate::query()->create([
@@ -736,6 +737,10 @@ class BillingController extends Controller
             $colHeaders[] = 'Other Attachment';
             $colWidths[] = 16;
 
+            // Data Entry
+            $colHeaders[] = 'Data Entry';
+            $colWidths[] = 14;
+
             $colHeaders[] = 'Total';
             $colWidths[] = 14;
 
@@ -784,6 +789,10 @@ class BillingController extends Controller
                 // Other Attachment
                 $oaItem = $lineItems->where('category', BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->first();
                 $values[] = $oaItem ? (float) $oaItem->amount : 0;
+
+                // Data Entry
+                $deItem = $lineItems->where('category', BillingLineItem::CATEGORY_DATA_ENTRY)->first();
+                $values[] = $deItem ? (float) $deItem->amount : 0;
 
                 // Total
                 $values[] = (float) $billing->total;

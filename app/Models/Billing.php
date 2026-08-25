@@ -99,6 +99,11 @@ class Billing extends Model
         return $this->lineItems()->otherAttachment();
     }
 
+    public function dataEntryItems()
+    {
+        return $this->lineItems()->dataEntry();
+    }
+
     public function cashInItem()
     {
         return $this->lineItems()->cashIn();

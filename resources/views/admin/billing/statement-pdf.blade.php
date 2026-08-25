@@ -7,6 +7,7 @@
         \App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB => 'POST-CLOSING TRIAL BALANCE',
         \App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST => 'INVENTORY LIST (NOTARIZED)',
         \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'OTHER ATTACHMENT',
+        \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY => 'DATA ENTRY',
     ];
 
     $gcashNumber = $gcashNumber ?? '';

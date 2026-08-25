@@ -6,6 +6,7 @@
     $ptbFeeRates = $feeRates->where('category', 'post_closing_tb');
     $invFeeRates = $feeRates->where('category', 'inventory_list');
     $oaFeeRates = $feeRates->where('category', 'other_attachment');
+    $deFeeRates = $feeRates->where('category', 'data_entry');
     $existingItemsJson = $isEdit ? json_encode($existingItems->mapWithKeys(fn ($item) => [
         $item->category . '_' . ($item->form_type ?? '') . '_' . ($item->month ?? 'null') => [
             'amount' => $item->amount,
@@ -18,6 +19,7 @@
     $ptbFeeRatesJson = json_encode($ptbFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
     $invFeeRatesJson = json_encode($invFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
     $oaFeeRatesJson = json_encode($oaFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
+    $deFeeRatesJson = json_encode($deFeeRates->map(fn ($r) => ['id' => $r->id, 'amount' => $r->amount, 'label' => $r->money() . ($r->label ? ' — ' . $r->label : '')])->values()->all());
 @endphp
 
 <div class="card">
@@ -115,7 +117,8 @@
     var ptbFeeRates = {!! $ptbFeeRatesJson !!};
     var invFeeRates = {!! $invFeeRatesJson !!};
     var oaFeeRates = {!! $oaFeeRatesJson !!};
-    var allFeeRateCategories = ['professional_fee', 'bookkeeping_fee', 'post_closing_tb', 'inventory_list', 'other_attachment'];
+    var deFeeRates = {!! $deFeeRatesJson !!};
+    var allFeeRateCategories = ['professional_fee', 'bookkeeping_fee', 'post_closing_tb', 'inventory_list', 'other_attachment', 'data_entry'];
     var monthNames = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'};
 
     function round2(v) { var n = parseFloat(v); return isNaN(n) ? 0 : Math.round(n * 100) / 100; }
@@ -190,6 +193,8 @@
             displayLabel = 'Inventory List (Notarized)';
         } else if (category === 'other_attachment') {
             displayLabel = 'Other Attachment';
+        } else if (category === 'data_entry') {
+            displayLabel = 'Data Entry';
         } else if (category === 'bir_remittance' && !formType) {
             displayLabel = 'Cash In';
         }
@@ -206,7 +211,8 @@
             'bookkeeping_fee': bookFeeRates,
             'post_closing_tb': ptbFeeRates,
             'inventory_list': invFeeRates,
-            'other_attachment': oaFeeRates
+            'other_attachment': oaFeeRates,
+            'data_entry': deFeeRates
         };
 
         if (feeRateMap[category]) {
@@ -305,6 +311,7 @@
         var ptbExisting = null;
         var invExisting = null;
         var oaExisting = null;
+        var deExisting = null;
 
         if (existingItems) {
             Object.keys(existingItems).forEach(function (key) {
@@ -312,6 +319,7 @@
                 if (key.startsWith('post_closing_tb_')) ptbExisting = existingItems[key];
                 if (key.startsWith('inventory_list_')) invExisting = existingItems[key];
                 if (key.startsWith('other_attachment_')) oaExisting = existingItems[key];
+                if (key.startsWith('data_entry_')) deExisting = existingItems[key];
                 if (key === 'bir_remittance__') hasCashIn = true;
             });
         }
@@ -370,6 +378,10 @@
         // Other Attachment — always show
         oaRow = buildLineItemRow(idx++, 'other_attachment', null, null, 'Other Attachment', oaExisting ? oaExisting.amount : '', oaExisting ? oaExisting.fee_rate_id : null);
         container.appendChild(buildSection('Other Attachment', [oaRow]));
+
+        // Data Entry — always show
+        deRow = buildLineItemRow(idx++, 'data_entry', null, null, 'Data Entry', deExisting ? deExisting.amount : '', deExisting ? deExisting.fee_rate_id : null);
+        container.appendChild(buildSection('Data Entry', [deRow]));
 
         computeTotal();
     }

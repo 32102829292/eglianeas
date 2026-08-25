@@ -37,6 +37,7 @@
             $ptbRates = $feeRates->where('category', 'post_closing_tb');
             $invRates = $feeRates->where('category', 'inventory_list');
             $oaRates = $feeRates->where('category', 'other_attachment');
+            $deRates = $feeRates->where('category', 'data_entry');
         @endphp
 
         {{-- Professional Fee Presets --}}
@@ -202,6 +203,40 @@
             @csrf
             <input type="hidden" name="category" value="other_attachment">
             <input class="form-control" name="amount" type="number" step="0.01" min="0" placeholder="Amount, e.g. 500" required>
+            <input class="form-control" name="label" type="text" maxlength="120" placeholder="Label (optional)">
+            <button type="submit" class="btn btn-outline">Add preset</button>
+        </form>
+        @error('amount')<div class="form-error">{{ $message }}</div>@enderror
+
+        <div class="section-divider"></div>
+
+        {{-- Data Entry Presets --}}
+        <div class="card-head">
+            <div>
+                <h4 class="card-title">Data Entry Presets</h4>
+                <p class="card-sub">Amounts shown in data entry fee dropdowns when creating or editing a billing statement.</p>
+            </div>
+        </div>
+
+        <div class="chip-list">
+            @forelse ($deRates as $rate)
+                <div class="chip-row">
+                    <span class="chip-label">{{ $rate->money() }}{{ $rate->label ? ' — '.$rate->label : '' }}</span>
+                    <form method="POST" action="{{ route('admin.billing.feeRates.destroy', $rate) }}" onsubmit="return confirm('Remove this fee preset?');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="link danger">&times;</button>
+                    </form>
+                </div>
+            @empty
+                <p class="muted" style="margin:0;">No data entry presets yet.</p>
+            @endforelse
+        </div>
+
+        <form method="POST" action="{{ route('admin.billing.feeRates.store') }}" class="inline-add mt-2">
+            @csrf
+            <input type="hidden" name="category" value="data_entry">
+            <input class="form-control" name="amount" type="number" step="0.01" min="0" placeholder="Amount, e.g. 200" required>
             <input class="form-control" name="label" type="text" maxlength="120" placeholder="Label (optional)">
             <button type="submit" class="btn btn-outline">Add preset</button>
         </form>

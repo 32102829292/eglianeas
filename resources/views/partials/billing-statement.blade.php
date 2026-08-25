@@ -6,6 +6,7 @@
     $postClosingTb = $grouped->get(\App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB, collect());
     $inventoryList = $grouped->get(\App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST, collect());
     $otherAttachment = $grouped->get(\App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT, collect());
+    $dataEntry = $grouped->get(\App\Models\BillingLineItem::CATEGORY_DATA_ENTRY, collect());
     $gcashNumber = \App\Models\Setting::get('gcash_number', '');
     $gcashQrCode = \App\Models\Setting::get('gcash_qr_code', '');
     $bankAccounts = \App\Models\Setting::get('bank_accounts', []);
@@ -93,6 +94,18 @@
         <div class="statement-block">
             <div class="statement-block-title">OTHER ATTACHMENT</div>
             @foreach ($otherAttachment as $item)
+                <div class="statement-row">
+                    <span>{{ $item->label }}</span>
+                    <span>{{ $billing->money($item->amount) }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
+    @if ($dataEntry->isNotEmpty())
+        <div class="statement-block">
+            <div class="statement-block-title">DATA ENTRY</div>
+            @foreach ($dataEntry as $item)
                 <div class="statement-row">
                     <span>{{ $item->label }}</span>
                     <span>{{ $billing->money($item->amount) }}</span>

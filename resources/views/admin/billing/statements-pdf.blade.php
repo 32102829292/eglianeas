@@ -6,6 +6,7 @@
         \App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB => 'POST-CLOSING TB',
         \App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST => 'INVENTORY LIST',
         \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'OTHER ATTACHMENT',
+        \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY => 'DATA ENTRY',
     ];
 
     $paymentBits = [];

@@ -23,6 +23,7 @@ class BirFormStatus extends Model
         '0619F',
         '1601FQ',
         '1702Q',
+        '1702',
     ];
 
     public const STATUS_FILED = 'filed';
@@ -31,8 +32,8 @@ class BirFormStatus extends Model
 
     public const STATUSES = [
         self::STATUS_FILED => 'Filed',
-        self::STATUS_NOT_FILED => 'Not Filed',
-        self::STATUS_NOT_APPLICABLE => 'N/A',
+        self::STATUS_NOT_FILED => 'Not Applicable',
+        self::STATUS_NOT_APPLICABLE => 'Exempt',
     ];
 
     protected $fillable = [
