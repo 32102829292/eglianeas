@@ -55,11 +55,14 @@
            form the grid lines (border-collapse merges the centre divider).
            Spacing must live INSIDE cells — DomPDF carries bottom margins across
            forced page breaks, which pushed following content off-page. */
-        .pair {
+        .pair-wrap {
             width: 100%;
             page-break-inside: avoid;
         }
-        .pair.new-page { page-break-before: always; }
+        .pair-wrap.new-page { page-break-before: always; }
+        .pair {
+            width: 100%;
+        }
 
         .cell {
             width: 50%;
@@ -137,15 +140,9 @@
         .tiny .note { font-size: 5pt; }
 
         .batch-footer {
-            position: fixed;
-            bottom: -0.5mm;
-            left: -10mm;
-            right: -10mm;
             font-size: 6.4pt;
             color: #444;
-            border-top: 1.2pt solid #1B1B3A;
-            padding: 2mm 10mm 0;
-            background: #fff;
+            padding-top: 2mm;
         }
         .batch-footer b { color: #1B1B3A; letter-spacing: .5pt; }
         .batch-footer .oversize-note { color: #c0392b; font-weight: bold; }
@@ -154,7 +151,8 @@
 <body>
 
     @forelse ($billings as $billing)
-        <table class="pair {{ ! $loop->first && ($loop->iteration - 1) % $rowsPerPage === 0 ? 'new-page' : '' }}">
+        <div class="pair-wrap {{ ! $loop->first && ($loop->iteration - 1) % $rowsPerPage === 0 ? 'new-page' : '' }}">
+        <table class="pair">
             <tr>
                 <td class="cell">
                     <div class="slot">
@@ -168,6 +166,7 @@
                 </td>
             </tr>
         </table>
+        </div>
     @empty
         <p>No statements selected.</p>
     @endforelse
