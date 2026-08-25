@@ -189,6 +189,24 @@ class BillingController extends Controller
         $data['updated_by'] = auth()->id();
         $data['status'] = Billing::STATUS_UNPAID;
 
+        $quarter = $data['quarter'] ?? null;
+        $year    = $data['year'] ?? null;
+
+        if ($quarter !== null && $year !== null) {
+            $duplicate = Billing::where('client_id', $data['client_id'])
+                ->where('quarter', $quarter)
+                ->where('year', $year)
+                ->exists();
+
+            if ($duplicate) {
+                $periodName = Billing::QUARTERS[$quarter] . ' Quarter ' . $year;
+
+                return back()->withInput()->withErrors([
+                    'client_id' => "A billing statement for {$periodName} already exists for this client. Please edit the existing statement instead.",
+                ]);
+            }
+        }
+
         $billing = new Billing($data);
         $billing->due_date = $this->resolvedDueDate($billing, $data['due_date'] ?? null);
 
@@ -308,6 +326,36 @@ class BillingController extends Controller
             ->values();
 
         return response()->json(['forms' => $forms]);
+    }
+
+    public function lastBilling(Request $request): JsonResponse
+    {
+        $request->validate(['client_id' => 'required|exists:users,id']);
+
+        $lastBilling = Billing::with('lineItems')
+            ->where('client_id', $request->client_id)
+            ->orderByDesc('year')
+            ->orderByDesc('quarter')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $lastBilling) {
+            return response()->json(['line_items' => []]);
+        }
+
+        $lineItems = $lastBilling->lineItems->map(fn (BillingLineItem $item) => [
+            'category'    => $item->category,
+            'form_type'   => $item->form_type,
+            'label'       => $item->label,
+            'month'       => $item->month,
+            'amount'      => $item->amount,
+            'fee_rate_id' => $item->fee_rate_id,
+        ])->values()->all();
+
+        return response()->json([
+            'period_title' => $lastBilling->periodTitle(),
+            'line_items'   => $lineItems,
+        ]);
     }
 
     private function validated(Request $request): array

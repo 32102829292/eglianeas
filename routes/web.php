@@ -154,6 +154,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
     Route::get('/billings/print-batch', [AdminBillingController::class, 'printBatch'])->name('billing.printBatch');
     Route::get('/billings/applicable-forms', [AdminBillingController::class, 'applicableForms'])->name('billing.applicableForms');
+    Route::get('/billings/last-billing', [AdminBillingController::class, 'lastBilling'])->name('billing.lastBilling');
     Route::get('/billings/settings', [AdminBillingController::class, 'settings'])->name('billing.settings');
     Route::post('/billings/settings', [AdminBillingController::class, 'updateSettings'])->name('billing.settings.update');
     Route::get('/billings/payment-settings', [AdminBillingController::class, 'paymentSettings'])->name('billing.paymentSettings');

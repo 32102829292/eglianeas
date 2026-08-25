@@ -345,21 +345,52 @@
             return;
         }
 
-        fetch('{{ route("admin.billing.applicableForms") }}?client_id=' + encodeURIComponent(clientId), { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                var forms = data.forms || [];
-                var existingItems = null;
+        var formsPromise = fetch('{{ route("admin.billing.applicableForms") }}?client_id=' + encodeURIComponent(clientId), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); });
 
-                @if ($isEdit)
-                    existingItems = {!! $existingItemsJson !!};
-                @endif
+        @if ($isEdit)
+            formsPromise.then(function (data) {
+                var forms = data.forms || [];
+                var existingItems = {!! $existingItemsJson !!};
+                buildLineItems(forms, existingItems);
+            });
+        @else
+            var lastPromise = fetch('{{ route("admin.billing.lastBilling") }}?client_id=' + encodeURIComponent(clientId), { credentials: 'same-origin' })
+                .then(function (r) { return r.json(); });
+
+            Promise.all([formsPromise, lastPromise]).then(function (results) {
+                var forms = results[0].forms || [];
+                var lastData = results[1];
+
+                var existingItems = null;
+                if (lastData.line_items && lastData.line_items.length > 0) {
+                    existingItems = {};
+                    lastData.line_items.forEach(function (item) {
+                        var key = item.category + '_' + (item.form_type || '') + '_' + (item.month || 'null');
+                        existingItems[key] = {
+                            amount: item.amount,
+                            fee_rate_id: item.fee_rate_id,
+                        };
+                    });
+                }
 
                 buildLineItems(forms, existingItems);
-            })
-            .catch(function () {
-                container.innerHTML = '<p class="muted">Could not load applicable forms. Try again.</p>';
+
+                if (lastData.period_title) {
+                    var hint = document.getElementById('carryForwardHint');
+                    if (!hint) {
+                        hint = document.createElement('p');
+                        hint.id = 'carryForwardHint';
+                        hint.className = 'form-hint';
+                        hint.style.marginTop = '-8px';
+                        hint.style.marginBottom = '16px';
+                        hint.style.color = '#6b7280';
+                        container.parentNode.insertBefore(hint, container);
+                    }
+                    hint.textContent = 'Amounts carried forward from ' + lastData.period_title + '. Edit as needed.';
+                }
             });
+        @endif
     }
 
     if (clientSelect) {
