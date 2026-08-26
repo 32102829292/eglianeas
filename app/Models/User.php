@@ -178,7 +178,7 @@ class User extends Authenticatable
 
     public function birFormStatuses(): HasMany
     {
-        return $this->hasMany(BirFormStatus::class);
+        return $this->hasMany(BirFormStatus::class, 'client_id');
     }
 
     public function infoEntries(): HasMany
