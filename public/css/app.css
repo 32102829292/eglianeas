@@ -26,8 +26,11 @@
 
   /* Status */
   --success: #27AE60;
+  --success-soft: rgba(39,174,96,.12);
   --danger: #E74C3C;
+  --danger-soft: rgba(231,76,60,.12);
   --warning: #F2994A;
+  --warning-soft: rgba(242,153,74,.12);
 
   /* Shape & depth — one card radius and one card shadow across the app */
   --radius-card: 16px;

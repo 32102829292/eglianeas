@@ -95,7 +95,7 @@
             <div>
                 <div class="section-head" style="text-align:left;margin-bottom:18px;">
                     <span class="eyebrow">Why Egliane</span>
-                    <h2>An app built for small businesses</h2>
+                    <h2>An accounting firm built for small businesses</h2>
                 </div>
                 <p class="muted">Egliane Accounting Services has been helping small businesses stay compliant and
                     organized since 2017. Now you can access everything — your transactions, filings, and documents —

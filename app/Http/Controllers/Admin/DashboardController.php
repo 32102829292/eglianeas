@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\ClientProfile;
+use App\Models\DailySnapshot;
 use App\Models\Filing;
 use App\Models\Transaction;
 use App\Models\User;
@@ -59,7 +60,19 @@ class DashboardController extends Controller
             'lineOfBusiness' => $this->barData($lobCounts->mapWithKeys(fn ($count, $bucket) => [$bucket => $bucket])->all(), fn ($key) => (int) ($lobCounts[$key] ?? 0)),
         ];
 
+        $snapshots = DailySnapshot::orderByDesc('date')
+            ->limit(14)
+            ->get()
+            ->reverse()
+            ->values();
+
         return view('admin.dashboard', [
+            'paidCount' => (int) ($billingStatusCounts[Billing::STATUS_PAID] ?? 0),
+            'pendingCount' => (int) ($billingStatusCounts[Billing::STATUS_PENDING] ?? 0),
+            'overdueCount' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
+            'snapshotRevenue' => $snapshots->pluck('revenue_collected')->values(),
+            'snapshotNewBillings' => $snapshots->pluck('new_billings')->values(),
+            'snapshotOverdue' => $snapshots->pluck('overdue_count')->values(),
             'stats' => [
                 'clients' => User::query()->where('role', User::ROLE_CLIENT)->count(),
                 'transactions' => Transaction::count(),

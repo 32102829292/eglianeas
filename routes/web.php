@@ -275,3 +275,16 @@ Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->g
     Route::get('/documents/{document}/download', [ClientDistributionController::class, 'download'])->name('documents.download');
 });
 
+Route::get('/system/run-scheduler', function () {
+    $token = request()->query('token');
+    $expected = config('app.scheduler_secret');
+
+    if (! $expected || ! hash_equals($expected, (string) $token)) {
+        abort(403, 'Invalid token.');
+    }
+
+    \Illuminate\Support\Facades\Artisan::call('schedule:run');
+
+    return response('ok', 200)->header('Content-Type', 'text/plain');
+})->name('system.run-scheduler');
+

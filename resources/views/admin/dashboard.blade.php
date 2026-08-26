@@ -39,6 +39,52 @@
         </div>
     </div>
 
+    <div class="db-metric-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="db-metric-card">
+            <div class="db-metric-head">
+                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Revenue collected (14d)</span>
+                <div class="stat-icon" style="background:var(--success-soft);color:var(--success);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                </div>
+            </div>
+            <div class="db-metric-value">₱{{ number_format($snapshotRevenue->sum(), 0) }}</div>
+            <x-sparkline :values="$snapshotRevenue" :width="200" :height="32" color="var(--success)" />
+        </div>
+
+        <div class="db-metric-card">
+            <div class="db-metric-head">
+                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">New billings (14d)</span>
+                <div class="stat-icon" style="background:var(--sky-soft);color:var(--sky-deep);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                </div>
+            </div>
+            <div class="db-metric-value">{{ $snapshotNewBillings->sum() }}</div>
+            <x-sparkline :values="$snapshotNewBillings" :width="200" :height="32" color="var(--sky-deep)" />
+        </div>
+
+        <div class="db-metric-card">
+            <div class="db-metric-head">
+                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Overdue count (14d)</span>
+                <div class="stat-icon" style="background:var(--danger-soft);color:var(--danger);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+            </div>
+            <div class="db-metric-value">{{ $snapshotOverdue->last() ?? 0 }}</div>
+            <x-sparkline :values="$snapshotOverdue" :width="200" :height="32" color="var(--danger)" />
+        </div>
+    </div>
+
+    <div class="section-gap">
+        <div class="dashboard-chart-card">
+            <h3>Billing Status Breakdown</h3>
+            <x-donut-chart :segments="[
+                ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)'],
+                ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)'],
+                ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
+            ]" />
+        </div>
+    </div>
+
     <div class="section-gap">
         <h2 class="text-section">Account analytics</h2>
         <div class="grid-2">

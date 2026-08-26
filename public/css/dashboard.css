@@ -1174,3 +1174,55 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 /* ---------- Batch statement printing ---------- */
 .print-check-cell { width: 34px; text-align: center; }
 .print-check-cell input { cursor: pointer; }
+
+/* ---------- Sparkline ---------- */
+.sparkline { display: block; overflow: visible; }
+
+/* ---------- Donut chart ---------- */
+.donut-chart {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.donut-chart svg { flex: 0 0 auto; }
+.donut-chart-total {
+  font-family: var(--font-head);
+  font-size: 18px;
+  font-weight: 700;
+  fill: var(--navy);
+}
+.donut-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.donut-chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.donut-chart-legend li:last-child { margin-bottom: 0; }
+.donut-chart-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 10px;
+}
+
+/* ---------- Dashboard chart card ---------- */
+.dashboard-chart-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--card-pad);
+}
+.dashboard-chart-card h3 {
+  font-size: 15px;
+  margin: 0 0 16px;
+}
+.stat-box .sparkline { margin-top: 8px; }
