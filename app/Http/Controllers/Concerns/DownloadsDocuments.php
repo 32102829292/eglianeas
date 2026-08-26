@@ -10,10 +10,10 @@ trait DownloadsDocuments
 {
     protected function streamDocument(Document $document): StreamedResponse
     {
-        if (! Storage::disk('local')->exists($document->path)) {
+        if (! Storage::disk('supabase')->exists($document->path)) {
             abort(404, 'File not found.');
         }
 
-        return Storage::disk('local')->download($document->path, $document->original_name);
+        return Storage::disk('supabase')->download($document->path, $document->original_name);
     }
 }

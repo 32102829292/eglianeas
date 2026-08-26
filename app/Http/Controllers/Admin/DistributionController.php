@@ -161,7 +161,7 @@ class DistributionController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('documents/'.$client->id);
+        $path = $file->store('documents/'.$client->id, 'supabase');
 
         Document::query()->create([
             'user_id' => auth()->id(),
@@ -187,7 +187,7 @@ class DistributionController extends Controller
     public function view(Document $document)
     {
         abort_unless($document->client_id, 404);
-        abort_unless(Storage::disk('local')->exists($document->path), 404);
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
         $user = auth()->user();
         \App\Models\CorViewLog::create([
@@ -206,9 +206,9 @@ class DistributionController extends Controller
     public function download(Document $document)
     {
         abort_unless($document->client_id, 404);
-        abort_unless(Storage::disk('local')->exists($document->path), 404);
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
-        return Storage::disk('local')->download($document->path, $document->original_name);
+        return Storage::disk('supabase')->download($document->path, $document->original_name);
     }
 
     public function destroySoftcopy(User $client, Document $document): RedirectResponse
@@ -216,7 +216,7 @@ class DistributionController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
         abort_unless($document->client_id === $client->id, 404);
 
-        Storage::disk('local')->delete($document->path);
+        Storage::disk('supabase')->delete($document->path);
         $document->delete();
 
         return back()->with('status', 'Softcopy removed.');

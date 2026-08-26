@@ -49,13 +49,16 @@ Route::get('/about', function () {
 })->name('about.public');
 
 Route::get('/certificates/{certificate}/file', function (\App\Models\CompanyCertificate $certificate) {
-    abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($certificate->file_path), 404);
-    $mime = $certificate->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($certificate->file_path)) ?: 'application/octet-stream';
-    return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($certificate->file_path), [
-        'Content-Type' => $mime,
-        'Cache-Control' => 'public, max-age=86400',
-    ]);
+    abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($certificate->file_path), 404);
+    $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($certificate->file_path, now()->addHours(1));
+    return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
 })->name('certificates.file');
+
+Route::get('/announcements/{announcement}/image', function (\App\Models\Announcement $announcement) {
+    abort_unless($announcement->hasImage(), 404);
+    $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($announcement->image_path, now()->addHour());
+    return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
+})->name('announcements.image');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
@@ -85,7 +88,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{document}/view', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
         $user = $request->user();
         abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
 
         \App\Models\CorViewLog::create([
             'document_id' => $document->id,
@@ -103,12 +106,11 @@ Route::middleware('auth')->group(function () {
     Route::get('/documents/{document}/file', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
         $user = $request->user();
         abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
 
-        $mime = $document->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path)) ?: 'application/octet-stream';
+        $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
 
-        return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path), [
-            'Content-Type' => $mime,
+        return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
         ]);
@@ -237,10 +239,9 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/distribution/{document}/view', [AdminDistributionController::class, 'view'])->name('distribution.view');
     Route::get('/distribution/{document}/file', function (\App\Models\Document $document) {
         abort_unless($document->client_id, 404);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('local')->exists($document->path), 404);
-        $mime = $document->mime_type ?: mime_content_type(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path)) ?: 'application/octet-stream';
-        return response()->file(\Illuminate\Support\Facades\Storage::disk('local')->path($document->path), [
-            'Content-Type' => $mime,
+        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
+        $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
+        return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
         ]);

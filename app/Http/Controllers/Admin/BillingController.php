@@ -569,9 +569,9 @@ class BillingController extends Controller
         if ($request->hasFile('gcash_qr_code')) {
             $oldPath = Setting::get('gcash_qr_code');
             if ($oldPath) {
-                Storage::disk('local')->delete($oldPath);
+                Storage::disk('supabase')->delete($oldPath);
             }
-            $path = $request->file('gcash_qr_code')->store('payment-images');
+            $path = $request->file('gcash_qr_code')->store('payment-images', 'supabase');
             Setting::set('gcash_qr_code', $path);
         }
 
@@ -588,9 +588,9 @@ class BillingController extends Controller
 
             if ($request->hasFile("bank_accounts.{$i}.bank_qr_code")) {
                 if (! empty($account['existing_bank_qr_code'])) {
-                    Storage::disk('local')->delete($account['existing_bank_qr_code']);
+                    Storage::disk('supabase')->delete($account['existing_bank_qr_code']);
                 }
-                $path = $request->file("bank_accounts.{$i}.bank_qr_code")->store('payment-images');
+                $path = $request->file("bank_accounts.{$i}.bank_qr_code")->store('payment-images', 'supabase');
                 $account['bank_qr_code'] = $path;
             } else {
                 // Keep existing QR code path if no new file uploaded
@@ -617,14 +617,11 @@ class BillingController extends Controller
             $path = $accounts[$index]['bank_qr_code'] ?? null;
         }
 
-        abort_unless($path && Storage::disk('local')->exists($path), 404);
+        abort_unless($path && Storage::disk('supabase')->exists($path), 404);
 
-        $mime = mime_content_type(Storage::disk('local')->path($path)) ?: 'image/png';
+        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($path, now()->addMinutes(30));
 
-        return response()->file(Storage::disk('local')->path($path), [
-            'Content-Type' => $mime,
-            'Cache-Control' => 'public, max-age=86400',
-        ]);
+        return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
     }
 
     public function storeFeeRate(Request $request): RedirectResponse

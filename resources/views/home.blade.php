@@ -28,6 +28,11 @@
                                 @if ($announcement->title)
                                     <h3>{{ $announcement->title }}</h3>
                                 @endif
+                                @if ($announcement->hasImage())
+                                    <div style="margin: 10px 0;">
+                                        <img src="{{ $announcement->imageUrl() }}" alt="Announcement image" style="max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                    </div>
+                                @endif
                                 <p>{{ $announcement->body }}</p>
                             </div>
                         </article>

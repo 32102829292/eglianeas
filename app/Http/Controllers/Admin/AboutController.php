@@ -64,7 +64,7 @@ class AboutController extends Controller
         ]);
 
         $file = $request->file('file');
-        $path = $file->store('certificates');
+        $path = $file->store('certificates', 'supabase');
 
         CompanyCertificate::create([
             'label' => $validated['label'],
@@ -83,7 +83,7 @@ class AboutController extends Controller
 
     public function destroyCertificate(CompanyCertificate $certificate): RedirectResponse
     {
-        Storage::disk('local')->delete($certificate->file_path);
+        Storage::disk('supabase')->delete($certificate->file_path);
         $certificate->delete();
 
         ActivityLog::record(auth()->user(), 'settings.certificate_deleted', "Removed certificate: {$certificate->label}.");

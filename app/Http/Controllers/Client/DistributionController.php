@@ -43,8 +43,8 @@ class DistributionController extends Controller
     public function download(Document $document)
     {
         abort_unless($document->client_id === auth()->id(), 403);
-        abort_unless(Storage::disk('local')->exists($document->path), 404);
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
-        return Storage::disk('local')->download($document->path, $document->original_name);
+        return Storage::disk('supabase')->download($document->path, $document->original_name);
     }
 }
