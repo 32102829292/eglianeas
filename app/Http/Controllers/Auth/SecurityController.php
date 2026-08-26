@@ -13,7 +13,10 @@ class SecurityController extends Controller
 {
     public function index(): \Illuminate\View\View
     {
-        abort_if(session('impersonator_id'), 403, 'Security settings are not available while viewing as another user.');
+        if (session('impersonator_id')) {
+            return redirect()->intended(route('admin.dashboard'))
+                ->with('status', 'Security settings aren\'t available while impersonating a client.');
+        }
 
         return view('settings.security', [
             'user' => Auth::user(),
