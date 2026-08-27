@@ -176,6 +176,60 @@
     }
   });
 
+  /* ---------- iOS install tip ----------
+     iOS Safari never fires `beforeinstallprompt`, so the standard Install
+     button stays hidden. Show a dismissible tooltip on iPhone/iPad instead,
+     unless the app is already running standalone or the user dismissed it. */
+  var IOS_INSTALL_KEY = 'egliane:ios-install:dismissed';
+
+  function isIOSStandalone() {
+    return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  }
+
+  function isIOSWebView() {
+    var ua = window.navigator.userAgent;
+    var standalone = window.navigator.standalone;
+    return (typeof standalone !== 'undefined') &&
+           (ua.indexOf('CriOS') === -1) &&
+           (ua.indexOf('FxiOS') === -1) &&
+           (ua.indexOf('Safari') === -1) &&
+           (ua.indexOf('AppleWebKit') !== -1);
+  }
+
+  function isIOS() {
+    var ua = window.navigator.userAgent;
+    return /iPad|iPhone|iPod/.test(ua) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function maybeShowIosInstallTip() {
+    var tip = document.getElementById('iosInstallTip');
+    if (!tip) return;
+    // iOS Safari (not Chrome/Firefox/Edge), not standalone, not a webview, not dismissed
+    if (!isIOS() || isIOSStandalone() || isIOSWebView()) return;
+    var dismissed = false;
+    try { dismissed = localStorage.getItem(IOS_INSTALL_KEY) === '1'; } catch (e) {}
+    if (dismissed) return;
+    tip.classList.remove('hidden');
+    tip.setAttribute('aria-hidden', 'false');
+  }
+
+  var iosTipClose = document.getElementById('iosInstallTipClose');
+  if (iosTipClose) {
+    iosTipClose.addEventListener('click', function () {
+      var tip = document.getElementById('iosInstallTip');
+      if (tip) {
+        tip.classList.add('hidden');
+        tip.setAttribute('aria-hidden', 'true');
+      }
+      try { localStorage.setItem(IOS_INSTALL_KEY, '1'); } catch (e) {}
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    maybeShowIosInstallTip();
+  });
+
   /* ---------- Offline action queue (outbox) ---------- */
   E.getOutbox = function () {
     try {

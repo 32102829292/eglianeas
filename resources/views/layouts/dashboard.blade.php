@@ -70,6 +70,13 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;margin-right:4px;vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Install
                 </button>
+                <div class="ios-install-tip hidden" id="iosInstallTip" role="tooltip" aria-hidden="true">
+                    <button type="button" class="ios-install-tip-close" id="iosInstallTipClose" aria-label="Dismiss">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                    <strong>Install the app</strong>
+                    <span>Tap the <svg class="share-glyph" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l-4 5h2v7h4V7h2l-4-5zM5 10H3v11h18V10h-2v9H5v-9z"/></svg> Share icon, then &ldquo;Add to Home Screen&rdquo;.</span>
+                </div>
                 <form method="POST" action="{{ route('logout') }}" class="inline-form">
                     @csrf
                     <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>

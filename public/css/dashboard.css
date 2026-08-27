@@ -34,6 +34,51 @@
 .dash-topbar .brand-name { color: #fff; font-size: 14px; }
 .dash-topbar .brand-name small { color: rgba(255,255,255,.6); }
 .dash-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.ios-install-tip {
+  position: relative;
+  max-width: 260px;
+  background: #fff;
+  color: #1B1B3A;
+  border-radius: 12px;
+  padding: 12px 34px 12px 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ios-install-tip strong { font-size: 12px; }
+.ios-install-tip .share-glyph { width: 15px; height: 15px; vertical-align: -3px; color: #5AB3F0; }
+.ios-install-tip-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #8A93A2;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ios-install-tip-close:hover { background: #EEF2F7; color: #1B1B3A; }
+.ios-install-tip-close svg { width: 12px; height: 12px; }
+@media (max-width: 900px) {
+  .ios-install-tip {
+    position: fixed;
+    top: calc(60px + env(safe-area-inset-top) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 340px);
+    max-width: 92vw;
+    box-shadow: 0 12px 32px rgba(0,0,0,.3);
+  }
+}
 .dash-user-chip { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .dash-user-chip .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--sky); color: var(--navy); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
 .dash-role { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--sky); font-weight: 700; }

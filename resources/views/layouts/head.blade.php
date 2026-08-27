@@ -4,6 +4,10 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="theme-color" content="#1B1B3A">
     <meta name="description" content="Egliane Accounting Services — bookkeeping, tax filing, BIR compliance, financial statements, payroll and consulting for your business.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Egliane">
     <title>@yield('title', 'Egliane Accounting Services') {{ $title ?? '' }}</title>
 
     <link rel="manifest" href="/manifest.json">
