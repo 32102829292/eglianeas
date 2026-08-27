@@ -84,6 +84,7 @@
                 </div>
             </div>
             <a href="{{ route('admin.billing.paymentSettings') }}" class="btn btn-outline btn-sm">Payment Settings</a>
+            <a href="{{ route('admin.billing.settings') }}" class="btn btn-outline btn-sm">Fee Presets</a>
         </div>
     </div>
 
