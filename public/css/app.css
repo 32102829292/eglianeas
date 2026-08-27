@@ -38,6 +38,20 @@
   --radius-sm: 12px;
   --radius-btn: 10px;
 
+  /* Glassmorphism — white frosted panels over a deeper navy/sky backdrop.
+     Translucent values kept denser (0.7-0.9) because the app is light-themed:
+     too-low alpha washes out text; the blur + border + depth carry the "glass".
+     Dark 0.15-style glass is only legible over a dark background. */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-border-strong: rgba(255, 255, 255, 0.7);
+  --glass-bg-dark: rgba(27, 27, 58, 0.78);
+  --glass-border-dark: rgba(255, 255, 255, 0.22);
+  --glass-blur: 14px;
+  --glass-shadow: 0 8px 32px rgba(27, 27, 58, 0.16);
+  --glass-radius: 18px;
+
   /* Motion & focus */
   --transition-fast: 0.15s ease;
   --transition: 0.2s ease;
@@ -94,6 +108,35 @@ p { margin: 0 0 1em; }
 }
 
 .container { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+
+/* ---------- Glassmorphism: background layers ----------
+   Glass needs visual interest BEHIND it or the blur is invisible.
+   These deepen the light backdrop with a navy/sky wash + soft color blobs. */
+.glass-scene {
+  background:
+    radial-gradient(38% 42% at 12% 8%, rgba(90,179,240,.28), transparent 60%),
+    radial-gradient(42% 46% at 88% 18%, rgba(46,155,222,.20), transparent 62%),
+    radial-gradient(50% 60% at 75% 100%, rgba(90,179,240,.16), transparent 60%),
+    linear-gradient(180deg, #EAF3FB 0%, #F6FAFE 55%, #EDF4FB 100%);
+}
+
+/* ---------- Glass panel ---------- */
+.glass-panel {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+}
+.glass-panel-strong { background: var(--glass-bg-strong); border-color: var(--glass-border-strong); }
+
+/* Solid, opaque fallback for browsers with no backdrop-filter support
+   (keeps text readable and the layout intact without the frosted effect) */
+@supports not ((backdrop-filter: blur(0)) or (-webkit-backdrop-filter: blur(0))) {
+  .glass-panel { background: rgba(255, 255, 255, 0.94); }
+  .glass-panel-strong { background: #ffffff; }
+}
 
 /* Ensure content never renders behind the fixed chat FAB */
 main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
