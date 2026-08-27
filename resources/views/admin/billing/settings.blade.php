@@ -22,7 +22,7 @@
             <div class="form-grid two">
                 <div class="form-group">
                     <label class="form-label" for="tax_2551q_rate">2551Q Percentage Tax rate (%)</label>
-                    <input class="form-control" id="tax_2551q_rate" name="tax_2551q_rate" type="number" step="0.01" min="0" max="100" value="{{ old('tax_2551q_rate', Setting::get('tax_2551q_rate', '3')) }}">
+                    <input class="form-control" id="tax_2551q_rate" name="tax_2551q_rate" type="number" step="0.01" min="0" max="100" value="{{ old('tax_2551q_rate', \App\Models\Setting::get('tax_2551q_rate', '3')) }}">
                     @error('tax_2551q_rate')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
             </div>
