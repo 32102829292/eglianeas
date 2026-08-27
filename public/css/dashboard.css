@@ -7,9 +7,9 @@
      so backdrop-filter blur on .glass-panel surfaces is actually visible. */
   background-color: var(--bg-alt);
   background-image:
-    radial-gradient(38% 42% at 12% 6%, rgba(90,179,240,.28), transparent 60%),
-    radial-gradient(42% 46% at 88% 14%, rgba(46,155,222,.20), transparent 62%),
-    radial-gradient(50% 60% at 75% 100%, rgba(90,179,240,.14), transparent 60%),
+    radial-gradient(38% 42% at 12% 6%, rgba(90,179,240,.35), transparent 60%),
+    radial-gradient(42% 46% at 88% 14%, rgba(46,155,222,.28), transparent 62%),
+    radial-gradient(50% 60% at 75% 100%, rgba(90,179,240,.20), transparent 60%),
     radial-gradient(rgba(27, 27, 58, .05) 1px, transparent 1.15px),
     linear-gradient(180deg, #EAF3FB 0%, #F6FAFE 55%, #EDF4FB 100%);
   background-size: 100% 100%, 100% 100%, 100% 100%, 22px 22px, 100% 100%;
@@ -289,7 +289,7 @@
 .grid-2 { display: grid; grid-template-columns: 1fr; gap: 20px; }
 
 /* ---------- Stat cards ---------- */
-.stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 12px; }
 .stat-card {
   background: var(--glass-bg);
   -webkit-backdrop-filter: blur(var(--glass-blur));
@@ -319,12 +319,17 @@
 .stat-icon-danger { background: rgba(231,76,60,.12); color: var(--danger); }
 .stat-icon-info { background: rgba(90,179,240,.12); color: var(--sky-deep); }
 .stat-card .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
-.stat-card .stat-value { font-family: var(--font-head); font-size: 26px; font-weight: 700; color: var(--navy); }
-.stat-ok { border-top-color: var(--success); }
+.stat-card .stat-value { font-family: var(--font-head); font-size: 34px; font-weight: 800; line-height: 1.1; color: var(--navy); letter-spacing: -.01em; }
+.stat-card { border-bottom: 3px solid transparent; }
+.stat-card:has(.stat-icon-info) { border-bottom-color: var(--sky-deep); }
+.stat-card:has(.stat-icon-info) .stat-value { color: var(--sky-deep); }
+.stat-ok { border-top-color: var(--success); border-bottom-color: var(--success); }
 .stat-ok .stat-value { color: var(--success); }
 .stat-ok .stat-icon { background: rgba(39,174,96,.12); color: var(--success); }
+.stat-danger { border-top-color: var(--danger); border-bottom-color: var(--danger); }
 .stat-danger .stat-value { color: var(--danger); }
 .stat-danger .stat-icon { background: rgba(231,76,60,.12); color: var(--danger); }
+.stat-warn { border-top-color: var(--warning); border-bottom-color: var(--warning); }
 .stat-warn .stat-value { color: #B45309; }
 .stat-warn .stat-icon { background: rgba(242,153,74,.12); color: var(--warning); }
 .stat-tile { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); border: 1px solid var(--glass-border); border-radius: var(--glass-radius); box-shadow: var(--glass-shadow); padding: 18px; }

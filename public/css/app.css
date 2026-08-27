@@ -44,12 +44,13 @@
      Dark 0.15-style glass is only legible over a dark background. */
   --glass-bg: rgba(255, 255, 255, 0.72);
   --glass-bg-strong: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(255, 255, 255, 0.55);
-  --glass-border-strong: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --glass-border-strong: rgba(255, 255, 255, 0.85);
   --glass-bg-dark: rgba(27, 27, 58, 0.78);
   --glass-border-dark: rgba(255, 255, 255, 0.22);
-  --glass-blur: 14px;
-  --glass-shadow: 0 8px 32px rgba(27, 27, 58, 0.16);
+  --glass-blur: 18px;
+  --glass-inner: inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
+  --glass-shadow: 0 8px 32px rgba(27, 27, 58, 0.16), inset 0 1px 0 0 rgba(255, 255, 255, 0.5);
   --glass-radius: 18px;
 
   /* Motion & focus */
@@ -114,9 +115,9 @@ p { margin: 0 0 1em; }
    These deepen the light backdrop with a navy/sky wash + soft color blobs. */
 .glass-scene {
   background:
-    radial-gradient(38% 42% at 12% 8%, rgba(90,179,240,.28), transparent 60%),
-    radial-gradient(42% 46% at 88% 18%, rgba(46,155,222,.20), transparent 62%),
-    radial-gradient(50% 60% at 75% 100%, rgba(90,179,240,.16), transparent 60%),
+    radial-gradient(38% 42% at 12% 8%, rgba(90,179,240,.35), transparent 60%),
+    radial-gradient(42% 46% at 88% 18%, rgba(46,155,222,.28), transparent 62%),
+    radial-gradient(50% 60% at 75% 100%, rgba(90,179,240,.20), transparent 60%),
     linear-gradient(180deg, #EAF3FB 0%, #F6FAFE 55%, #EDF4FB 100%);
 }
 
