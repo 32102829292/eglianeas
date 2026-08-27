@@ -125,9 +125,9 @@
 
     @include('partials.chatbot')
 
-    <script src="/js/app.js" defer></script>
-    <script src="/js/auth.js" defer></script>
-    <script src="/js/push.js" defer></script>
+    <script src="/js/app.js?v=2" defer></script>
+    <script src="/js/auth.js?v=2" defer></script>
+    <script src="/js/push.js?v=2" defer></script>
     @stack('scripts')
 </body>
 </html>
