@@ -31,11 +31,59 @@
   /* ---------- Offline banner + connectivity ---------- */
   var banner = document.getElementById('offlineBanner');
 
-  function updateOnlineState() {
-    var offline = !navigator.onLine;
+  /* navigator.onLine is only a hint and can report false even with a working
+     connection (VPNs, captive portals, some browsers/networks). Only surface
+     the banner when BOTH the hint says offline AND a real same-origin network
+     request also fails, debounced so a brief blip doesn't flash the banner. */
+  var offlineTimer = null;
+  var offlinePending = false;
+
+  function flushConnectivity() {
+    var offline = offlinePending;
     if (banner) banner.classList.toggle('show', offline);
     document.body.classList.toggle('is-offline', offline);
     window.dispatchEvent(new CustomEvent('egliane:connectivity', { detail: { offline: offline } }));
+  }
+
+  function probeOffline() {
+    if (navigator.onLine) {
+      offlinePending = false;
+      flushConnectivity();
+      return;
+    }
+    /* navigator.onLine is false; confirm with a real request so slow
+       responses aren't misread as offline. In-flight/failed probes keep
+       evaluating until we get a definitive answer. */
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 5000) : null;
+
+    fetch('/manifest.json', { cache: 'no-store', signal: controller ? controller.signal : undefined })
+      .then(function () {
+        if (timeoutId) clearTimeout(timeoutId);
+        offlinePending = false;
+        flushConnectivity();
+      })
+      .catch(function () {
+        if (timeoutId) clearTimeout(timeoutId);
+        /* only treat a genuine abort/timeout-ish failure as offline; keep the
+           banner hidden on any network error that could be transient */
+        offlinePending = true;
+        flushConnectivity();
+      });
+  }
+
+  function updateOnlineState() {
+    offlinePending = false;
+    if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null; }
+    if (!navigator.onLine) {
+      offlinePending = true;
+      offlineTimer = setTimeout(function () {
+        offlineTimer = null;
+        probeOffline();
+      }, 1500);
+    } else {
+      flushConnectivity();
+    }
   }
 
   window.addEventListener('online', function () {
