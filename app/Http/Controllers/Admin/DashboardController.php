@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
+use App\Models\BillingLineItem;
 use App\Models\ClientProfile;
 use App\Models\DailySnapshot;
 use App\Models\Filing;
@@ -66,6 +67,21 @@ class DashboardController extends Controller
             ->reverse()
             ->values();
 
+        $categoryTotals = BillingLineItem::query()
+            ->selectRaw('category, sum(amount) as total')
+            ->groupBy('category')
+            ->pluck('total', 'category')
+            ->sortByDesc(fn ($total) => $total);
+
+        $topOutstanding = Billing::query()
+            ->join('users', 'users.id', '=', 'billings.client_id')
+            ->whereIn('billings.status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
+            ->selectRaw('users.name as client_name, users.business_name, sum(billings.total) as total')
+            ->groupBy('users.id', 'users.name', 'users.business_name')
+            ->orderByDesc('total')
+            ->limit(6)
+            ->get();
+
         return view('admin.dashboard', [
             'paidCount' => (int) ($billingStatusCounts[Billing::STATUS_PAID] ?? 0),
             'pendingCount' => (int) ($billingStatusCounts[Billing::STATUS_PENDING] ?? 0),
@@ -73,6 +89,12 @@ class DashboardController extends Controller
             'snapshotRevenue' => $snapshots->pluck('revenue_collected')->values(),
             'snapshotNewBillings' => $snapshots->pluck('new_billings')->values(),
             'snapshotOverdue' => $snapshots->pluck('overdue_count')->values(),
+            'snapshotLabels' => $snapshots->pluck('date')->map(fn ($d) => $d->format('M j'))->values(),
+            'categoryChart' => [
+                'labels' => $categoryTotals->keys()->map(fn ($key) => BillingLineItem::CATEGORIES[$key] ?? ucfirst(str_replace('_', ' ', $key)))->values(),
+                'totals' => $categoryTotals->values(),
+            ],
+            'topOutstanding' => $topOutstanding,
             'stats' => [
                 'clients' => User::query()->where('role', User::ROLE_CLIENT)->count(),
                 'transactions' => Transaction::count(),

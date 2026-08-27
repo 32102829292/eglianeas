@@ -820,7 +820,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 
 /* ---------- Responsive ---------- */
-@media (min-width: 900px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } .grid-2 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 900px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } .grid-2 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: 1fr 1fr 1fr; } .db-mini-grid { grid-template-columns: repeat(3, 1fr); } }
+
+@media (max-width: 640px) { .db-mini-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 900px) {
   /* REGRESSION WARNING: align-items must be 'stretch' in column layout.
@@ -1033,6 +1035,25 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .db-metric-head .stat-icon svg { width: 15px; height: 15px; }
 .db-metric-value { font-family: var(--font-head); font-size: 24px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
 .db-sparkline { width: 100%; height: 32px; display: block; }
+
+/* --- Budget-style denser grids --- */
+.grid-3 { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+.db-mini-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* Top list (highest outstanding clients) */
+.top-list { display: flex; flex-direction: column; }
+.top-list-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--glass-border);
+}
+.top-list-row:last-child { border-bottom: none; }
+.top-list-main { display: flex; flex-direction: column; min-width: 0; }
+.top-list-main b { font-size: 14px; font-weight: 700; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.top-list-main small { font-size: 12px; color: var(--text-muted); }
+.top-list-amount {
+  font-family: var(--font-head); font-size: 14px; font-weight: 800; color: var(--navy);
+  background: var(--sky-soft); color: var(--sky-deep); padding: 4px 12px; border-radius: 999px; white-space: nowrap;
+}
 
 /* --- Quick links --- */
 .db-quick-links { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }

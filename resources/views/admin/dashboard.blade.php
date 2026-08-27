@@ -75,6 +75,34 @@
     </div>
 
     <div class="section-gap">
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-head">
+                    <h3 class="card-title">Revenue vs new billings (14d)</h3>
+                    <a href="{{ route('admin.billing.index') }}">Manage billing</a>
+                </div>
+                <div class="chart-canvas-wrap">
+                    <canvas id="revenueTrendChart" height="220"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-head">
+                    <h3 class="card-title">Billing amounts by category</h3>
+                    <a href="{{ route('admin.billing.index') }}">View statements</a>
+                </div>
+                <div class="chart-canvas-wrap">
+                    @if (count($categoryChart['labels'] ?? []) > 0)
+                        <canvas id="categoryChart" height="220"></canvas>
+                    @else
+                        <p class="chart-empty">Not enough data yet.</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="db-mini-grid">
         <div class="dashboard-chart-card">
             <h3>Billing Status Breakdown</h3>
             <x-donut-chart :segments="[
@@ -83,67 +111,34 @@
                 ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
             ]" />
         </div>
-    </div>
 
-    <div class="section-gap">
-        <h2 class="text-section">Account analytics</h2>
-        <div class="grid-2">
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Billing status</h3>
-                    <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
-                </div>
-                <div class="chart-canvas-wrap">
-                    @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
-                    @if ($bsTotal > 0)
-                        <canvas id="billingStatusChart" height="200"></canvas>
-                    @else
-                        <p class="chart-empty">Not enough data yet.</p>
-                    @endif
-                </div>
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Billing status</h3>
+                <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
             </div>
-
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Client account status</h3>
-                    <a href="{{ route('admin.clients.index') }}">View clients</a>
-                </div>
-                <div class="chart-canvas-wrap">
-                    @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
-                    @if ($csTotal > 0)
-                        <canvas id="clientStatusChart" height="200"></canvas>
-                    @else
-                        <p class="chart-empty">Not enough data yet.</p>
-                    @endif
-                </div>
+            <div class="chart-canvas-wrap">
+                @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
+                @if ($bsTotal > 0)
+                    <canvas id="billingStatusChart" height="200"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
             </div>
+        </div>
 
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Business types</h3>
-                </div>
-                <div class="chart-canvas-wrap chart-bar-wrap">
-                    @php $btTotal = collect($analytics['charts']['businessType'] ?? [])->sum('count'); @endphp
-                    @if ($btTotal > 0)
-                        <canvas id="businessTypesChart" height="150"></canvas>
-                    @else
-                        <p class="chart-empty">Not enough data yet.</p>
-                    @endif
-                </div>
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Client account status</h3>
+                <a href="{{ route('admin.clients.index') }}">View clients</a>
             </div>
-
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Lines of business</h3>
-                </div>
-                <div class="chart-canvas-wrap chart-bar-wrap">
-                    @php $lobTotal = collect($analytics['charts']['lineOfBusiness'] ?? [])->sum('count'); @endphp
-                    @if ($lobTotal > 0)
-                        <canvas id="lobChart" height="150"></canvas>
-                    @else
-                        <p class="chart-empty">Not enough data yet.</p>
-                    @endif
-                </div>
+            <div class="chart-canvas-wrap">
+                @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
+                @if ($csTotal > 0)
+                    <canvas id="clientStatusChart" height="200"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
             </div>
         </div>
     </div>
@@ -197,6 +192,58 @@
                 </table>
             </div>
         @endif
+    </div>
+
+    <div class="grid-3">
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Business types</h3>
+            </div>
+            <div class="chart-canvas-wrap chart-bar-wrap">
+                @php $btTotal = collect($analytics['charts']['businessType'] ?? [])->sum('count'); @endphp
+                @if ($btTotal > 0)
+                    <canvas id="businessTypesChart" height="150"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Lines of business</h3>
+            </div>
+            <div class="chart-canvas-wrap chart-bar-wrap">
+                @php $lobTotal = collect($analytics['charts']['lineOfBusiness'] ?? [])->sum('count'); @endphp
+                @if ($lobTotal > 0)
+                    <canvas id="lobChart" height="150"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Highest outstanding clients</h3>
+                <a href="{{ route('admin.billing.index') }}">View billing</a>
+            </div>
+            @if (count($topOutstanding ?? []) > 0)
+                <div class="top-list">
+                    @foreach ($topOutstanding as $row)
+                        <div class="top-list-row">
+                            <div class="top-list-main">
+                                <b>{{ $row->client_name }}</b>
+                                <small class="muted">{{ $row->business_name }}</small>
+                            </div>
+                            <span class="top-list-amount">₱{{ number_format($row->total, 2) }}</span>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="chart-empty">No outstanding balances yet.</p>
+            @endif
+        </div>
     </div>
 
     <div class="grid-2">
@@ -291,6 +338,11 @@
     var csData = {!! json_encode($analytics['charts']['clientStatus'] ?: []) !!};
     var btData = {!! json_encode($analytics['charts']['businessType'] ?: []) !!};
     var lobData = {!! json_encode($analytics['charts']['lineOfBusiness'] ?: []) !!};
+    var snapLabels = {!! json_encode($snapshotLabels ?? []) !!};
+    var snapRevenue = {!! json_encode($snapshotRevenue ?? []) !!};
+    var snapNewBillings = {!! json_encode($snapshotNewBillings ?? []) !!};
+    var catLabels = {!! json_encode($categoryChart['labels'] ?? []) !!};
+    var catTotals = {!! json_encode($categoryChart['totals'] ?? []) !!};
 
     var total = function (d) { return d.reduce(function (s, v) { return s + v.count; }, 0); };
     var labels = function (d) { return d.map(function (v) { return v.label; }); };
@@ -448,6 +500,112 @@
 
     makeBarChart('businessTypesChart', btData, '#5AB3F0');
     makeBarChart('lobChart', lobData, '#22C55E');
+
+    /* Revenue vs new billings — line/area trend over the last 14 days */
+    if (document.getElementById('revenueTrendChart') && snapLabels.length) {
+        new Chart(document.getElementById('revenueTrendChart'), {
+            type: 'line',
+            data: {
+                labels: snapLabels,
+                datasets: [
+                    {
+                        label: 'Revenue collected',
+                        data: snapRevenue,
+                        borderColor: '#22C55E',
+                        backgroundColor: 'rgba(34, 197, 94, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    },
+                    {
+                        label: 'New billings',
+                        data: snapNewBillings,
+                        borderColor: '#5AB3F0',
+                        backgroundColor: 'rgba(90, 179, 240, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { position: 'bottom', labels: legendMobile },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ctx.dataset.label + ': ' + (ctx.dataset.label.indexOf('Revenue') === 0 ? '₱' : '') + ctx.raw;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: isMobile ? 10 : 12 } } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(27,27,58,0.06)' }, ticks: { font: { size: isMobile ? 10 : 12 } } },
+                },
+            },
+        });
+    }
+
+    /* Billing amounts by category — vertical bar of ₱ totals */
+    if (document.getElementById('categoryChart')) {
+        new Chart(document.getElementById('categoryChart'), {
+            type: 'bar',
+            data: {
+                labels: catLabels,
+                datasets: [{
+                    label: 'Amount',
+                    data: catTotals,
+                    backgroundColor: 'rgba(90, 179, 240, 0.85)',
+                    borderRadius: 6,
+                }],
+            },
+            options: {
+                indexAxis: 'x',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) { return '₱' + Number(ctx.raw).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { size: isMobile ? 9 : 11 },
+                            autoSkip: false,
+                            callback: function (value) {
+                                var label = this.getLabelForValue(value);
+                                if (!isMobile) return label;
+                                var max = Math.floor(((this.chart.chartArea || {}).right || 300) / 6);
+                                if (label.length > max) return label.substring(0, max - 1) + '\u2026';
+                                return label;
+                            }
+                        },
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(27,27,58,0.06)' },
+                        ticks: {
+                            font: { size: isMobile ? 10 : 11 },
+                            callback: function (value) { return '₱' + value; }
+                        },
+                    },
+                },
+            },
+        });
+    }
 })();
 </script>
 @endpush
