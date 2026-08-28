@@ -126,7 +126,7 @@
     @empty
         <div class="empty-state">
             <p>No billing statements for this client yet.</p>
-            <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">Create the first billing</a>
+            <a href="{{ route('admin.billing.create', ['client' => $client->id]) }}" class="btn btn-primary">Create the first billing</a>
         </div>
     @endforelse
 @endsection
