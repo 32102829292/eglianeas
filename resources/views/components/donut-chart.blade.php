@@ -1,16 +1,36 @@
 @props(['segments' => [], 'size' => 128, 'thickness' => 12])
 
 @php
+    static $donutIdx = 0;
+    $uid = 'dc-' . $donutIdx++;
     $total = collect($segments)->sum('value');
     $hasData = $total > 0;
     $radius = ($size - $thickness) / 2;
     $circumference = 2 * M_PI * $radius;
     $offset = 0;
+    // Lighter tint (65% toward white) paired with each segment's full color,
+    // used as the soft start of the gradient. Order follows $segments.
+    $tints = [
+        '#B3E3C7', // --success  (Paid)
+        '#FADBC0', // --warning  (Pending)
+        '#F7C0BB', // --danger   (Overdue)
+    ];
+    $ti = 0;
 @endphp
 
 <div class="donut-chart">
     @if($hasData)
         <svg width="{{ $size }}" height="{{ $size }}" viewBox="0 0 {{ $size }} {{ $size }}">
+            <defs>
+                @foreach($segments as $i => $seg)
+                    @if((int) $seg['value'] <= 0) @continue @endif
+                    <linearGradient id="{{ $uid }}-{{ $loop->index }}" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0%" stop-color="{{ $tints[$ti] ?? '#FFFFFF' }}"></stop>
+                        <stop offset="100%" stop-color="{{ $seg['color'] }}"></stop>
+                    </linearGradient>
+                    @php $ti++; @endphp
+                @endforeach
+            </defs>
             <g transform="rotate(-90 {{ $size / 2 }} {{ $size / 2 }})">
                 @foreach($segments as $seg)
                     @if((int) $seg['value'] <= 0) @continue @endif
@@ -21,7 +41,7 @@
                     @endphp
                     <circle
                         cx="{{ $size / 2 }}" cy="{{ $size / 2 }}" r="{{ $radius }}"
-                        fill="none" stroke="{{ $seg['color'] }}" stroke-width="{{ $thickness }}"
+                        fill="none" stroke="url(#{{ $uid }}-{{ $loop->index }})" stroke-width="{{ $thickness }}"
                         stroke-linecap="round"
                         stroke-dasharray="{{ round($dash, 2) }} {{ round($gap, 2) }}"
                         stroke-dashoffset="{{ round(-$offset, 2) }}"

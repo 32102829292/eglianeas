@@ -392,6 +392,22 @@
         return v ? v.trim() : '';
     };
 
+    // Returns a Chart.js per-datapoint backgroundColor callback that fills the
+    // segment with a soft vertical (top -> bottom) gradient from a light tint
+    // to the full segment color. lightCoords/fullCoords are parallel arrays of
+    // [light, full] pairs, one entry per data point.
+    var gradient = function (pairs) {
+        return pairs.map(function (p) {
+            return function (context) {
+                var area = context.chart.chartArea;
+                var g = context.chart.ctx.createLinearGradient(0, (area && area.top) || 0, 0, (area && area.bottom) || 1);
+                g.addColorStop(0, p[0]);
+                g.addColorStop(1, p[1]);
+                return g;
+            };
+        });
+    };
+
     var legendMobile = isMobile
         ? { usePointStyle: true, padding: 6, font: { size: 10 }, boxWidth: 8 }
         : { usePointStyle: true, padding: 14, font: { size: 12 }, boxWidth: 12 };
@@ -404,13 +420,13 @@
                 datasets: [{
                     data: counts(bsData),
                     // Billing status order: Pending, Unpaid, Overdue, Paid
-                    // -> --warning, --navy, --danger, --success
-                    backgroundColor: [
-                        token('--warning'),
-                        token('--navy'),
-                        token('--danger'),
-                        token('--success'),
-                    ],
+                    // light tint -> full token: --warning, --navy, --danger, --success
+                    backgroundColor: gradient([
+                        ['#FADBC0', token('--warning')],
+                        ['#AFAFBA', token('--navy')],
+                        ['#F7C0BB', token('--danger')],
+                        ['#B3E3C7', token('--success')],
+                    ]),
                     borderWidth: 2,
                     borderColor: 'rgba(255,255,255,0.6)',
                     borderRadius: 6,
@@ -447,7 +463,15 @@
                 labels: labels(csData),
                 datasets: [{
                     data: counts(csData),
-                    backgroundColor: ['#22C55E', '#F59E0B', '#F97316', '#EF4444', '#5AB3F0', '#8B5CF6'],
+                    // Existing colors kept exactly; each gains a light->full vertical gradient
+                    backgroundColor: gradient([
+                        ['#B2EBC7', '#22C55E'],
+                        ['#FCDDAA', '#F59E0B'],
+                        ['#FDCEAD', '#F97316'],
+                        ['#F9BEBE', '#EF4444'],
+                        ['#C5E4FA', '#5AB3F0'],
+                        ['#D6C6FC', '#8B5CF6'],
+                    ]),
                     borderWidth: 2,
                     borderColor: 'rgba(255,255,255,0.6)',
                     borderRadius: 6,
