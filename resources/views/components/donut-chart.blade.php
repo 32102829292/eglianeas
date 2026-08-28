@@ -1,4 +1,4 @@
-@props(['segments' => [], 'size' => 140, 'thickness' => 20])
+@props(['segments' => [], 'size' => 128, 'thickness' => 12])
 
 @php
     $total = collect($segments)->sum('value');
@@ -22,6 +22,7 @@
                     <circle
                         cx="{{ $size / 2 }}" cy="{{ $size / 2 }}" r="{{ $radius }}"
                         fill="none" stroke="{{ $seg['color'] }}" stroke-width="{{ $thickness }}"
+                        stroke-linecap="round"
                         stroke-dasharray="{{ round($dash, 2) }} {{ round($gap, 2) }}"
                         stroke-dashoffset="{{ round(-$offset, 2) }}"
                     ></circle>

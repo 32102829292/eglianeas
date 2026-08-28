@@ -385,6 +385,13 @@
 
     var isMobile = window.innerWidth <= 640;
 
+    // Resolve a CSS variable defined on :root to a concrete color string,
+    // so Chart.js (canvas) can use the same design tokens as the SVG charts.
+    var token = function (name) {
+        var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+        return v ? v.trim() : '';
+    };
+
     var legendMobile = isMobile
         ? { usePointStyle: true, padding: 6, font: { size: 10 }, boxWidth: 8 }
         : { usePointStyle: true, padding: 14, font: { size: 12 }, boxWidth: 12 };
@@ -396,8 +403,17 @@
                 labels: labels(bsData),
                 datasets: [{
                     data: counts(bsData),
-                    backgroundColor: ['#F59E0B', '#1B1B3A', '#F97316', '#22C55E', '#5AB3F0', '#8B5CF6'],
-                    borderWidth: 0,
+                    // Billing status order: Pending, Unpaid, Overdue, Paid
+                    // -> --warning, --navy, --danger, --success
+                    backgroundColor: [
+                        token('--warning'),
+                        token('--navy'),
+                        token('--danger'),
+                        token('--success'),
+                    ],
+                    borderWidth: 2,
+                    borderColor: 'rgba(255,255,255,0.6)',
+                    borderRadius: 6,
                 }],
             },
             options: {
@@ -416,7 +432,7 @@
                         }
                     }
                 },
-                cutout: '65%',
+                cutout: '78%',
                 responsive: true,
                 maintainAspectRatio: false,
             },
@@ -432,7 +448,9 @@
                 datasets: [{
                     data: counts(csData),
                     backgroundColor: ['#22C55E', '#F59E0B', '#F97316', '#EF4444', '#5AB3F0', '#8B5CF6'],
-                    borderWidth: 0,
+                    borderWidth: 2,
+                    borderColor: 'rgba(255,255,255,0.6)',
+                    borderRadius: 6,
                 }],
             },
             options: {
@@ -451,7 +469,7 @@
                         }
                     }
                 },
-                cutout: '65%',
+                cutout: '78%',
                 responsive: true,
                 maintainAspectRatio: false,
             },

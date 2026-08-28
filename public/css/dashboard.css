@@ -1304,7 +1304,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   gap: 20px;
   flex-wrap: wrap;
 }
-.donut-chart svg { flex: 0 0 auto; }
+.donut-chart svg {
+  flex: 0 0 auto;
+  /* soft floating depth, tone-matched to --glass-shadow (navy-tinted) */
+  filter: drop-shadow(0 4px 10px rgba(27, 27, 58, 0.16));
+}
 .donut-chart-total {
   font-family: var(--font-head);
   font-size: 18px;
