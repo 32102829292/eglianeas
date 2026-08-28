@@ -399,8 +399,18 @@
     var gradient = function (pairs) {
         return pairs.map(function (p) {
             return function (context) {
-                var area = context.chart.chartArea;
-                var g = context.chart.ctx.createLinearGradient(0, (area && area.top) || 0, 0, (area && area.bottom) || 1);
+                var solid = p[1];
+                var ctx = context && context.chart && context.chart.ctx;
+                var area = ctx && context.chart.chartArea;
+                // If there's no real drawable context or the chart area is not
+                // ready (legend/tooltip/hit-test phases), Chart.js may be sampling
+                // this callback. A gradient built then can throw or be 0-height,
+                // collapsing the whole dataset to the black default. Return the
+                // solid (full) color in that case.
+                if (!ctx || !area || (area.bottom - area.top) < 1) {
+                    return solid;
+                }
+                var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
                 g.addColorStop(0, p[0]);
                 g.addColorStop(1, p[1]);
                 return g;
