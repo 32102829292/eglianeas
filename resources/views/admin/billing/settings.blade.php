@@ -53,7 +53,7 @@
                     <h4 class="card-title">{{ $cat['title'] }}</h4>
                 </div>
 
-                <div class="chip-list">
+                <div class="chip-list" data-chip-list="{{ $categoryKey }}">
                     @forelse ($cat['rates'] as $rate)
                         <div class="chip-row">
                             <span class="chip-label">{{ $rate->money() }}{{ $rate->label ? ' — '.$rate->label : '' }}</span>
@@ -68,7 +68,7 @@
                     @endforelse
                 </div>
 
-                <form method="POST" action="{{ route('admin.billing.feeRates.store') }}" class="inline-add preset-add">
+                <form method="POST" action="{{ route('admin.billing.feeRates.store') }}" class="inline-add preset-add" data-preset-form data-category="{{ $categoryKey }}">
                     @csrf
                     <input type="hidden" name="category" value="{{ $categoryKey }}">
                     <input class="form-control" name="amount" type="number" step="0.01" min="0" placeholder="{{ $cat['placeholder'] }}" required>
@@ -80,3 +80,79 @@
         @endforeach
     </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    var token = csrfMeta ? csrfMeta.getAttribute('content') : '';
+    document.querySelectorAll('[data-preset-form]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            var card = form.closest('.preset-card');
+            form.querySelectorAll('.form-error').forEach(function (el) { el.remove(); });
+            var button = form.querySelector('button[type="submit"]');
+            var original = button.textContent;
+            button.disabled = true;
+            button.textContent = 'Saving…';
+
+            fetch(form.getAttribute('action'), {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: new FormData(form)
+            }).then(function (res) {
+                return res.json().then(function (data) {
+                    return { ok: res.ok, status: res.status, data: data };
+                });
+            }).then(function (result) {
+                if (result.ok) {
+                    var rate = result.data.feeRate;
+                    var list = document.querySelector('[data-chip-list="' + form.getAttribute('data-category') + '"]');
+                    if (list) {
+                        var empty = list.querySelector('.muted');
+                        if (empty) empty.remove();
+                        var row = document.createElement('div');
+                        row.className = 'chip-row';
+                        row.innerHTML =
+                            '<span class="chip-label"></span>' +
+                            '<form method="POST" action="/billings/fee-rates/' + rate.id + '" onsubmit="return confirm(\'Remove this fee preset?\');">' +
+                                '<input type="hidden" name="_token" value="' + token + '">' +
+                                '<input type="hidden" name="_method" value="DELETE">' +
+                                '<button type="submit" class="link danger" title="Remove preset">&times;</button>' +
+                            '</form>';
+                        row.querySelector('.chip-label').textContent =
+                            rate.money + (rate.label ? ' — ' + rate.label : '');
+                        list.appendChild(row);
+                    }
+                    form.querySelector('[name="amount"]').value = '';
+                    form.querySelector('[name="label"]').value = '';
+                    if (typeof window.E !== 'undefined' && window.E.toast) E.toast(result.data.message || 'Fee preset added.');
+                } else {
+                    var errors = result.data.errors || {};
+                    var firstKey = Object.keys(errors)[0];
+                    var msg = firstKey ? errors[firstKey][0] : (result.data.message || 'Could not save the fee preset.');
+                    var errEl = document.createElement('div');
+                    errEl.className = 'form-error';
+                    errEl.textContent = msg;
+                    form.appendChild(errEl);
+                    if (typeof window.E !== 'undefined' && window.E.toast) E.toast(msg);
+                }
+            }).catch(function () {
+                var errEl = document.createElement('div');
+                errEl.className = 'form-error';
+                errEl.textContent = 'Could not save the fee preset. Please try again.';
+                form.appendChild(errEl);
+                if (typeof window.E !== 'undefined' && window.E.toast) E.toast('Could not save the fee preset.');
+            }).finally(function () {
+                button.disabled = false;
+                button.textContent = original;
+            });
+        });
+    });
+});
+</script>
+@endpush

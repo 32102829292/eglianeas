@@ -59,7 +59,7 @@
 </style>
 
 <div class="doc-viewer-wrap" id="docViewerWrap">
-    <a href="{{ url()->previous() }}" style="display:inline-block; margin-bottom:16px; color:#0d6efd; text-decoration:none;">&larr; Back</a>
+    <a href="{{ url()->previous() }}" style="display:inline-block; margin-bottom:18px; color:#0d6efd; text-decoration:none;">&larr; Back</a>
 
     <div class="doc-info-header">
         <h2>{{ $document->original_name }}</h2>

@@ -677,7 +677,7 @@ class BillingController extends Controller
         return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
     }
 
-    public function storeFeeRate(Request $request): RedirectResponse
+    public function storeFeeRate(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
@@ -685,7 +685,7 @@ class BillingController extends Controller
                     'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment,data_entry'],
         ]);
 
-        FeeRate::query()->create([
+        $feeRate = FeeRate::query()->create([
             'amount' => $validated['amount'],
             'label' => $validated['label'] ?: null,
             'category' => $validated['category'],
@@ -693,6 +693,19 @@ class BillingController extends Controller
         ]);
 
         ActivityLog::record(auth()->user(), 'billing.fee_rate_added', "Added fee preset of {$validated['amount']} ({$validated['category']}).");
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'message' => 'Fee preset added.',
+                'feeRate' => [
+                    'id' => $feeRate->id,
+                    'label' => $feeRate->label,
+                    'category' => $feeRate->category,
+                    'amount' => $feeRate->amount,
+                    'money' => $feeRate->money(),
+                ],
+            ], 201);
+        }
 
         return back()->with('status', 'Fee preset added.');
     }
