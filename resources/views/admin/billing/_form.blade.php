@@ -1,5 +1,9 @@
 @php
     $isEdit = $formMode === 'edit';
+    // Bug 1: pre-selected client when arriving from a client's billing page.
+    $defaultClientId = $isEdit ? $billing->client_id : ($selectedClientId ?? null);
+    // Bug 2: default quarter computed from the selected client's history.
+    $defaultQuarter = $isEdit ? $billing->quarter : ($defaultQuarter ?? null);
     $existingItems = $isEdit ? $billing->lineItems->keyBy(fn ($item) => $item->category.'_'.$item->form_type.'_'.$item->month) : collect();
     $professionalFeeRates = $feeRates->where('category', 'professional_fee');
     $bookkeepingFeeRates = $feeRates->where('category', 'bookkeeping_fee');
@@ -39,7 +43,7 @@
                 <select class="form-control" id="client_id" name="client_id" required>
                     <option value="">Select client&hellip;</option>
                     @foreach ($clients as $client)
-                        <option value="{{ $client->id }}" @selected((int) old('client_id', $billing->client_id) === $client->id) data-name="{{ $client->business_name ?: $client->name }}">
+                        <option value="{{ $client->id }}" @selected((int) old('client_id', $defaultClientId) === $client->id) data-name="{{ $client->business_name ?: $client->name }}">
                             {{ $client->name }} — {{ $client->business_name }}
                         </option>
                     @endforeach
@@ -57,7 +61,7 @@
                 <select class="form-control" id="quarter" name="quarter">
                     <option value="">—</option>
                     @foreach (App\Models\Billing::QUARTERS as $q => $label)
-                        <option value="{{ $q }}" @selected((int) old('quarter', $billing->quarter) === $q)>{{ $label }} Quarter</option>
+                        <option value="{{ $q }}" @selected((int) old('quarter', $defaultQuarter) === $q)>{{ $label }} Quarter</option>
                     @endforeach
                 </select>
                 @error('quarter')<div class="form-error">{{ $message }}</div>@enderror
@@ -445,9 +449,13 @@
         clientSelect.addEventListener('change', loadApplicableForms);
     }
 
-    // Load on page load for edit mode; on change for create mode
+    // Load on page load for edit mode; for create when a client is pre-selected
     @if ($isEdit)
         if (clientSelect.value) {
+            loadApplicableForms();
+        }
+    @else
+        if (clientSelect && clientSelect.value) {
             loadApplicableForms();
         }
     @endif

@@ -23,7 +23,7 @@
                 Print selected (<span id="printBatchCount">0</span>)
             </button>
             <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-outline">Export CSV</a>
-            <a href="{{ route('admin.billing.create') }}" class="btn btn-primary">New billing</a>
+            <a href="{{ route('admin.billing.create', ['client' => $client->id]) }}" class="btn btn-primary">New billing</a>
         </div>
     </div>
 
@@ -90,7 +90,14 @@
                                     <td data-col="Due date">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</td>
                                     <td data-col="Date paid">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</td>
                                     <td class="actions-cell" data-col="Actions">
-                                        <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>
+                                        @if ($billing->isDraft())
+                                            <form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-primary btn-sm">Finalize</button>
+                                            </form>
+                                        @else
+                                            <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>
+                                        @endif
                                         <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a>
                                         <a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a>
                                     </td>
@@ -104,10 +111,10 @@
                                 <div class="cv-row"><span class="cv-label">Print</span><span class="cv-value"><input type="checkbox" class="batch-print-check" value="{{ $billing->id }}" aria-label="Select {{ $billing->period_label }} for printing"></span></div>
                                 <div class="cv-row"><span class="cv-label">Quarter</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
                                 <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $billing->statusLabel() }}</span></div>
+                                <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
                                 <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</span></div>
                                 <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a> <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> <a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a></span></div>
+                                <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> <a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a></span></div>
                             </div>
                         @empty
                             <p class="cv-card" style="text-align:center;color:var(--text-muted);">No billing statements for this client yet.</p>

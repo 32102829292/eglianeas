@@ -46,8 +46,8 @@ class BillingController extends Controller
             ->map(fn (User $client): array => [
                 'user' => $client,
                 'billings' => $client->billings,
-                'billing_count' => $client->billings->count(),
-                'total_billed' => $client->billings->sum('total'),
+                'billing_count' => $client->billings->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
+                'total_billed' => $client->billings->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
                 'total_paid' => $client->billings->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => $client->billings->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
                 'status' => $this->clientStatus($client->billings),
@@ -59,7 +59,7 @@ class BillingController extends Controller
             'entries' => $clients,
             'q' => $q,
             'stats' => [
-                'billed' => (float) Billing::query()->sum('total'),
+                'billed' => (float) Billing::query()->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
                 'collected' => (float) Billing::query()->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => (float) Billing::query()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
                 'overdue' => Billing::query()->where('status', Billing::STATUS_OVERDUE)->count(),
@@ -84,10 +84,10 @@ class BillingController extends Controller
             'client' => $client,
             'billingsByYear' => $billings,
             'stats' => [
-                'billed' => $client->billings()->sum('total'),
+                'billed' => $client->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
                 'paid' => $client->billings()->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => $client->billings()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
-                'count' => $client->billings()->count(),
+                'count' => $client->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
             ],
         ]);
     }
@@ -149,6 +149,7 @@ class BillingController extends Controller
 
         $billings = $client->billings()
             ->with('lineItems')
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->orderByDesc('year')
             ->orderByDesc('quarter')
             ->orderByDesc('id')
@@ -173,12 +174,36 @@ class BillingController extends Controller
         return $this->streamCsv($rows, Str::slug($client->business_name ?: $client->name).'-billing-'.now()->format('Y-m-d').'.csv');
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        // Bug 1: pre-select a client when arriving from that client's billing page.
+        $selectedClientId = null;
+        $requestedClient = $request->query('client') ?: $request->query('client_id');
+        if ($requestedClient) {
+            $selectedClientId = (int) $requestedClient;
+            $exists = User::where('id', $selectedClientId)->where('role', User::ROLE_CLIENT)->exists();
+            if (! $exists) {
+                $selectedClientId = null;
+            }
+        }
+
+        // Bug 2: default quarter for the selected client's current year
+        // (Q1 if none, otherwise the first unbilled quarter in sequence).
+        $defaultQuarter = null;
+        if ($selectedClientId) {
+            $year = (int) now()->format('Y');
+            $quarter = Billing::nextQuarterFor($selectedClientId, $year);
+            if ($quarter > 0) {
+                $defaultQuarter = $quarter;
+            }
+        }
+
         return view('admin.billing.create', [
             'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
             'feeRates' => FeeRate::active()->ordered()->get(),
             'billing' => new Billing,
+            'selectedClientId' => $selectedClientId,
+            'defaultQuarter' => $defaultQuarter,
         ]);
     }
 
@@ -264,10 +289,27 @@ class BillingController extends Controller
         return redirect()->route('admin.billing.show', $billing->client)->with('status', 'Billing record updated.');
     }
 
+    public function finalize(Billing $billing): RedirectResponse
+    {
+        abort_unless($billing->isDraft(), 422, 'Only draft billings can be finalized.');
+
+        $billing->status = Billing::STATUS_UNPAID;
+        $billing->updated_by = auth()->id();
+        $billing->save();
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.billing_finalized',
+            "Finalized the {$billing->periodTitle()} draft for {$billing->client?->name}."
+        );
+
+        return back()->with('status', 'Draft billing finalized and made active.');
+    }
+
     public function pay(Request $request, Billing $billing): RedirectResponse
     {
         $validated = $request->validate([
-            'status' => ['required', 'string', 'in:'.implode(',', array_keys(Billing::STATUSES))],
+            'status' => ['required', 'string', 'in:'.implode(',', Billing::ACTIVE_STATUSES)],
             'paid_at' => ['nullable', 'date'],
         ]);
 
@@ -293,6 +335,17 @@ class BillingController extends Controller
             }
 
             Notification::resolveGroup($billing->client_id, "billing_due:{$billing->id}");
+
+            // Auto-prepare the NEXT quarter as a draft (template from this paid
+            // billing) so the admin can review and finalize it later. No draft
+            // is created at Q4 (next cycle starts fresh the following year).
+            if ($draft = Billing::makeNextDraft($billing)) {
+                ActivityLog::record(
+                    auth()->user(),
+                    'admin.billing_draft_created',
+                    "Prepared a draft {$draft->periodTitle()} for {$draft->client?->name} based on the paid {$billing->periodTitle()}."
+                );
+            }
         }
 
         ActivityLog::record(
@@ -949,6 +1002,7 @@ class BillingController extends Controller
         return Billing::with('lineItems')
             ->with('client.birFormStatuses')
             ->where('year', $year)
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->when($quarter, fn ($query) => $query->where('quarter', $quarter))
             ->orderBy('quarter')
             ->get()

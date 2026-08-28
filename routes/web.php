@@ -169,6 +169,7 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::get('/billings/{billing}/edit', [AdminBillingController::class, 'edit'])->name('billing.edit');
     Route::put('/billings/{billing}', [AdminBillingController::class, 'update'])->name('billing.update');
     Route::post('/billings/{billing}/pay', [AdminBillingController::class, 'pay'])->name('billing.pay');
+    Route::post('/billings/{billing}/finalize', [AdminBillingController::class, 'finalize'])->name('billing.finalize');
     Route::post('/billings/{billing}/send-email', [AdminBillingController::class, 'sendEmail'])->name('billing.sendEmail');
     Route::get('/billings/{billing}/receipt', [AdminBillingController::class, 'receipt'])->name('billing.receipt');
     Route::get('/billings/{billing}/csv', [AdminBillingController::class, 'csv'])->name('billing.csv');

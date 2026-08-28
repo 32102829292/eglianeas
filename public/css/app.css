@@ -740,6 +740,9 @@ textarea.form-control { resize: vertical; min-height: 80px; }
 .badge-neutral, .badge-client {
   background: #EEF1F5; color: #4A5568; border: 1px solid rgba(74, 85, 104, .14);
 }
+.badge-draft {
+  background: #E9EAF1; color: #5A5F7A; border: 1px dashed rgba(90, 95, 122, .45);
+}
 .badge-navy, .badge-admin {
   background: var(--navy); color: #fff;
 }

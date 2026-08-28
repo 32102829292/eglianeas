@@ -408,8 +408,6 @@
             var solid = p ? p[1] : 'rgba(0,0,0,0.85)';
             var ctx = context && context.chart && context.chart.ctx;
             var area = ctx && context.chart.chartArea;
-            // TEMP DIAGNOSTIC — remove after debugging the black-donut issue
-            console.log('[donut-gradient] idx=', context.dataIndex, 'ctx?=', !!ctx, 'height=', area ? (area.bottom - area.top) : null, 'solid=', solid);
             // If there's no real drawable context or the chart area is not ready
             // (legend/tooltip/hit-test phases), return the solid color rather than
             // build a gradient (which could throw or be 0-height and collapse to

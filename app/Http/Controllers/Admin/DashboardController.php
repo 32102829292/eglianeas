@@ -28,11 +28,13 @@ class DashboardController extends Controller
             ->get();
 
         $billingStatusCounts = Billing::query()
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->selectRaw('status, count(*) as count, sum(total) as total')
             ->groupBy('status')
             ->pluck('count', 'status');
 
         $billingStatusTotals = Billing::query()
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->selectRaw('status, count(*) as count, sum(total) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -68,6 +70,7 @@ class DashboardController extends Controller
             ->values();
 
         $categoryTotals = BillingLineItem::query()
+            ->whereHas('billing', fn ($query) => $query->whereIn('status', Billing::ACTIVE_STATUSES))
             ->selectRaw('category, sum(amount) as total')
             ->groupBy('category')
             ->pluck('total', 'category')

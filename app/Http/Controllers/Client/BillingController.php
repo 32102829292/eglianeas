@@ -16,6 +16,7 @@ class BillingController extends Controller
         $user = auth()->user();
 
         $billings = $user->billings()
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->with('lineItems')
             ->latest('year')
             ->latest('quarter')
@@ -23,7 +24,7 @@ class BillingController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $allBillings = $user->billings()->get();
+        $allBillings = $user->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->get();
         $summary = $allBillings->reduce(
             function (array $carry, Billing $billing): array {
                 $carry['billed'] += (float) $billing->total;
@@ -47,6 +48,8 @@ class BillingController extends Controller
     public function show(Billing $billing): View
     {
         abort_unless($billing->client_id === auth()->id(), 403);
+        // Drafts are admin-only; reject direct access to one.
+        abort_if($billing->isDraft(), 404);
 
         $billing->load('lineItems');
 

@@ -261,7 +261,7 @@ class ClientController extends Controller
                 ->orderBy('form_type')
                 ->pluck('form_type'),
             'billingStats' => [
-                'count' => $client->billings()->count(),
+                'count' => $client->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
                 'paid' => $client->billings()->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => $client->billings()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
             ],
