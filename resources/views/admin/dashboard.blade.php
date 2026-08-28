@@ -402,6 +402,8 @@
                 var solid = p[1];
                 var ctx = context && context.chart && context.chart.ctx;
                 var area = ctx && context.chart.chartArea;
+                // TEMP DIAGNOSTIC — remove after debugging the black-donut issue
+                console.log('[donut-gradient] ctx=', ctx, 'area=', area, 'height=', area ? (area.bottom - area.top) : null, 'color=', solid);
                 // If there's no real drawable context or the chart area is not
                 // ready (legend/tooltip/hit-test phases), Chart.js may be sampling
                 // this callback. A gradient built then can throw or be 0-height,
