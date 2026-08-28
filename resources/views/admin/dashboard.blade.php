@@ -394,30 +394,34 @@
 
     // Returns a Chart.js per-datapoint backgroundColor callback that fills the
     // segment with a soft vertical (top -> bottom) gradient from a light tint
-    // to the full segment color. lightCoords/fullCoords are parallel arrays of
-    // [light, full] pairs, one entry per data point.
+    // to the full segment color.
+    //
+    // IMPORTANT: must be a SINGLE function, not an array of functions. Chart.js
+    // resolves per-datapoint scriptable colors by invoking one function with a
+    // context that carries context.dataIndex. An array-of-functions backgroundColor
+    // is NOT invoked by Chart.js (it's treated as opaque), which is what caused the
+    // black/never-logging donuts. Dispatch on context.dataIndex instead.
     var gradient = function (pairs) {
-        return pairs.map(function (p) {
-            return function (context) {
-                var solid = p[1];
-                var ctx = context && context.chart && context.chart.ctx;
-                var area = ctx && context.chart.chartArea;
-                // TEMP DIAGNOSTIC — remove after debugging the black-donut issue
-                console.log('[donut-gradient] ctx=', ctx, 'area=', area, 'height=', area ? (area.bottom - area.top) : null, 'color=', solid);
-                // If there's no real drawable context or the chart area is not
-                // ready (legend/tooltip/hit-test phases), Chart.js may be sampling
-                // this callback. A gradient built then can throw or be 0-height,
-                // collapsing the whole dataset to the black default. Return the
-                // solid (full) color in that case.
-                if (!ctx || !area || (area.bottom - area.top) < 1) {
-                    return solid;
-                }
-                var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-                g.addColorStop(0, p[0]);
-                g.addColorStop(1, p[1]);
-                return g;
-            };
-        });
+        return function (context) {
+            var idx = context.dataIndex || 0;
+            var p = pairs[idx >= 0 && idx < pairs.length ? idx : 0];
+            var solid = p ? p[1] : 'rgba(0,0,0,0.85)';
+            var ctx = context && context.chart && context.chart.ctx;
+            var area = ctx && context.chart.chartArea;
+            // TEMP DIAGNOSTIC — remove after debugging the black-donut issue
+            console.log('[donut-gradient] idx=', context.dataIndex, 'ctx?=', !!ctx, 'height=', area ? (area.bottom - area.top) : null, 'solid=', solid);
+            // If there's no real drawable context or the chart area is not ready
+            // (legend/tooltip/hit-test phases), return the solid color rather than
+            // build a gradient (which could throw or be 0-height and collapse to
+            // the black default).
+            if (!ctx || !area || (area.bottom - area.top) < 1) {
+                return solid;
+            }
+            var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
+            g.addColorStop(0, p[0]);
+            g.addColorStop(1, p[1]);
+            return g;
+        };
     };
 
     var legendMobile = isMobile
