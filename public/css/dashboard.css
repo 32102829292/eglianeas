@@ -924,6 +924,11 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* ---------- Chart.js containers ---------- */
 .chart-canvas-wrap { position: relative; display: block; padding: 8px 0; }
+/* Chart.js ring donuts only — same floating depth as the SVG donut (.donut-chart svg) */
+#billingStatusChart,
+#clientStatusChart {
+  filter: drop-shadow(0 4px 10px rgba(27, 27, 58, 0.16));
+}
 .chart-canvas-wrap canvas { max-height: 260px; }
 .chart-empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 32px 16px; }
 @media (max-width: 640px) {
