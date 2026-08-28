@@ -820,9 +820,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 }
 
 /* ---------- Responsive ---------- */
-@media (min-width: 900px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } .grid-2 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: 1fr 1fr 1fr; } .db-mini-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 900px) { .stat-grid { grid-template-columns: repeat(4, 1fr); } .grid-2 { grid-template-columns: 1fr 1fr; } .grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
 
-@media (max-width: 640px) { .db-mini-grid { grid-template-columns: 1fr; } }
 
 @media (max-width: 900px) {
   /* REGRESSION WARNING: align-items must be 'stretch' in column layout.
@@ -1038,7 +1037,24 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 
 /* --- Budget-style denser grids --- */
 .grid-3 { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
-.db-mini-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* Bootstrap 5 cards on the dashboard — keep Bootstrap's spacing/grid, but
+   restyle the card surface with the app's glassmorphism tokens so the two
+   systems don't clash (this file loads after Bootstrap, so these win). */
+.card.glass-panel {
+  --bs-card-border-width: 0;
+  --bs-card-border-radius: var(--glass-radius);
+  --bs-card-border-color: transparent;
+  --bs-card-spacer-y: 1.1rem;
+  --bs-card-spacer-x: 1.25rem;
+  border: 0;
+  background: transparent;
+}
+.card.glass-panel .card-title {
+  font-family: var(--font-head);
+  font-weight: 700;
+  color: var(--navy);
+}
 
 /* Top list (highest outstanding clients) */
 .top-list { display: flex; flex-direction: column; }
@@ -1296,19 +1312,10 @@ input[aria-invalid="true"] { border-color: var(--danger); }
   fill: var(--navy);
 }
 .donut-chart-legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
   font-size: 13px;
   color: var(--text);
 }
-.donut-chart-legend li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.donut-chart-legend li:last-child { margin-bottom: 0; }
+.donut-chart-legend li { line-height: 1.2; }
 .donut-chart-dot {
   width: 10px;
   height: 10px;

@@ -102,43 +102,55 @@
         </div>
     </div>
 
-    <div class="db-mini-grid">
-        <div class="dashboard-chart-card">
-            <h3>Billing Status Breakdown</h3>
-            <x-donut-chart :segments="[
-                ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)'],
-                ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)'],
-                ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
-            ]" />
-        </div>
-
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Billing status</h3>
-                <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
-            </div>
-            <div class="chart-canvas-wrap">
-                @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
-                @if ($bsTotal > 0)
-                    <canvas id="billingStatusChart" height="200"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
+    <div class="row g-3 mb-3">
+        <div class="col-lg-4">
+            <div class="card glass-panel h-100">
+                <div class="card-body d-flex flex-column align-items-center text-center gap-3">
+                    <h3 class="card-title">Billing Status Breakdown</h3>
+                    <x-donut-chart :segments="[
+                        ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)'],
+                        ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)'],
+                        ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
+                    ]" />
+                </div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Client account status</h3>
-                <a href="{{ route('admin.clients.index') }}">View clients</a>
+        <div class="col-lg-4">
+            <div class="card glass-panel h-100">
+                <div class="card-body d-flex flex-column gap-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h3 class="card-title mb-0">Billing status</h3>
+                        <a href="{{ route('admin.billing.index') }}" class="text-decoration-none">Manage billing statements</a>
+                    </div>
+                    <div class="chart-canvas-wrap flex-grow-1">
+                        @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
+                        @if ($bsTotal > 0)
+                            <canvas id="billingStatusChart" height="220"></canvas>
+                        @else
+                            <p class="chart-empty">Not enough data yet.</p>
+                        @endif
+                    </div>
+                </div>
             </div>
-            <div class="chart-canvas-wrap">
-                @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
-                @if ($csTotal > 0)
-                    <canvas id="clientStatusChart" height="200"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card glass-panel h-100">
+                <div class="card-body d-flex flex-column gap-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <h3 class="card-title mb-0">Client account status</h3>
+                        <a href="{{ route('admin.clients.index') }}" class="text-decoration-none">View clients</a>
+                    </div>
+                    <div class="chart-canvas-wrap flex-grow-1">
+                        @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
+                        @if ($csTotal > 0)
+                            <canvas id="clientStatusChart" height="220"></canvas>
+                        @else
+                            <p class="chart-empty">Not enough data yet.</p>
+                        @endif
+                    </div>
+                </div>
             </div>
         </div>
     </div>

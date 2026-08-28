@@ -30,10 +30,10 @@
             </g>
             <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" class="donut-chart-total">{{ $total }}</text>
         </svg>
-        <ul class="donut-chart-legend">
+        <ul class="donut-chart-legend list-unstyled d-flex flex-wrap gap-3 justify-content-center mb-0">
             @foreach($segments as $seg)
                 @if((int) $seg['value'] <= 0) @continue @endif
-                <li><span class="donut-chart-dot" style="background:{{ $seg['color'] }};"></span>{{ $seg['label'] }} — {{ $seg['value'] }}</li>
+                <li class="d-flex align-items-center gap-1 m-0"><span class="donut-chart-dot" style="background:{{ $seg['color'] }};"></span>{{ $seg['label'] }} — {{ $seg['value'] }}</li>
             @endforeach
         </ul>
     @else
