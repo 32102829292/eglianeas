@@ -671,7 +671,7 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .form-file-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- Back link ---------- */
-.back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--navy); text-decoration: none; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--navy); text-decoration: none; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; margin-bottom: 18px; }
 .back-link:hover { color: var(--sky-deep); border-color: var(--sky); }
 .back-link svg { width: 15px; height: 15px; flex-shrink: 0; }
 
