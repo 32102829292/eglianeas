@@ -413,7 +413,7 @@
         return;
       }
       if (!E.webauthn.supported()) {
-        handleAuthError({ data: { error: 'Face / biometric login is not supported on this device or browser. Please use your PIN instead.' } }, 'faceError');
+        handleAuthError({ data: { error: 'Face ID isn\'t available on this device or browser. Please use your PIN, or set up Face ID on a device that supports it from Security Settings.' } }, 'faceError');
         document.querySelector('.auth-tab[data-tab="pin"]')?.click();
         return;
       }
@@ -443,7 +443,7 @@
           faceBtn.disabled = false;
           faceBtn.textContent = 'Continue with face';
           if (err && err.name === 'NotAllowedError') {
-            handleAuthError({ data: { error: 'Biometric prompt was dismissed. Try again or use your PIN.' } }, 'faceError');
+            handleAuthError({ data: { error: 'Face ID prompt was cancelled. If Face ID isn\'t set up on this device, log in with your PIN and set it up from Security Settings.' } }, 'faceError');
           } else {
             handleAuthError(err, 'faceError');
           }

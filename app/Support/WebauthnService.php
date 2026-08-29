@@ -82,8 +82,8 @@ class WebauthnService
             ),
             challenge: $challenge,
             pubKeyCredParams: [
-                PublicKeyCredentialParameters::createPk(ES256::algorithmIdentifier()),
-                PublicKeyCredentialParameters::createPk(RS256::algorithmIdentifier()),
+                PublicKeyCredentialParameters::createPk(ES256::identifier()),
+                PublicKeyCredentialParameters::createPk(RS256::identifier()),
             ],
             authenticatorSelection: new AuthenticatorSelectionCriteria(
                 authenticatorAttachment: AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_PLATFORM,
@@ -266,6 +266,31 @@ class WebauthnService
         return $this->recordFromArray($credential->record);
     }
 
+    public function deviceNameFromUserAgent(?string $userAgent): string
+    {
+        $userAgent = $userAgent ?? '';
+
+        $os = 'Device';
+        if (preg_match('/iPhone|iPad/i', $userAgent)) {
+            $os = 'iPhone';
+        } elseif (preg_match('/Android/i', $userAgent)) {
+            $os = 'Android';
+        } elseif (preg_match('/Mac OS X/i', $userAgent)) {
+            $os = 'Mac';
+        } elseif (preg_match('/Windows/i', $userAgent)) {
+            $os = 'Windows PC';
+        } elseif (preg_match('/Linux/i', $userAgent)) {
+            $os = 'Linux';
+        }
+
+        $capability = 'Biometric login';
+        if (preg_match('/Face ID|iPhone/i', $userAgent)) {
+            $capability = 'Face ID';
+        }
+
+        return $os.' — '.$capability;
+    }
+
     private function descriptorForBrowser(WebauthnCredential $credential): array
     {
         $record = $this->recordFromCredential($credential);
@@ -311,8 +336,8 @@ class WebauthnService
                 user: PublicKeyCredentialUserEntity::create('', '', ''),
                 challenge: $challenge,
                 pubKeyCredParams: [
-                    PublicKeyCredentialParameters::createPk(ES256::algorithmIdentifier()),
-                    PublicKeyCredentialParameters::createPk(RS256::algorithmIdentifier()),
+                    PublicKeyCredentialParameters::createPk(ES256::identifier()),
+                    PublicKeyCredentialParameters::createPk(RS256::identifier()),
                 ],
                 authenticatorSelection: new AuthenticatorSelectionCriteria(
                     authenticatorAttachment: AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_PLATFORM,

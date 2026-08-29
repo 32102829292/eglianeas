@@ -23,7 +23,7 @@ class WebauthnLoginController extends Controller
         $user = User::query()->where('email', $request->email)->first();
 
         if ($user === null || ! $user->hasWebauthnCredentials()) {
-            return response()->json(['error' => 'No biometric credentials found for this account.'], 422);
+            return response()->json(['error' => 'Face ID isn\'t set up yet. Log in with your PIN, then set up Face ID from Security Settings.'], 422);
         }
 
         $options = $webauthn->requestOptionsForBrowser($user);
@@ -55,7 +55,7 @@ class WebauthnLoginController extends Controller
         });
 
         if ($credential === null) {
-            return response()->json(['error' => 'Credential not recognized.'], 422);
+            return response()->json(['error' => 'Face ID not recognized on this device. Try your PIN instead, or set up Face ID from Security Settings on this device.'], 422);
         }
 
         try {

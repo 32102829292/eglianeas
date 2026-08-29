@@ -62,7 +62,7 @@ class WebauthnController extends Controller
             'user_id' => $user->id,
             'credential_id' => $credentialId,
             'record' => $webauthn->recordToArray($record),
-            'name' => $request->input('name', 'Face / Biometric login'),
+            'name' => $request->input('name', $webauthn->deviceNameFromUserAgent($request->header('User-Agent'))),
         ]);
 
         ActivityLog::record($user, 'auth.webauthn_registered', 'Registered a biometric/face login credential.');
