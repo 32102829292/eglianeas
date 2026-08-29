@@ -14,7 +14,7 @@ class EnsureAdminConfidentialityAcknowledged
     {
         $user = $request->user();
 
-        if ($user && $user->isAdmin()) {
+        if ($user && $user->isStaffOrAdmin()) {
             if (
                 $user->confidentiality_ack_version !== self::CURRENT_VERSION
                 || $user->confidentiality_acknowledged_at === null

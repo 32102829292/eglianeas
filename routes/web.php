@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\CollectionController as AdminCollectionController
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Auth\SecurityController;
 use App\Http\Controllers\Auth\WebauthnController;
@@ -88,7 +89,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/documents/{document}/view', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
         $user = $request->user();
-        abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
+        abort_unless($document->client_id === $user->id || $user->isStaffOrAdmin(), 403);
         abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
 
         \App\Models\CorViewLog::create([
@@ -106,7 +107,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/documents/{document}/file', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
         $user = $request->user();
-        abort_unless($document->client_id === $user->id || $user->isAdmin(), 403);
+        abort_unless($document->client_id === $user->id || $user->isStaffOrAdmin(), 403);
         abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
 
         $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
@@ -118,7 +119,7 @@ Route::middleware('auth')->group(function () {
     })->name('documents.file');
 });
 
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:admin,staff'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/confidentiality/acknowledge', function () {
         return view('admin.confidentiality-ack');
     })->name('confidentiality.acknowledge');
@@ -135,7 +136,7 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     })->name('confidentiality.acknowledge.store');
 });
 
-Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
 
     Route::get('/profile', [AdminProfileController::class, 'index'])->name('profile.index');
@@ -154,6 +155,9 @@ Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->prefix('admi
     Route::delete('/about/certificate/{certificate}', [AboutController::class, 'destroyCertificate'])->name('about.certificate.destroy');
 
     Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
+
+    Route::get('/users', [UserController::class, 'index'])->name('users.index');
+    Route::post('/users', [UserController::class, 'store'])->name('users.store');
 
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
     Route::get('/billings/print-batch', [AdminBillingController::class, 'printBatch'])->name('billing.printBatch');

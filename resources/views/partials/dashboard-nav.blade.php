@@ -1,4 +1,4 @@
-@if ($user->isAdmin())
+@if ($user->isAdmin() || $user->isStaff())
     <div class="dash-nav-head">Navigation</div>
     <a href="{{ route('admin.dashboard') }}" class="{{ $active('admin.dashboard') ?: ($routeName === 'dashboard' ? 'active' : '') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
@@ -69,6 +69,10 @@
     <a href="{{ route('admin.activity-logs') }}" class="{{ $active('admin.activity') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         Activity Logs
+    </a>
+    <a href="{{ route('admin.users.index') }}" class="{{ $active('admin.users') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
+        Team Accounts
     </a>
     <a href="{{ route('admin.about') }}" class="{{ $active('admin.about') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4m0-4h.01"/></svg>

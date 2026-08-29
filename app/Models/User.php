@@ -17,9 +17,10 @@ class User extends Authenticatable
     use HasFactory, Notifiable, HasPushSubscriptions, SoftDeletes;
 
     public const ROLE_ADMIN = 'admin';
+    public const ROLE_STAFF = 'staff';
     public const ROLE_CLIENT = 'client';
 
-    public const ROLES = [self::ROLE_ADMIN, self::ROLE_CLIENT];
+    public const ROLES = [self::ROLE_ADMIN, self::ROLE_STAFF, self::ROLE_CLIENT];
 
     /**
      * @var list<string>
@@ -88,6 +89,16 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    public function isStaff(): bool
+    {
+        return $this->role === self::ROLE_STAFF;
+    }
+
+    public function isStaffOrAdmin(): bool
+    {
+        return $this->isAdmin() || $this->isStaff();
+    }
+
     public function isClient(): bool
     {
         return $this->role === self::ROLE_CLIENT;
@@ -111,7 +122,7 @@ class User extends Authenticatable
     public function getDashboardRoute(): string
     {
         return match ($this->role) {
-            self::ROLE_ADMIN => route('admin.dashboard'),
+            self::ROLE_ADMIN, self::ROLE_STAFF => route('admin.dashboard'),
             default => route('client.dashboard'),
         };
     }

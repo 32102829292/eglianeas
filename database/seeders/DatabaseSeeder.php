@@ -40,6 +40,19 @@ class DatabaseSeeder extends Seeder
         $admin->pin_set_at = now();
         $admin->save();
 
+        $staff = User::firstOrCreate(
+            ['email' => 'staff@eglianeas.com'],
+            [
+                'name' => 'Egliane Staff',
+                'role' => User::ROLE_STAFF,
+                'password' => Hash::make(Str::random(64)),
+                'email_verified_at' => now(),
+            ]
+        );
+        $staff->pin = Hash::make($pin);
+        $staff->pin_set_at = now();
+        $staff->save();
+
         $client = User::firstOrCreate(
             ['email' => 'client@eglianeas.com'],
             [

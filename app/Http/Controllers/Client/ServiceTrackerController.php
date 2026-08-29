@@ -69,10 +69,10 @@ class ServiceTrackerController extends Controller
             'reviewed' => false,
         ]);
 
-        $admins = User::where('role', User::ROLE_ADMIN)->get();
-        foreach ($admins as $admin) {
+        $staff = User::whereIn('role', [User::ROLE_ADMIN, User::ROLE_STAFF])->get();
+        foreach ($staff as $recipient) {
             Notification::create([
-                'user_id' => $admin->id,
+                'user_id' => $recipient->id,
                 'title' => 'New Client Concern',
                 'body' => auth()->user()->name . ' submitted a concern: ' . Str::limit($concern->description_of_issue, 80),
                 'type' => 'client_concern',
@@ -81,7 +81,7 @@ class ServiceTrackerController extends Controller
                 'reminder_count' => 1,
             ]);
 
-            PushNotificationService::send($admin, 'New Client Concern', auth()->user()->name . ' submitted a concern.', route('admin.service-tracker.concerns'));
+            PushNotificationService::send($recipient, 'New Client Concern', auth()->user()->name . ' submitted a concern.', route('admin.service-tracker.concerns'));
         }
 
         return back()->with('status', 'Your concern has been submitted. Our team will review it shortly.');
