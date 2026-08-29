@@ -316,7 +316,9 @@
     <div class="card">
         <div class="card-head">
             <h3 class="card-title">Recent activity</h3>
-            <a href="{{ route('admin.activity-logs') }}">View all</a>
+            @if (auth()->user()->isAdmin())
+                <a href="{{ route('admin.activity-logs') }}">View all</a>
+            @endif
         </div>
         <div class="table-wrap">
             <table class="table">

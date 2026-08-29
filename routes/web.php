@@ -154,7 +154,9 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::post('/about/certificate', [AboutController::class, 'uploadCertificate'])->name('about.certificate.upload');
     Route::delete('/about/certificate/{certificate}', [AboutController::class, 'destroyCertificate'])->name('about.certificate.destroy');
 
-    Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
+    });
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');

@@ -255,7 +255,7 @@
             <div class="card-head"><h2 class="card-title">Internal remarks</h2></div>
             <div class="form-grid two">
                 <div class="form-group col-span-2">
-                    <label class="form-label" for="remarks">Remarks <span class="opt-tag">(admin only)</span></label>
+                    <label class="form-label" for="remarks">Remarks</label>
                     <textarea class="form-control" id="remarks" name="remarks" rows="3" maxlength="1000" placeholder="Internal notes about this client.">{{ old('remarks', $profile->remarks) }}</textarea>
                     @error('remarks')<div class="form-error">{{ $message }}</div>@enderror
                 </div>

@@ -48,7 +48,7 @@ class AnnouncementController extends Controller
 
         ActivityLog::record(auth()->user(), 'settings.announcement_posted', 'Posted a new announcement.');
 
-        $title = $validated['title'] ?: 'New Announcement';
+        $title = ($validated['title'] ?? null) ?: 'New Announcement';
         PushNotificationService::sendToClients($title, $validated['body'], route('home'));
 
         return back()->with('status', 'Announcement posted.');

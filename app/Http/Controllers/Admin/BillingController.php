@@ -308,6 +308,8 @@ class BillingController extends Controller
 
     public function pay(Request $request, Billing $billing): RedirectResponse
     {
+        abort_if(auth()->user()->isStaff(), 403, 'Staff cannot mark a billing as paid.');
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:'.implode(',', Billing::ACTIVE_STATUSES)],
             'paid_at' => ['nullable', 'date'],
@@ -687,7 +689,7 @@ class BillingController extends Controller
 
         $feeRate = FeeRate::query()->create([
             'amount' => $validated['amount'],
-            'label' => $validated['label'] ?: null,
+            'label' => ($validated['label'] ?? null) ?: null,
             'category' => $validated['category'],
             'sort_order' => (int) FeeRate::query()->max('sort_order') + 1,
         ]);

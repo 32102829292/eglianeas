@@ -95,12 +95,14 @@
                                     @csrf
                                     <button type="submit" class="btn btn-link btn-sm">Send reminder</button>
                                 </form>
-                                <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">
-                                    @csrf
-                                    <input type="hidden" name="status" value="paid">
-                                    <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
-                                    <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
-                                </form>
+                                @if (auth()->user()->isAdmin())
+                                    <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">
+                                        @csrf
+                                        <input type="hidden" name="status" value="paid">
+                                        <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
+                                        <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -116,7 +118,7 @@
                         <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $billing->statusLabel() }}</span></div>
                         <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-link btn-sm">Send reminder</button></form> <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">@csrf <input type="hidden" name="status" value="paid"> <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"> <button type="submit" class="btn btn-link btn-sm">Mark paid</button></form></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-link btn-sm">Send reminder</button></form> @if (auth()->user()->isAdmin()) <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">@csrf <input type="hidden" name="status" value="paid"> <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"> <button type="submit" class="btn btn-link btn-sm">Mark paid</button></form> @endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">Nothing to collect right now.</p>

@@ -127,6 +127,8 @@ class OtherServiceController extends Controller
 
     public function pay(Request $request, OtherService $otherService): RedirectResponse
     {
+        abort_if(auth()->user()->isStaff(), 403, 'Staff cannot mark a service as paid.');
+
         $validated = $request->validate([
             'status' => ['required', 'string', 'in:'.implode(',', array_keys(OtherService::STATUSES))],
             'paid_at' => ['nullable', 'date'],

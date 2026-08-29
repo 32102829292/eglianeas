@@ -66,10 +66,12 @@
     </a>
 
     <div class="dash-nav-head">System</div>
-    <a href="{{ route('admin.activity-logs') }}" class="{{ $active('admin.activity') }}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        Activity Logs
-    </a>
+    @if ($user->isAdmin())
+        <a href="{{ route('admin.activity-logs') }}" class="{{ $active('admin.activity') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Activity Logs
+        </a>
+    @endif
     <a href="{{ route('admin.users.index') }}" class="{{ $active('admin.users') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
         Team Accounts

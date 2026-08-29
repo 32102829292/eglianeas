@@ -13,7 +13,7 @@ class ImpersonateController extends Controller
     public function start(User $client): RedirectResponse
     {
         abort_unless(auth()->check(), 401);
-        abort_unless(auth()->user()->isAdmin(), 403);
+        abort_unless(auth()->user()->isStaffOrAdmin(), 403);
         abort_if($client->isAdmin(), 403, 'Cannot impersonate an admin account.');
 
         if (session('impersonator_id')) {

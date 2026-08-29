@@ -91,12 +91,14 @@
                             </td>
                             <td data-col="Actions" class="text-end">
                                 <a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a>
-                                <form method="POST" action="{{ route('admin.other-services.pay', $service) }}" class="d-inline-flex align-items-center gap-1">
-                                    @csrf
-                                    <input type="hidden" name="status" value="paid">
-                                    <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
-                                    <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
-                                </form>
+                                @if (auth()->user()->isAdmin())
+                                    <form method="POST" action="{{ route('admin.other-services.pay', $service) }}" class="d-inline-flex align-items-center gap-1">
+                                        @csrf
+                                        <input type="hidden" name="status" value="paid">
+                                        <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
+                                        <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -113,7 +115,7 @@
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $service->status)<span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @else badge-neutral @endif">{{ $service->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $service->due_date?->format('M j, Y') ?? '—' }}@if ($service->status === 'overdue')<br><small class="text-danger">{{ $service->due_date?->diffForHumans() }}</small>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.other-services.pay', $service) }}" class="d-inline-flex align-items-center gap-1">@csrf<input type="hidden" name="status" value="paid"><input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"><button type="submit" class="btn btn-link btn-sm">Mark paid</button></form></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> @if (auth()->user()->isAdmin())<form method="POST" action="{{ route('admin.other-services.pay', $service) }}" class="d-inline-flex align-items-center gap-1">@csrf<input type="hidden" name="status" value="paid"><input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"><button type="submit" class="btn btn-link btn-sm">Mark paid</button></form>@endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">Nothing to collect right now.</p>
