@@ -34,7 +34,9 @@
                     </button>
                     <div class="bell-dropdown" id="bellDropdown">
                         <div class="bell-head">
-                            <span>Notifications</span>
+                            <span>Notifications
+                                @if ($unreadCount > 0)<span class="bell-head-count">{{ min($unreadCount, 99) }}</span>@endif
+                            </span>
                             @if ($unreadCount > 0)
                                 <form method="POST" action="{{ route('notifications.read-all') }}" class="inline-form">
                                     @csrf
