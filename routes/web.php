@@ -160,6 +160,9 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
+    Route::middleware('role:admin')->group(function () {
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
 
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
     Route::get('/billings/print-batch', [AdminBillingController::class, 'printBatch'])->name('billing.printBatch');

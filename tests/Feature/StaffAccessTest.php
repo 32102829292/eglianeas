@@ -210,6 +210,45 @@ class StaffAccessTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_delete_team_account(): void
+    {
+        $admin = $this->admin();
+        $target = $this->internal(User::ROLE_STAFF, 'To Be Deleted');
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $target))
+            ->assertRedirect(route('admin.users.index'));
+
+        $this->assertSoftDeleted('users', ['id' => $target->id]);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'admin.user_deleted',
+            'user_id' => $admin->id,
+        ]);
+    }
+
+    public function test_admin_cannot_delete_own_account(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->delete(route('admin.users.destroy', $admin))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    }
+
+    public function test_staff_cannot_delete_team_accounts(): void
+    {
+        $staff = $this->staff();
+        $target = $this->internal(User::ROLE_ADMIN, 'Protected Admin');
+
+        $this->actingAs($staff)
+            ->delete(route('admin.users.destroy', $target))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('users', ['id' => $target->id]);
+    }
+
     public function test_staff_can_access_operational_areas(): void
     {
         $client = $this->client();

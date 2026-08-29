@@ -57,4 +57,21 @@ class UserController extends Controller
 
         return redirect()->route('admin.users.index')->with('status', "{$user->name}'s {$user->role} account created.");
     }
+
+    public function destroy(User $user): RedirectResponse
+    {
+        abort_if($user->id === auth()->id(), 403, "You can't delete your own account.");
+
+        $displayName = $user->name;
+        $role = $user->role;
+        $user->delete();
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.user_deleted',
+            "Deleted the {$role} account for {$displayName}."
+        );
+
+        return redirect()->route('admin.users.index')->with('status', "{$displayName}'s account deleted.");
+    }
 }

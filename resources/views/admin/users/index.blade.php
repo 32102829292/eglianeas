@@ -6,7 +6,7 @@
     <div class="page-head page-head-row">
         <div>
             <h1>Team accounts</h1>
-            <p>Manage admin and staff portal accounts. Only admins can access this page.</p>
+            <p>Manage admin and staff portal accounts.</p>
         </div>
     </div>
 
@@ -50,6 +50,7 @@
                         <th>Email</th>
                         <th>Role</th>
                         <th>Created</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -66,9 +67,19 @@
                                 <span class="badge @if($account->isAdmin()) badge-warn @else badge-neutral @endif">{{ ucfirst($account->role) }}</span>
                             </td>
                             <td data-col="Created" class="text-muted">{{ $account->created_at?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Actions">
+                                @if (auth()->user()->isAdmin() && $account->id !== auth()->id())
+                                    <form method="POST" action="{{ route('admin.users.destroy', $account) }}" style="display:inline;" onsubmit="return confirm('Delete the {{ addslashes($account->name) }} {{ $account->role }} account? This can be undone by support.')">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn btn-link btn-sm text-danger">Delete</button>
+                                    </form>
+                                @else
+                                    <span class="text-muted">—</span>
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="text-center text-muted py-4">No admin or staff accounts yet.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted py-4">No admin or staff accounts yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -79,6 +90,7 @@
                         <div class="cv-row"><span class="cv-label">Email</span><span class="cv-value">{{ $account->email }}</span></div>
                         <div class="cv-row"><span class="cv-label">Role</span><span class="cv-value"><span class="badge @if($account->isAdmin()) badge-warn @else badge-neutral @endif">{{ ucfirst($account->role) }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Created</span><span class="cv-value">{{ $account->created_at?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if (auth()->user()->isAdmin() && $account->id !== auth()->id())<form method="POST" action="{{ route('admin.users.destroy', $account) }}" style="display:inline;" onsubmit="return confirm('Delete the {{ addslashes($account->name) }} {{ $account->role }} account? This can be undone by support.')">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form>@else<span class="text-muted">—</span>@endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">No admin or staff accounts yet.</p>
