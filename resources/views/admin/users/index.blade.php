@@ -25,7 +25,7 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" minlength="8" required>
+                    <input type="password" id="password" name="password" class="form-control" minlength="4" required>
                 </div>
                 <div class="col-md-2">
                     <label class="form-label" for="role">Role</label>

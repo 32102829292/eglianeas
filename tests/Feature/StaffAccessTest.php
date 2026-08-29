@@ -203,6 +203,11 @@ class StaffAccessTest extends TestCase
             'action' => 'admin.user_created',
             'user_id' => $admin->id,
         ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => User::where('email', 'new.staff@example.com')->value('id'),
+            'type' => 'account',
+        ]);
     }
 
     public function test_staff_can_access_operational_areas(): void
