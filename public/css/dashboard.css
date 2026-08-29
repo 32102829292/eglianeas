@@ -126,6 +126,7 @@
 
 /* Push toggle lives on the Security settings page (push.js manages state) */
 .push-toggle-btn[data-push-state="enabled"] .bell-slash { display: none; }
+.push-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 
 .bell-badge {
   position: absolute;

@@ -82,6 +82,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/push/subscribe', [PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
     Route::post('/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe');
     Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey'])->name('push.vapid-key');
+    Route::post('/push/test', [PushSubscriptionController::class, 'test'])->name('push.test');
 
     Route::get('/payment-image/{type}/{index?}', [\App\Http\Controllers\Admin\BillingController::class, 'paymentImage'])->name('payment.image');
 

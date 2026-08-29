@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Notifications\PushNotification;
 use App\Services\PushNotificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use NotificationChannels\WebPush\PushSubscription;
 use NotificationChannels\WebPush\WebPushChannel;
 use NotificationChannels\WebPush\WebPushMessage;
@@ -66,5 +67,30 @@ class PushNotificationTest extends TestCase
         // delivery may be attempted), so only assert the subscription is stored
         // and that the service call does not throw a fatal error synchronously.
         $this->assertNotNull($user->pushSubscriptions()->first());
+    }
+
+    public function test_test_push_returns_403_when_user_has_no_subscription(): void
+    {
+        Notification::fake();
+        $user = $this->user();
+
+        $this->actingAs($user)
+            ->postJson('/push/test')
+            ->assertStatus(403)
+            ->assertJson(['sent' => false]);
+    }
+
+    public function test_test_push_rate_limits_to_one_per_ten_seconds(): void
+    {
+        Notification::fake();
+        $user = $this->user();
+        $user->updatePushSubscription('https://push.example.com/endpoint', 'abc123', 'def456');
+
+        $this->actingAs($user)->postJson('/push/test')->assertStatus(200);
+
+        $this->actingAs($user)
+            ->postJson('/push/test')
+            ->assertStatus(429)
+            ->assertJsonPath('sent', false);
     }
 }

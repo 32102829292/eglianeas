@@ -60,10 +60,15 @@
         <div class="card">
             <h3 class="card-title">Push notifications</h3>
             <p class="card-sub">Get browser notifications for billing reminders, announcements and filing updates &mdash; even when this tab is closed. You can turn them off anytime.</p>
-            <button type="button" id="pushToggleBtn" class="btn btn-primary push-toggle-btn mt-2" data-push-toggle data-push-state="disabled">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line class="bell-slash" x1="1" y1="1" x2="23" y2="23"/></svg>
-                <span class="push-toggle-label">Enable push notifications</span>
-            </button>
+            <div class="push-actions">
+                <button type="button" id="pushToggleBtn" class="btn btn-primary push-toggle-btn" data-push-toggle data-push-state="disabled">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/><line class="bell-slash" x1="1" y1="1" x2="23" y2="23"/></svg>
+                    <span class="push-toggle-label">Enable push notifications</span>
+                </button>
+                <button type="button" id="pushTestBtn" class="btn btn-outline" data-push-test hidden>
+                    Test push
+                </button>
+            </div>
         </div>
 
         <div class="card">
@@ -92,17 +97,56 @@ document.addEventListener('click', function (e) {
 // Push toggle button: keep label/style in sync with subscription state (state itself is managed by push.js)
 (function () {
     var btn = document.getElementById('pushToggleBtn');
-    if (!btn) return;
-    var label = btn.querySelector('.push-toggle-label');
+    var testBtn = document.getElementById('pushTestBtn');
     function sync() {
-        var on = btn.getAttribute('data-push-state') === 'enabled';
-        if (label) label.textContent = on ? 'Disable push notifications' : 'Enable push notifications';
-        btn.classList.toggle('btn-primary', !on);
-        btn.classList.toggle('btn-outline', on);
+        var on = !!btn && btn.getAttribute('data-push-state') === 'enabled';
+        if (btn) {
+            var label = btn.querySelector('.push-toggle-label');
+            if (label) label.textContent = on ? 'Disable push notifications' : 'Enable push notifications';
+            btn.classList.toggle('btn-primary', !on);
+            btn.classList.toggle('btn-outline', on);
+        }
+        if (testBtn) testBtn.hidden = !on;
     }
-    new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['data-push-state'] });
-    // push.js resolves the real subscription state asynchronously after DOMContentLoaded
-    window.addEventListener('load', function () { setTimeout(sync, 300); });
+    if (btn) {
+        new MutationObserver(sync).observe(btn, { attributes: true, attributeFilter: ['data-push-state'] });
+        // push.js resolves the real subscription state asynchronously after DOMContentLoaded
+        window.addEventListener('load', function () { setTimeout(sync, 300); });
+    }
+})();
+
+// Test push button: send an on-demand push to the current device only.
+(function () {
+    var testBtn = document.getElementById('pushTestBtn');
+    if (!testBtn) return;
+    testBtn.addEventListener('click', function () {
+        if (testBtn.disabled) return;
+        testBtn.disabled = true;
+        fetch('/push/test', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        }).then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+                return { status: res.status, data: data };
+            });
+        }).then(function (r) {
+            if (r.status === 429 && r.data.retryAfter) {
+                E.toast('Please wait ' + r.data.retryAfter + 's before sending another test.');
+            } else if (r.status === 403 || (r.data && r.data.sent === false)) {
+                E.toast(r.data && r.data.message ? r.data.message : 'No push device found — enable push notifications first.');
+            } else {
+                E.toast('Test push sent — check your device.');
+            }
+        }).catch(function () {
+            E.toast('Could not send test push. Please try again.');
+        }).finally(function () {
+            testBtn.disabled = false;
+        });
+    });
 })();
 </script>
 @endpush
