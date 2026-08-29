@@ -1,13 +1,10 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
-use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\PinLoginController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\WebauthnLoginController;
-use App\Http\Controllers\Client\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -43,37 +40,6 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login/webauthn/verify', [WebauthnLoginController::class, 'verify'])
         ->name('login.webauthn.verify');
-
-    Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
-        ->name('password.request');
-
-    Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
-        ->name('password.email');
-
-    Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
-        ->name('password.reset');
-
-    Route::post('reset-password', [NewPasswordController::class, 'store'])
-        ->name('password.store');
-
-    // Code-based password reset (clients)
-    Route::get('forgot-password/code', [ForgotPasswordController::class, 'showEmailForm'])
-        ->name('client.password.forgot');
-
-    Route::post('forgot-password/code', [ForgotPasswordController::class, 'sendCode'])
-        ->name('client.password.send');
-
-    Route::get('forgot-password/code/verify', [ForgotPasswordController::class, 'showVerifyForm'])
-        ->name('client.password.verify');
-
-    Route::post('forgot-password/code/verify', [ForgotPasswordController::class, 'verifyCode'])
-        ->name('client.password.verify.post');
-
-    Route::get('forgot-password/code/reset', [ForgotPasswordController::class, 'showResetForm'])
-        ->name('client.password.reset');
-
-    Route::post('forgot-password/code/reset', [ForgotPasswordController::class, 'resetPassword'])
-        ->name('client.password.reset.post');
 });
 
 Route::middleware('auth')->group(function () {

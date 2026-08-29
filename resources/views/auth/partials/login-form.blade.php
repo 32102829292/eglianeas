@@ -57,7 +57,6 @@
         </div>
         <button type="submit" class="btn btn-primary btn-block" id="pinSubmitBtn">Log In</button>
         <p class="form-hint text-center">Enter your 4-digit PIN. First time? Set up a PIN under Security settings.</p>
-        <p class="text-center mt-1"><a href="{{ route('client.password.forgot') }}" class="link-style">Forgot your password?</a></p>
         <div class="form-error text-center" id="pinError" hidden></div>
         @error('pin')<div class="form-error text-center">{{ $message }}</div>@enderror
         <p class="text-center mt-1" id="verifyResendRow" hidden>
