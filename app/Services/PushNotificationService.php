@@ -3,31 +3,19 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Notifications\PushNotification;
 use Illuminate\Support\Facades\Log;
-use NotificationChannels\WebPush\WebPushMessage;
 
 class PushNotificationService
 {
     public static function send(User $user, string $title, string $body, string $url = '/'): bool
     {
         try {
-            $subscriptions = $user->pushSubscriptions;
-
-            if ($subscriptions->isEmpty()) {
+            if ($user->pushSubscriptions->isEmpty()) {
                 return false;
             }
 
-            foreach ($subscriptions as $subscription) {
-                $notification = (new WebPushMessage())
-                    ->title($title)
-                    ->body($body)
-                    ->icon('/pwa-icons/icon-192.png')
-                    ->badge('/pwa-icons/icon-32.png')
-                    ->data(['url' => $url])
-                    ->vibrate([200, 100, 200]);
-
-                $subscription->send($notification);
-            }
+            $user->notify(new PushNotification($title, $body, $url));
 
             return true;
         } catch (\Throwable $e) {

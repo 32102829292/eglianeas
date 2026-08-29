@@ -144,25 +144,27 @@ self.addEventListener('message', (event) => {
 /* ---------- Push notifications ---------- */
 self.addEventListener('push', (event) => {
   console.log('[SW push] event received:', event);
-  let data = { title: 'Egliane', body: '', url: '/' };
+  let payload = { title: 'Egliane', body: '', url: '/' };
 
   if (event.data) {
     try {
-      data = { ...data, ...event.data.json() };
+      payload = { ...payload, ...event.data.json() };
     } catch (e) {
-      data.body = event.data.text();
+      payload.body = event.data.text();
     }
   }
 
-  console.log('[SW push] showing notification:', data.title, data.body, data.url);
+  const clickUrl = (payload.data && payload.data.url) ? payload.data.url : '/';
+
+  console.log('[SW push] showing notification:', payload.title, payload.body, clickUrl);
 
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
       icon: '/pwa-icons/icon-192.png',
       badge: '/pwa-icons/icon-32.png',
       vibrate: [200, 100, 200],
-      data: { url: data.url || '/' }
+      data: { url: clickUrl }
     })
   );
 });
