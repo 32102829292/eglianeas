@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\ForgotPinController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PinLoginController;
 use App\Http\Controllers\Auth\RegisteredUserController;
@@ -40,6 +41,30 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login/webauthn/verify', [WebauthnLoginController::class, 'verify'])
         ->name('login.webauthn.verify');
+
+    Route::get('forgot-pin', [ForgotPinController::class, 'showEmailForm'])
+        ->name('forgot-pin');
+
+    Route::post('forgot-pin', [ForgotPinController::class, 'sendCode'])
+        ->name('forgot-pin.send')
+        ->middleware('throttle:10,1');
+
+    Route::post('forgot-pin/resend', [ForgotPinController::class, 'resendCode'])
+        ->name('forgot-pin.resend')
+        ->middleware('throttle:10,1');
+
+    Route::get('forgot-pin/verify', [ForgotPinController::class, 'showVerifyForm'])
+        ->name('forgot-pin.verify');
+
+    Route::post('forgot-pin/verify', [ForgotPinController::class, 'verifyCode'])
+        ->name('forgot-pin.verify.post')
+        ->middleware('throttle:20,1');
+
+    Route::get('forgot-pin/reset', [ForgotPinController::class, 'showResetForm'])
+        ->name('forgot-pin.reset');
+
+    Route::post('forgot-pin/reset', [ForgotPinController::class, 'resetPin'])
+        ->name('forgot-pin.reset.post');
 });
 
 Route::middleware('auth')->group(function () {

@@ -762,6 +762,39 @@
     }
   }
 
+  /* ================= Forgot PIN: set new PIN keypad ================= */
+  var forgotPinForm = document.getElementById('forgotPinForm');
+  var forgotPinKeypad = document.getElementById('forgotPinKeypad');
+  var forgotPinPin = document.getElementById('forgot_pin');
+  var forgotPinPinConfirm = document.getElementById('forgot_pin_confirmation');
+  var forgotPinPhaseLabel = document.getElementById('forgotPinPhaseLabel');
+  var forgotPinError = document.getElementById('forgotPinError');
+  var forgotPinPad = forgotPinKeypad ? wireKeypad(forgotPinKeypad, { onOk: function (pin) { forgotPinOnOk(pin); } }) : null;
+  if (forgotPinPad) forgotPinPad.phase = 'set';
+
+  function forgotPinOnOk(pin) {
+    if (!forgotPinPad) return;
+    if (forgotPinPad.phase === 'set') {
+      forgotPinPad.firstPin = pin;
+      forgotPinPad.phase = 'confirm';
+      forgotPinPad.clear();
+      if (forgotPinError) forgotPinError.hidden = true;
+      if (forgotPinPhaseLabel) forgotPinPhaseLabel.textContent = 'Confirm your new PIN';
+      return;
+    }
+    if (pin !== forgotPinPad.firstPin) {
+      forgotPinPad.phase = 'set';
+      forgotPinPad.clear();
+      if (forgotPinError) { forgotPinError.textContent = 'PINs do not match. Try again.'; forgotPinError.hidden = false; }
+      if (forgotPinPhaseLabel) forgotPinPhaseLabel.textContent = 'Set your new PIN';
+      return;
+    }
+    if (forgotPinError) forgotPinError.hidden = true;
+    forgotPinPin.value = forgotPinPad.firstPin;
+    forgotPinPinConfirm.value = pin;
+    if (forgotPinForm) forgotPinForm.submit();
+  }
+
   /* 2nd contact channel selector: shared by signup wizard + client/admin profile forms */
   function wireSecondContactChannel(sel, input) {
     var placeholders = {
