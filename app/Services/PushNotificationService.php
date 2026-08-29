@@ -11,15 +11,30 @@ class PushNotificationService
     public static function send(User $user, string $title, string $body, string $url = '/'): bool
     {
         try {
-            if ($user->pushSubscriptions->isEmpty()) {
+            $count = $user->pushSubscriptions->count();
+
+            if ($count === 0) {
+                Log::info('[PushNotificationService] no subscriptions for user ' . $user->id . '; in-app only, push skipped', [
+                    'title' => $title,
+                ]);
+
                 return false;
             }
 
             $user->notify(new PushNotification($title, $body, $url));
 
+            Log::info('[PushNotificationService] push queued for user ' . $user->id . ' with ' . $count . ' subscription(s)', [
+                'title' => $title,
+            ]);
+
             return true;
         } catch (\Throwable $e) {
-            Log::error('[PushNotificationService] send failed for user ' . $user->id . ': ' . $e->getMessage());
+            Log::error('[PushNotificationService] send failed for user ' . $user->id . ': ' . $e->getMessage(), [
+                'title' => $title,
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return false;
         }
     }
