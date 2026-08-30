@@ -268,8 +268,10 @@ class DistributionController extends Controller
         }
 
         try {
-            $response = Http::timeout(10)
-                ->get('https://nominatim.openstreetmap.org/search', [
+            $response = Http::withHeaders([
+                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
+                'Accept' => 'application/json',
+            ])->timeout(10)->get('https://nominatim.openstreetmap.org/search', [
                     'q' => $query,
                     'format' => 'json',
                     'limit' => 1,

@@ -94,13 +94,24 @@ class ProfileController extends Controller
 
         $currentAddress = $profile->getOriginal('business_address');
         $newAddress = $profileData['business_address'] ?? null;
-        $hasCoords = ! empty($profileData['latitude']) && ! empty($profileData['longitude']);
+        $submittedLat = $profileData['latitude'] ?? null;
+        $submittedLng = $profileData['longitude'] ?? null;
+        $hasCoords = $submittedLat !== null
+            && $submittedLng !== null
+            && is_numeric($submittedLat)
+            && is_numeric($submittedLng);
 
-        if ($newAddress && ($newAddress !== $currentAddress || ! $hasCoords)) {
+        if (empty($newAddress)) {
+            $profileData['latitude'] = null;
+            $profileData['longitude'] = null;
+        } elseif ($newAddress !== $currentAddress || ! $hasCoords) {
             $coords = $this->geocodeAddress($newAddress);
             if ($coords) {
                 $profileData['latitude'] = $coords['lat'];
                 $profileData['longitude'] = $coords['lng'];
+            } else {
+                $profileData['latitude'] = null;
+                $profileData['longitude'] = null;
             }
         }
 

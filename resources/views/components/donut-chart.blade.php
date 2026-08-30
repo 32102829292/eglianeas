@@ -13,6 +13,7 @@
     $tints = [
         '#B3E3C7', // --success  (Paid)
         '#FADBC0', // --warning  (Pending)
+        '#AFAFBA', // --navy     (Unpaid)
         '#F7C0BB', // --danger   (Overdue)
     ];
     $ti = 0;

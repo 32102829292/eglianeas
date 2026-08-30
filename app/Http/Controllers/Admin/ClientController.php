@@ -13,6 +13,8 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -359,6 +361,28 @@ class ClientController extends Controller
         }
 
         $profile = $client->getClientProfile();
+
+        $currentAddress = $profile->getOriginal('business_address');
+        $newAddress = $profileData['business_address'] ?? null;
+        $submittedLat = (string) ($profileData['latitude'] ?? '');
+        $submittedLng = (string) ($profileData['longitude'] ?? '');
+        $coordsUnchanged = $submittedLat === (string) ($profile->getOriginal('latitude') ?? '')
+            && $submittedLng === (string) ($profile->getOriginal('longitude') ?? '');
+        $hasCoords = $submittedLat !== '' && $submittedLng !== '';
+
+        if (empty($newAddress)) {
+            $profileData['latitude'] = null;
+            $profileData['longitude'] = null;
+        } elseif (! $hasCoords) {
+            $coords = $this->geocodeAddress($newAddress);
+            $profileData['latitude'] = $coords['lat'] ?? null;
+            $profileData['longitude'] = $coords['lng'] ?? null;
+        } elseif ($coordsUnchanged && $newAddress !== $currentAddress) {
+            $coords = $this->geocodeAddress($newAddress);
+            $profileData['latitude'] = $coords['lat'] ?? null;
+            $profileData['longitude'] = $coords['lng'] ?? null;
+        }
+
         $profile->fill($profileData);
         $profile->save();
 
@@ -403,6 +427,54 @@ class ClientController extends Controller
                 ['client_id' => $client->id, 'form_type' => $formType],
                 ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
             );
+        }
+    }
+
+    private function geocodeAddress(string $address): ?array
+    {
+        $query = str_contains(strtolower($address), 'philippines')
+            ? $address
+            : $address.', Philippines';
+
+        $cacheKey = 'geocode:'.md5(strtolower(trim($query)));
+
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached) && isset($cached['lat'], $cached['lng'])) {
+            return $cached;
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
+                'Accept' => 'application/json',
+            ])->timeout(8)->get('https://nominatim.openstreetmap.org/search', [
+                'q' => $query,
+                'format' => 'jsonv2',
+                'limit' => 1,
+                'countrycodes' => 'ph',
+            ]);
+
+            if ($response->failed()) {
+                return null;
+            }
+
+            $results = $response->json();
+            if (empty($results[0])) {
+                return null;
+            }
+
+            $place = $results[0];
+            $data = [
+                'lat' => (float) $place['lat'],
+                'lng' => (float) $place['lon'],
+                'display_name' => $place['display_name'] ?? '',
+            ];
+
+            Cache::put($cacheKey, $data, now()->addDay());
+
+            return $data;
+        } catch (\Throwable) {
+            return null;
         }
     }
 

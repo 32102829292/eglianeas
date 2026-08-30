@@ -203,7 +203,6 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
     Route::get('/clients/{client}', [AdminClientController::class, 'show'])->name('clients.show');
     Route::post('/clients/{client}/impersonate', [ImpersonateController::class, 'start'])->name('clients.impersonate');
-    Route::post('/impersonate/stop', [ImpersonateController::class, 'stop'])->name('impersonate.stop');
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');
@@ -261,6 +260,12 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::post('/distribution/{client}/location', [AdminDistributionController::class, 'updateLocation'])->name('distribution.update-location');
     Route::post('/distribution/geocode', [AdminDistributionController::class, 'geocode'])->name('distribution.geocode');
 });
+
+// Impersonation exit must stay reachable while the admin is logged in as a
+// client (role:client) — otherwise the "Exit" button would 403 and lock the
+// admin in the impersonation session. The controller itself validates the
+// original admin session before switching back.
+Route::middleware('auth')->post('/admin/impersonate/stop', [ImpersonateController::class, 'stop'])->name('admin.impersonate.stop');
 
 Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->group(function () {
     Route::get('/dashboard', ClientDashboardController::class)->name('dashboard');

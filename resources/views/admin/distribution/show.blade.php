@@ -21,11 +21,12 @@
     @endif
 
     {{-- Client Location Map --}}
+    <x-address-map :latitude="null" :longitude="null" id="distMapLoader" hidden />
     <div class="card">
         <div class="card-head">
             <h2 class="card-title">Business address &amp; location</h2>
         </div>
-        @if ($profile?->latitude !== null && $profile?->longitude !== null)
+        @if ($profile?->latitude !== null && $profile?->longitude !== null && (float) $profile->latitude != 0 && (float) $profile->longitude != 0)
             <div class="profile-grid">
                 <div class="profile-row col-span-2"><span class="profile-k">Address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
                 <div class="profile-row col-span-2" id="coordToggleRow">

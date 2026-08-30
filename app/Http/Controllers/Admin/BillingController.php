@@ -823,41 +823,44 @@ class BillingController extends Controller
                 $lineItems = $billing->lineItems;
                 $values = [$client?->business_name ?: $client?->name ?? ''];
 
-                // BIR Remittances
+                // BIR Remittances (sum across filing months within the period)
                 foreach ($allFormTypes as $ft) {
-                    $item = $lineItems->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)->where('form_type', $ft)->first();
-                    $values[] = $item ? (float) $item->amount : 0;
+                    $values[] = (float) $lineItems
+                        ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+                        ->where('form_type', $ft)->sum('amount');
                 }
 
                 // Cash In
-                $cashInItem = $lineItems->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)->whereNull('form_type')->first();
-                $values[] = $cashInItem ? (float) $cashInItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+                    ->whereNull('form_type')->sum('amount');
 
-                // Professional Fees
+                // Professional Fees (sum across filing months within the period)
                 foreach ($allFormTypes as $ft) {
-                    $item = $lineItems->where('category', BillingLineItem::CATEGORY_PROFESSIONAL_FEE)->where('form_type', $ft)->first();
-                    $values[] = $item ? (float) $item->amount : 0;
+                    $values[] = (float) $lineItems
+                        ->where('category', BillingLineItem::CATEGORY_PROFESSIONAL_FEE)
+                        ->where('form_type', $ft)->sum('amount');
                 }
 
                 // Bookkeeping
-                $bookItem = $lineItems->where('category', BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->first();
-                $values[] = $bookItem ? (float) $bookItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->sum('amount');
 
                 // Post-Closing TB
-                $ptbItem = $lineItems->where('category', BillingLineItem::CATEGORY_POST_CLOSING_TB)->first();
-                $values[] = $ptbItem ? (float) $ptbItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_POST_CLOSING_TB)->sum('amount');
 
                 // Inventory List
-                $invItem = $lineItems->where('category', BillingLineItem::CATEGORY_INVENTORY_LIST)->first();
-                $values[] = $invItem ? (float) $invItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_INVENTORY_LIST)->sum('amount');
 
                 // Other Attachment
-                $oaItem = $lineItems->where('category', BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->first();
-                $values[] = $oaItem ? (float) $oaItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->sum('amount');
 
                 // Data Entry
-                $deItem = $lineItems->where('category', BillingLineItem::CATEGORY_DATA_ENTRY)->first();
-                $values[] = $deItem ? (float) $deItem->amount : 0;
+                $values[] = (float) $lineItems
+                    ->where('category', BillingLineItem::CATEGORY_DATA_ENTRY)->sum('amount');
 
                 // Total
                 $values[] = (float) $billing->total;

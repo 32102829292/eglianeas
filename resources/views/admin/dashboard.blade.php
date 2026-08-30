@@ -110,6 +110,7 @@
                     <x-donut-chart :segments="[
                         ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)'],
                         ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)'],
+                        ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)'],
                         ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
                     ]" />
                 </div>

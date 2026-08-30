@@ -88,6 +88,7 @@ class DashboardController extends Controller
         return view('admin.dashboard', [
             'paidCount' => (int) ($billingStatusCounts[Billing::STATUS_PAID] ?? 0),
             'pendingCount' => (int) ($billingStatusCounts[Billing::STATUS_PENDING] ?? 0),
+            'unpaidCount' => (int) ($billingStatusCounts[Billing::STATUS_UNPAID] ?? 0),
             'overdueCount' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
             'snapshotRevenue' => $snapshots->pluck('revenue_collected')->values(),
             'snapshotNewBillings' => $snapshots->pluck('new_billings')->values(),

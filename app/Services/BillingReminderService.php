@@ -9,19 +9,29 @@ use App\Models\User;
 class BillingReminderService
 {
     /**
+     * Minimum gap between reminders for the same billing, in days.
+     */
+    public const REMINDER_COOLDOWN_DAYS = 7;
+
+    /**
      * Remind clients about unpaid bills starting one week before the due date,
      * escalating the wording once the bill is past due. Auto-marks past-due
      * bills as overdue so the Collections page stays accurate. Runs daily and
-     * keeps bumping until the bill is marked paid.
+     * re-reminds at most once per cooldown window until the bill is paid.
      */
     public static function remindBillsDue(): int
     {
         $sent = 0;
+        $cooldownStart = now()->subDays(self::REMINDER_COOLDOWN_DAYS);
 
         $due = Billing::query()
             ->whereIn('status', [Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
             ->whereNotNull('due_date')
             ->where('due_date', '<=', now()->addDays(7)->toDateString())
+            ->where(function ($q) use ($cooldownStart) {
+                $q->whereNull('reminder_sent_at')
+                    ->orWhere('reminder_sent_at', '<=', $cooldownStart);
+            })
             ->get();
 
         foreach ($due as $billing) {
@@ -51,6 +61,9 @@ class BillingReminderService
             if ($client) {
                 PushNotificationService::send($client, $title, $body, route('client.collections.index'));
             }
+
+            $billing->reminder_sent_at = now();
+            $billing->save();
 
             $sent++;
         }

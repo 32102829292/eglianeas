@@ -24,7 +24,7 @@ class GeocodeController extends Controller
             $address .= ', Philippines';
         }
 
-        $cacheKey = 'geocode:'.md5($address);
+        $cacheKey = 'geocode:'.md5(strtolower(trim($address)));
 
         $cached = Cache::get($cacheKey);
         if ($cached !== null) {
@@ -40,6 +40,7 @@ class GeocodeController extends Controller
                 'format' => 'jsonv2',
                 'limit' => 1,
                 'addressdetails' => 0,
+                'countrycodes' => 'ph',
             ]);
         } catch (\Throwable) {
             return $this->errorResponse();

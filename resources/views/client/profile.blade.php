@@ -178,6 +178,7 @@
                     </div>
                     <input type="hidden" id="latitude" name="latitude" value="{{ old('latitude', $profile->latitude) }}">
                     <input type="hidden" id="longitude" name="longitude" value="{{ old('longitude', $profile->longitude) }}">
+                    <x-address-map :latitude="null" :longitude="null" id="profileMapLoader" hidden />
                     <div class="form-group col-span-2">
                         <button type="button" class="btn btn-outline btn-sm" id="locateAddressBtn">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -198,7 +199,7 @@
         @else
             <div class="profile-grid">
                 <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
-                @if ($profile->latitude !== null && $profile->longitude !== null)
+                @if ($profile->latitude !== null && $profile->longitude !== null && (float) $profile->latitude != 0 && (float) $profile->longitude != 0)
                     <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="mapView" /></div>
                 @endif
             </div>
