@@ -27,16 +27,31 @@ class SecurityController extends Controller
     public function setPin(Request $request): RedirectResponse
     {
         abort_if(session('impersonator_id'), 403, 'PIN changes are not available while viewing as another user.');
-        $request->validate([
-            'current_password' => ['required', 'current_password'],
+
+        $rules = [
             'pin' => ['required', 'string', 'regex:/^\d{4}$/'],
             'pin_confirmation' => ['required', 'same:pin'],
-        ], [
+        ];
+
+        $messages = [
             'pin.regex' => 'Your PIN must be exactly 4 digits.',
             'pin_confirmation.same' => 'The PIN confirmation does not match.',
-        ]);
+        ];
 
         $user = Auth::user();
+
+        if ($user->password !== null) {
+            $rules['current_password'] = ['required', 'current_password'];
+        } elseif ($user->pin !== null) {
+            $rules['current_password'] = ['required', 'string', 'regex:/^\d{4}$/'];
+            $messages['current_password.regex'] = 'Enter your current 4-digit PIN.';
+        }
+
+        $request->validate($rules, $messages);
+
+        if ($user->password === null && $user->pin !== null) {
+            abort_unless(Hash::check($request->current_password, $user->pin), 403, 'Your current PIN does not match.');
+        }
 
         $user->forceFill([
             'pin' => Hash::make($request->pin),

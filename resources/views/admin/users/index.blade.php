@@ -19,15 +19,11 @@
                     <label class="form-label" for="name">Name</label>
                     <input type="text" id="name" name="name" class="form-control" value="{{ old('name') }}" required>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="form-label" for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-control" value="{{ old('email') }}" required>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label" for="password">Password</label>
-                    <input type="password" id="password" name="password" class="form-control" minlength="4" required>
-                </div>
-                <div class="col-md-2">
+                <div class="col-md-3">
                     <label class="form-label" for="role">Role</label>
                     <select id="role" name="role" class="form-select" required>
                         <option value="staff" @selected(old('role') === 'staff')>Staff</option>

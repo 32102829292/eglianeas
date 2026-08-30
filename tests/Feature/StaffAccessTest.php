@@ -3,12 +3,17 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Mail\VerificationCodeMail;
 use App\Models\Billing;
 use App\Models\ClientProfile;
 use App\Models\Document;
 use App\Models\OtherService;
 use App\Models\User;
+use App\Models\VerificationCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -171,7 +176,6 @@ class StaffAccessTest extends TestCase
             ->post(route('admin.users.store'), [
                 'name' => 'Another Staff',
                 'email' => 'another'.uniqid().'@example.com',
-                'password' => 'secret123',
                 'role' => User::ROLE_STAFF,
             ])
             ->assertRedirect(route('admin.users.index'));
@@ -184,13 +188,14 @@ class StaffAccessTest extends TestCase
 
     public function test_admin_can_create_staff_account(): void
     {
+        Mail::fake();
+
         $admin = $this->admin();
 
         $this->actingAs($admin)
             ->post(route('admin.users.store'), [
                 'name' => 'New Staff',
                 'email' => 'new.staff@example.com',
-                'password' => 'secret123',
                 'role' => User::ROLE_STAFF,
             ])
             ->assertRedirect(route('admin.users.index'));
@@ -199,15 +204,75 @@ class StaffAccessTest extends TestCase
             'email' => 'new.staff@example.com',
             'role' => User::ROLE_STAFF,
         ]);
+
+        $user = User::query()->where('email', 'new.staff@example.com')->firstOrFail();
+
+        $this->assertNull($user->password);
+
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'admin.user_created',
             'user_id' => $admin->id,
         ]);
 
         $this->assertDatabaseHas('notifications', [
-            'user_id' => User::where('email', 'new.staff@example.com')->value('id'),
+            'user_id' => $user->id,
             'type' => 'account',
         ]);
+        $this->assertDatabaseHas('verification_codes', [
+            'user_id' => $user->id,
+        ]);
+        Mail::assertSent(VerificationCodeMail::class, function (VerificationCodeMail $mail) use ($user) {
+            return $mail->hasTo($user->email);
+        });
+    }
+
+    public function test_created_account_can_set_pin_via_forgot_pin_flow(): void
+    {
+        Mail::fake();
+
+        $admin = $this->admin();
+        $email = 'pinless'.uniqid().'@example.com';
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.store'), [
+                'name' => 'PINless Staff',
+                'email' => $email,
+                'role' => User::ROLE_STAFF,
+            ])
+            ->assertRedirect(route('admin.users.index'));
+
+        $user = User::query()->where('email', $email)->firstOrFail();
+        $this->assertNull($user->password);
+
+        $sentCode = null;
+        Mail::assertSent(VerificationCodeMail::class, function (VerificationCodeMail $mail) use (&$sentCode) {
+            $sentCode = $mail->code;
+
+            return true;
+        });
+        $this->assertNotNull($sentCode);
+        $this->assertEquals(1, VerificationCode::query()->where('user_id', $user->id)->count());
+
+        Auth::logout();
+
+        $this->get(route('forgot-pin.verify'))->assertOk();
+
+        $this->post(route('forgot-pin.verify.post'), [
+            'email' => $email,
+            'code' => $sentCode,
+        ])->assertRedirect(route('forgot-pin.reset'));
+
+        $this->post(route('forgot-pin.reset.post'), [
+            'pin' => '2468',
+            'pin_confirmation' => '2468',
+        ])->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check('2468', $user->fresh()->pin));
+
+        $this->post(route('login.pin'), [
+            'email' => $email,
+            'pin' => '2468',
+        ])->assertRedirect(route('admin.dashboard'));
     }
 
     public function test_admin_can_delete_team_account(): void

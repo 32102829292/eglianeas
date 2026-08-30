@@ -3,20 +3,23 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Mail\VerificationCodeMail;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Models\VerificationCode;
+use App\Services\VerificationCodeSender;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ForgotPinController extends Controller
 {
+    public function __construct(private readonly VerificationCodeSender $verificationCodeSender)
+    {
+    }
+
     public function showEmailForm(): View
     {
         return view('auth.forgot-pin');
@@ -43,11 +46,7 @@ class ForgotPinController extends Controller
         if ($user !== null) {
             RateLimiter::hit('forgot-pin:'.$email, 300);
 
-            $code = (string) random_int(100000, 999999);
-
-            VerificationCode::issue($user, $code, 15);
-
-            Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name, 15));
+            $this->verificationCodeSender->send($user);
 
             session([
                 'forgot_pin_user_id' => $user->id,
@@ -82,30 +81,23 @@ class ForgotPinController extends Controller
             ]);
         }
 
-        $code = (string) random_int(100000, 999999);
-
-        VerificationCode::issue($user, $code, 15);
-
-        Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name, 15));
+        $this->verificationCodeSender->send($user);
 
         session(['forgot_pin_sent_at' => now()->getTimestamp()]);
 
         return back()->with('status', 'A new verification code has been sent to your email.');
     }
 
-    public function showVerifyForm(): View|RedirectResponse
+    public function showVerifyForm(): View
     {
-        if (! session('forgot_pin_email')) {
-            return redirect()->route('forgot-pin');
-        }
-
         $email = session('forgot_pin_email');
 
         $user = session('forgot_pin_user_id') ? User::find((int) session('forgot_pin_user_id')) : null;
 
         return view('auth.forgot-pin-verify', [
-            'email' => $email,
-            'maskedEmail' => $this->maskEmail($email),
+            'email' => $email ?? '',
+            'hasSessionEmail' => $email !== null,
+            'maskedEmail' => $email ? $this->maskEmail($email) : null,
             'devCode' => $user
                 ? VerificationCode::query()->where('user_id', $user->id)->latest()->value('code_plain')
                 : null,
@@ -122,33 +114,39 @@ class ForgotPinController extends Controller
 
         $email = strtolower(trim($request->input('email')));
 
-        $user = session('forgot_pin_user_id') ? User::find((int) session('forgot_pin_user_id')) : null;
+        $user = User::query()->where('email', $email)->first();
 
-        if ($user === null || $user->email !== $email) {
+        if ($user === null) {
             return back()->withErrors(['code' => 'Invalid code.'])->withInput();
         }
 
-        $record = VerificationCode::query()
+        $records = VerificationCode::query()
             ->where('user_id', $user->id)
             ->whereNull('used_at')
+            ->where('expires_at', '>', now())
             ->latest()
-            ->first();
+            ->get();
 
-        if ($record === null) {
-            return back()->withErrors(['code' => 'No active verification code was found. Please request a new one.']);
+        $matched = $records->first(fn (VerificationCode $code) => $code->matches($request->code));
+
+        if ($matched === null) {
+            ($records->first() ?? VerificationCode::query()->where('user_id', $user->id)->latest()->first())
+                ?->increment('attempts');
+
+            return back()->withErrors(['code' => 'That code is incorrect or has expired. Please try again.'])->withInput();
         }
 
-        if ($record->attempts >= 5) {
+        if ($matched->attempts >= 5) {
             return back()->withErrors(['code' => 'Too many failed attempts. Please request a new code.']);
         }
 
-        if ($record->isExpired() || ! $record->matches($request->code)) {
-            $record->increment('attempts');
+        $matched->update(['used_at' => now()]);
 
-            return back()->withErrors(['code' => 'That code is incorrect or has expired. Please try again.']);
-        }
-
-        $record->update(['used_at' => now()]);
+        session([
+            'forgot_pin_user_id' => $user->id,
+            'forgot_pin_sent_at' => now()->getTimestamp(),
+            'forgot_pin_email' => $email,
+        ]);
 
         return redirect()->route('forgot-pin.reset')->with('status', 'Code verified. Now set your new PIN.');
     }

@@ -9,11 +9,22 @@
         <div class="alert alert-success">{{ session('status') }}</div>
     @endif
 
-    <p class="auth-sub">We sent a 6-digit code to <b>{{ $maskedEmail }}</b>. Enter it below to reset your PIN.</p>
+    @if (! empty($hasSessionEmail))
+        <p class="auth-sub">We sent a 6-digit code to <b>{{ $maskedEmail }}</b>. Enter it below to reset your PIN.</p>
+    @else
+        <p class="auth-sub">Enter your email and the 6-digit code we sent you to set up or reset your PIN.</p>
+    @endif
 
     <form method="POST" action="{{ route('forgot-pin.verify.post') }}" id="verifyCodeForm">
         @csrf
-        <input type="hidden" name="email" value="{{ $email }}">
+        @if (! empty($hasSessionEmail))
+            <input type="hidden" name="email" value="{{ $email }}">
+        @else
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-control" id="email" type="email" name="email" value="{{ old('email', $email) }}" required>
+            </div>
+        @endif
         <input type="hidden" name="code" id="codeValue">
         <div class="code-inputs">
             @for ($i = 0; $i < 6; $i++)
