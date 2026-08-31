@@ -102,7 +102,7 @@ $response->assertOk();
         $profile->save();
 
         Http::fake([
-            'nominatim.openstreetmap.org/search*' => Http::response('[]', 200),
+            'us1.locationiq.com/v1/search*' => Http::response('[]', 200),
         ]);
 
         $this->actingAs($user)->patch('/client/profile', [
@@ -121,7 +121,7 @@ $response->assertOk();
         $user->getClientProfile();
 
         Http::fake([
-            'nominatim.openstreetmap.org/search*' => Http::response([
+            'us1.locationiq.com/v1/search*' => Http::response([
                 [
                     'lat' => '10.3157',
                     'lon' => '123.8854',

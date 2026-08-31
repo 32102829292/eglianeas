@@ -252,7 +252,7 @@ class AdminFlowQaTest extends TestCase
         $client->getClientProfile();
 
         Http::fake([
-            'nominatim.openstreetmap.org/search*' => Http::response([], 500),
+            'us1.locationiq.com/v1/search*' => Http::response([], 500),
         ]);
 
         Log::spy();
@@ -268,7 +268,7 @@ class AdminFlowQaTest extends TestCase
     public function test_distribution_geocode_retries_transient_failure(): void
     {
         Http::fake([
-            'nominatim.openstreetmap.org/search*' => Http::sequence()
+            'us1.locationiq.com/v1/search*' => Http::sequence()
                 ->push([], 429)
                 ->push([
                     ['lat' => '10.3157', 'lon' => '123.8854', 'display_name' => 'Cebu City, Philippines'],

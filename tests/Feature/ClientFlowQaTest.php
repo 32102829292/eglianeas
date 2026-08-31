@@ -248,8 +248,10 @@ class ClientFlowQaTest extends TestCase
     {
         $user = $this->client();
 
+        config(['geocoding.api_key' => 'test-locationiq-key']);
+
         Http::fake([
-            'nominatim.openstreetmap.org/search*' => Http::response([
+            'us1.locationiq.com/v1/search*' => Http::response([
                 ['lat' => '10.31', 'lon' => '123.88', 'display_name' => 'Cebu City, Philippines'],
             ], 200),
         ]);
@@ -261,8 +263,9 @@ class ClientFlowQaTest extends TestCase
         $response->assertOk()->assertJsonPath('lat', 10.31);
 
         Http::assertSent(function ($request) {
-            return str_contains($request->url(), 'nominatim.openstreetmap.org')
-                && $request['countrycodes'] === 'ph';
+            return str_contains($request->url(), 'us1.locationiq.com/v1/search')
+                && $request['countrycodes'] === 'ph'
+                && $request['key'] === 'test-locationiq-key';
         });
         Http::assertSent(function ($request) {
             return $request->hasHeader('User-Agent', 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com; https://eglianeas.com)');

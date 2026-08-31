@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Client;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\ClientProfile;
+use App\Services\GeocodingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -125,48 +124,16 @@ class ProfileController extends Controller
 
     private function geocodeAddress(string $address): ?array
     {
-        $query = str_contains(strtolower($address), 'philippines')
-            ? $address
-            : $address.', Philippines';
+        $result = app(GeocodingService::class)->search($address);
 
-        $cacheKey = 'geocode:'.md5(strtolower(trim($query)));
-        $cached = Cache::get($cacheKey);
-        if (is_array($cached) && isset($cached['lat'], $cached['lng'])) {
-            return $cached;
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
-                'Accept' => 'application/json',
-            ])->timeout(8)->get('https://nominatim.openstreetmap.org/search', [
-                'q' => $query,
-                'format' => 'jsonv2',
-                'limit' => 1,
-                'countrycodes' => 'ph',
-            ]);
-
-            if ($response->failed()) {
-                return null;
-            }
-
-            $results = $response->json();
-            if (empty($results[0])) {
-                return null;
-            }
-
-            $place = $results[0];
-            $data = [
-                'lat' => (float) $place['lat'],
-                'lng' => (float) $place['lon'],
-                'display_name' => $place['display_name'] ?? '',
-            ];
-
-            Cache::put($cacheKey, $data, now()->addDay());
-
-            return $data;
-        } catch (\Throwable) {
+        if (($result['status'] ?? '') !== 'ok') {
             return null;
         }
+
+        return [
+            'lat' => $result['lat'],
+            'lng' => $result['lng'],
+            'display_name' => $result['display_name'] ?? '',
+        ];
     }
 }

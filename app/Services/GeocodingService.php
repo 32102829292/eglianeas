@@ -7,12 +7,19 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Centralized geocoding against a Nominatim-compatible endpoint.
+ * Centralized geocoding against a LocationIQ v1 endpoint.
+ *
+ * LocationIQ's /v1/search is an up-to-stream Nominatim-compatible API: it
+ * accepts the same query parameters (q, format, limit, countrycodes) and
+ * returns results shaped like Nominatim (lat/lon/display_name), so it is a
+ * drop-in replacement.
  *
  * Shares the HTTP call, User-Agent header, timeout, retry and caching between
  * the client-facing and admin-facing geocoders so the whole app has one
  * provider to debug and one place to swap when the external service is
  * unreachable or blocks the hosting provider's IPs.
+ *
+ * Requires LOCATIONIQ_API_KEY (sent as the `key` query parameter).
  *
  * Returns a discriminated result:
  *   ['status' => 'ok', 'lat' => float, 'lng' => float, 'display_name' => string]
@@ -48,23 +55,36 @@ class GeocodingService
 
         $url = (string) config('geocoding.url');
         $ua = (string) config('geocoding.user_agent');
+        $apiKey = (string) (config('geocoding.api_key') ?? '');
         $timeout = (int) config('geocoding.timeout', 8);
         $retries = max(0, (int) config('geocoding.retries', 0));
         $attempts = $retries + 1;
+
+        if ($apiKey === '') {
+            Log::once('Geocoding request attempted without an API key (LOCATIONIQ_API_KEY)', [
+                'service' => 'geocode',
+                'url' => $url,
+            ]);
+        }
 
         for ($attempt = 1; $attempt <= $attempts; $attempt++) {
             $started = microtime(true);
 
             try {
+                $params = [
+                    'q' => $query,
+                    'format' => 'json',
+                    'limit' => 1,
+                    'countrycodes' => 'ph',
+                ];
+                if ($apiKey !== '') {
+                    $params['key'] = $apiKey;
+                }
+
                 $response = Http::withHeaders([
                     'User-Agent' => $ua,
                     'Accept' => 'application/json',
-                ])->timeout($timeout)->get($url, [
-                    'q' => $query,
-                    'format' => 'jsonv2',
-                    'limit' => 1,
-                    'countrycodes' => 'ph',
-                ]);
+                ])->timeout($timeout)->get($url, $params);
 
                 $elapsed = round(microtime(true) - $started, 3);
 
