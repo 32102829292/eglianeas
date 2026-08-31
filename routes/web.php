@@ -3,18 +3,20 @@
 use App\Http\Controllers\Admin\AboutController;
 use App\Http\Controllers\Admin\ActivityLogController;
 use App\Http\Controllers\Admin\AnnouncementController;
-use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
+use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
+use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
+use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
-use App\Http\Controllers\Admin\ImpersonateController;
-use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
-use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
+use App\Http\Controllers\Admin\ImpersonateController;
+use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
+use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
+use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
 use App\Http\Controllers\Admin\UserController;
-use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Auth\SecurityController;
 use App\Http\Controllers\Auth\WebauthnController;
 use App\Http\Controllers\ChatbotController;
@@ -24,14 +26,27 @@ use App\Http\Controllers\Client\DashboardController as ClientDashboardController
 use App\Http\Controllers\Client\DistributionController as ClientDistributionController;
 use App\Http\Controllers\Client\GeocodeController as ClientGeocodeController;
 use App\Http\Controllers\Client\OtherServiceController as ClientOtherServiceController;
-use App\Http\Controllers\Client\ServiceTrackerController as ClientServiceTrackerController;
 use App\Http\Controllers\Client\ProfileController as ClientProfileController;
+use App\Http\Controllers\Client\ServiceTrackerController as ClientServiceTrackerController;
+use App\Http\Controllers\Client\SurveyController as ClientSurveyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Models\AboutContent;
+use App\Models\ActivityLog;
+use App\Models\Announcement;
+use App\Models\CompanyCertificate;
+use App\Models\CoreValue;
+use App\Models\CorViewLog;
+use App\Models\Document;
+use App\Models\TeamMember;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::get('/', HomeController::class)->name('home');
 
@@ -42,26 +57,29 @@ require __DIR__.'/auth.php';
 Route::view('/terms', 'terms')->name('terms');
 
 Route::get('/about', function () {
-    $about = \App\Models\AboutContent::instance();
-    $coreValues = \App\Models\CoreValue::ordered()->get();
-    $certificates = \App\Models\CompanyCertificate::ordered()->get();
-    $teamMembers = \App\Models\TeamMember::ordered()->get();
+    $about = AboutContent::instance();
+    $coreValues = CoreValue::ordered()->get();
+    $certificates = CompanyCertificate::ordered()->get();
+    $teamMembers = TeamMember::ordered()->get();
+
     return view('about', compact('about', 'coreValues', 'certificates', 'teamMembers'));
 })->name('about.public');
 
-Route::get('/certificates/{certificate}/file', function (\App\Models\CompanyCertificate $certificate) {
-    abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($certificate->file_path), 404);
-    $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($certificate->file_path, now()->addHours(1));
+Route::get('/certificates/{certificate}/file', function (CompanyCertificate $certificate) {
+    abort_unless(Storage::disk('supabase')->exists($certificate->file_path), 404);
+    $temporaryUrl = Storage::disk('supabase')->temporaryUrl($certificate->file_path, now()->addHours(1));
+
     return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
 })->name('certificates.file');
 
-Route::get('/announcements/{announcement}/image', function (\App\Models\Announcement $announcement) {
+Route::get('/announcements/{announcement}/image', function (Announcement $announcement) {
     abort_unless($announcement->hasImage(), 404);
-    $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($announcement->image_path, now()->addHour());
+    $temporaryUrl = Storage::disk('supabase')->temporaryUrl($announcement->image_path, now()->addHour());
+
     return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
 })->name('announcements.image');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'client.survey'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     Route::get('/security', [SecurityController::class, 'index'])->name('security.index');
@@ -85,14 +103,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/push/vapid-key', [PushSubscriptionController::class, 'vapidKey'])->name('push.vapid-key');
     Route::post('/push/test', [PushSubscriptionController::class, 'test'])->name('push.test');
 
-    Route::get('/payment-image/{type}/{index?}', [\App\Http\Controllers\Admin\BillingController::class, 'paymentImage'])->name('payment.image');
+    Route::get('/payment-image/{type}/{index?}', [BillingController::class, 'paymentImage'])->name('payment.image');
 
-    Route::get('/documents/{document}/view', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
+    Route::get('/documents/{document}/view', function (Document $document, Request $request) {
         $user = $request->user();
         abort_unless($document->client_id === $user->id || $user->isStaffOrAdmin(), 403);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
-        \App\Models\CorViewLog::create([
+        CorViewLog::create([
             'document_id' => $document->id,
             'viewed_by' => $user->id,
             'viewed_at' => now(),
@@ -105,12 +123,12 @@ Route::middleware('auth')->group(function () {
         ]);
     })->name('documents.view');
 
-    Route::get('/documents/{document}/file', function (\App\Models\Document $document, \Illuminate\Http\Request $request) {
+    Route::get('/documents/{document}/file', function (Document $document, Request $request) {
         $user = $request->user();
         abort_unless($document->client_id === $user->id || $user->isStaffOrAdmin(), 403);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
-        $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
+        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
 
         return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
@@ -124,20 +142,23 @@ Route::middleware(['auth', 'role:admin,staff'])->prefix('admin')->name('admin.')
         return view('admin.confidentiality-ack');
     })->name('confidentiality.acknowledge');
 
-    Route::post('/confidentiality/acknowledge', function (\Illuminate\Http\Request $request) {
+    Route::post('/confidentiality/acknowledge', function (Request $request) {
         $request->validate(['agree' => 'accepted']);
         $user = $request->user();
         $user->update([
             'confidentiality_acknowledged_at' => now(),
-            'confidentiality_ack_version' => \App\Http\Middleware\EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
-        \App\Models\ActivityLog::record($user, 'admin.confidentiality_acknowledged', 'Acknowledged the confidentiality policy.');
+        ActivityLog::record($user, 'admin.confidentiality_acknowledged', 'Acknowledged the confidentiality policy.');
+
         return redirect()->route('admin.dashboard');
     })->name('confidentiality.acknowledge.store');
 });
 
 Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
+
+    Route::get('/surveys', [AdminSurveyController::class, 'index'])->name('surveys.index');
 
     Route::get('/profile', [AdminProfileController::class, 'index'])->name('profile.index');
     Route::patch('/profile', [AdminProfileController::class, 'update'])->name('profile.update');
@@ -247,10 +268,11 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::post('/distribution/{client}/softcopy', [AdminDistributionController::class, 'storeSoftcopy'])->name('distribution.store-softcopy');
     Route::get('/distribution/{document}/download', [AdminDistributionController::class, 'download'])->name('distribution.download');
     Route::get('/distribution/{document}/view', [AdminDistributionController::class, 'view'])->name('distribution.view');
-    Route::get('/distribution/{document}/file', function (\App\Models\Document $document) {
+    Route::get('/distribution/{document}/file', function (Document $document) {
         abort_unless($document->client_id, 404);
-        abort_unless(\Illuminate\Support\Facades\Storage::disk('supabase')->exists($document->path), 404);
-        $temporaryUrl = \Illuminate\Support\Facades\Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
+        abort_unless(Storage::disk('supabase')->exists($document->path), 404);
+        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
+
         return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
@@ -268,6 +290,11 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
 Route::middleware('auth')->post('/admin/impersonate/stop', [ImpersonateController::class, 'stop'])->name('admin.impersonate.stop');
 
 Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->group(function () {
+    Route::get('/survey', [ClientSurveyController::class, 'show'])->name('survey.show');
+    Route::post('/survey', [ClientSurveyController::class, 'store'])->name('survey.store');
+});
+
+Route::middleware(['auth', 'role:client', 'client.survey'])->prefix('client')->name('client.')->group(function () {
     Route::get('/dashboard', ClientDashboardController::class)->name('dashboard');
 
     Route::get('/profile', [ClientProfileController::class, 'edit'])->name('profile.edit');
@@ -299,8 +326,7 @@ Route::get('/system/run-scheduler', function () {
         abort(403, 'Invalid token.');
     }
 
-    \Illuminate\Support\Facades\Artisan::call('schedule:run');
+    Artisan::call('schedule:run');
 
     return response('ok', 200)->header('Content-Type', 'text/plain');
 })->name('system.run-scheduler');
-

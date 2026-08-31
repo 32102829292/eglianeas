@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Mail\VerificationCodeMail;
 use App\Models\Billing;
+use App\Models\ClientSurveyResponse;
 use App\Models\CompanyCertificate;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -19,13 +20,24 @@ class ClientFlowQaTest extends TestCase
 
     private function client(string $label = 'QA Client'): User
     {
-        return User::create([
+        $user = User::create([
             'name' => $label,
             'email' => 'qa'.uniqid().'@gmail.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
         ]);
+
+        ClientSurveyResponse::create([
+            'user_id' => $user->id,
+            'overall_rating' => 5,
+            'service_rating' => 5,
+            'portal_rating' => 5,
+            'comments' => null,
+            'submitted_at' => now(),
+        ]);
+
+        return $user;
     }
 
     private function billing(User $client, string $status, float $total): Billing

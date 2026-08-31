@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClientSurveyResponse;
 use App\Models\User;
 use App\Models\WebauthnCredential;
 use App\Support\WebauthnService;
@@ -14,12 +15,23 @@ class WebauthnTest extends TestCase
 
     private function client(): User
     {
-        return User::create([
+        $user = User::create([
             'name' => 'Face Client',
             'email' => 'face'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
         ]);
+
+        ClientSurveyResponse::create([
+            'user_id' => $user->id,
+            'overall_rating' => 5,
+            'service_rating' => 5,
+            'portal_rating' => 5,
+            'comments' => null,
+            'submitted_at' => now(),
+        ]);
+
+        return $user;
     }
 
     private function credentialFor(User $user): WebauthnCredential

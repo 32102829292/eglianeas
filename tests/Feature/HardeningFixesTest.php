@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
+use App\Models\ClientSurveyResponse;
 use App\Models\User;
 use App\Services\BillingReminderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -32,13 +33,24 @@ class HardeningFixesTest extends TestCase
 
     private function client(string $label = 'QA Client'): User
     {
-        return User::create([
+        $user = User::create([
             'name' => $label,
             'email' => 'qa'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
         ]);
+
+        ClientSurveyResponse::create([
+            'user_id' => $user->id,
+            'overall_rating' => 5,
+            'service_rating' => 5,
+            'portal_rating' => 5,
+            'comments' => null,
+            'submitted_at' => now(),
+        ]);
+
+        return $user;
     }
 
     private function billing(User $client, string $status): Billing
@@ -84,7 +96,7 @@ class HardeningFixesTest extends TestCase
 
         $response = $this->actingAs($admin)->get('/admin/dashboard');
 
-$response->assertOk();
+        $response->assertOk();
         // The SVG donut must count all four billings (Paid + Unpaid, not just the paid ones).
         $response->assertSee('donut-chart-total">4<', false);
         // The Unpaid segment uses the navy token as its color — proves it is no longer omitted.

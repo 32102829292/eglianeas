@@ -4,9 +4,11 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
+use App\Models\ClientSurveyResponse;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
@@ -40,13 +42,24 @@ class AdminFlowQaTest extends TestCase
 
     private function client(string $label = 'QA Client'): User
     {
-        return User::create([
+        $user = User::create([
             'name' => $label,
             'email' => 'qa'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
         ]);
+
+        ClientSurveyResponse::create([
+            'user_id' => $user->id,
+            'overall_rating' => 5,
+            'service_rating' => 5,
+            'portal_rating' => 5,
+            'comments' => null,
+            'submitted_at' => now(),
+        ]);
+
+        return $user;
     }
 
     private function unpaidBilling(User $client): Billing
@@ -198,13 +211,13 @@ class AdminFlowQaTest extends TestCase
         $this->actingAs($admin)->post("/admin/clients/{$client->id}/impersonate")
             ->assertRedirect(route('client.dashboard'));
 
-        $this->assertSame($client->id, \Illuminate\Support\Facades\Auth::id());
+        $this->assertSame($client->id, Auth::id());
         $this->assertSame($admin->id, session('impersonator_id'));
 
         $this->post('/admin/impersonate/stop')
             ->assertRedirect();
 
-        $this->assertSame($admin->id, \Illuminate\Support\Facades\Auth::id());
+        $this->assertSame($admin->id, Auth::id());
         $this->assertNull(session('impersonator_id'));
     }
 

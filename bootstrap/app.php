@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Http\Middleware\EnsureClientSurveyCompleted;
+use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\ImpersonationBanner;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,10 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
-        $middleware->append(\App\Http\Middleware\ImpersonationBanner::class);
+        $middleware->append(ImpersonationBanner::class);
         $middleware->alias([
-            'role' => \App\Http\Middleware\EnsureUserHasRole::class,
-            'admin.confidentiality' => \App\Http\Middleware\EnsureAdminConfidentialityAcknowledged::class,
+            'role' => EnsureUserHasRole::class,
+            'admin.confidentiality' => EnsureAdminConfidentialityAcknowledged::class,
+            'client.survey' => EnsureClientSurveyCompleted::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

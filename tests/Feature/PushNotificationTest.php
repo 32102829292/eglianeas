@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ClientSurveyResponse;
 use App\Models\User;
 use App\Notifications\PushNotification;
 use App\Services\PushNotificationService;
@@ -18,12 +19,23 @@ class PushNotificationTest extends TestCase
 
     private function user(): User
     {
-        return User::create([
+        $user = User::create([
             'name' => 'Push Client',
             'email' => 'push'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
         ]);
+
+        ClientSurveyResponse::create([
+            'user_id' => $user->id,
+            'overall_rating' => 5,
+            'service_rating' => 5,
+            'portal_rating' => 5,
+            'comments' => null,
+            'submitted_at' => now(),
+        ]);
+
+        return $user;
     }
 
     public function test_notification_routes_through_the_webpush_channel(): void

@@ -14,10 +14,12 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasPushSubscriptions, SoftDeletes;
+    use HasFactory, HasPushSubscriptions, Notifiable, SoftDeletes;
 
     public const ROLE_ADMIN = 'admin';
+
     public const ROLE_STAFF = 'staff';
+
     public const ROLE_CLIENT = 'client';
 
     public const ROLES = [self::ROLE_ADMIN, self::ROLE_STAFF, self::ROLE_CLIENT];
@@ -160,6 +162,22 @@ class User extends Authenticatable
     public function getClientProfile(): ClientProfile
     {
         return $this->profile()->firstOrCreate();
+    }
+
+    public function surveyResponses(): HasMany
+    {
+        return $this->hasMany(ClientSurveyResponse::class);
+    }
+
+    public function monthlySurveyDue(): bool
+    {
+        if (! $this->isClient()) {
+            return false;
+        }
+
+        return ! $this->surveyResponses()
+            ->where('submitted_at', '>=', now()->subDays(30))
+            ->exists();
     }
 
     public function notifications(): HasMany
