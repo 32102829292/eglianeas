@@ -265,7 +265,7 @@ class ClientFlowQaTest extends TestCase
                 && $request['countrycodes'] === 'ph';
         });
         Http::assertSent(function ($request) {
-            return $request->hasHeader('User-Agent', 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)');
+            return $request->hasHeader('User-Agent', 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com; https://eglianeas.com)');
         });
     }
 }

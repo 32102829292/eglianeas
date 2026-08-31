@@ -76,6 +76,13 @@
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                             Locate address
                         </button>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-outline btn-sm" id="distTrackBtn">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4"/></svg>
+                                Use my current location
+                            </button>
+                            <div class="form-hint">Use this only if you're currently at the client's business location - it sets the pin to wherever you are right now.</div>
+                        </div>
                         <div class="form-hint geo-status" id="distGeoStatus" hidden></div>
                     </div>
                     <input type="hidden" id="distLat" name="latitude">
@@ -311,6 +318,7 @@
             var distLngDisplay = document.getElementById('distLngDisplay');
             var distGeoStatus = document.getElementById('distGeoStatus');
             var distLocateBtn = document.getElementById('distLocateBtn');
+            var distTrackBtn = document.getElementById('distTrackBtn');
             var distAddress = document.getElementById('bizAddress');
             var distInstance = null;
 
@@ -385,6 +393,28 @@
                         }
                     })
                     .catch(function () { distShowGeo('Request failed.', true); });
+                });
+            }
+
+            if (distTrackBtn) {
+                distTrackBtn.addEventListener('click', function () {
+                    if (!navigator.geolocation) {
+                        distShowGeo('Your device does not support location. Try "Locate address" or enter coordinates manually.', true);
+                        return;
+                    }
+                    distShowGeo('Getting your current GPS position...', false);
+                    navigator.geolocation.getCurrentPosition(function (pos) {
+                        distSetPin(pos.coords.latitude, pos.coords.longitude);
+                        distShowGeo('Pin set to your current location. Review it and click "Save location" to keep it.', false);
+                    }, function (err) {
+                        if (err.code === err.PERMISSION_DENIED) {
+                            distShowGeo('Location access is needed, please allow location permission, or use "Locate address" / enter coordinates manually.', true);
+                        } else if (err.code === err.POSITION_UNAVAILABLE) {
+                            distShowGeo('Your location could not be determined. Make sure GPS is enabled, or use "Locate address" / enter coordinates manually.', true);
+                        } else {
+                            distShowGeo('Could not get your location. Try "Locate address" or enter coordinates manually.', true);
+                        }
+                    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
                 });
             }
 

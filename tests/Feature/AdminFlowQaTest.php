@@ -7,6 +7,8 @@ use App\Models\Billing;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class AdminFlowQaTest extends TestCase
@@ -222,5 +224,60 @@ class AdminFlowQaTest extends TestCase
 
         $this->actingAs($this->admin())->get("/admin/clients/{$client->id}")
             ->assertOk();
+    }
+
+    public function test_distribution_gps_button_shown_for_admin_and_staff_only(): void
+    {
+        $client = $this->client('GPS Client');
+        $client->getClientProfile();
+
+        $this->actingAs($this->admin())->get("/admin/distribution/{$client->id}")
+            ->assertOk()
+            ->assertSee('Use my current location', false)
+            ->assertSee("you're currently at the client's business location", false);
+
+        $this->actingAs($this->staff())->get("/admin/distribution/{$client->id}")
+            ->assertOk()
+            ->assertSee('Use my current location');
+
+        $this->actingAs($client)->get('/client/profile')
+            ->assertOk()
+            ->assertDontSee('Use my current location')
+            ->assertDontSee('distTrackBtn');
+    }
+
+    public function test_distribution_geocode_reports_service_unavailable_and_logs_failure(): void
+    {
+        $client = $this->client('Geo Down Client');
+        $client->getClientProfile();
+
+        Http::fake([
+            'nominatim.openstreetmap.org/search*' => Http::response([], 500),
+        ]);
+
+        Log::spy();
+
+        $this->actingAs($this->admin())->post('/admin/distribution/geocode', ['q' => 'Cebu City'])
+            ->assertStatus(502)
+            ->assertJson(['error' => 'Geocoding service unavailable.']);
+
+        // Each of the two attempts (initial + one retry) is logged with context.
+        Log::shouldHaveReceived('warning')->twice();
+    }
+
+    public function test_distribution_geocode_retries_transient_failure(): void
+    {
+        Http::fake([
+            'nominatim.openstreetmap.org/search*' => Http::sequence()
+                ->push([], 429)
+                ->push([
+                    ['lat' => '10.3157', 'lon' => '123.8854', 'display_name' => 'Cebu City, Philippines'],
+                ], 200),
+        ]);
+
+        $this->actingAs($this->admin())->post('/admin/distribution/geocode', ['q' => 'Cebu City'])
+            ->assertOk()
+            ->assertJsonPath('lat', 10.3157)
+            ->assertJsonPath('lng', 123.8854);
     }
 }

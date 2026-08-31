@@ -8,10 +8,9 @@ use App\Models\ClientProfile;
 use App\Models\Document;
 use App\Models\DocumentDelivery;
 use App\Models\User;
+use App\Services\GeocodingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -256,99 +255,31 @@ class DistributionController extends Controller
             'q' => ['required', 'string', 'max:500'],
         ]);
 
-        $query = $validated['q'];
-        if (! str_contains(strtolower($query), 'philippines')) {
-            $query .= ', Philippines';
-        }
+        $result = app(GeocodingService::class)->search($validated['q']);
 
-        $cacheKey = 'geocode:'.md5(strtolower(trim($query)));
-        $cached = Cache::get($cacheKey);
-        if ($cached !== null) {
-            return response()->json($cached);
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
-                'Accept' => 'application/json',
-            ])->timeout(10)->get('https://nominatim.openstreetmap.org/search', [
-                    'q' => $query,
-                    'format' => 'json',
-                    'limit' => 1,
-                    'countrycodes' => 'ph',
-                ]);
-
-            if ($response->failed()) {
-                return response()->json(['error' => 'Geocoding service unavailable.'], 502);
-            }
-
-            $results = $response->json();
-            if (empty($results[0])) {
-                $notFound = ['error' => 'Address not found.'];
-                Cache::put($cacheKey, $notFound, 1800);
-
-                return response()->json($notFound, 422);
-            }
-
-            $place = $results[0];
-            $data = [
-                'lat' => (float) $place['lat'],
-                'lng' => (float) $place['lon'],
-                'display_name' => $place['display_name'] ?? '',
-            ];
-
-            Cache::put($cacheKey, $data, 86400);
-
-            return response()->json($data);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Geocoding request failed.'], 500);
-        }
+        return match ($result['status']) {
+            'ok' => response()->json([
+                'lat' => $result['lat'],
+                'lng' => $result['lng'],
+                'display_name' => $result['display_name'],
+            ]),
+            'not_found' => response()->json(['error' => 'Address not found.'], 422),
+            default => response()->json(['error' => 'Geocoding service unavailable.'], 502),
+        };
     }
 
     private function geocodeAddress(string $address): ?array
     {
-        $query = str_contains(strtolower($address), 'philippines')
-            ? $address
-            : $address.', Philippines';
+        $result = app(GeocodingService::class)->search($address);
 
-        $cacheKey = 'geocode:'.md5(strtolower(trim($query)));
-        $cached = Cache::get($cacheKey);
-        if (is_array($cached) && isset($cached['lat'], $cached['lng'])) {
-            return $cached;
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'User-Agent' => 'EglianeAccountingServices/1.0 (contact: support@eglianeas.com)',
-                'Accept' => 'application/json',
-            ])->timeout(8)->get('https://nominatim.openstreetmap.org/search', [
-                'q' => $query,
-                'format' => 'jsonv2',
-                'limit' => 1,
-                'countrycodes' => 'ph',
-            ]);
-
-            if ($response->failed()) {
-                return null;
-            }
-
-            $results = $response->json();
-            if (empty($results[0])) {
-                return null;
-            }
-
-            $place = $results[0];
-            $data = [
-                'lat' => (float) $place['lat'],
-                'lng' => (float) $place['lon'],
-                'display_name' => $place['display_name'] ?? '',
-            ];
-
-            Cache::put($cacheKey, $data, now()->addDay());
-
-            return $data;
-        } catch (\Throwable) {
+        if (($result['status'] ?? '') !== 'ok') {
             return null;
         }
+
+        return [
+            'lat' => $result['lat'],
+            'lng' => $result['lng'],
+            'display_name' => $result['display_name'] ?? '',
+        ];
     }
 }
