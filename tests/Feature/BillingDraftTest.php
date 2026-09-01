@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
 use App\Models\User;
@@ -11,6 +12,18 @@ use Tests\TestCase;
 class BillingDraftTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function admin(): User
+    {
+        return User::create([
+            'name' => 'Billing Admin',
+            'email' => 'billingadmin'.uniqid().'@example.com',
+            'password' => bcrypt('secret'),
+            'role' => User::ROLE_ADMIN,
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
+        ]);
+    }
 
     private function client(): User
     {
@@ -110,5 +123,72 @@ class BillingDraftTest extends TestCase
         $draft->save();
 
         $this->assertSame(3, Billing::nextQuarterFor($client->id, 2026));
+    }
+
+    public function test_paid_billing_cannot_be_updated(): void
+    {
+        $client = $this->client();
+        $billing = $this->paidBilling($client, 1);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->put(route('admin.billing.update', $billing), [
+            'client_id' => $client->id,
+            'quarter' => 1,
+            'year' => 2026,
+        ]);
+
+        $response->assertStatus(403);
+        $this->assertSame(600.00, (float) $billing->fresh()->total);
+    }
+
+    public function test_paid_billing_cannot_be_deleted(): void
+    {
+        $client = $this->client();
+        $billing = $this->paidBilling($client, 1);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->delete(route('admin.billing.destroy', $billing));
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('billings', ['id' => $billing->id]);
+    }
+
+    public function test_edit_link_hidden_for_paid_billing_on_show_page(): void
+    {
+        $client = $this->client();
+        $billing = $this->paidBilling($client, 1);
+        $admin = $this->admin();
+
+        $response = $this->actingAs($admin)->get(route('admin.billing.show', $client));
+
+        $response->assertStatus(200);
+        $response->assertDontSee(route('admin.billing.edit', $billing), false);
+    }
+
+    public function test_overdue_billing_can_still_be_updated(): void
+    {
+        $client = $this->client();
+        $admin = $this->admin();
+        $billing = new Billing;
+        $billing->client_id = $client->id;
+        $billing->quarter = 1;
+        $billing->year = 2026;
+        $billing->period_label = '1ST QUARTER 2026 BILLING';
+        $billing->cash_in = 100;
+        $billing->status = Billing::STATUS_OVERDUE;
+        $billing->created_by = $client->id;
+        $billing->updated_by = $client->id;
+        $billing->save();
+
+        $response = $this->actingAs($admin)->put(route('admin.billing.update', $billing), [
+            'client_id' => $client->id,
+            'quarter' => 1,
+            'year' => 2026,
+            'cash_in' => 150,
+        ]);
+
+        $response->assertStatus(302);
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(150.00, (float) $billing->fresh()->cash_in);
     }
 }

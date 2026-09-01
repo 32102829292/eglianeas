@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,10 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BillingController extends Controller
@@ -215,7 +220,7 @@ class BillingController extends Controller
         $data['status'] = Billing::STATUS_UNPAID;
 
         $quarter = $data['quarter'] ?? null;
-        $year    = $data['year'] ?? null;
+        $year = $data['year'] ?? null;
 
         if ($quarter !== null && $year !== null) {
             $duplicate = Billing::where('client_id', $data['client_id'])
@@ -224,7 +229,7 @@ class BillingController extends Controller
                 ->exists();
 
             if ($duplicate) {
-                $periodName = Billing::QUARTERS[$quarter] . ' Quarter ' . $year;
+                $periodName = Billing::QUARTERS[$quarter].' Quarter '.$year;
 
                 return back()->withInput()->withErrors([
                     'client_id' => "A billing statement for {$periodName} already exists for this client. Please edit the existing statement instead.",
@@ -273,6 +278,8 @@ class BillingController extends Controller
 
     public function update(Request $request, Billing $billing): RedirectResponse
     {
+        abort_if($billing->isPaid(), 403, 'Paid billings cannot be edited.');
+
         $data = $this->validated($request);
         $data['updated_by'] = auth()->id();
 
@@ -361,6 +368,8 @@ class BillingController extends Controller
 
     public function destroy(Billing $billing): RedirectResponse
     {
+        abort_if($billing->isPaid(), 403, 'Paid billings cannot be deleted.');
+
         $label = $billing->period_label;
         $client = $billing->client;
 
@@ -399,17 +408,17 @@ class BillingController extends Controller
         }
 
         $lineItems = $lastBilling->lineItems->map(fn (BillingLineItem $item) => [
-            'category'    => $item->category,
-            'form_type'   => $item->form_type,
-            'label'       => $item->label,
-            'month'       => $item->month,
-            'amount'      => $item->amount,
+            'category' => $item->category,
+            'form_type' => $item->form_type,
+            'label' => $item->label,
+            'month' => $item->month,
+            'amount' => $item->amount,
             'fee_rate_id' => $item->fee_rate_id,
         ])->values()->all();
 
         return response()->json([
             'period_title' => $lastBilling->periodTitle(),
-            'line_items'   => $lineItems,
+            'line_items' => $lineItems,
         ]);
     }
 
@@ -498,7 +507,7 @@ class BillingController extends Controller
         return match ($category) {
             BillingLineItem::CATEGORY_BIR_REMITTANCE => $formType ? "{$formType} Remittance" : 'Cash In',
             BillingLineItem::CATEGORY_PROFESSIONAL_FEE => $formType
-                ? "Professional Fee — {$formType}" . ($month ? " ({$monthNames[$month]})" : '')
+                ? "Professional Fee — {$formType}".($month ? " ({$monthNames[$month]})" : '')
                 : 'Professional Fee',
             BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping',
             BillingLineItem::CATEGORY_POST_CLOSING_TB => 'Post-Closing Trial Balance',
@@ -679,12 +688,12 @@ class BillingController extends Controller
         return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
     }
 
-    public function storeFeeRate(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function storeFeeRate(Request $request): Response
     {
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'min:0'],
             'label' => ['nullable', 'string', 'max:120'],
-                    'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment,data_entry'],
+            'category' => ['required', 'string', 'in:professional_fee,bookkeeping_fee,post_closing_tb,inventory_list,other_attachment,data_entry'],
         ]);
 
         $feeRate = FeeRate::query()->create([
@@ -756,13 +765,13 @@ class BillingController extends Controller
 
         $headers = [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => "attachment; filename=\"Egliane-Billing-Summary-" . Str::slug($periodLabel) . '-' . now()->format('Y-m-d') . ".xlsx\"",
+            'Content-Disposition' => 'attachment; filename="Egliane-Billing-Summary-'.Str::slug($periodLabel).'-'.now()->format('Y-m-d').'.xlsx"',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
         ];
 
-        return response()->stream(function () use ($billings, $periodLabel) {
-            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        return response()->stream(function () use ($billings) {
+            $spreadsheet = new Spreadsheet;
             $sheet = $spreadsheet->getActiveSheet();
 
             // Build dynamic columns from applicable forms
@@ -810,7 +819,7 @@ class BillingController extends Controller
             $colWidths[] = 14;
 
             foreach ($colHeaders as $col => $header) {
-                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                $colLetter = Coordinate::stringFromColumnIndex($col + 1);
                 $cell = $sheet->getCell("{$colLetter}1");
                 $cell->setValue($header);
                 $cell->getStyle()->getFont()->setBold(true);
@@ -866,7 +875,7 @@ class BillingController extends Controller
                 $values[] = (float) $billing->total;
 
                 foreach ($values as $col => $value) {
-                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                    $colLetter = Coordinate::stringFromColumnIndex($col + 1);
                     $sheet->getCell("{$colLetter}{$row}")->setValue($value);
                 }
                 $row++;
@@ -874,13 +883,13 @@ class BillingController extends Controller
 
             $sheet->freezePane('A2');
 
-            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $writer->setIncludeCharts(false);
             $writer->save('php://output');
         }, 200, $headers);
     }
 
-    public function exportSummaryPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function exportSummaryPdf(Request $request): Response
     {
         $validated = $request->validate([
             'quarter' => ['nullable', 'integer', 'between:1,4'],
@@ -903,18 +912,18 @@ class BillingController extends Controller
         $allFormTypes = $billings->flatMap(fn (Billing $b) => $b->lineItems->pluck('form_type')->filter())->unique()->values()->toArray();
         sort($allFormTypes);
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.summary-pdf', [
+        $pdf = Pdf::loadView('admin.billing.summary-pdf', [
             'billings' => $billings,
             'periodLabel' => $periodLabel,
             'allFormTypes' => $allFormTypes,
         ])->setPaper('a4', 'landscape');
 
-        $filename = 'Egliane-Billing-Summary-' . Str::slug($periodLabel) . '-' . now()->format('Y-m-d') . '.pdf';
+        $filename = 'Egliane-Billing-Summary-'.Str::slug($periodLabel).'-'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
     }
 
-    public function printBatch(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function printBatch(Request $request): Response
     {
         $validated = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:60'],
@@ -949,7 +958,7 @@ class BillingController extends Controller
 
         [$density, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.statements-pdf', [
+        $pdf = Pdf::loadView('admin.billing.statements-pdf', [
             'billings' => $billings,
             'gcashNumber' => Setting::get('gcash_number', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
@@ -1031,15 +1040,15 @@ class BillingController extends Controller
     private function buildPeriodLabel(?int $quarter, int $year): string
     {
         if ($quarter) {
-            return Billing::QUARTERS[$quarter] . ' Quarter ' . $year . ' Billing';
+            return Billing::QUARTERS[$quarter].' Quarter '.$year.' Billing';
         }
 
-        return 'All Quarters ' . $year . ' Billing';
+        return 'All Quarters '.$year.' Billing';
     }
 
     private function logBillingExport(string $format, int $count, ?int $quarter, int $year): void
     {
-        $period = $quarter ? 'Q' . $quarter . ' ' . $year : 'All Quarters ' . $year;
+        $period = $quarter ? 'Q'.$quarter.' '.$year : 'All Quarters '.$year;
 
         ActivityLog::record(
             auth()->user(),

@@ -10,7 +10,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 class WebauthnLoginController extends Controller
 {
@@ -69,6 +68,15 @@ class WebauthnLoginController extends Controller
         $credential->update(['record' => $recordData, 'last_used_at' => now()]);
 
         $request->session()->forget('webauthn.login_email');
+
+        if (! $user->hasVerifiedEmail()) {
+            session(['verification_user_id' => $user->id]);
+
+            return response()->json([
+                'errors' => ['credential' => ['Please verify your email before logging in.']],
+                'unverified' => true,
+            ], 422);
+        }
 
         Auth::login($user);
         $request->session()->regenerate();

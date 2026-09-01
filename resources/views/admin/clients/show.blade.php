@@ -75,7 +75,7 @@
                 <input type="hidden" name="name" value="{{ $client->name }}">
                 <input type="hidden" name="email" value="{{ $client->email }}">
                 <input type="hidden" name="status" value="{{ $profile->status }}">
-                <select class="form-control form-control-sm" name="payment_status" onchange="this.form.submit()">
+                <select class="form-control form-control-sm" name="payment_status" onchange="if(confirm('Change payment status to '+this.options[this.selectedIndex].text.trim()+'?')) this.form.submit()">
                     <option value="">Payment: —</option>
                     <option value="paid" @selected($profile->payment_status === 'paid')>Paid</option>
                     <option value="partial" @selected($profile->payment_status === 'partial')>Partial</option>
@@ -93,7 +93,7 @@
                     <input type="hidden" name="email" value="{{ $client->email }}">
                     <input type="hidden" name="payment_status" value="{{ $profile->payment_status }}">
                     <input type="hidden" name="status" value="{{ $value }}">
-                    <button type="submit" class="btn btn-sm {{ $profile->status === $value ? 'btn-primary' : 'btn-outline' }}">{{ $label }}</button>
+                    <button type="submit" class="btn btn-sm {{ $profile->status === $value ? 'btn-primary' : 'btn-outline' }}" onclick="return confirm('Change account status to {{ addslashes($label) }}?')">{{ $label }}</button>
                 </form>
             @endforeach
         </div>

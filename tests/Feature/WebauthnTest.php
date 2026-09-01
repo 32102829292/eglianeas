@@ -7,7 +7,11 @@ use App\Models\User;
 use App\Models\WebauthnCredential;
 use App\Support\WebauthnService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\Uid\Uuid;
 use Tests\TestCase;
+use Webauthn\CredentialRecord;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 class WebauthnTest extends TestCase
 {
@@ -107,5 +111,42 @@ class WebauthnTest extends TestCase
         $this->getJson('/webauthn/register/options')
             ->assertStatus(200)
             ->assertJsonStructure(['challenge', 'rp', 'user', 'pubKeyCredParams']);
+    }
+
+    public function test_unverified_user_cannot_log_in_via_webauthn(): void
+    {
+        $user = $this->client();
+        $credential = $this->credentialFor($user);
+
+        $binaryId = base64_decode('cred-'.$user->id, true);
+
+        $credRecord = CredentialRecord::create(
+            publicKeyCredentialId: $binaryId,
+            type: 'public-key',
+            transports: [],
+            attestationType: 'none',
+            trustPath: new EmptyTrustPath,
+            aaguid: Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+            credentialPublicKey: base64_encode('public-key-bytes'),
+            userHandle: base64_encode((string) $user->id),
+            counter: 0,
+        );
+
+        $mock = $this->createMock(WebauthnService::class);
+        $mock->method('recordFromCredential')->willReturn($credRecord);
+        $mock->method('verifyRequest')->willReturn(1);
+        $this->app->instance(WebauthnService::class, $mock);
+
+        $response = $this->withSession(['webauthn.login_email' => $user->email])
+            ->postJson('/login/webauthn/verify', [
+                'credential' => [
+                    'rawId' => base64_encode($binaryId),
+                ],
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonPath('unverified', true);
+        $response->assertJsonValidationErrors('credential');
+        $this->assertNull(Auth::user());
     }
 }
