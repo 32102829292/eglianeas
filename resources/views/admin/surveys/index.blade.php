@@ -23,20 +23,20 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </div>
             <span class="stat-label">Responses (30 days)</span>
-            <b class="stat-value">{{ $responses->count() }}</b>
+            <b class="stat-value">{{ $responses->total() }}</b>
         </div>
         <div class="stat-card stat-warn">
             <div class="stat-icon stat-icon-warn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <span class="stat-label">Clients due</span>
-            <b class="stat-value">{{ $dueClients->count() }}</b>
+            <b class="stat-value">{{ $dueClients->total() }}</b>
         </div>
     </div>
 
     <div class="card card-data">
         <div class="card-head">
-            <span class="card-title">Recent responses <span class="count-pill">{{ $responses->count() }}</span></span>
+            <span class="card-title">Recent responses <span class="count-pill">{{ $responses->total() }}</span></span>
         </div>
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
@@ -87,6 +87,7 @@
                 </tbody>
             </table>
         </div>
+        {{ $responses->links('pagination.simple') }}
     </div>
 
     @foreach ($responses as $response)
@@ -136,7 +137,7 @@
 
     <div class="card card-data">
         <div class="card-head">
-            <span class="card-title">Clients yet to complete (last 30 days) <span class="count-pill">{{ $dueClients->count() }}</span></span>
+            <span class="card-title">Clients yet to complete (last 30 days) <span class="count-pill">{{ $dueClients->total() }}</span></span>
         </div>
         <div class="card-body">
             @if ($dueClients->isEmpty())
@@ -153,6 +154,7 @@
                 </div>
             @endif
         </div>
+        {{ $dueClients->links('pagination.simple') }}
     </div>
 
     <style>

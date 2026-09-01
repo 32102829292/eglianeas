@@ -83,7 +83,8 @@ class OtherServiceController extends Controller
             })
             ->orderByDesc('requested_at')
             ->orderByDesc('id')
-            ->get();
+            ->paginate(50)
+            ->withQueryString();
 
         return view('admin.other-services.billing', [
             'services' => $services,

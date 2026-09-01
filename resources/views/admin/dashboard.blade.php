@@ -186,7 +186,7 @@
         </div>
 
         @if ($dueBills->count())
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table">
                     <thead>
                         <tr><th>Client</th><th>Period</th><th>Total</th><th>Status</th><th>Due date</th></tr>
@@ -203,6 +203,17 @@
                         @endforeach
                     </tbody>
                 </table>
+                <div class="card-view-list">
+                    @foreach ($dueBills as $billing)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $billing->client?->name ?? '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value">{{ $billing->periodTitle() }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
+                            <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</span></div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
         @endif
     </div>
@@ -265,7 +276,7 @@
                 <h3 class="card-title">Recent accounts</h3>
                 <a href="{{ route('admin.clients.index') }}">View all</a>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table">
                     <thead>
                         <tr><th>Name</th><th>Role</th><th>Joined</th></tr>
@@ -285,6 +296,17 @@
                         @endforelse
                     </tbody>
                 </table>
+                <div class="card-view-list">
+                    @forelse ($recentUsers as $user)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Name</span><span class="cv-value">{{ $user->name }}<br><small class="muted">{{ $user->business_name ?? $user->email }}</small></span></div>
+                            <div class="cv-row"><span class="cv-label">Role</span><span class="cv-value"><span class="badge badge-{{ $user->role }}">{{ ucfirst($user->role) }}</span></span></div>
+                            <div class="cv-row"><span class="cv-label">Joined</span><span class="cv-value">{{ $user->created_at->diffForHumans() }}</span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No accounts yet.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
 
@@ -293,7 +315,7 @@
                 <h3 class="card-title">Recent filings</h3>
                 <a href="{{ route('admin.dashboard') }}">Refresh</a>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table">
                     <thead>
                         <tr><th>Type</th><th>Client</th><th>Status</th></tr>
@@ -310,6 +332,17 @@
                         @endforelse
                     </tbody>
                 </table>
+                <div class="card-view-list">
+                    @forelse ($recentFilings as $filing)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Type</span><span class="cv-value">{{ $filing->type }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $filing->client?->name ?? '—' }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] ?? ucfirst($filing->status ?? 'unknown') }}</span></span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No filings yet.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
     </div>
@@ -321,7 +354,7 @@
                 <a href="{{ route('admin.activity-logs') }}">View all</a>
             @endif
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table">
                 <thead>
                     <tr><th>User</th><th>Action</th><th>Details</th><th>When</th></tr>
@@ -339,6 +372,18 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($recentActivity as $log)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">User</span><span class="cv-value">{{ $log->user?->name ?? 'Guest' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Action</span><span class="cv-value"><code class="code-pill">{{ $log->action }}</code></span></div>
+                        <div class="cv-row"><span class="cv-label">Details</span><span class="cv-value">{{ $log->description }}</span></div>
+                        <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No activity yet.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Notification;
+use App\Models\User;
 use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,7 +25,8 @@ class CollectionController extends Controller
             ->orderByRaw('due_date IS NULL')
             ->orderBy('due_date')
             ->orderByDesc('id')
-            ->get();
+            ->paginate(50)
+            ->withQueryString();
 
         $all = Billing::query()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->get();
 
@@ -60,7 +62,7 @@ class CollectionController extends Controller
             route('client.collections.index')
         );
 
-        $client = \App\Models\User::find($billing->client_id);
+        $client = User::find($billing->client_id);
         if ($client) {
             PushNotificationService::send(
                 $client,

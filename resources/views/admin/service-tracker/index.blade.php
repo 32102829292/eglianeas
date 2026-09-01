@@ -142,5 +142,6 @@
                 @endforelse
             </div>
         </div>
+        {{ $instances->links('pagination.simple') }}
     </div>
 @endsection

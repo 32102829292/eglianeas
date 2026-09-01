@@ -72,5 +72,6 @@
                 @endforelse
             </div>
         </div>
+        {{ $clients->links('pagination.simple') }}
     </div>
 @endsection

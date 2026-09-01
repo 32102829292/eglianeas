@@ -23,7 +23,7 @@ class DistributionController extends Controller
 
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
-            ->with('profile')
+            ->with(['profile', 'birFormStatuses', 'documents'])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -33,12 +33,13 @@ class DistributionController extends Controller
                 });
             })
             ->orderBy('business_name')
-            ->get()
-            ->map(function (User $client): array {
-                $statuses = $client->birFormStatuses()->pluck('status', 'form_type');
-                $applicableForms = $client->birFormStatuses()->where('applicable', true)->pluck('status', 'form_type');
+            ->paginate(50)
+            ->withQueryString()
+            ->through(function (User $client): array {
+                $statuses = $client->birFormStatuses->pluck('status', 'form_type');
+                $applicableForms = $client->birFormStatuses->where('applicable', true)->pluck('status', 'form_type');
                 $filed = $applicableForms->filter(fn (string $s) => $s === BirFormStatus::STATUS_FILED)->count();
-                $softcopyCount = $client->documents()->whereNotNull('form_type')->count();
+                $softcopyCount = $client->documents->whereNotNull('form_type')->count();
 
                 return [
                     'user' => $client,

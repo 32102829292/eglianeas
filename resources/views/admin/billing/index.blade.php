@@ -158,6 +158,7 @@
                 @endforelse
             </div>
         </div>
+        {{ $entries->links('pagination.simple') }}
     </div>
 @endsection
 

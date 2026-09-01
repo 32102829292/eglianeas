@@ -9,6 +9,7 @@ use App\Models\TrackerAssignment;
 use App\Models\TrackerInstance;
 use App\Models\TrackerService;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -40,7 +41,8 @@ class ServiceTrackerController extends Controller
                 });
             })
             ->orderByDesc('id')
-            ->get();
+            ->paginate(50)
+            ->withQueryString();
 
         $allInstances = TrackerInstance::query()->with('assignments')->get();
         $totalAssignments = $allInstances->flatMap->assignments->count();
@@ -123,10 +125,11 @@ class ServiceTrackerController extends Controller
 
     public function summary(): View
     {
-        $services = TrackerService::ordered()->get();
+        $services = TrackerService::ordered()->with('instances.assignments')->get();
 
         $serviceSummary = $services->map(function (TrackerService $service) {
-            $instances = $service->instances()->with('assignments')->get();
+            $instances = $service->instances;
+
             return [
                 'service' => $service,
                 'total' => $instances->count(),
@@ -142,6 +145,7 @@ class ServiceTrackerController extends Controller
 
         $staffSummary = $staffNames->map(function (string $name) use ($allAssignments) {
             $myAssignments = $allAssignments->where('staff_name', $name);
+
             return [
                 'name' => $name,
                 'total' => $myAssignments->count(),
@@ -212,7 +216,7 @@ class ServiceTrackerController extends Controller
         ActivityLog::record(
             auth()->user(),
             'admin.client_concern_created',
-            "Logged client concern for " . User::find($validated['client_id'])?->name . "."
+            'Logged client concern for '.User::find($validated['client_id'])?->name.'.'
         );
 
         return back()->with('status', 'Client concern logged.');
@@ -234,7 +238,7 @@ class ServiceTrackerController extends Controller
         ActivityLog::record(
             auth()->user(),
             'admin.client_concern_updated',
-            "Updated client concern #{$concern->id} for " . $concern->client?->name . "."
+            "Updated client concern #{$concern->id} for ".$concern->client?->name.'.'
         );
 
         return back()->with('status', 'Concern updated.');
@@ -262,7 +266,7 @@ class ServiceTrackerController extends Controller
         return back()->with('status', 'Concern deleted.');
     }
 
-    public function clientsJson(Request $request): \Illuminate\Http\JsonResponse
+    public function clientsJson(Request $request): JsonResponse
     {
         $q = $request->get('q', '');
 

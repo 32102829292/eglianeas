@@ -114,5 +114,6 @@
                 @endforelse
             </div>
         </div>
+        {{ $services->links('pagination.simple') }}
     </div>
 @endsection

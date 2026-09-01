@@ -55,7 +55,7 @@
             <div class="card-head">
                 <h3 class="card-title">Recent transactions</h3>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table">
                     <thead><tr><th>Title</th><th>Amount</th><th>Date</th></tr></thead>
                     <tbody>
@@ -75,6 +75,17 @@
                         @endforelse
                     </tbody>
                 </table>
+                <div class="card-view-list">
+                    @forelse ($recentTransactions as $tx)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Title</span><span class="cv-value">{{ $tx->title }}<br><small class="muted">{{ $tx->category ?? '—' }}</small></span></div>
+                            <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value"><span class="{{ $tx->type === 'income' ? 'amount-income' : 'amount-expense' }}">{{ $tx->type === 'income' ? '+' : '−' }} &#8369; {{ number_format($tx->amount, 2) }}</span></span></div>
+                            <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $tx->transaction_date->format('M j, Y') }}</span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No transactions recorded yet.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
 

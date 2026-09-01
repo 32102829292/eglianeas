@@ -36,6 +36,16 @@ class BillingController extends Controller
     {
         $q = trim((string) $request->get('q'));
 
+        // Priority ordering reproduced from clientStatus(): clients with
+        // overdue/unpaid/pending statements surface first, then paid-only,
+        // then those with no statements. Kept in SQL so pagination is stable.
+        $priority = '(SELECT MAX(CASE b.status '
+            ."WHEN '".Billing::STATUS_OVERDUE."' THEN 5 "
+            ."WHEN '".Billing::STATUS_UNPAID."' THEN 4 "
+            ."WHEN '".Billing::STATUS_PENDING."' THEN 3 "
+            ."WHEN '".Billing::STATUS_PAID."' THEN 2 "
+            .'ELSE 1 END) FROM billings b WHERE b.client_id = users.id)';
+
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with(['profile', 'billings'])
@@ -46,10 +56,11 @@ class BillingController extends Controller
                         ->orWhere('email', 'like', "%{$q}%");
                 });
             })
-            ->get();
-
-        $clients = $clients
-            ->map(fn (User $client): array => [
+            ->orderByRaw("{$priority} DESC NULLS LAST")
+            ->orderByRaw("COALESCE(NULLIF(business_name, ''), name) asc")
+            ->paginate(50)
+            ->withQueryString()
+            ->through(fn (User $client): array => [
                 'user' => $client,
                 'billings' => $client->billings,
                 'billing_count' => $client->billings->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
@@ -57,9 +68,7 @@ class BillingController extends Controller
                 'total_paid' => $client->billings->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => $client->billings->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
                 'status' => $this->clientStatus($client->billings),
-            ])
-            ->sortByDesc(fn (array $entry) => [$entry['billings']->count() > 0, $entry['status']])
-            ->values();
+            ]);
 
         return view('admin.billing.index', [
             'entries' => $clients,

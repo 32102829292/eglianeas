@@ -125,5 +125,6 @@
                 @endforelse
             </div>
         </div>
+        {{ $billings->links('pagination.simple') }}
     </div>
 @endsection

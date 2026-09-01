@@ -33,7 +33,7 @@
     </div>
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table">
                 <thead>
                     <tr>
@@ -69,6 +69,20 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($services as $service)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $service->serviceName() }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Requested</span><span class="cv-value">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $service->status }}">{{ $service->statusLabel() }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $service->paid_at?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value">@if ($service->isPaid())<a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No service records yet.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

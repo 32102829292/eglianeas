@@ -33,7 +33,7 @@
     </div>
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table">
                 <thead>
                     <tr>
@@ -69,6 +69,19 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($billings as $billing)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
+                        <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value">@if ($billing->isPaid())<a href="{{ route('client.billing.show', $billing) }}?from=collections" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No billing statements yet.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

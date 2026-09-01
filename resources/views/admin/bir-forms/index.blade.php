@@ -40,7 +40,7 @@
     @endif
 
     <div class="card">
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
@@ -94,6 +94,39 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($clients as $entry)
+                    @php($client = $entry['user'])
+                    @php($statuses = $entry['statuses'])
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Client Code</span><span class="cv-value"><span class="badge badge-navy">{{ $client->client_code ?? '—' }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value"><span class="badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span></span></div>
+                        @foreach ($formTypes as $ft)
+                            @php($isOn = $statuses[$ft] ?? false)
+                            <div class="cv-row">
+                                <span class="cv-label">{{ $ft }}</span>
+                                <span class="cv-value">
+                                    <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form">
+                                        @csrf
+                                        <input type="hidden" name="form_type" value="{{ $ft }}">
+                                        <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}">
+                                            @if ($isOn)
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                                            @else
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            @endif
+                                        </button>
+                                    </form>
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

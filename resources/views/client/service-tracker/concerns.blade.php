@@ -39,7 +39,7 @@
         <div class="card-head">
             <h2 class="card-title">Your Concerns</h2>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table">
                 <thead>
                     <tr>
@@ -67,6 +67,19 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($concerns as $concern)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Issue</span><span class="cv-value">{{ $concern->description_of_issue }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Related Service</span><span class="cv-value">{{ $concern->relatedService?->name ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">{{ $concern->proposed_solution ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
+                    </div>
+                @empty
+                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No concerns logged yet.</p>
+                @endforelse
+            </div>
         </div>
     </div>
 @endsection

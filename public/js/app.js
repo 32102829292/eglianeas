@@ -720,4 +720,48 @@
     var root = document.getElementById('chatWidget');
     if (root) window.egliane.chatbot = new Chatbot(root.getAttribute('data-config'));
   });
+
+  /* ---------- Double-submit protection ----------
+     Disable submit buttons (with a loading label) on any native form submit
+     so an accidental double-click/multi-submit can't create duplicate records,
+     send duplicate notifications, or double-charge. Buttons are re-enabled if
+     the submit is cancelled (returning false from onsubmit sets
+     defaultPrevented, e.g. a confirm() dialog the user dismissed), and again
+     via pageshow as a safety net when the page is revisited (e.g. after a
+     validation-error redirect that re-renders the form). AJAX-driven forms
+     ignore this because their submit handlers preventDefault(). Opt out of the
+     guard per-form with data-no-disable="1" (e.g. forms that reload segments). */
+  function restoreSubmitButtons(root) {
+    var btns = root.querySelectorAll('button[data-submit-guard]');
+    for (var i = 0; i < btns.length; i++) {
+      var b = btns[i];
+      if (typeof b.dataset.origHtml === 'string') b.innerHTML = b.dataset.origHtml;
+      b.disabled = false;
+      b.removeAttribute('data-submit-guard');
+      delete b.dataset.origHtml;
+    }
+  }
+
+  document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;
+    var form = e.target;
+    if (!form || form.nodeName !== 'FORM') return;
+    if (form.getAttribute('data-no-disable') === '1') return;
+    if (form.getAttribute('target') === '_blank') return;
+
+    var buttons = form.querySelectorAll('button[type="submit"], input[type="submit"]');
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      if (btn.disabled) continue;
+      var isInput = btn.nodeName === 'INPUT';
+      btn.setAttribute('data-submit-guard', '1');
+      btn.dataset.origHtml = isInput ? (btn.value || '') : btn.innerHTML;
+      btn.disabled = true;
+      if (!isInput) {
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving…';
+      }
+    }
+  });
+
+  window.addEventListener('pageshow', function () { restoreSubmitButtons(document); });
 })();

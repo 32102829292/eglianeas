@@ -34,9 +34,12 @@ class ClientController extends Controller
             ->where('role', User::ROLE_CLIENT)
             ->with('profile')
             ->withCount(['billings', 'documents'])
+            ->withSum(['billings' => fn ($q) => $q->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])], 'total')
             ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
-            ->get()
-            ->map(function (User $client): array {
+            ->orderByRaw("COALESCE(NULLIF(business_name, ''), name) asc")
+            ->paginate(50)
+            ->withQueryString()
+            ->through(function (User $client): array {
                 $profile = $client->profile;
 
                 return [
@@ -44,13 +47,9 @@ class ClientController extends Controller
                     'profile' => $profile,
                     'status' => $profile?->status ?? ClientProfile::STATUS_PENDING,
                     'payment_status' => $profile?->payment_status,
-                    'outstanding' => (float) $client->billings()
-                        ->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
-                        ->sum('total'),
+                    'outstanding' => (float) $client->billings_sum_total,
                 ];
-            })
-            ->sortBy(fn (array $entry) => strtolower($entry['user']->business_name ?: $entry['user']->name))
-            ->values();
+            });
 
         return view('admin.clients.index', [
             'clients' => $clients,

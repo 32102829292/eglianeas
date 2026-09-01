@@ -46,7 +46,7 @@
 
     <div class="card card-data">
         <div class="card-head">
-            <span class="card-title">All Clients <span class="count-pill">{{ $clients->count() }}</span></span>
+            <span class="card-title">All Clients <span class="count-pill">{{ $clients->total() }}</span></span>
         </div>
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
@@ -135,6 +135,7 @@
                 @endforelse
             </div>
         </div>
+        {{ $clients->links('pagination.simple') }}
     </div>
 @endsection
 
