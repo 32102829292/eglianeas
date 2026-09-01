@@ -171,6 +171,9 @@ class HardeningFixesTest extends TestCase
         $billing->refresh();
         $this->assertSame(Billing::STATUS_OVERDUE, $billing->status);
         $this->assertNotNull($billing->reminder_sent_at);
+        $this->assertDatabaseHas('activity_logs', [
+            'action' => 'billing.auto_overdue',
+        ]);
     }
 
     public function test_fresh_unpaid_bill_sends_once_and_updates_stamp(): void

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Notification;
 use App\Models\User;
@@ -40,6 +41,12 @@ class BillingReminderService
             if ($overdue && $billing->status !== Billing::STATUS_OVERDUE) {
                 $billing->status = Billing::STATUS_OVERDUE;
                 $billing->save();
+
+                ActivityLog::record(
+                    null,
+                    'billing.auto_overdue',
+                    "Automatically marked {$billing->period_label} for {$billing->client?->name} as overdue."
+                );
             }
 
             $group = "billing_due:{$billing->id}";

@@ -513,7 +513,29 @@ class StaffAccessTest extends TestCase
         $this->assertSame(OtherService::STATUS_PAID, $service->fresh()->status);
     }
 
-    public function test_other_services_collections_hides_mark_paid_for_staff(): void
+    public function test_paid_other_service_cannot_be_reverted_to_unpaid(): void
+    {
+        $client = $this->client();
+        $service = OtherService::create([
+            'client_id' => $client->id,
+            'custom_label' => 'Notarization',
+            'amount' => 700.00,
+            'status' => OtherService::STATUS_PAID,
+            'paid_at' => now(),
+            'requested_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin())
+            ->post(route('admin.other-services.pay', $service), [
+                'status' => OtherService::STATUS_UNPAID,
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(OtherService::STATUS_PAID, $service->fresh()->status);
+        $this->assertNotNull($service->fresh()->paid_at);
+    }
+
+    public function test_paid_other_service_other_service_collections_hides_mark_paid_for_staff(): void
     {
         $client = $this->client();
         OtherService::create([

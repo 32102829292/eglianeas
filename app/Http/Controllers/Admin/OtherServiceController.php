@@ -9,8 +9,10 @@ use App\Models\OtherService;
 use App\Models\ServiceType;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class OtherServiceController extends Controller
@@ -134,9 +136,11 @@ class OtherServiceController extends Controller
             'paid_at' => ['nullable', 'date'],
         ]);
 
+        abort_if($otherService->isPaid() && $validated['status'] !== OtherService::STATUS_PAID, 403, 'Paid services cannot be reverted to a non-paid status.');
+
         $otherService->status = $validated['status'];
         $otherService->paid_at = $validated['status'] === OtherService::STATUS_PAID
-            ? (! empty($validated['paid_at']) ? \Illuminate\Support\Carbon::parse($validated['paid_at']) : now())
+            ? (! empty($validated['paid_at']) ? Carbon::parse($validated['paid_at']) : now())
             : null;
         $otherService->save();
 
@@ -215,7 +219,7 @@ class OtherServiceController extends Controller
         return back()->with('status', 'Service type removed.');
     }
 
-    public function clientsJson(Request $request): \Illuminate\Http\JsonResponse
+    public function clientsJson(Request $request): JsonResponse
     {
         $q = $request->get('q', '');
 

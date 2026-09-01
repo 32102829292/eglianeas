@@ -11,12 +11,18 @@ use App\Models\ClientProfile;
 use App\Models\MasterlistExportLog;
 use App\Models\User;
 use App\Services\GeocodingService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ClientController extends Controller
 {
@@ -96,7 +102,7 @@ class ClientController extends Controller
         return redirect()->route('admin.clients.index')->with('status', 'Client account deleted.');
     }
 
-    public function exportXlsx(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportXlsx(Request $request): StreamedResponse
     {
         $q = trim((string) $request->get('q'));
         $clients = $this->getFilteredClients($q);
@@ -109,13 +115,13 @@ class ClientController extends Controller
 
         $headers = [
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'Content-Disposition' => "attachment; filename=\"Egliane-Client-Masterlist-" . now()->format('Y-m-d') . ".xlsx\"",
+            'Content-Disposition' => 'attachment; filename="Egliane-Client-Masterlist-'.now()->format('Y-m-d').'.xlsx"',
             'Pragma' => 'no-cache',
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
         ];
 
         return response()->stream(function () use ($clients) {
-            $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+            $spreadsheet = new Spreadsheet;
             $sheet = $spreadsheet->getActiveSheet();
 
             $headers = [
@@ -129,7 +135,7 @@ class ClientController extends Controller
             $colWidths = [14, 20, 24, 24, 20, 18, 20, 18, 30, 16, 26, 18, 16, 24, 14, 16, 22, 20, 12, 14, 14, 24];
 
             foreach ($headers as $col => $header) {
-                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                $colLetter = Coordinate::stringFromColumnIndex($col + 1);
                 $cell = $sheet->getCell("{$colLetter}1");
                 $cell->setValue($header);
                 $cell->getStyle()->getFont()->setBold(true);
@@ -165,7 +171,7 @@ class ClientController extends Controller
                 ];
 
                 foreach ($values as $col => $value) {
-                    $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
+                    $colLetter = Coordinate::stringFromColumnIndex($col + 1);
                     $sheet->getCell("{$colLetter}{$row}")->setValue($value);
                 }
                 $row++;
@@ -173,13 +179,13 @@ class ClientController extends Controller
 
             $sheet->freezePane('A2');
 
-            $writer = \PhpOffice\PhpSpreadsheet\IOFactory::createWriter($spreadsheet, 'Xlsx');
+            $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $writer->setIncludeCharts(false);
             $writer->save('php://output');
         }, 200, $headers);
     }
 
-    public function exportPdf(Request $request): \Symfony\Component\HttpFoundation\Response
+    public function exportPdf(Request $request): Response
     {
         $q = trim((string) $request->get('q'));
         $clients = $this->getFilteredClients($q);
@@ -190,11 +196,11 @@ class ClientController extends Controller
             abort(404, 'No clients found for the current filter.');
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.clients.masterlist-pdf', [
+        $pdf = Pdf::loadView('admin.clients.masterlist-pdf', [
             'clients' => $clients,
         ])->setPaper('a4', 'landscape');
 
-        $filename = 'Egliane-Client-Masterlist-' . now()->format('Y-m-d') . '.pdf';
+        $filename = 'Egliane-Client-Masterlist-'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
     }
@@ -417,16 +423,18 @@ class ClientController extends Controller
             ->unique()
             ->values();
 
-        foreach ($client->birFormStatuses as $status) {
-            $status->update(['applicable' => $selected->contains($status->form_type)]);
-        }
+        DB::transaction(function () use ($client, $selected) {
+            foreach ($client->birFormStatuses as $status) {
+                $status->update(['applicable' => $selected->contains($status->form_type)]);
+            }
 
-        foreach ($selected as $formType) {
-            BirFormStatus::firstOrCreate(
-                ['client_id' => $client->id, 'form_type' => $formType],
-                ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
-            );
-        }
+            foreach ($selected as $formType) {
+                BirFormStatus::firstOrCreate(
+                    ['client_id' => $client->id, 'form_type' => $formType],
+                    ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
+                );
+            }
+        });
     }
 
     private function geocodeAddress(string $address): ?array
@@ -449,7 +457,7 @@ class ClientController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
         $validated = $request->validate([
-            'key'   => ['required', 'string', 'max:255'],
+            'key' => ['required', 'string', 'max:255'],
             'value' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -472,7 +480,7 @@ class ClientController extends Controller
         abort_unless($entry->user_id === $client->id, 404);
 
         $validated = $request->validate([
-            'key'   => ['sometimes', 'required', 'string', 'max:255'],
+            'key' => ['sometimes', 'required', 'string', 'max:255'],
             'value' => ['nullable', 'string', 'max:500'],
         ]);
 

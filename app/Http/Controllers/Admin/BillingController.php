@@ -19,6 +19,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -237,14 +238,18 @@ class BillingController extends Controller
             }
         }
 
-        $billing = new Billing($data);
-        $billing->due_date = $this->resolvedDueDate($billing, $data['due_date'] ?? null);
+        $billing = DB::transaction(function () use ($data, $request) {
+            $billing = new Billing($data);
+            $billing->due_date = $this->resolvedDueDate($billing, $data['due_date'] ?? null);
 
-        $billing->save();
+            $billing->save();
 
-        $this->syncLineItems($billing, $request);
-        $billing->recomputeTotal();
-        $billing->save();
+            $this->syncLineItems($billing, $request);
+            $billing->recomputeTotal();
+            $billing->save();
+
+            return $billing;
+        });
 
         Notification::create([
             'user_id' => $billing->client_id,
@@ -283,13 +288,17 @@ class BillingController extends Controller
         $data = $this->validated($request);
         $data['updated_by'] = auth()->id();
 
-        $billing->fill($data);
-        $billing->due_date = $this->resolvedDueDate($billing, $data['due_date'] ?? null);
-        $billing->save();
+        $billing = DB::transaction(function () use ($request, $billing, $data) {
+            $billing->fill($data);
+            $billing->due_date = $this->resolvedDueDate($billing, $data['due_date'] ?? null);
+            $billing->save();
 
-        $this->syncLineItems($billing, $request);
-        $billing->recomputeTotal();
-        $billing->save();
+            $this->syncLineItems($billing, $request);
+            $billing->recomputeTotal();
+            $billing->save();
+
+            return $billing;
+        });
 
         ActivityLog::record(auth()->user(), 'admin.billing_updated', "Updated {$billing->period_label} for {$billing->client?->name}.");
 

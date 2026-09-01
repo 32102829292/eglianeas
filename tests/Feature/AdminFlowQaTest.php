@@ -4,13 +4,18 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
+use App\Models\BirFormStatus;
 use App\Models\ClientSurveyResponse;
+use App\Models\CorViewLog;
+use App\Models\Document;
+use App\Models\DocumentDelivery;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AdminFlowQaTest extends TestCase
@@ -292,5 +297,147 @@ class AdminFlowQaTest extends TestCase
             ->assertOk()
             ->assertJsonPath('lat', 10.3157)
             ->assertJsonPath('lng', 123.8854);
+    }
+
+    public function test_admin_document_download_is_logged(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client();
+        Storage::fake('supabase');
+
+        $document = Document::create([
+            'user_id' => $admin->id,
+            'client_id' => $client->id,
+            'name' => 'COR.pdf',
+            'original_name' => 'COR.pdf',
+            'path' => "cor/{$client->id}/cor.pdf",
+            'mime_type' => 'application/pdf',
+            'size' => 1234,
+            'form_type' => 'COR',
+        ]);
+        Storage::disk('supabase')->put($document->path, 'PDFBODY');
+
+        $this->actingAs($admin)->get(route('admin.distribution.download', $document))->assertOk();
+
+        $this->assertDatabaseHas('cor_view_logs', [
+            'document_id' => $document->id,
+            'viewed_by' => $admin->id,
+        ]);
+    }
+
+    public function test_client_document_download_is_logged(): void
+    {
+        $client = $this->client();
+        Storage::fake('supabase');
+
+        $document = Document::create([
+            'user_id' => $client->id,
+            'client_id' => $client->id,
+            'name' => 'COR.pdf',
+            'original_name' => 'COR.pdf',
+            'path' => "cor/{$client->id}/cor.pdf",
+            'mime_type' => 'application/pdf',
+            'size' => 1234,
+            'form_type' => 'COR',
+        ]);
+        Storage::disk('supabase')->put($document->path, 'PDFBODY');
+
+        $this->actingAs($client)->get(route('client.documents.download', $document))->assertOk();
+
+        $this->assertDatabaseHas('cor_view_logs', [
+            'document_id' => $document->id,
+            'viewed_by' => $client->id,
+        ]);
+        $this->assertSame(1, CorViewLog::where('document_id', $document->id)->count());
+    }
+
+    public function test_update_bir_status_is_logged(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client('Bir Client');
+        BirFormStatus::create([
+            'client_id' => $client->id,
+            'form_type' => '2551Q',
+            'status' => BirFormStatus::STATUS_NOT_FILED,
+            'applicable' => true,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.distribution.bir-status', $client), [
+            'form_type' => '2551Q',
+            'status' => BirFormStatus::STATUS_FILED,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'action' => 'distribution.bir_status_updated',
+        ]);
+    }
+
+    public function test_destroy_delivery_is_logged(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client('Delivery Client');
+        $delivery = DocumentDelivery::create([
+            'client_id' => $client->id,
+            'form_type' => 'COR',
+            'delivery_method' => 'email',
+            'date_received' => now()->toDateString(),
+        ]);
+
+        $this->actingAs($admin)->delete(route('admin.distribution.destroy-delivery', [$client, $delivery]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('document_deliveries', ['id' => $delivery->id]);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'action' => 'distribution.delivery_deleted',
+        ]);
+    }
+
+    public function test_destroy_softcopy_is_logged(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client('Softcopy Client');
+        Storage::fake('supabase');
+
+        $document = Document::create([
+            'user_id' => $admin->id,
+            'client_id' => $client->id,
+            'name' => 'COR.pdf',
+            'original_name' => 'COR.pdf',
+            'path' => "cor/{$client->id}/cor.pdf",
+            'mime_type' => 'application/pdf',
+            'size' => 1234,
+            'form_type' => 'COR',
+        ]);
+        Storage::disk('supabase')->put($document->path, 'PDFBODY');
+
+        $this->actingAs($admin)->delete(route('admin.distribution.destroy-softcopy', [$client, $document]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('documents', ['id' => $document->id]);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'action' => 'distribution.softcopy_deleted',
+        ]);
+    }
+
+    public function test_update_location_is_logged(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client('Location Client');
+        $profile = $client->getClientProfile();
+
+        $this->actingAs($admin)->post(route('admin.distribution.update-location', $client), [
+            'business_address' => '123 Test St, Cebu City',
+            'latitude' => 10.3157,
+            'longitude' => 123.8854,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame('123 Test St, Cebu City', $profile->fresh()->business_address);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'action' => 'distribution.location_updated',
+        ]);
     }
 }

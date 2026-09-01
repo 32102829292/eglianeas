@@ -10,6 +10,7 @@ use App\Models\CoreValue;
 use App\Models\TeamMember;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -40,16 +41,18 @@ class AboutController extends Controller
             'values.*' => ['required', 'string', 'max:100'],
         ]);
 
-        AboutContent::updateOrCreate(
-            ['id' => 1],
-            ['mission' => $validated['mission'], 'vision' => $validated['vision']]
-        );
+        DB::transaction(function () use ($validated) {
+            AboutContent::updateOrCreate(
+                ['id' => 1],
+                ['mission' => $validated['mission'], 'vision' => $validated['vision']]
+            );
 
-        CoreValue::truncate();
-        $values = array_filter($validated['values'] ?? [], fn ($v) => trim($v) !== '');
-        foreach (array_values($values) as $i => $label) {
-            CoreValue::create(['label' => trim($label), 'sort_order' => $i]);
-        }
+            CoreValue::truncate();
+            $values = array_filter($validated['values'] ?? [], fn ($v) => trim($v) !== '');
+            foreach (array_values($values) as $i => $label) {
+                CoreValue::create(['label' => trim($label), 'sort_order' => $i]);
+            }
+        });
 
         ActivityLog::record(auth()->user(), 'settings.about_updated', 'Updated the About page content.');
 

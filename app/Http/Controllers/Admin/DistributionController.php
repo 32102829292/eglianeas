@@ -3,8 +3,9 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\BirFormStatus;
-use App\Models\ClientProfile;
+use App\Models\CorViewLog;
 use App\Models\Document;
 use App\Models\DocumentDelivery;
 use App\Models\User;
@@ -109,6 +110,13 @@ class DistributionController extends Controller
             ['status' => $validated['status'], 'updated_by' => auth()->id()]
         );
 
+        $displayName = $client->business_name ?: $client->name;
+        ActivityLog::record(
+            auth()->user(),
+            'distribution.bir_status_updated',
+            "Marked {$validated['form_type']} as ".BirFormStatus::STATUSES[$validated['status']]." for {$displayName}."
+        );
+
         return back()->with('status', "{$validated['form_type']} status updated to ".BirFormStatus::STATUSES[$validated['status']].'.');
     }
 
@@ -131,7 +139,7 @@ class DistributionController extends Controller
         DocumentDelivery::create($validated);
 
         $displayName = $client->business_name ?: $client->name;
-        \App\Models\ActivityLog::record(
+        ActivityLog::record(
             auth()->user(),
             'distribution.delivery_logged',
             "Logged {$validated['delivery_method']} delivery of {$validated['form_type']} to {$displayName}."
@@ -145,7 +153,15 @@ class DistributionController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
         abort_unless($delivery->client_id === $client->id, 404);
 
+        $formType = $delivery->form_type;
         $delivery->delete();
+
+        $displayName = $client->business_name ?: $client->name;
+        ActivityLog::record(
+            auth()->user(),
+            'distribution.delivery_deleted',
+            "Removed {$formType} delivery entry for {$displayName}."
+        );
 
         return back()->with('status', 'Delivery entry removed.');
     }
@@ -174,7 +190,7 @@ class DistributionController extends Controller
         ]);
 
         $displayName = $client->business_name ?: $client->name;
-        \App\Models\ActivityLog::record(
+        ActivityLog::record(
             auth()->user(),
             'distribution.softcopy_uploaded',
             "Uploaded {$validated['form_type']} softcopy for {$displayName}."
@@ -189,7 +205,7 @@ class DistributionController extends Controller
         abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
         $user = auth()->user();
-        \App\Models\CorViewLog::create([
+        CorViewLog::create([
             'document_id' => $document->id,
             'viewed_by' => $user->id,
             'viewed_at' => now(),
@@ -207,6 +223,12 @@ class DistributionController extends Controller
         abort_unless($document->client_id, 404);
         abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
+        CorViewLog::create([
+            'document_id' => $document->id,
+            'viewed_by' => auth()->id(),
+            'viewed_at' => now(),
+        ]);
+
         return Storage::disk('supabase')->download($document->path, $document->original_name);
     }
 
@@ -215,8 +237,16 @@ class DistributionController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
         abort_unless($document->client_id === $client->id, 404);
 
+        $formType = $document->form_type;
         Storage::disk('supabase')->delete($document->path);
         $document->delete();
+
+        $displayName = $client->business_name ?: $client->name;
+        ActivityLog::record(
+            auth()->user(),
+            'distribution.softcopy_deleted',
+            "Removed {$formType} softcopy for {$displayName}."
+        );
 
         return back()->with('status', 'Softcopy removed.');
     }
@@ -245,6 +275,14 @@ class DistributionController extends Controller
         }
 
         $profile->update($validated);
+
+        $displayName = $client->business_name ?: $client->name;
+        $hasCoordsAfter = ! empty($validated['latitude']) && ! empty($validated['longitude']);
+        ActivityLog::record(
+            auth()->user(),
+            'distribution.location_updated',
+            "Updated location of {$displayName}".($hasCoordsAfter ? ' (address and coordinates).' : '.')
+        );
 
         return back()->with('status', 'Client location updated.');
     }

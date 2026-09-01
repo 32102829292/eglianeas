@@ -128,6 +128,12 @@ Route::middleware(['auth', 'client.survey'])->group(function () {
         abort_unless($document->client_id === $user->id || $user->isStaffOrAdmin(), 403);
         abort_unless(Storage::disk('supabase')->exists($document->path), 404);
 
+        CorViewLog::create([
+            'document_id' => $document->id,
+            'viewed_by' => $user->id,
+            'viewed_at' => now(),
+        ]);
+
         $temporaryUrl = Storage::disk('supabase')->temporaryUrl($document->path, now()->addMinutes(30));
 
         return redirect($temporaryUrl)->withHeaders([

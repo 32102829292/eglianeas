@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class Billing extends Model
 {
@@ -15,9 +16,13 @@ class Billing extends Model
     use SoftDeletes;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_UNPAID = 'unpaid';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_OVERDUE = 'overdue';
+
     public const STATUS_DRAFT = 'draft';
 
     public const STATUSES = [
@@ -213,34 +218,36 @@ class Billing extends Model
             return null;
         }
 
-        $draft = new self;
-        $draft->client_id = $paid->client_id;
-        $draft->quarter = $nextQuarter;
-        $draft->year = $paid->year;
-        $draft->period_label = strtoupper(self::QUARTERS[$nextQuarter]).' QUARTER '.$paid->year.' BILLING';
-        $draft->cash_in = $paid->cash_in;
-        $draft->due_date = self::defaultDueDate($nextQuarter, $paid->year);
-        $draft->status = self::STATUS_DRAFT;
-        $draft->created_by = $paid->created_by;
-        $draft->updated_by = $paid->updated_by;
-        $draft->save();
+        return DB::transaction(function () use ($paid, $nextQuarter) {
+            $draft = new self;
+            $draft->client_id = $paid->client_id;
+            $draft->quarter = $nextQuarter;
+            $draft->year = $paid->year;
+            $draft->period_label = strtoupper(self::QUARTERS[$nextQuarter]).' QUARTER '.$paid->year.' BILLING';
+            $draft->cash_in = $paid->cash_in;
+            $draft->due_date = self::defaultDueDate($nextQuarter, $paid->year);
+            $draft->status = self::STATUS_DRAFT;
+            $draft->created_by = $paid->created_by;
+            $draft->updated_by = $paid->updated_by;
+            $draft->save();
 
-        foreach ($paid->lineItems as $item) {
-            BillingLineItem::create([
-                'billing_id' => $draft->id,
-                'category' => $item->category,
-                'form_type' => $item->form_type,
-                'label' => $item->label,
-                'month' => $item->month,
-                'amount' => $item->amount,
-                'fee_rate_id' => $item->fee_rate_id,
-            ]);
-        }
+            foreach ($paid->lineItems as $item) {
+                BillingLineItem::create([
+                    'billing_id' => $draft->id,
+                    'category' => $item->category,
+                    'form_type' => $item->form_type,
+                    'label' => $item->label,
+                    'month' => $item->month,
+                    'amount' => $item->amount,
+                    'fee_rate_id' => $item->fee_rate_id,
+                ]);
+            }
 
-        $draft->recomputeTotal();
-        $draft->save();
+            $draft->recomputeTotal();
+            $draft->save();
 
-        return $draft;
+            return $draft;
+        });
     }
 
     public function statusLabel(): string
