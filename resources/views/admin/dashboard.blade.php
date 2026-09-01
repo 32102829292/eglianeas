@@ -481,9 +481,12 @@
                 labels: labels(bsData),
                 datasets: [{
                     data: counts(bsData),
-                    // Billing status order: Pending, Unpaid, Overdue, Paid
-                    // light tint -> full token: --warning, --navy, --danger, --success
+                    // Billing status order (Billing::STATUSES): Draft, Pending,
+                    // Unpaid, Overdue, Paid. Pairs are matched positionally by
+                    // dataIndex, so Draft must be the first entry.
+                    // Draft neutral gray: light tint -> full gray.
                     backgroundColor: gradient([
+                        ['#E5E5EA', '#8E8E93'],
                         ['#FADBC0', token('--warning')],
                         ['#AFAFBA', token('--navy')],
                         ['#F7C0BB', token('--danger')],
