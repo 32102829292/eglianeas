@@ -81,7 +81,7 @@
                     <div class="form-group">
                         <label class="form-label" for="client_name">Taxpayer name</label>
                         <input class="form-control" id="client_name" type="text" value="{{ $user->name }}" disabled>
-                        <div class="form-hint">Contact Egliane to change your registered name. <a href="https://www.facebook.com/harris.egliane.2025" target="_blank" rel="noopener">Message us on Messenger</a>.</div>
+                        <div class="form-hint">Contact Egliane to change your registered name. <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener">Message us on Messenger</a>.</div>
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="business_name">Business name</label>

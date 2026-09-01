@@ -55,6 +55,7 @@ class Billing extends Model
         'total',
         'status',
         'paid_at',
+        'reminder_sent_at',
         'created_by',
         'updated_by',
     ];
@@ -68,6 +69,7 @@ class Billing extends Model
             'cash_in' => 'float',
             'total' => 'float',
             'paid_at' => 'datetime',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 

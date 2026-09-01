@@ -270,7 +270,7 @@
             <p>Sign up today and let our team handle your accounting while you focus on your business.</p>
             <div class="hero-cta" style="justify-content:center;">
                 <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
-                <a href="https://www.facebook.com/harris.egliane.2025" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>
+                <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>
             </div>
         </div>
     </div>

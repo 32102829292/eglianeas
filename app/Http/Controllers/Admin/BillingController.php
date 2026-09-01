@@ -191,7 +191,7 @@ class BillingController extends Controller
 
     public function create(Request $request): View
     {
-        // Bug 1: pre-select a client when arriving from that client's billing page.
+        // Pre-select a client when arriving from that client's billing page.
         $selectedClientId = null;
         $requestedClient = $request->query('client') ?: $request->query('client_id');
         if ($requestedClient) {
@@ -202,7 +202,7 @@ class BillingController extends Controller
             }
         }
 
-        // Bug 2: default quarter for the selected client's current year
+        // Default the quarter for the selected client's current year
         // (Q1 if none, otherwise the first unbilled quarter in sequence).
         $defaultQuarter = null;
         if ($selectedClientId) {

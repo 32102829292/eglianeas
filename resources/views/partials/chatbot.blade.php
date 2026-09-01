@@ -11,7 +11,7 @@
         </div>
         <button type="button" class="close-chat" aria-label="Close chat">&times;</button>
     </div>
-    <div class="chat-messages"></div>
+    <div class="chat-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Chat history"></div>
     <div class="chat-quick">
         <button type="button" data-q="What is my filing status?">Filing status</button>
         <button type="button" data-q="What documents do I need to submit?">Documents</button>

@@ -439,6 +439,11 @@
     var closeBtn = this.widgetEl.querySelector('.close-chat');
     if (closeBtn) closeBtn.addEventListener('click', function () { self.toggle(false); });
 
+    // Close the widget with the Escape key from anywhere inside it.
+    this.widgetEl.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && self.open) self.toggle(false);
+    });
+
     this.messagesEl = this.widgetEl.querySelector('.chat-messages');
     this.inputEl = this.widgetEl.querySelector('#chatInput');
     this.sendBtn = this.widgetEl.querySelector('#chatSend');
@@ -638,7 +643,14 @@
     if (typeof open !== 'boolean') open = !this.open;
     this.open = open;
     if (this.widgetEl) this.widgetEl.classList.toggle('open', open);
-    if (open && this.inputEl) setTimeout(function () { this.inputEl.focus(); }.bind(this), 250);
+    if (open) {
+      // Move focus into the input when opened so screen-reader/keyboard users
+      // can start typing immediately.
+      if (this.inputEl) setTimeout(function () { this.inputEl.focus(); }.bind(this), 250);
+    } else if (this.fabEl) {
+      // Return focus to the trigger button when closed.
+      this.fabEl.focus();
+    }
   };
 
   Chatbot.prototype.showWelcome = function () {
