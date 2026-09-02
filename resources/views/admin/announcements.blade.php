@@ -57,7 +57,7 @@
                                 <time title="{{ $announcement->posted_at?->format('M j, Y g:i A') }}">{{ $announcement->posted_at?->diffForHumans() }}</time>
                             </div>
                         </div>
-                        <form method="POST" action="{{ route('admin.announcements.destroy', $announcement) }}" onsubmit="return confirm('Remove this announcement and its image?');">
+                        <form method="POST" action="{{ route('admin.announcements.destroy', $announcement) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this announcement?', message: 'This announcement and its image will be removed.', danger: true, confirmLabel: 'Remove' });">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="link danger">Remove</button>

@@ -85,13 +85,14 @@
 document.addEventListener('click', function (e) {
     var btn = e.target.closest('[data-delete-credential]');
     if (!btn) return;
-    if (!confirm('Remove this biometric login?')) return;
     var id = btn.getAttribute('data-delete-credential');
-    fetch('/webauthn/credentials/' + id, {
-        method: 'DELETE',
-        headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }
-    }).then(function (res) { return res.json(); }).then(function (data) {
-        if (data.ok) { window.location.reload(); }
+    egliane.confirm.action({ title: 'Remove this biometric login?', message: 'This device will no longer be able to sign in using Face / biometrics.', danger: true, confirmLabel: 'Remove' }, function () {
+        fetch('/webauthn/credentials/' + id, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') }
+        }).then(function (res) { return res.json(); }).then(function (data) {
+            if (data.ok) { window.location.reload(); }
+        });
     });
 });
 

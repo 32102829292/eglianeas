@@ -91,7 +91,7 @@
                                     <td data-col="Date paid">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</td>
                                     <td class="actions-cell" data-col="Actions">
                                         @if ($billing->isDraft())
-                                            <form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline" onsubmit="return confirm('Finalize this billing statement? This will make it active and visible to the client.');">
+                                            <form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Finalize this billing statement?', message: 'This will make it active and visible to the client.', confirmLabel: 'Finalize' });">
                                                 @csrf
                                                 <button type="submit" class="btn btn-primary btn-sm">Finalize</button>
                                             </form>
@@ -114,7 +114,7 @@
                                 <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
                                 <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</span></div>
                                 <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline" onsubmit="return confirm('Finalize this billing statement? This will make it active and visible to the client.');">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> @if(! $billing->isPaid())<a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a>@endif</span></div>
+                                <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Finalize this billing statement?', message: 'This will make it active and visible to the client.', confirmLabel: 'Finalize' });">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> @if(! $billing->isPaid())<a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a>@endif</span></div>
                             </div>
                         @empty
                             <p class="cv-card" style="text-align:center;color:var(--text-muted);">No billing statements for this client yet.</p>

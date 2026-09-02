@@ -26,7 +26,7 @@
             <p>{{ $client->name }} &middot; {{ $client->email }}</p>
         </div>
         <div class="btn-row">
-            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return confirm('View the application as {{ addslashes($client->business_name ?: $client->name) }}? You can exit anytime from the top banner.')">
+            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
                 @csrf
                 <button type="submit" class="btn btn-outline">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -75,7 +75,7 @@
                 <input type="hidden" name="name" value="{{ $client->name }}">
                 <input type="hidden" name="email" value="{{ $client->email }}">
                 <input type="hidden" name="status" value="{{ $profile->status }}">
-                <select class="form-control form-control-sm" name="payment_status" onchange="if(confirm('Change payment status to '+this.options[this.selectedIndex].text.trim()+'?')) this.form.submit()">
+                <select class="form-control form-control-sm" name="payment_status" onchange="egliane.confirm.form(this.form, { title: 'Change payment status?', message: 'Change the payment status to ' + this.options[this.selectedIndex].text.trim() + '?' });">
                     <option value="">Payment: —</option>
                     <option value="paid" @selected($profile->payment_status === 'paid')>Paid</option>
                     <option value="partial" @selected($profile->payment_status === 'partial')>Partial</option>
@@ -93,7 +93,7 @@
                     <input type="hidden" name="email" value="{{ $client->email }}">
                     <input type="hidden" name="payment_status" value="{{ $profile->payment_status }}">
                     <input type="hidden" name="status" value="{{ $value }}">
-                    <button type="submit" class="btn btn-sm {{ $profile->status === $value ? 'btn-primary' : 'btn-outline' }}" onclick="return confirm('Change account status to {{ addslashes($label) }}?')">{{ $label }}</button>
+                    <button type="submit" class="btn btn-sm {{ $profile->status === $value ? 'btn-primary' : 'btn-outline' }}" onclick="return egliane.confirm.button(this, { title: 'Change account status?', message: 'Change the account status to {{ addslashes($label) }}?' });">{{ $label }}</button>
                 </form>
             @endforeach
         </div>
@@ -228,7 +228,7 @@
                                         data-key="{{ $entry->key }}"
                                         data-value="{{ $entry->value }}"
                                         style="margin-left:4px;">Edit</button>
-                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" style="display:inline;" onsubmit="return confirm('Delete this entry?')">
+                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-link btn-sm text-danger" style="margin-left:2px;">Del</button>

@@ -212,7 +212,7 @@
                                 <td data-col="Remarks">{{ $del->remarks ?: '—' }}</td>
                                 <td data-col="No File">{{ $del->no_file_flag ? 'Yes' : '—' }}</td>
                                 <td data-col="Actions" class="actions-cell">
-                                    <form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return confirm('Remove this delivery entry?');">
+                                    <form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Remove this delivery entry?', message: 'This delivery record will be permanently removed.', danger: true, confirmLabel: 'Remove' });">
                                         @csrf
                                         @method('DELETE')
                                         <button type="submit" class="link danger">Remove</button>
@@ -232,7 +232,7 @@
                             <div class="cv-row"><span class="cv-label">Time</span><span class="cv-value">{{ $del->timeLabel() ?? '—' }}</span></div>
                             <div class="cv-row"><span class="cv-label">Remarks</span><span class="cv-value">{{ $del->remarks ?: '—' }}</span></div>
                             <div class="cv-row"><span class="cv-label">No File</span><span class="cv-value">{{ $del->no_file_flag ? 'Yes' : '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return confirm('Remove this delivery entry?');">@csrf @method('DELETE')<button type="submit" class="link danger">Remove</button></form></span></div>
+                            <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Remove this delivery entry?', message: 'This delivery record will be permanently removed.', danger: true, confirmLabel: 'Remove' });">@csrf @method('DELETE')<button type="submit" class="link danger">Remove</button></form></span></div>
                         </div>
                     @empty
                         <p class="cv-card" style="text-align:center;color:var(--text-muted);">No deliveries logged yet.</p>
@@ -287,7 +287,7 @@
     View
 </a>
                                 <a href="{{ route('admin.distribution.download', $doc) }}" class="btn btn-outline btn-sm">Download</a>
-                                <form method="POST" action="{{ route('admin.distribution.destroy-softcopy', [$client, $doc]) }}" class="inline-form" onsubmit="return confirm('Delete this softcopy?');">
+                                <form method="POST" action="{{ route('admin.distribution.destroy-softcopy', [$client, $doc]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete this softcopy?', message: 'This uploaded document will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="link danger">Delete</button>

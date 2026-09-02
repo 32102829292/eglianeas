@@ -22,7 +22,7 @@
             @forelse ($serviceTypes as $type)
                 <div class="chip-row">
                     <span class="chip-label">{{ $type->label }}</span>
-                    <form method="POST" action="{{ route('admin.other-services.service-types.destroy', $type) }}" onsubmit="return confirm('Remove this service type?');">
+                    <form method="POST" action="{{ route('admin.other-services.service-types.destroy', $type) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this service type?', message: 'It will no longer appear in the Other Services dropdown.', danger: true, confirmLabel: 'Remove' });">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="link danger">&times;</button>

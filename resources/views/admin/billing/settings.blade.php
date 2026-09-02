@@ -57,7 +57,7 @@
                     @forelse ($cat['rates'] as $rate)
                         <div class="chip-row">
                             <span class="chip-label">{{ $rate->money() }}{{ $rate->label ? ' — '.$rate->label : '' }}</span>
-                            <form method="POST" action="{{ route('admin.billing.feeRates.destroy', $rate) }}" onsubmit="return confirm('Remove this fee preset?');">
+                            <form method="POST" action="{{ route('admin.billing.feeRates.destroy', $rate) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this fee preset?', message: 'This preset will be removed from the fee dropdown options.', danger: true, confirmLabel: 'Remove' });">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="link danger" title="Remove preset">&times;</button>
@@ -119,11 +119,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         row.className = 'chip-row';
                         row.innerHTML =
                             '<span class="chip-label"></span>' +
-                            '<form method="POST" action="/billings/fee-rates/' + rate.id + '" onsubmit="return confirm(\'Remove this fee preset?\');">' +
+                            '<form method="POST" action="/billings/fee-rates/' + rate.id + '">' +
                                 '<input type="hidden" name="_token" value="' + token + '">' +
                                 '<input type="hidden" name="_method" value="DELETE">' +
                                 '<button type="submit" class="link danger" title="Remove preset">&times;</button>' +
                             '</form>';
+                        var feeForm = row.querySelector('form');
+                        feeForm.addEventListener('submit', function (e) {
+                            if (!egliane.confirm.form(feeForm, { title: 'Remove this fee preset?', message: 'This preset will be removed from the fee dropdown options.', danger: true, confirmLabel: 'Remove' })) {
+                                e.preventDefault();
+                            }
+                        });
                         row.querySelector('.chip-label').textContent =
                             rate.money + (rate.label ? ' — ' + rate.label : '');
                         list.appendChild(row);

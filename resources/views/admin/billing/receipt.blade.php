@@ -168,9 +168,11 @@
             var emailForm = document.getElementById('emailBillingForm');
             if (emailForm) {
                 emailForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
                     var recipient = {{ json_encode($client?->email) }};
-                    var ok = window.confirm('Send this billing statement to ' + (recipient || 'the client') + '?');
-                    if (!ok) e.preventDefault();
+                    egliane.confirm.action({ title: 'Send this billing statement?', message: 'Send this billing statement to ' + (recipient || 'the client') + ' by email?', confirmLabel: 'Send' }, function () {
+                        emailForm.submit();
+                    });
                 });
             }
         })();

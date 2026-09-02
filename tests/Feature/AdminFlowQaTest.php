@@ -201,11 +201,11 @@ class AdminFlowQaTest extends TestCase
 
         $this->actingAs($admin)->get('/admin/users')
             ->assertOk()
-            ->assertSee('account? This can be undone by support.');
+            ->assertSee('can be restored by support.');
 
         $this->actingAs($staff)->get('/admin/users')
             ->assertOk()
-            ->assertDontSee('account? This can be undone by support.');
+            ->assertDontSee('restored by support');
     }
 
     public function test_impersonate_flow_starts_and_stops(): void
