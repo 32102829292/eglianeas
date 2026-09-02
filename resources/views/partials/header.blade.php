@@ -14,7 +14,7 @@
         <div class="nav-actions">
             @auth
                 <a href="{{ auth()->user()->getDashboardRoute() }}" class="btn btn-primary btn-sm">Dashboard</a>
-                <form method="POST" action="{{ route('logout') }}" class="inline-form">
+                <form method="POST" action="{{ route('logout') }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Log out?', message: 'You&rsquo;ll need to log in again to access your account.', confirmLabel: 'Log out' });">
                     @csrf
                     <button type="submit" class="btn btn-outline btn-sm">Log out</button>
                 </form>

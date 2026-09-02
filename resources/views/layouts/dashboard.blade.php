@@ -79,7 +79,7 @@
                     <strong>Install the app</strong>
                     <span>Tap the <svg class="share-glyph" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l-4 5h2v7h4V7h2l-4-5zM5 10H3v11h18V10h-2v9H5v-9z"/></svg> Share icon, then &ldquo;Add to Home Screen&rdquo;.</span>
                 </div>
-                <form method="POST" action="{{ route('logout') }}" class="inline-form">
+                <form method="POST" action="{{ route('logout') }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Log out?', message: 'You&rsquo;ll need to log in again to access your account.', confirmLabel: 'Log out' });">
                     @csrf
                     <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
                 </form>

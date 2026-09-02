@@ -49,7 +49,7 @@
                 @auth
                     <p class="muted" style="margin-bottom:14px;">You&rsquo;re signed in as <b>{{ auth()->user()->name }}</b>.</p>
                     <a href="{{ auth()->user()->getDashboardRoute() }}" class="btn btn-primary btn-block">Go to Dashboard</a>
-                    <form method="POST" action="{{ route('logout') }}" class="inline-form mt-2">
+                    <form method="POST" action="{{ route('logout') }}" class="inline-form mt-2" onsubmit="return egliane.confirm.form(this, { title: 'Log out?', message: 'You&rsquo;ll need to log in again to access your account.', confirmLabel: 'Log out' });">
                         @csrf
                         <button type="submit" class="btn btn-outline btn-block">Log out</button>
                     </form>
