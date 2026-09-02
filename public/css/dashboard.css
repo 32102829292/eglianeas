@@ -288,6 +288,15 @@
   padding: 14px;
   position: sticky;
   top: 80px;
+  align-self: flex-start;
+  /* Stay pinned under the topbar while the main content scrolls. max-height +
+     overflow-y:auto mean the nav's own column scrolls internally when its
+     links are taller than the viewport, instead of the whole sidebar being
+     carried/scrolled out of view with the page. */
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   box-shadow: var(--glass-shadow);
 }
 .dash-nav a {
