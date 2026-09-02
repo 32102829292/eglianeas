@@ -294,6 +294,12 @@ class BillingController extends Controller
     {
         abort_if($billing->isPaid(), 403, 'Paid billings cannot be edited.');
 
+        // Capture the state before the edit so we can log exactly what changed
+        // for finalized (non-draft) billings, whose contents may no longer match
+        // what the client has already seen.
+        $wasFinalized = ! $billing->isDraft();
+        $before = $wasFinalized ? $this->editableSnapshot($billing) : null;
+
         $data = $this->validated($request);
         $data['updated_by'] = auth()->id();
 
@@ -311,7 +317,51 @@ class BillingController extends Controller
 
         ActivityLog::record(auth()->user(), 'admin.billing_updated', "Updated {$billing->period_label} for {$billing->client?->name}.");
 
+        if ($wasFinalized) {
+            $after = $this->editableSnapshot($billing);
+            $changed = [];
+
+            foreach (array_keys($before) as $field) {
+                $old = (string) ($before[$field] ?? '');
+                $new = (string) ($after[$field] ?? '');
+                if ($old !== $new) {
+                    $changed[] = "{$field}: {$old} → {$new}";
+                }
+            }
+
+            ActivityLog::record(
+                auth()->user(),
+                'admin.billing_edited_after_finalize',
+                "Edited finalized billing {$billing->period_label} for {$billing->client?->name} — changed: "
+                .($changed ? implode('; ', $changed) : 'no field changes recorded')
+                .'.'
+            );
+        }
+
         return redirect()->route('admin.billing.show', $billing->client)->with('status', 'Billing record updated.');
+    }
+
+    /**
+     * A normalized snapshot of the billing's editable contents, used to diff
+     * what changed when an already-finished billing is edited after finalizing.
+     */
+    private function editableSnapshot(Billing $billing): array
+    {
+        $client = $billing->client;
+
+        return [
+            'client' => $client ? ($client->business_name ?: $client->name) : '',
+            'quarter' => (string) ($billing->quarter ?? ''),
+            'year' => (string) ($billing->year ?? ''),
+            'due_date' => $billing->due_date?->toDateString() ?? '',
+            'cash_in' => (string) (float) $billing->cash_in,
+            'total' => (string) (float) $billing->total,
+            'line_items' => $billing->lineItems()
+                ->orderBy('id')
+                ->get()
+                ->map(fn ($item) => trim($item->label).': '.(float) $item->amount)
+                ->implode(' | '),
+        ];
     }
 
     public function finalize(Billing $billing): RedirectResponse

@@ -13,6 +13,12 @@
         <p>{{ $billing->period_label }}</p>
     </div>
 
+    @if(! $billing->isDraft())
+        <div class="alert" style="background:#FFF3E0;color:#8A6D00;border:1px solid rgba(242,153,74,.35);">
+            This billing has already been finalized — changes made now may not match what the client has seen.
+        </div>
+    @endif
+
     @include('admin.billing._form', ['formMode' => 'edit'])
 @endsection
 
