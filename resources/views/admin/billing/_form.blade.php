@@ -130,9 +130,9 @@
 
     function computeTotal() {
         var total = 0;
-        container.querySelectorAll('input[data-line-amount]').forEach(function (el) { total += round2(el.value); });
-        var cashIn = document.getElementById('cash_in_input');
-        if (cashIn) total += round2(cashIn.value);
+        // Sum every amount field — preset rows are <select data-line-amount>,
+        // free-form rows (BIR remittances, cash in) are <input data-line-amount>.
+        container.querySelectorAll('[data-line-amount]').forEach(function (el) { total += round2(el.value); });
         totalDisplay.textContent = money(total);
     }
 
