@@ -13,8 +13,8 @@
         {{ $slot ?? '' }}
     </div>
 
-    <script src="/js/app.js" defer></script>
-    <script src="/js/auth.js" defer></script>
+    <script src="/js/app.js?v=3" defer></script>
+    <script src="/js/auth.js?v=2" defer></script>
     @stack('scripts')
 </body>
 </html>

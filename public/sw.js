@@ -1,6 +1,6 @@
 /* Egliane Accounting Services — Service Worker (hand-rolled) */
 
-const VERSION = 'egliane-v9';
+const VERSION = 'egliane-v10';
 const SHELL_CACHE = 'egliane-shell-' + VERSION;
 const DATA_CACHE = 'egliane-data-' + VERSION;
 
@@ -22,8 +22,19 @@ const SHELL_ASSETS = [
   '/pwa-icons/maskable-512.png',
   '/pwa-icons/logo-header.png',
   '/pwa-icons/apple-touch-icon.png',
+  '/vendor/leaflet/leaflet.css',
+  '/vendor/leaflet/leaflet.js',
   '/favicon.ico'
 ];
+
+/* Strip the query string (e.g. cache-buster "?v=3") so a request for
+   "/css/app.css?v=3" matches the pre-cached bare "/css/app.css" entry.
+   Network-stored copies are keyed by the bare path for the same reason. */
+function bareUrl(url) {
+  var u = new URL(url);
+  u.search = '';
+  return u.href;
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -98,16 +109,18 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname.startsWith('/css/') ||
     url.pathname.startsWith('/js/') ||
+    url.pathname.startsWith('/vendor/') ||
     url.pathname.startsWith('/pwa-icons/') ||
     url.pathname === '/manifest.json' ||
     url.pathname === '/favicon.ico'
   ) {
+    const cacheKey = bareUrl(request.url);
     event.respondWith(
-      caches.match(request).then((cached) => {
+      caches.match(cacheKey).then((cached) => {
         const fetchPromise = fetch(request)
           .then((response) => {
             const copy = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(request, copy));
+            caches.open(SHELL_CACHE).then((cache) => cache.put(cacheKey, copy));
             return response;
           })
           .catch(() => cached);
