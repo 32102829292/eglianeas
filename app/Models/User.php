@@ -73,17 +73,19 @@ class User extends Authenticatable
 
     public static function generateClientCode(): string
     {
-        $last = self::where('role', self::ROLE_CLIENT)
+        $codes = self::withTrashed()
+            ->where('role', self::ROLE_CLIENT)
             ->whereNotNull('client_code')
-            ->orderByDesc('client_code')
-            ->value('client_code');
+            ->pluck('client_code');
 
-        $next = 1;
-        if ($last && preg_match('/EAS-(\d+)/', $last, $m)) {
-            $next = (int) $m[1] + 1;
+        $max = 0;
+        foreach ($codes as $code) {
+            if (preg_match('/EAS-(\d+)/', (string) $code, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
         }
 
-        return 'EAS-'.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
+        return 'EAS-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
     }
 
     public function isAdmin(): bool
