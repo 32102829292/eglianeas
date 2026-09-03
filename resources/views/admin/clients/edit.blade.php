@@ -26,7 +26,7 @@
 
     <div class="page-head">
         <h1>Edit client</h1>
-        <p>{{ $client->business_name ?: $client->name }} &middot; {{ $client->email }}</p>
+        <p>{{ $client->business_name ?: $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
     </div>
 
     @if (session('status'))

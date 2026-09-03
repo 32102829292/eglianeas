@@ -198,7 +198,7 @@
             </form>
         @else
             <div class="profile-grid">
-                <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
+                <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">@if($profile->business_address)<a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($profile->business_address) }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->business_address }}</a>@else — @endif</span></div>
                 @if ($profile->latitude !== null && $profile->longitude !== null && (float) $profile->latitude != 0 && (float) $profile->longitude != 0)
                     <div class="profile-row col-span-2"><span class="profile-k">Map</span><x-address-map :latitude="$profile->latitude" :longitude="$profile->longitude" id="mapView" /></div>
                 @endif
@@ -265,10 +265,10 @@
             </form>
         @else
             <div class="profile-grid">
-                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">@if($profile->contact_no)<a href="tel:{{ $profile->contact_no }}" class="contact-link">{{ $profile->contact_no }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd person contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd person email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd person contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)<a href="tel:{{ $profile->second_contact_no }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->second_contact_display }}@endif@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">2nd person email</span><span class="profile-v">@if($profile->second_email)<a href="mailto:{{ $profile->second_email }}" class="contact-link">{{ $profile->second_email }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>
         @endif

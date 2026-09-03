@@ -72,7 +72,7 @@
                             <form method="POST" action="{{ route('admin.about.certificate.destroy', $cert) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this certificate?', message: 'This certificate will be removed from the About page.', danger: true, confirmLabel: 'Remove' });">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="link danger" style="font-size:12px;">Remove</button>
+                                <button type="submit" class="btn btn-outline danger btn-sm">Remove</button>
                             </form>
                         </div>
                     @endforeach
@@ -150,7 +150,7 @@
                             <form method="POST" action="{{ route('admin.about.certificate.destroy', $cert) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this certificate?', message: 'This certificate will be removed from the About page.', danger: true, confirmLabel: 'Remove' });">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="link danger" style="font-size:12px;">Remove</button>
+                                <button type="submit" class="btn btn-outline danger btn-sm">Remove</button>
                             </form>
                         </div>
                     @endforeach

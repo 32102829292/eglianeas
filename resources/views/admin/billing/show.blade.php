@@ -11,7 +11,7 @@
     <div class="page-head page-head-row">
         <div>
             <h1>{{ $client->business_name ?: $client->name }}</h1>
-            <p>{{ $client->name }} &middot; {{ $client->email }} &middot; {{ $client->profile?->line_of_business ?? '—' }}</p>
+            <p>{{ $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a> &middot; {{ $client->profile?->line_of_business ?? '—' }}</p>
         </div>
         <div class="btn-row">
             <select id="batchPaperSize" class="form-control form-control-sm batch-paper-select" aria-label="Paper size" hidden>

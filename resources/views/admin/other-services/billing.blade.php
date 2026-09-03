@@ -89,7 +89,7 @@
                                 <form method="POST" action="{{ route('admin.other-services.destroy', $service) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this service record?', message: 'This service request and its payment record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-link btn-sm text-danger">Delete</button>
+                                    <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
                                 </form>
                             </td>
                         </tr>
@@ -107,7 +107,7 @@
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $service->status)<span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @else badge-neutral @endif">{{ $service->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Requested</span><span class="cv-value">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.other-services.destroy', $service) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this service record?', message: 'This service request and its payment record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.other-services.destroy', $service) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this service record?', message: 'This service request and its payment record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">No service requests yet.</p>

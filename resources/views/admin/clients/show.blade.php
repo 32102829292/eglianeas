@@ -231,7 +231,7 @@
                                 <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-link btn-sm text-danger" style="margin-left:2px;">Del</button>
+                                    <button type="submit" class="btn btn-outline danger btn-sm" style="margin-left:2px;">Del</button>
                                 </form>
                             </span>
                         </div>

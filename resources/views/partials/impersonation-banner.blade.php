@@ -27,17 +27,7 @@
         </span>
         <form method="POST" action="{{ route('admin.impersonate.stop') }}" style="margin:0;">
             @csrf
-            <button type="submit" style="
-                background: #1B1B3A;
-                color: #f59e0b;
-                border: none;
-                padding: 4px 14px;
-                border-radius: 4px;
-                font-size: 13px;
-                font-weight: 700;
-                cursor: pointer;
-                white-space: nowrap;
-            ">Exit to Admin</button>
+            <button type="submit" class="btn btn-primary btn-sm">Exit to Admin</button>
         </form>
     </div>
     <div style="height: 40px;"></div>

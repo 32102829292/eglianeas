@@ -67,7 +67,7 @@
                                 @if (auth()->user()->isAdmin() && $account->id !== auth()->id())
                                     <form method="POST" action="{{ route('admin.users.destroy', $account) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete {{ addslashes($account->name) }}?', message: 'This {{ $account->role }} account can be restored by support.', danger: true, confirmLabel: 'Delete' })">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="btn btn-link btn-sm text-danger">Delete</button>
+                                        <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
                                     </form>
                                 @else
                                     <span class="text-muted">—</span>
@@ -86,7 +86,7 @@
                         <div class="cv-row"><span class="cv-label">Email</span><span class="cv-value">{{ $account->email }}</span></div>
                         <div class="cv-row"><span class="cv-label">Role</span><span class="cv-value"><span class="badge @if($account->isAdmin()) badge-warn @else badge-neutral @endif">{{ ucfirst($account->role) }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Created</span><span class="cv-value">{{ $account->created_at?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if (auth()->user()->isAdmin() && $account->id !== auth()->id())<form method="POST" action="{{ route('admin.users.destroy', $account) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete {{ addslashes($account->name) }}?', message: 'This {{ $account->role }} account can be restored by support.', danger: true, confirmLabel: 'Delete' })">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form>@else<span class="text-muted">—</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if (auth()->user()->isAdmin() && $account->id !== auth()->id())<form method="POST" action="{{ route('admin.users.destroy', $account) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete {{ addslashes($account->name) }}?', message: 'This {{ $account->role }} account can be restored by support.', danger: true, confirmLabel: 'Delete' })">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>@else<span class="text-muted">—</span>@endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card" style="text-align:center;color:var(--text-muted);">No admin or staff accounts yet.</p>

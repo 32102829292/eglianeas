@@ -60,7 +60,7 @@
                         <form method="POST" action="{{ route('admin.announcements.destroy', $announcement) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this announcement?', message: 'This announcement and its image will be removed.', danger: true, confirmLabel: 'Remove' });">
                             @csrf
                             @method('DELETE')
-                            <button type="submit" class="link danger">Remove</button>
+                            <button type="submit" class="btn btn-outline danger btn-sm">Remove</button>
                         </form>
                     </div>
                 @endforeach

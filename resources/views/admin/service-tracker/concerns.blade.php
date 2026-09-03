@@ -93,7 +93,7 @@
                 <div class="form-group" style="display:flex; gap:8px; align-items:end;">
                     <button type="submit" class="btn btn-primary">Filter</button>
                     @if ($submittedByFilter || $reviewedFilter)
-                        <a href="{{ route('admin.service-tracker.concerns') }}" class="btn btn-secondary">Clear</a>
+                        <a href="{{ route('admin.service-tracker.concerns') }}" class="btn btn-outline">Clear</a>
                     @endif
                 </div>
             </div>
@@ -163,7 +163,7 @@
                                 <form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-link btn-sm text-danger">Delete</button>
+                                    <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
                                 </form>
                             </td>
                         </tr>
@@ -202,7 +202,7 @@
                                     </div>
                                     <div style="margin-top:12px; display:flex; gap:8px;">
                                         <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
-                                        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEdit({{ $concern->id }})">Cancel</button>
+                                        <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit({{ $concern->id }})">Cancel</button>
                                     </div>
                                 </form>
                             </td>
@@ -223,7 +223,7 @@
                         <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">@if ($concern->proposed_solution){{ Str::limit($concern->proposed_solution, 60) }}@else<span class="text-muted">—</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Frequency</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Source</span><span class="cv-value">@if ($concern->isClientSubmitted())<span class="badge badge-info">Client</span>@else<span class="badge badge-neutral">Staff</span>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm text-success">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-link btn-sm text-danger">Delete</button></form></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm text-success">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
                         <div class="cv-edit-form" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
                             <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">
                                 @csrf
@@ -257,7 +257,7 @@
                                 </div>
                                 <div style="margin-top:10px; display:flex; gap:8px;">
                                     <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
-                                    <button type="button" class="btn btn-secondary btn-sm" onclick="toggleEditCard(this)">Cancel</button>
+                                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleEditCard(this)">Cancel</button>
                                 </div>
                             </form>
                         </div>

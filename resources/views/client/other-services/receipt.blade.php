@@ -86,7 +86,7 @@
                         <div class="payment-method-info">
                             <div class="payment-method-label">GCash</div>
                             @if ($gcashNumber)
-                                <div class="payment-method-number">{{ $gcashNumber }}</div>
+                                <div class="payment-method-number"><a href="tel:{{ $gcashNumber }}" class="contact-link">{{ $gcashNumber }}</a></div>
                             @endif
                         </div>
                         @if ($gcashQrCode)

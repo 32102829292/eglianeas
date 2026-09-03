@@ -112,7 +112,7 @@
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted">{{ $client->email }}</small>
+                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             <td class="text-center" data-col="Bills">{{ $entry['billing_count'] }}</td>
                             <td class="text-end fw-semibold" data-col="Total billed">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>

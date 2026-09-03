@@ -117,7 +117,7 @@
         chip.className = 'chip-row';
         chip.innerHTML = '<span class="chip-label">' + name.trim() + '</span>' +
             '<input type="hidden" name="staff_names[' + staffIndex + ']" value="' + name.trim() + '">' +
-            '<button type="button" class="link danger" onclick="this.parentElement.remove()">&times;</button>';
+            '<button type="button" class="btn btn-outline danger btn-sm" onclick="this.parentElement.remove()">&times;</button>';
         staffList.appendChild(chip);
         staffIndex++;
     }

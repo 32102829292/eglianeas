@@ -60,7 +60,7 @@
                             <form method="POST" action="{{ route('admin.billing.feeRates.destroy', $rate) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this fee preset?', message: 'This preset will be removed from the fee dropdown options.', danger: true, confirmLabel: 'Remove' });">
                                 @csrf
                                 @method('DELETE')
-                                <button type="submit" class="link danger" title="Remove preset">&times;</button>
+                                <button type="submit" class="btn btn-outline danger btn-sm" title="Remove preset">&times;</button>
                             </form>
                         </div>
                     @empty
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             '<form method="POST" action="/billings/fee-rates/' + rate.id + '">' +
                                 '<input type="hidden" name="_token" value="' + token + '">' +
                                 '<input type="hidden" name="_method" value="DELETE">' +
-                                '<button type="submit" class="link danger" title="Remove preset">&times;</button>' +
+                                '<button type="submit" class="btn btn-outline danger btn-sm" title="Remove preset">&times;</button>' +
                             '</form>';
                         var feeForm = row.querySelector('form');
                         feeForm.addEventListener('submit', function (e) {

@@ -25,7 +25,7 @@
                     <form method="POST" action="{{ route('admin.other-services.service-types.destroy', $type) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this service type?', message: 'It will no longer appear in the Other Services dropdown.', danger: true, confirmLabel: 'Remove' });">
                         @csrf
                         @method('DELETE')
-                        <button type="submit" class="link danger">&times;</button>
+                        <button type="submit" class="btn btn-outline danger btn-sm">&times;</button>
                     </form>
                 </div>
             @empty
@@ -36,7 +36,7 @@
         <form method="POST" action="{{ route('admin.other-services.service-types.store') }}" class="inline-add mt-2">
             @csrf
             <input class="form-control" name="label" type="text" maxlength="120" placeholder="Service type label, e.g. Business Registration" required>
-            <button type="submit" class="btn btn-outline">Add service type</button>
+            <button type="submit" class="btn btn-primary">Add service type</button>
         </form>
         @error('label')<div class="form-error">{{ $message }}</div>@enderror
     </div>

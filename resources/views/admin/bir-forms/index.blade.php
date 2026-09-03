@@ -67,7 +67,7 @@
                             </td>
                             <td>
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted">{{ $client->email }}</small>
+                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             @foreach ($formTypes as $ft)
                                 @php($isOn = $statuses[$ft] ?? false)

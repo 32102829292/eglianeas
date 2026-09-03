@@ -56,7 +56,7 @@
                         <tr>
                             <td>
                                 <div class="fw-semibold">{{ $response->user->name }}</div>
-                                <div class="text-muted small">{{ $response->user->email }}</div>
+                                <div class="text-muted small"><a href="mailto:{{ $response->user->email }}" class="contact-link">{{ $response->user->email }}</a></div>
                             </td>
                             <td class="text-center">
                                 <span class="rating-stars" aria-label="{{ $response->overall_rating }} out of 5">@for ($i = 1; $i <= 5; $i++)<span class="star @if ($i <= $response->overall_rating) on @endif">★</span>@endfor</span>
@@ -98,7 +98,7 @@
                     @if ($response->user->business_name)
                         {{ $response->user->business_name }} &middot;
                     @endif
-                    {{ $response->user->email }}
+                    <a href="mailto:{{ $response->user->email }}" class="contact-link">{{ $response->user->email }}</a>
                     @if ($response->user->client_code)
                         &middot; {{ $response->user->client_code }}
                     @endif

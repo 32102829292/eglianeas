@@ -449,7 +449,7 @@
 
         var removeBtn = document.createElement('button');
         removeBtn.type = 'button';
-        removeBtn.className = 'link danger';
+        removeBtn.className = 'btn btn-outline danger btn-sm';
         removeBtn.title = 'Remove item';
         removeBtn.setAttribute('aria-label', 'Remove item');
         removeBtn.textContent = '×';

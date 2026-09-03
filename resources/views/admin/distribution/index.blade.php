@@ -41,7 +41,7 @@
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted">{{ $client->email }}</small>
+                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             <td class="text-center" data-col="BIR Forms">
                                 <span class="badge @if($entry['filed'] > 0) badge-success @else badge-neutral @endif">{{ $entry['filed'] }}/{{ $entry['total'] }}</span>
