@@ -1,6 +1,6 @@
 @extends('layouts.dashboard')
 
-@section('title', $service->serviceName().' — Receipt — Other Services — Egliane Accounting Services')
+@section('title'){{ $service->serviceName() }} — Receipt — Other Services — Egliane Accounting Services @endsection
 
 @section('content')
     @php($client = $service->client)
