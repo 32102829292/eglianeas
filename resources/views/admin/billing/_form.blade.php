@@ -85,6 +85,12 @@
             <p class="muted" id="lineItemsPlaceholder">Select a client to load their applicable BIR forms and generate billing line items.</p>
         </div>
 
+        <div id="customItemsContainer" style="margin-top:16px;"></div>
+
+        <button type="button" class="btn btn-outline btn-sm" id="addCustomItemBtn" style="margin-top:8px;">
+            + Add another item
+        </button>
+
         <div class="form-group" style="margin-top:16px;">
             <label class="form-label">Computed total payment</label>
             <div class="form-control" id="totalDisplay" readonly style="font-weight:700;font-size:1.1em;">₱0.00</div>
@@ -387,7 +393,82 @@
         deRow = buildLineItemRow(idx++, 'data_entry', null, null, 'Data Entry', deExisting ? deExisting.amount : '', deExisting ? deExisting.fee_rate_id : null);
         container.appendChild(buildSection('Data Entry', [deRow]));
 
+        // Reload any saved ad-hoc custom items.
+        loadCustomItems(existingItems);
+
         computeTotal();
+    }
+
+    // ---- Additional ad-hoc line items (one-off charges) ----
+    var customContainer = document.getElementById('customItemsContainer');
+    var addCustomBtn = document.getElementById('addCustomItemBtn');
+    var customIndex = 0;
+
+    function loadCustomItems(existingItems) {
+        if (!customContainer) return;
+        customContainer.innerHTML = '';
+        if (!existingItems) return;
+        Object.keys(existingItems).forEach(function (key) {
+            if (key.startsWith('custom_') || key === 'custom__') {
+                var item = existingItems[key];
+                customContainer.appendChild(buildCustomItemRow(item.label, item.amount));
+            }
+        });
+    }
+
+    function buildCustomItemRow(existingLabel, existingAmount) {
+        var idx = customIndex++;
+        var wrapper = document.createElement('div');
+        wrapper.className = 'line-item-row';
+
+        // Free-text label + amount, removably individually.
+        wrapper.innerHTML =
+            '<input type="hidden" name="line_items[' + idx + '][category]" value="custom">' +
+            '<input type="hidden" name="line_items[' + idx + '][form_type]" value="">' +
+            '<input type="hidden" name="line_items[' + idx + '][month]" value="">' +
+            '<input type="hidden" name="line_items[' + idx + '][fee_rate_id]" value="">';
+
+        var labelInput = document.createElement('input');
+        labelInput.className = 'form-control form-control-sm';
+        labelInput.type = 'text';
+        labelInput.placeholder = 'Item description (e.g. one-off consultancy)';
+        labelInput.name = 'line_items[' + idx + '][label]';
+        labelInput.value = existingLabel || '';
+        labelInput.style.flex = '1 1 220px';
+
+        var amountInput = document.createElement('input');
+        amountInput.className = 'form-control form-control-sm';
+        amountInput.type = 'number';
+        amountInput.step = '0.01';
+        amountInput.min = '0';
+        amountInput.name = 'line_items[' + idx + '][amount]';
+        amountInput.value = existingAmount || '';
+        amountInput.dataset.lineAmount = '1';
+        amountInput.style.width = '160px';
+        amountInput.addEventListener('input', computeTotal);
+
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'link danger';
+        removeBtn.title = 'Remove item';
+        removeBtn.setAttribute('aria-label', 'Remove item');
+        removeBtn.textContent = '×';
+        removeBtn.addEventListener('click', function () {
+            wrapper.remove();
+            computeTotal();
+        });
+
+        wrapper.appendChild(labelInput);
+        wrapper.appendChild(amountInput);
+        wrapper.appendChild(removeBtn);
+        return wrapper;
+    }
+
+    if (addCustomBtn) {
+        addCustomBtn.addEventListener('click', function () {
+            customContainer.appendChild(buildCustomItemRow('', ''));
+            computeTotal();
+        });
     }
 
     function loadApplicableForms() {

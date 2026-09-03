@@ -42,6 +42,10 @@
                         <span><a href="mailto:eglianeas2017@gmail.com">eglianeas2017@gmail.com</a></span>
                     </li>
                     <li>
+                        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M24 12.073C24 5.414 18.627.036 12 .036S0 5.414 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.026 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                        <span><a href="{{ config('contact.facebook_url') }}" target="_blank" rel="noopener noreferrer">Egliane Accounting Service Facebook</a></span>
+                    </li>
+                    <li>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
                         <span><a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener">Egliane Accounting Service Messenger</a></span>
                     </li>

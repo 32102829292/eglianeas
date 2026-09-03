@@ -108,6 +108,22 @@
 
 /* ---------- Notification bell ---------- */
 .dash-bell { position: relative; }
+.dash-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,.1);
+  color: #fff;
+  cursor: pointer;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.dash-help-btn svg { width: 20px; height: 20px; }
+.dash-help-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
 .bell-btn {
   position: relative;
   display: flex;

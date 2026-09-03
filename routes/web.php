@@ -56,6 +56,8 @@ require __DIR__.'/auth.php';
 
 Route::view('/terms', 'terms')->name('terms');
 
+Route::view('/help', 'help')->name('help');
+
 Route::get('/about', function () {
     $about = AboutContent::instance();
     $coreValues = CoreValue::ordered()->get();

@@ -139,6 +139,10 @@
             <p>Sign up today and start uploading your receipts. Our accountants will take it from there.</p>
             <div class="hero-cta" style="justify-content:center;">
                 <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
+                <a href="{{ config('contact.facebook_url') }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-light btn-lg" aria-label="Visit our Facebook Page">
+                    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" style="width:18px;height:18px;margin-right:8px;vertical-align:-3px;"><path d="M24 12.073C24 5.414 18.627.036 12 .036S0 5.414 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.026 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                    Facebook Page
+                </a>
                 <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>
             </div>
         </div>

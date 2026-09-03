@@ -9,6 +9,7 @@
             <a href="{{ route('home') }}#services">Services</a>
             <a href="{{ route('home') }}#about">About</a>
             <a href="{{ route('home') }}#contact">Contact</a>
+            <a href="{{ route('help') }}">Help</a>
         </nav>
 
         <div class="nav-actions">
@@ -32,6 +33,7 @@
         <a href="{{ route('home') }}#services">Services</a>
         <a href="{{ route('home') }}#about">About</a>
         <a href="{{ route('home') }}#contact">Contact</a>
+        <a href="{{ route('help') }}">Help</a>
         @auth
             <a href="{{ auth()->user()->getDashboardRoute() }}" class="btn btn-primary">Go to Dashboard</a>
         @else
