@@ -166,6 +166,10 @@ main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
 .btn-sky:hover { background: var(--sky-deep); color: #fff; box-shadow: var(--shadow-card-hover); text-decoration: none; }
 .btn-outline { background: transparent; border-color: var(--navy); color: var(--navy); }
 .btn-outline:hover { background: var(--navy); color: #fff; text-decoration: none; }
+/* Theme Bootstrap's .btn-outline-primary to the navy outline so secondary
+   "View/Open" actions match the rest of the app instead of Bootstrap blue. */
+.btn-outline-primary { background: transparent; border-color: var(--navy); color: var(--navy); }
+.btn-outline-primary:hover { background: var(--navy); color: #fff; text-decoration: none; }
 .btn-outline-light { background: transparent; border-color: #fff; color: #fff; }
 .btn-outline-light:hover { background: #fff; color: var(--navy); text-decoration: none; }
 .btn-link { background: none; border-color: transparent; color: var(--sky-deep); }

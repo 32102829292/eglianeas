@@ -629,8 +629,8 @@ class BillingController extends Controller
         $rows[] = [];
         $rows[] = ['TOTAL', number_format($billing->total ?? 0, 2)];
         $rows[] = ['STATUS', $billing->statusLabel()];
-        $rows[] = ['DUE DATE', $billing->due_date?->format('F j, Y') ?? ''];
-        $rows[] = ['PAID AT', $billing->paid_at?->format('F j, Y') ?? ''];
+        $rows[] = ['DUE DATE', $billing->due_date?->format('Y-m-d') ?? ''];
+        $rows[] = ['PAID AT', $billing->paid_at?->format('Y-m-d H:i') ?? ''];
 
         return $rows;
     }
@@ -647,6 +647,8 @@ class BillingController extends Controller
     {
         return response()->streamDownload(function () use ($rows) {
             $out = fopen('php://output', 'w');
+            // UTF-8 BOM so Excel opens accented characters correctly.
+            fwrite($out, "\xEF\xBB\xBF");
             foreach ($rows as $row) {
                 fputcsv($out, $row);
             }

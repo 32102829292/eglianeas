@@ -17,4 +17,10 @@ php artisan view:cache || true
 echo "Running database migrations..."
 php artisan migrate --force
 
-exec "$@"
+# Make queue worker log destinations writable by www-data
+mkdir -p /var/log
+touch /var/log/queue.log /var/log/queue-error.log
+chown www-data:www-data /var/log/queue.log /var/log/queue-error.log
+
+# Supervise Apache + the Laravel queue worker together
+exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

@@ -20,8 +20,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="/css/app.css?v=3">
+    <link rel="stylesheet" href="/css/app.css?v=4">
     <link rel="stylesheet" href="/css/auth.css?v=2">
-    <link rel="stylesheet" href="/css/dashboard.css?v=6">
+    <link rel="stylesheet" href="/css/dashboard.css?v=7">
     @stack('styles')
 </head>

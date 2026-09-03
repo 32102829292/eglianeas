@@ -23,7 +23,7 @@
     <div class="page-head page-head-row">
         <div>
             <h1>{{ $client->business_name ?: $client->name }}</h1>
-            <p>{{ $client->name }} &middot; {{ $client->email }}</p>
+            <p>{{ $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
         </div>
         <div class="btn-row">
             <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
@@ -121,7 +121,7 @@
                 <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
             </div>
             <div class="profile-grid">
-                <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">{{ $profile->business_address ?: '—' }}</span></div>
+                <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">@if($profile->business_address)<a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($profile->business_address) }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->business_address }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">Latitude</span><span class="profile-v">{{ $profile->latitude ?? '—' }}</span></div>
                 <div class="profile-row"><span class="profile-k">Longitude</span><span class="profile-v">{{ $profile->longitude ?? '—' }}</span></div>
             </div>
@@ -133,10 +133,10 @@
                 <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
             </div>
             <div class="profile-grid">
-                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">{{ $profile->contact_no ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">@if($profile->contact_no)<a href="tel:{{ $profile->contact_no }}" class="contact-link">{{ $profile->contact_no }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">{{ $profile->second_contact_display ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">{{ $profile->second_email ?: '—' }}</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)<a href="tel:{{ $profile->second_contact_no }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->second_contact_display }}@endif@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">@if($profile->second_email)<a href="mailto:{{ $profile->second_email }}" class="contact-link">{{ $profile->second_email }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>
         </div>

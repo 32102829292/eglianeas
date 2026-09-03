@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         curl \
         git \
+        supervisor \
     && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp --with-xpm \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql pgsql gd gmp bcmath zip intl mbstring exif opcache \
@@ -72,6 +73,9 @@ ENV PORT=8080
 # Copy entrypoint
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Supervisor: runs Apache + the Laravel queue worker side-by-side
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE ${PORT}
 

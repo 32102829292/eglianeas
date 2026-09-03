@@ -878,6 +878,8 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .profile-v { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text); }
 .profile-v .reveal-text { font-variant-numeric: tabular-nums; }
 .profile-v .reveal-text-btn { font-size: 11px; padding: 3px 10px; }
+a.contact-link { color: var(--sky-deep); text-decoration: none; }
+a.contact-link:hover { text-decoration: underline; }
 
 /* ---------- Print ---------- */
 @media print {

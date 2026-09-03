@@ -77,4 +77,55 @@ class BillingReminderService
 
         return $sent;
     }
+
+    /**
+     * Remind active clients who have not submitted their latest monthly
+     * bookkeeping data (the app's recurring client submission) for the current
+     * period. Reuses the same in-app + push delivery as the bill reminders,
+     * with the same cooldown so it fires at most once per cooldown window.
+     */
+    public static function remindMissingSales(): int
+    {
+        $sent = 0;
+        $cooldownStart = now()->subDays(self::REMINDER_COOLDOWN_DAYS);
+
+        $clients = User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->whereNull('deleted_at')
+            ->get()
+            ->filter(fn (User $user) => $user->monthlySurveyDue());
+
+        foreach ($clients as $client) {
+            $group = "monthly_submission:{$client->id}";
+
+            $latest = Notification::query()
+                ->where('user_id', $client->id)
+                ->where('group_key', $group)
+                ->latest('id')
+                ->first();
+
+            if ($latest && $latest->created_at->gt($cooldownStart)) {
+                continue;
+            }
+
+            $title = 'Monthly data due';
+            $body = "We haven't received this month's bookkeeping data yet. Please submit it so we can keep your records up to date.";
+            $link = route('client.dashboard');
+
+            Notification::remind(
+                $client->id,
+                $group,
+                $title,
+                $body,
+                'monthly_data_due',
+                $link
+            );
+
+            PushNotificationService::send($client, $title, $body, $link);
+
+            $sent++;
+        }
+
+        return $sent;
+    }
 }
