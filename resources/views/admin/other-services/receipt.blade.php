@@ -3,8 +3,8 @@
 @section('title'){{ $service->serviceName() }} — Receipt — Other Services — Egliane Accounting Services @endsection
 
 @section('content')
-    @php($client = $service->client)
     @php
+        $client = $service->client;
         $gcashNumber = \App\Models\Setting::get('gcash_number', '');
         $gcashQrCode = \App\Models\Setting::get('gcash_qr_code', '');
         $bankAccounts = \App\Models\Setting::get('bank_accounts', []);
