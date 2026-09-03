@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\ClientConcern;
+use App\Models\TeamMember;
 use App\Models\TrackerAssignment;
 use App\Models\TrackerInstance;
 use App\Models\TrackerService;
@@ -71,6 +72,11 @@ class ServiceTrackerController extends Controller
         return view('admin.service-tracker.create', [
             'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
             'services' => TrackerService::ordered()->get(),
+            'staffRoster' => TeamMember::ordered()
+                ->get(['name', 'position'])
+                ->mapWithKeys(fn (TeamMember $member) => [
+                    $member->name => trim($member->name.' — '.$member->position),
+                ]),
         ]);
     }
 

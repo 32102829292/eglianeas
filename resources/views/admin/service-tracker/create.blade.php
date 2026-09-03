@@ -42,7 +42,16 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="primary_responsible">Primary responsible</label>
-                    <input class="form-control" id="primary_responsible" name="primary_responsible" type="text" maxlength="120" value="{{ old('primary_responsible') }}" placeholder="Staff member name">
+                    <select class="form-control" id="primary_responsible" name="primary_responsible">
+                        <option value="">Select staff member</option>
+                        @foreach ($staffRoster as $name => $label)
+                            <option value="{{ $name }}" @selected(old('primary_responsible') === $name)>{{ $label }}</option>
+                        @endforeach
+                        <option value="__other__" @selected(old('primary_responsible') && ! $staffRoster->has(old('primary_responsible')))>Other / not listed</option>
+                    </select>
+                    <div id="primaryOtherWrap" style="margin-top:8px;display:none;">
+                        <input class="form-control" id="primary_other" name="primary_responsible" type="text" maxlength="120" value="{{ old('primary_responsible') && ! $staffRoster->has(old('primary_responsible')) ? old('primary_responsible') : '' }}" placeholder="Enter staff member name" disabled>
+                    </div>
                     @error('primary_responsible')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
@@ -71,11 +80,21 @@
 
             <div class="form-group">
                 <label class="form-label">Assigned Staff</label>
-                <p class="form-hint" style="margin-top:0;">Add staff members responsible. Each can be marked done independently.</p>
-                <div id="staffList" class="chip-list" style="margin-bottom:8px;"></div>
-                <div style="display:flex;gap:8px;align-items:center;">
-                    <input class="form-control" id="staffInput" type="text" maxlength="120" placeholder="Staff name" style="flex:1;min-width:0;">
-                    <button type="button" class="btn btn-outline btn-sm" id="addStaffBtn">Add</button>
+                <p class="form-hint" style="margin-top:0;">Select one or more staff members responsible. Each can be marked done independently.</p>
+                <div class="bir-form-grid" style="margin-bottom:10px;">
+                    @foreach ($staffRoster as $name => $label)
+                        <label class="bir-form-check @if(in_array(old('staff_names') ?? [], [$name])) is-checked @endif">
+                            <input type="checkbox" name="staff_names[]" value="{{ $name }}" @checked(in_array(old('staff_names') ?? [], [$name]))>
+                            <span>{{ $label }}</span>
+                        </label>
+                    @endforeach
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <label class="bir-form-check" id="customStaffToggleLabel">
+                        <input type="checkbox" id="customStaffToggle">
+                        <span>Other / not listed</span>
+                    </label>
+                    <input class="form-control" id="customStaffInput" name="staff_names[]" type="text" maxlength="120" placeholder="Enter staff member name" disabled style="flex:1;min-width:180px;">
                 </div>
             </div>
 
@@ -106,30 +125,35 @@
     var serviceSearch = document.getElementById('service_search');
     var serviceIdInput = document.getElementById('service_id');
     var serviceDropdown = document.getElementById('service-dropdown');
-    var staffInput = document.getElementById('staffInput');
-    var addStaffBtn = document.getElementById('addStaffBtn');
-    var staffList = document.getElementById('staffList');
-    var staffIndex = 0;
+    // Staff roster checkboxes toggle .is-checked pill state
+    document.querySelectorAll('.bir-form-check input[type="checkbox"][name="staff_names[]"]').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            cb.closest('.bir-form-check').classList.toggle('is-checked', cb.checked);
+        });
+    });
 
-    function addStaffChip(name) {
-        if (!name.trim()) return;
-        var chip = document.createElement('div');
-        chip.className = 'chip-row';
-        chip.innerHTML = '<span class="chip-label">' + name.trim() + '</span>' +
-            '<input type="hidden" name="staff_names[' + staffIndex + ']" value="' + name.trim() + '">' +
-            '<button type="button" class="btn btn-outline danger btn-sm" onclick="this.parentElement.remove()">&times;</button>';
-        staffList.appendChild(chip);
-        staffIndex++;
+    // "Other / not listed" for Assigned Staff — reveal & enable custom input
+    var customStaffToggle = document.getElementById('customStaffToggle');
+    var customStaffInput = document.getElementById('customStaffInput');
+    customStaffToggle.addEventListener('change', function () {
+        customStaffInput.disabled = !customStaffToggle.checked;
+        document.getElementById('customStaffToggleLabel').classList.toggle('is-checked', customStaffToggle.checked);
+        if (customStaffToggle.checked) customStaffInput.focus();
+    });
+
+    // Primary responsible: "Other / not listed" reveals a custom input
+    var primarySelect = document.getElementById('primary_responsible');
+    var primaryOther = document.getElementById('primary_other');
+    var primaryOtherWrap = document.getElementById('primaryOtherWrap');
+    function syncPrimary() {
+        var isOther = primarySelect.value === '__other__';
+        primaryOtherWrap.style.display = isOther ? 'block' : 'none';
+        primarySelect.disabled = isOther;
+        primaryOther.disabled = !isOther;
+        if (isOther) primaryOther.focus();
     }
-
-    addStaffBtn.addEventListener('click', function () {
-        addStaffChip(staffInput.value);
-        staffInput.value = '';
-        staffInput.focus();
-    });
-    staffInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); addStaffBtn.click(); }
-    });
+    primarySelect.addEventListener('change', syncPrimary);
+    syncPrimary();
 
     // Client autocomplete
     var clientTimer = null;
