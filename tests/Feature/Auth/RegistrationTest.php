@@ -18,14 +18,32 @@ class RegistrationTest extends TestCase
 
     public function test_new_users_can_register(): void
     {
+        $email = 'test'.uniqid().'@gmail.com';
+
         $response = $this->post('/register', [
             'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => 'password',
-            'password_confirmation' => 'password',
+            'business_name' => 'Test Trading',
+            'email' => $email,
+            'pin' => '1234',
+            'pin_confirmation' => '1234',
+            'terms' => true,
+            'business_type' => 'Sole Proprietorship',
+            'line_of_business' => 'Retail & Wholesale',
+            'bir_registration_type' => 'Non-VAT',
+            'business_address' => '123 Mabini St, Cebu City',
+            'contact_no' => '09171234567',
+            'second_contact_name' => 'Jane Doe',
+            'second_contact_channel' => 'viber',
+            'second_contact_no' => 'jane.doe',
+            'second_email' => 'jane@example.com',
+            'birth_date' => '1990-01-01',
+            'tin_no' => '123-456-789',
+            'mother_maiden_name' => 'Maria Santos',
+            'father_name' => 'Juan Reyes',
         ]);
 
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $this->assertDatabaseHas('users', ['email' => $email]);
+        $this->assertGuest();
+        $response->assertRedirect(route('verify.account'));
     }
 }
