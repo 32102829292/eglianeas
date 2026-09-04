@@ -15,7 +15,14 @@ class VerificationCodeSender
 
         $record = VerificationCode::issue($user, $code, $ttlMinutes);
 
-        Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name, $ttlMinutes));
+        try {
+            Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name, $ttlMinutes));
+        } catch (\Throwable $e) {
+            // The code is still stored on the record, so the reset/verify flow
+            // remains usable. Report so delivery failures aren't silent, but
+            // never let an SMTP outage surface as a raw 500 to the user.
+            report($e);
+        }
 
         return $record;
     }

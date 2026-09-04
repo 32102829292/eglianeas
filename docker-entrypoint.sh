@@ -11,7 +11,7 @@ fi
 echo "Running Laravel pre-boot tasks..."
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache || true
+php artisan view:cache
 
 # Migrations — force (no prompt) so deploys auto-apply schema changes
 echo "Running database migrations..."

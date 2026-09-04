@@ -41,6 +41,7 @@ class ServiceTrackerController extends Controller
     public function concerns(): View
     {
         $concerns = auth()->user()->clientConcerns()
+            ->with('relatedService')
             ->orderByDesc('date_identified')
             ->orderByDesc('id')
             ->get();

@@ -337,6 +337,12 @@ class RegisteredUserController extends Controller
 
         VerificationCode::issue($user, $code);
 
-        Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name));
+        try {
+            Mail::to($user->email)->send(new VerificationCodeMail($code, $user->name));
+        } catch (\Throwable $e) {
+            // The code is still stored, so verification remains usable. Report
+            // delivery failures instead of surfacing a raw 500 to the guest.
+            report($e);
+        }
     }
 }
