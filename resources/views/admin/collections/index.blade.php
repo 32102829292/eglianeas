@@ -57,7 +57,7 @@
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
                         <th>Period</th>
@@ -72,11 +72,11 @@
                         <tr>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
-                                <small class="text-muted">{{ $billing->client?->name }}</small>
+                                <small class="muted">{{ $billing->client?->name }}</small>
                             </td>
                             <td data-col="Period">
                                 <div class="fw-semibold">{{ $billing->periodTitleUppercase() }} BILLING</div>
-                                <small class="text-muted">{{ $billing->period_label }}</small>
+                                <small class="muted">{{ $billing->period_label }}</small>
                             </td>
                             <td class="text-end fw-semibold" data-col="Total">{{ $billing->money($billing->total) }}</td>
                             <td class="text-center" data-col="Status">
@@ -106,7 +106,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">Nothing to collect right now.</td></tr>
+                        <tr><td colspan="6" class="empty-cell">Nothing to collect right now.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -121,7 +121,7 @@
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-link btn-sm">Send reminder</button></form> @if (auth()->user()->isAdmin()) <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">@csrf <input type="hidden" name="status" value="paid"> <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"> <button type="submit" class="btn btn-link btn-sm">Mark paid</button></form> @endif</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">Nothing to collect right now.</p>
+                    <p class="cv-card cv-empty">Nothing to collect right now.</p>
                 @endforelse
             </div>
         </div>

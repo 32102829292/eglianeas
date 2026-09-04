@@ -55,7 +55,7 @@
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
                         <th>Service</th>
@@ -70,12 +70,12 @@
                         <tr>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $service->client?->business_name ?: $service->client?->name }}</div>
-                                <small class="text-muted">{{ $service->client?->name }}</small>
+                                <small class="muted">{{ $service->client?->name }}</small>
                             </td>
                             <td data-col="Service">
                                 <div class="fw-semibold">{{ $service->serviceName() }}</div>
                                 @if ($service->notes)
-                                    <small class="text-muted">{{ Str::limit($service->notes, 50) }}</small>
+                                    <small class="muted">{{ Str::limit($service->notes, 50) }}</small>
                                 @endif
                             </td>
                             <td data-col="Amount" class="text-end fw-semibold">{{ $service->money() }}</td>
@@ -94,7 +94,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">No service requests yet.</td></tr>
+                        <tr><td colspan="6" class="empty-cell">No service requests yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -102,15 +102,15 @@
             <div class="card-view-list">
                 @forelse ($services as $service)
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $service->client?->business_name ?: $service->client?->name }}<br><small class="text-muted">{{ $service->client?->name }}</small></span></div>
-                        <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $service->serviceName() }}@if ($service->notes)<br><small class="text-muted">{{ Str::limit($service->notes, 50) }}</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $service->client?->business_name ?: $service->client?->name }}<br><small class="muted">{{ $service->client?->name }}</small></span></div>
+                        <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $service->serviceName() }}@if ($service->notes)<br><small class="muted">{{ Str::limit($service->notes, 50) }}</small>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $service->status)<span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @else badge-neutral @endif">{{ $service->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Requested</span><span class="cv-value">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.other-services.receipt', $service) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.other-services.destroy', $service) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this service record?', message: 'This service request and its payment record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No service requests yet.</p>
+                    <p class="cv-card cv-empty">No service requests yet.</p>
                 @endforelse
             </div>
         </div>

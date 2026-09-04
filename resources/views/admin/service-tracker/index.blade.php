@@ -82,7 +82,7 @@
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Service</th>
                         <th>Client</th>
@@ -100,13 +100,13 @@
                             </td>
                             <td data-col="Client">
                                 <div class="fw-semibold">{{ $instance->client?->business_name ?: $instance->client?->name }}</div>
-                                <small class="text-muted">{{ $instance->client?->name }}</small>
+                                <small class="muted">{{ $instance->client?->name }}</small>
                             </td>
                             <td data-col="Status" class="text-center">
                                 @php($s = $instance->status)
                                 <span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
-                                    <div><small class="text-muted">{{ $instance->completionPercent() }}%</small></div>
+                                    <div><small class="muted">{{ $instance->completionPercent() }}%</small></div>
                                 @endif
                             </td>
                             <td data-col="Assigned Staff">
@@ -118,18 +118,18 @@
                                         </button>
                                     </form>
                                 @empty
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endforelse
                             </td>
                             <td data-col="Started">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Actions" class="text-end">
                                 @if ($instance->notes)
-                                    <span class="text-muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>
+                                    <span class="muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>
                                 @endif
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">No service instances yet.</td></tr>
+                        <tr><td colspan="6" class="empty-cell">No service instances yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -138,14 +138,14 @@
                 @forelse ($instances as $instance)
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $instance->service?->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="text-muted">{{ $instance->client?->name }}</small></span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="text-muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->displayName() }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="text-muted">—</span>@endforelse</span></div>
+                        <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="muted">{{ $instance->client?->name }}</small></span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->displayName() }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="muted">—</span>@endforelse</span></div>
                         <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if ($instance->notes)<span class="text-muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if ($instance->notes)<span class="muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No service instances yet.</p>
+                    <p class="cv-card cv-empty">No service instances yet.</p>
                 @endforelse
             </div>
         </div>

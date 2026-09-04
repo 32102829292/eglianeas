@@ -11,7 +11,7 @@
     </div>
 
     {{-- Add concern form (staff) --}}
-    <div class="card" style="margin-bottom:24px;">
+    <div class="card">
         <div class="card-head">
             <h2 class="card-title">Log a concern</h2>
         </div>
@@ -68,7 +68,7 @@
     </div>
 
     {{-- Filters --}}
-    <div class="card" style="margin-bottom:24px;">
+    <div class="card">
         <div class="card-head">
             <h2 class="card-title">Filter concerns</h2>
         </div>
@@ -107,7 +107,7 @@
         </div>
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Date</th>
                         <th>Client</th>
@@ -125,7 +125,7 @@
                             <td data-col="Date">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Client">
                                 <div class="fw-semibold">{{ $concern->client?->business_name ?: $concern->client?->name }}</div>
-                                <small class="text-muted">{{ $concern->client?->name }}</small>
+                                <small class="muted">{{ $concern->client?->name }}</small>
                             </td>
                             <td data-col="Issue">
                                 {{ Str::limit($concern->description_of_issue, 80) }}
@@ -138,7 +138,7 @@
                                 @if ($concern->proposed_solution)
                                     {{ Str::limit($concern->proposed_solution, 60) }}
                                 @else
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endif
                             </td>
                             <td data-col="Frequency" class="text-center">
@@ -157,7 +157,7 @@
                                 @if ($concern->isNew())
                                     <form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">
                                         @csrf
-                                        <button type="submit" class="btn btn-link btn-sm text-success">Mark reviewed</button>
+                                        <button type="submit" class="btn btn-link btn-sm">Mark reviewed</button>
                                     </form>
                                 @endif
                                 <form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
@@ -208,7 +208,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="text-center text-muted py-4">No concerns logged yet.</td></tr>
+                        <tr><td colspan="8" class="empty-cell">No concerns logged yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -217,13 +217,13 @@
                 @forelse ($concerns as $concern)
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $concern->client?->business_name ?: $concern->client?->name }}<br><small class="text-muted">{{ $concern->client?->name }}</small></span></div>
+                        <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $concern->client?->business_name ?: $concern->client?->name }}<br><small class="muted">{{ $concern->client?->name }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Issue</span><span class="cv-value">{{ Str::limit($concern->description_of_issue, 80) }}@if ($concern->isNew()) <span class="badge badge-success">New</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Related Service</span><span class="cv-value">{{ $concern->relatedService?->name ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">@if ($concern->proposed_solution){{ Str::limit($concern->proposed_solution, 60) }}@else<span class="text-muted">—</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">@if ($concern->proposed_solution){{ Str::limit($concern->proposed_solution, 60) }}@else<span class="muted">—</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Frequency</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Source</span><span class="cv-value">@if ($concern->isClientSubmitted())<span class="badge badge-info">Client</span>@else<span class="badge badge-neutral">Staff</span>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm text-success">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
                         <div class="cv-edit-form" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
                             <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">
                                 @csrf
@@ -263,7 +263,7 @@
                         </div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No concerns logged yet.</p>
+                    <p class="cv-card cv-empty">No concerns logged yet.</p>
                 @endforelse
             </div>
         </div>

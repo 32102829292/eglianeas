@@ -45,7 +45,7 @@
             </div>
             <div class="table-wrap">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="thead-muted">
                         <tr>
                             <th>Service</th>
                             <th class="text-center">Total</th>
@@ -68,11 +68,11 @@
                                             <div style="background:{{ $pct === 100 ? '#16a34a' : '#5AB3F0' }};border-radius:4px;height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
                                         </div>
                                     </div>
-                                    <small class="text-muted" style="margin-left:6px;">{{ $pct }}%</small>
+                                    <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="5" class="text-center text-muted py-4">No tracked services yet.</td></tr>
+                            <tr><td colspan="5" class="empty-cell">No tracked services yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -86,7 +86,7 @@
             </div>
             <div class="table-wrap">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="thead-muted">
                         <tr>
                             <th>Staff</th>
                             <th class="text-center">Assigned</th>
@@ -107,11 +107,11 @@
                                             <div style="background:{{ $pct === 100 ? '#16a34a' : '#5AB3F0' }};border-radius:4px;height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
                                         </div>
                                     </div>
-                                    <small class="text-muted" style="margin-left:6px;">{{ $pct }}%</small>
+                                    <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="text-center text-muted py-4">No staff assignments yet.</td></tr>
+                            <tr><td colspan="4" class="empty-cell">No staff assignments yet.</td></tr>
                         @endforelse
                     </tbody>
                 </table>

@@ -117,7 +117,7 @@
                                 <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Finalize this billing statement?', message: 'This will make it active and visible to the client.', confirmLabel: 'Finalize' });">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> @if(! $billing->isPaid())<a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a>@endif</span></div>
                             </div>
                         @empty
-                            <p class="cv-card" style="text-align:center;color:var(--text-muted);">No billing statements for this client yet.</p>
+                            <p class="cv-card cv-empty">No billing statements for this client yet.</p>
                         @endforelse
                     </div>
                 </div>

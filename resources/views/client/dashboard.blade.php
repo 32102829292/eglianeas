@@ -83,7 +83,7 @@
                             <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $tx->transaction_date->format('M j, Y') }}</span></div>
                         </div>
                     @empty
-                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No transactions recorded yet.</p>
+                        <p class="cv-card cv-empty">No transactions recorded yet.</p>
                     @endforelse
                 </div>
             </div>

@@ -50,7 +50,7 @@
         </div>
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
                         <th>Contact</th>
@@ -67,14 +67,14 @@
                         <tr data-filter-row>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
-                                <small class="text-muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
+                                <small class="muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
                                 @if ($entry['profile']?->tin_no)
-                                    <small class="text-muted d-block">TIN {{ $maskTin($entry['profile']->tin_no) }}</small>
+                                    <small class="muted d-block">TIN {{ $maskTin($entry['profile']->tin_no) }}</small>
                                 @endif
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
+                                <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             <td class="text-center" data-col="Status">
                                 @php($s = $entry['status'])
@@ -85,14 +85,14 @@
                                     @php($p = $entry['payment_status'])
                                     <span class="badge @if($p==='paid') badge-success @elseif($p==='unpaid') badge-danger @elseif($p==='partial') badge-warn @else badge-neutral @endif">{{ ucfirst($p) }}</span>
                                 @else
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endif
                             </td>
                             <td class="text-end" data-col="Outstanding">
                                 @if ($entry['outstanding'] > 0)
                                     <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endif
                             </td>
                             <td data-col="Since">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</td>
@@ -114,7 +114,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No clients found.</td></tr>
+                        <tr><td colspan="7" class="empty-cell">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -131,7 +131,7 @@
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline-primary btn-sm">View</a> <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-link btn-sm">Edit</a> <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete this client?', message: 'Are you sure you want to delete this client? This action can be undone by support.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                    <p class="cv-card cv-empty">No clients found.</p>
                 @endforelse
             </div>
         </div>

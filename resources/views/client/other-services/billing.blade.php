@@ -40,7 +40,7 @@
         </div>
         <div class="table-wrap">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Service</th>
                         <th>Date requested</th>
@@ -68,7 +68,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted py-4">No service requests yet.</td></tr>
+                        <tr><td colspan="5" class="empty-cell">No service requests yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

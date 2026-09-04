@@ -15,7 +15,7 @@
         @csrf
 
         {{-- GCash --}}
-        <div class="card" style="margin-bottom:24px;">
+        <div class="card">
             <div class="card-head">
                 <h3 class="card-title">GCash</h3>
             </div>
@@ -33,14 +33,14 @@
                         </div>
                     @endif
                     <input class="form-control" name="gcash_qr_code" type="file" accept="image/*">
-                    <small class="text-muted">Upload a GCash QR code image. Max 2 MB.</small>
+                    <small class="muted">Upload a GCash QR code image. Max 2 MB.</small>
                     @error('gcash_qr_code')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
             </div>
         </div>
 
         {{-- Bank Accounts --}}
-        <div class="card" style="margin-bottom:24px;">
+        <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Bank Accounts</h3>
             </div>
@@ -76,7 +76,7 @@
                         </div>
                     </div>
                 @empty
-                    <p class="text-muted" id="no-banks-note">No bank accounts added yet.</p>
+                    <p class="muted" id="no-banks-note">No bank accounts added yet.</p>
                 @endforelse
             </div>
 

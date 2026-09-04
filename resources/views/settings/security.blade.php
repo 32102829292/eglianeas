@@ -18,7 +18,7 @@
                 <div class="form-group">
                     <label class="form-label" for="current_password">Current password or PIN</label>
                     <input class="form-control" id="current_password" type="password" name="current_password" autocomplete="current-password">
-                    <small class="text-muted">Required only if your account already has a password or PIN.</small>
+                    <small class="muted">Required only if your account already has a password or PIN.</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="pin">PIN</label>

@@ -18,7 +18,7 @@
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Client Code</th>
                         <th>Business</th>
@@ -37,11 +37,11 @@
                             </td>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
-                                <small class="text-muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
+                                <small class="muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
+                                <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             <td class="text-center" data-col="BIR Forms">
                                 <span class="badge @if($entry['filed'] > 0) badge-success @else badge-neutral @endif">{{ $entry['filed'] }}/{{ $entry['total'] }}</span>
@@ -52,7 +52,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center text-muted py-4">No clients found.</td></tr>
+                        <tr><td colspan="6" class="empty-cell">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -68,7 +68,7 @@
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline-primary btn-sm">Open</a></span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                    <p class="cv-card cv-empty">No clients found.</p>
                 @endforelse
             </div>
         </div>

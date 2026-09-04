@@ -9,7 +9,7 @@
     </div>
 
     {{-- Submission form --}}
-    <div class="card" style="margin-bottom:24px;">
+    <div class="card">
         <div class="card-head">
             <h2 class="card-title">Log a Concern</h2>
         </div>
@@ -63,7 +63,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted py-4">No concerns logged yet.</td></tr>
+                        <tr><td colspan="5" class="empty-cell">No concerns logged yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -77,7 +77,7 @@
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No concerns logged yet.</p>
+                    <p class="cv-card cv-empty">No concerns logged yet.</p>
                 @endforelse
             </div>
         </div>

@@ -80,7 +80,7 @@
                         <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value">@if ($service->isPaid())<a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No service records yet.</p>
+                    <p class="cv-card cv-empty">No service records yet.</p>
                 @endforelse
             </div>
         </div>

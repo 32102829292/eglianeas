@@ -79,7 +79,7 @@
                         <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value">@if ($billing->isPaid())<a href="{{ route('client.billing.show', $billing) }}?from=collections" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No billing statements yet.</p>
+                    <p class="cv-card cv-empty">No billing statements yet.</p>
                 @endforelse
             </div>
         </div>

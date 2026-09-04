@@ -223,7 +223,7 @@
                             <span class="profile-k">{{ $entry->key }}</span>
                             <span class="profile-v">
                                 {{ $entry->value ?: '—' }}
-                                <button type="button" class="btn btn-link btn-sm text-muted edit-info-btn"
+                                <button type="button" class="btn btn-link btn-sm muted edit-info-btn"
                                         data-entry-id="{{ $entry->id }}"
                                         data-key="{{ $entry->key }}"
                                         data-value="{{ $entry->value }}"

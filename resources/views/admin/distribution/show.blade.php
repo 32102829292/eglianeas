@@ -235,7 +235,7 @@
                             <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Remove this delivery entry?', message: 'This delivery record will be permanently removed.', danger: true, confirmLabel: 'Remove' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Remove</button></form></span></div>
                         </div>
                     @empty
-                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No deliveries logged yet.</p>
+                        <p class="cv-card cv-empty">No deliveries logged yet.</p>
                     @endforelse
                 </div>
             </div>

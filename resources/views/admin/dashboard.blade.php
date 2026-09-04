@@ -295,7 +295,7 @@
                             <div class="cv-row"><span class="cv-label">Joined</span><span class="cv-value">{{ $user->created_at->diffForHumans() }}</span></div>
                         </div>
                     @empty
-                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No accounts yet.</p>
+                        <p class="cv-card cv-empty">No accounts yet.</p>
                     @endforelse
                 </div>
             </div>
@@ -331,7 +331,7 @@
                             <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] ?? ucfirst($filing->status ?? 'unknown') }}</span></span></div>
                         </div>
                     @empty
-                        <p class="cv-card" style="text-align:center;color:var(--text-muted);">No filings yet.</p>
+                        <p class="cv-card cv-empty">No filings yet.</p>
                     @endforelse
                 </div>
             </div>
@@ -372,7 +372,7 @@
                         <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No activity yet.</p>
+                    <p class="cv-card cv-empty">No activity yet.</p>
                 @endforelse
             </div>
         </div>

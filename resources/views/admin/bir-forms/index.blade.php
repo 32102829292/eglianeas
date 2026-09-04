@@ -42,7 +42,7 @@
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Client Code</th>
                         <th>Business</th>
@@ -63,11 +63,11 @@
                             </td>
                             <td>
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
-                                <small class="text-muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
+                                <small class="muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
                             </td>
                             <td>
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="text-muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
+                                <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
                             </td>
                             @foreach ($formTypes as $ft)
                                 @php($isOn = $statuses[$ft] ?? false)
@@ -90,7 +90,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ 4 + count($formTypes) }}" class="text-center text-muted py-4">No clients found.</td></tr>
+                        <tr><td colspan="{{ 4 + count($formTypes) }}" class="empty-cell">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -124,23 +124,9 @@
                         @endforeach
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No clients found.</p>
+                    <p class="cv-card cv-empty">No clients found.</p>
                 @endforelse
             </div>
         </div>
     </div>
 @endsection
-
-@push('styles')
-<style>
-    .bir-toggle {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 28px; height: 28px; border-radius: 6px; border: 1.5px solid var(--border);
-        background: #fff; color: var(--text-muted); cursor: pointer;
-        transition: all .15s ease;
-    }
-    .bir-toggle:hover { border-color: var(--sky); color: var(--sky); }
-    .bir-toggle-on { background: #dcfce7; border-color: #22c55e; color: #16a34a; }
-    .bir-toggle-on:hover { background: #bbf7d0; }
-</style>
-@endpush

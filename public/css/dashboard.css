@@ -437,6 +437,12 @@
 .table tbody tr:hover td { background: var(--sky-soft); }
 .table .fw-semibold { font-weight: 600; }
 
+/* Muted table header (replaces Bootstrap .table-light) */
+.thead-muted th { background: var(--bg-alt); }
+
+/* Empty-state table cell (replaces text-center text-muted py-4) */
+.empty-cell { text-align: center; color: var(--text-muted); padding: 24px 16px; }
+
 /* ---------- Card-view tables (mobile) ---------- */
 .table-card-view .card-view-list { display: none; }
 .table-card-view .card-view-empty { display: none; text-align: center; color: var(--text-muted); font-size: 14px; padding: 34px 16px; }
@@ -457,6 +463,34 @@
 .table-card-view .cv-card .cv-row:last-child { border-bottom: none; }
 .table-card-view .cv-card .cv-label { color: var(--text-muted); font-weight: 600; flex-shrink: 0; font-size: 12px; }
 .table-card-view .cv-card .cv-value { font-weight: 500; color: var(--text); text-align: right; min-width: 0; word-break: break-word; }
+
+/* Empty card-view state (replaces inline text-align/color) */
+.cv-card.cv-empty { text-align: center; color: var(--text-muted); }
+
+/* ---------- Moved from admin/surveys/index inline <style> ---------- */
+.rating-stars { color: #d9dde6; letter-spacing: 1px; white-space: nowrap; }
+.rating-stars .star.on { color: #f5a623; }
+.chip-flex { display: flex; flex-wrap: wrap; gap: 8px; }
+.admin-chip { background: var(--bg-alt, #f1f3f8); border: 1px solid var(--border-subtle, #e2e6ef); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
+.modal-meta { color: var(--text-muted); font-size: 14px; margin: 0 0 14px; }
+.modal-ratings { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.modal-rating-row { display: flex; align-items: center; gap: 10px; }
+.modal-rating-label { font-size: 13px; font-weight: 600; color: var(--text-muted); min-width: 64px; }
+.modal-comment { margin-bottom: 14px; }
+.modal-comment strong { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
+.modal-comment p { margin: 0; font-size: 14px; color: var(--text); line-height: 1.5; }
+.modal-date { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }
+
+/* ---------- Moved from admin/bir-forms/index inline <style> ---------- */
+.bir-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px; border: 1.5px solid var(--border);
+  background: #fff; color: var(--text-muted); cursor: pointer;
+  transition: all .15s ease;
+}
+.bir-toggle:hover { border-color: var(--sky); color: var(--sky); }
+.bir-toggle-on { background: #dcfce7; border-color: #22c55e; color: #16a34a; }
+.bir-toggle-on:hover { background: #bbf7d0; }
 
 /* Badges: unified system lives in app.css */
 

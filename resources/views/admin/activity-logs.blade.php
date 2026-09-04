@@ -47,7 +47,7 @@
                         <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
                     </div>
                 @empty
-                    <p class="cv-card" style="text-align:center;color:var(--text-muted);">No activity found.</p>
+                    <p class="cv-card cv-empty">No activity found.</p>
                 @endforelse
             </div>
         </div>

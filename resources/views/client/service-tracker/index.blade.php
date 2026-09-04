@@ -40,7 +40,7 @@
         </div>
         <div class="table-wrap">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Service</th>
                         <th class="text-center">Status</th>
@@ -57,21 +57,21 @@
                                 @php($s = $instance->status)
                                 <span class="badge {{ $s === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
-                                    <div><small class="text-muted">{{ $instance->completionPercent() }}% complete</small></div>
+                                    <div><small class="muted">{{ $instance->completionPercent() }}% complete</small></div>
                                 @endif
                             </td>
                             <td>
                                 @forelse ($instance->assignments as $a)
                                     <span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->displayName() }} {{ $a->completed ? '✓' : '○' }}</span>
                                 @empty
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endforelse
                             </td>
                             <td>{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
                             <td>{{ $instance->notes ? Str::limit($instance->notes, 40) : '—' }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="5" class="text-center text-muted py-4">No services tracked yet.</td></tr>
+                        <tr><td colspan="5" class="empty-cell">No services tracked yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>

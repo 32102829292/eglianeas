@@ -40,7 +40,7 @@
         </div>
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+                <thead class="thead-muted">
                     <tr>
                         <th>Client</th>
                         <th class="text-center">Overall</th>
@@ -56,7 +56,7 @@
                         <tr>
                             <td>
                                 <div class="fw-semibold">{{ $response->user->name }}</div>
-                                <div class="text-muted small"><a href="mailto:{{ $response->user->email }}" class="contact-link">{{ $response->user->email }}</a></div>
+                                <div class="muted small"><a href="mailto:{{ $response->user->email }}" class="contact-link">{{ $response->user->email }}</a></div>
                             </td>
                             <td class="text-center">
                                 <span class="rating-stars" aria-label="{{ $response->overall_rating }} out of 5">@for ($i = 1; $i <= 5; $i++)<span class="star @if ($i <= $response->overall_rating) on @endif">★</span>@endfor</span>
@@ -71,17 +71,17 @@
                                 @if ($response->comments)
                                     <span class="text-wrap">{{ mb_strimwidth($response->comments, 0, 50, '…') }}</span>
                                 @else
-                                    <span class="text-muted">—</span>
+                                    <span class="muted">—</span>
                                 @endif
                             </td>
-                            <td class="text-end text-muted small">{{ $response->submitted_at->format('M j, Y g:i A') }}</td>
+                            <td class="text-end muted small">{{ $response->submitted_at->format('M j, Y g:i A') }}</td>
                             <td class="text-end">
                                 <button type="button" class="btn btn-outline btn-sm" data-toggle="#response-{{ $response->id }}">View</button>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center text-muted py-4">No survey responses yet.</td>
+                            <td colspan="7" class="empty-cell">No survey responses yet.</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -124,7 +124,7 @@
                     @if ($response->comments)
                         <p>{{ $response->comments }}</p>
                     @else
-                        <p class="text-muted">No comments left.</p>
+                        <p class="muted">No comments left.</p>
                     @endif
                 </div>
 
@@ -141,13 +141,13 @@
         </div>
         <div class="card-body">
             @if ($dueClients->isEmpty())
-                <p class="text-muted mb-0">All clients are up to date.</p>
+                <p class="muted mb-0">All clients are up to date.</p>
             @else
                 <div class="chip-flex">
                     @foreach ($dueClients as $client)
                         <span class="admin-chip">{{ $client->name }}
                             @if ($client->client_code)
-                                <span class="text-muted">({{ $client->client_code }})</span>
+                                <span class="muted">({{ $client->client_code }})</span>
                             @endif
                         </span>
                     @endforeach
@@ -156,19 +156,4 @@
         </div>
         {{ $dueClients->links('pagination.simple') }}
     </div>
-
-    <style>
-        .rating-stars { color: #d9dde6; letter-spacing: 1px; white-space: nowrap; }
-        .rating-stars .star.on { color: #f5a623; }
-        .chip-flex { display: flex; flex-wrap: wrap; gap: 8px; }
-        .admin-chip { background: var(--bg-alt, #f1f3f8); border: 1px solid var(--border-subtle, #e2e6ef); border-radius: 999px; padding: 5px 12px; font-size: 13px; }
-        .modal-meta { color: var(--text-muted); font-size: 14px; margin: 0 0 14px; }
-        .modal-ratings { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
-        .modal-rating-row { display: flex; align-items: center; gap: 10px; }
-        .modal-rating-label { font-size: 13px; font-weight: 600; color: var(--text-muted); min-width: 64px; }
-        .modal-comment { margin-bottom: 14px; }
-        .modal-comment strong { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; display: block; margin-bottom: 4px; }
-        .modal-comment p { margin: 0; font-size: 14px; color: var(--text); line-height: 1.5; }
-        .modal-date { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }
-    </style>
 @endsection
