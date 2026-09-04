@@ -108,10 +108,11 @@
                 <div class="card-body d-flex flex-column align-items-center text-center gap-3">
                     <h3 class="card-title">Billing Status Breakdown</h3>
                     <x-donut-chart :segments="[
-                        ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)'],
-                        ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)'],
-                        ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)'],
-                        ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)'],
+                        ['label' => 'Draft', 'value' => $draftCount, 'color' => '#8E8E93', 'tint' => '#E5E5EA'],
+                        ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
+                        ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)', 'tint' => '#FADBC0'],
+                        ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)', 'tint' => '#AFAFBA'],
+                        ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
                     ]" />
                 </div>
             </div>
@@ -528,14 +529,15 @@
                 labels: labels(csData),
                 datasets: [{
                     data: counts(csData),
-                    // Existing colors kept exactly; each gains a light->full vertical gradient
+                    // Client status order (ClientProfile::STATUSES): Current,
+                    // Pending, Delinquent, Critical. Pairs are matched positionally
+                    // by dataIndex. Colors resolve theme tokens (--success/warning/
+                    // danger/navy); tints match the SVG donut styling.
                     backgroundColor: gradient([
-                        ['#B2EBC7', '#22C55E'],
-                        ['#FCDDAA', '#F59E0B'],
-                        ['#FDCEAD', '#F97316'],
-                        ['#F9BEBE', '#EF4444'],
-                        ['#C5E4FA', '#5AB3F0'],
-                        ['#D6C6FC', '#8B5CF6'],
+                        ['#B3E3C7', token('--success')],
+                        ['#FADBC0', token('--warning')],
+                        ['#F7C0BB', token('--danger')],
+                        ['#AFAFBA', token('--navy')],
                     ]),
                     borderWidth: 2,
                     borderColor: 'rgba(255,255,255,0.6)',
@@ -630,6 +632,7 @@
                     {
                         label: 'Revenue collected',
                         data: snapRevenue,
+                        yAxisID: 'y',
                         borderColor: '#22C55E',
                         backgroundColor: 'rgba(34, 197, 94, 0.12)',
                         fill: true,
@@ -641,6 +644,7 @@
                     {
                         label: 'New billings',
                         data: snapNewBillings,
+                        yAxisID: 'y1',
                         borderColor: '#5AB3F0',
                         backgroundColor: 'rgba(90, 179, 240, 0.12)',
                         fill: true,
@@ -667,7 +671,20 @@
                 },
                 scales: {
                     x: { grid: { display: false }, ticks: { font: { size: isMobile ? 10 : 12 } } },
-                    y: { beginAtZero: true, grid: { color: 'rgba(27,27,58,0.06)' }, ticks: { font: { size: isMobile ? 10 : 12 } } },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(27,27,58,0.06)' },
+                        ticks: {
+                            font: { size: isMobile ? 10 : 12 },
+                            callback: function (value) { return '₱' + Number(value).toLocaleString(); }
+                        },
+                    },
+                    y1: {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { font: { size: isMobile ? 10 : 12 }, precision: 0 },
+                    },
                 },
             },
         });

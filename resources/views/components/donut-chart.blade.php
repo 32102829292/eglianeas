@@ -26,7 +26,7 @@
                 @foreach($segments as $i => $seg)
                     @if((int) $seg['value'] <= 0) @continue @endif
                     <linearGradient id="{{ $uid }}-{{ $loop->index }}" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stop-color="{{ $tints[$ti] ?? '#FFFFFF' }}"></stop>
+                        <stop offset="0%" stop-color="{{ $seg['tint'] ?? ($tints[$ti] ?? '#FFFFFF') }}"></stop>
                         <stop offset="100%" stop-color="{{ $seg['color'] }}"></stop>
                     </linearGradient>
                     @php $ti++; @endphp

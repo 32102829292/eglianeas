@@ -39,6 +39,8 @@ class DashboardController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
+        $draftCount = (int) Billing::query()->where('status', Billing::STATUS_DRAFT)->count();
+
         $clientStatusCounts = ClientProfile::query()
             ->selectRaw('status, count(*) as count')
             ->groupBy('status')
@@ -87,6 +89,7 @@ class DashboardController extends Controller
 
         return view('admin.dashboard', [
             'paidCount' => (int) ($billingStatusCounts[Billing::STATUS_PAID] ?? 0),
+            'draftCount' => $draftCount,
             'pendingCount' => (int) ($billingStatusCounts[Billing::STATUS_PENDING] ?? 0),
             'unpaidCount' => (int) ($billingStatusCounts[Billing::STATUS_UNPAID] ?? 0),
             'overdueCount' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
