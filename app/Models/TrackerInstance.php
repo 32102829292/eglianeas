@@ -27,7 +27,6 @@ class TrackerInstance extends Model
         'service_id',
         'client_id',
         'status',
-        'primary_responsible',
         'date_identified',
         'date_started',
         'notes',

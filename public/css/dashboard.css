@@ -1367,27 +1367,49 @@ a.contact-link:hover { text-decoration: underline; }
 .bir-form-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .bir-form-badge { font-size: 12.5px; padding: 4px 12px; }
 
-/* ---------- Service Tracker: assigned staff checklist ---------- */
-.staff-checklist {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-.staff-check-row {
+/* ---------- Service Tracker: assigned staff tags ---------- */
+.staff-tags {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-subtle);
-  font-size: 13.5px;
-  color: var(--text-strong);
-  cursor: pointer;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
 }
-.staff-check-row:last-child { border-bottom: none; }
-.staff-check-row input { accent-color: var(--sky-deep); margin: 0; flex-shrink: 0; }
-.staff-check-row:hover { background: var(--sky-soft); }
-.staff-custom-wrap { padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
+.staff-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .15s, background .15s, color .15s;
+}
+.staff-tag:hover { border-color: var(--sky-deep); }
+.staff-tag-label { white-space: nowrap; }
+.staff-tag-remove {
+  border: none;
+  background: transparent;
+  color: var(--muted, #a6a6bd);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 2px;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.staff-tag-remove:hover { color: #e5484d; background: rgba(229,72,77,.12); }
+.staff-other-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.staff-other-row .form-control { flex: 1; }
+
 
 /* ---------- Batch statement printing ---------- */
 .print-check-cell { width: 34px; text-align: center; }

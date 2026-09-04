@@ -97,7 +97,6 @@ class ServiceTrackerController extends Controller
                     'user_id' => $member->user_id,
                     'label' => trim($member->name.' — '.$member->position),
                 ]),
-            'rosterNames' => TeamMember::ordered()->pluck('name'),
         ]);
     }
 
@@ -108,7 +107,6 @@ class ServiceTrackerController extends Controller
         $validated = $request->validate([
             'client_id' => ['required', 'exists:users,id'],
             'service_id' => ['required', 'exists:tracker_services,id'],
-            'primary_responsible' => ['nullable', 'string', 'max:120'],
             'date_identified' => ['nullable', 'date'],
             'date_started' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],

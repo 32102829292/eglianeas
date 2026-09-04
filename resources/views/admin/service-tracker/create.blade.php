@@ -41,20 +41,6 @@
                     @error('service_id')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="primary_responsible">Primary responsible</label>
-                    <select class="form-control" id="primary_responsible" name="primary_responsible">
-                        <option value="">Select staff member</option>
-                        @foreach ($staffRoster as $member)
-                            <option value="{{ $member['name'] }}" @selected(old('primary_responsible') === $member['name'])>{{ $member['label'] }}</option>
-                        @endforeach
-                        <option value="__other__" @selected(old('primary_responsible') && ! $rosterNames->contains(old('primary_responsible')))>Other / not listed</option>
-                    </select>
-                    <div id="primaryOtherWrap" style="margin-top:8px;display:none;">
-                        <input class="form-control" id="primary_other" name="primary_responsible" type="text" maxlength="120" value="{{ old('primary_responsible') && ! $rosterNames->contains(old('primary_responsible')) ? old('primary_responsible') : '' }}" placeholder="Enter staff member name" disabled>
-                    </div>
-                    @error('primary_responsible')<div class="form-error">{{ $message }}</div>@enderror
-                </div>
-                <div class="form-group">
                     <label class="form-label" for="date_identified">Date identified</label>
                     <input class="form-control" id="date_identified" name="date_identified" type="date" value="{{ old('date_identified', now()->format('Y-m-d')) }}">
                     @error('date_identified')<div class="form-error">{{ $message }}</div>@enderror
@@ -80,22 +66,20 @@
 
             <div class="form-group">
                 <label class="form-label">Assigned Staff</label>
-                <p class="form-hint" style="margin-top:0;">Select one or more staff members responsible. Each can be marked done independently.</p>
-                <div class="staff-checklist" style="margin-bottom:10px;">
-                    @foreach ($staffRoster as $member)
-                        <label class="staff-check-row">
-                            <input type="checkbox" name="staff_names[]" value="{{ $member['name'] }}" @checked(in_array(old('staff_names') ?? [], [$member['name']]))>
-                            <span>{{ $member['label'] }}</span>
-                        </label>
-                    @endforeach
-                    <label class="staff-check-row" id="customStaffToggleLabel" style="border-bottom:none;">
-                        <input type="checkbox" id="customStaffToggle">
-                        <span>Other / not listed</span>
-                    </label>
-                    <div class="staff-custom-wrap">
-                        <input class="form-control" id="customStaffInput" name="staff_names[]" type="text" maxlength="120" placeholder="Enter staff member name" disabled>
+                <p class="form-hint" style="margin-top:0;">Search and pick one or more staff members. Each can be marked done independently.</p>
+                <div class="autocomplete-wrap" id="staff-autocomplete">
+                    <input class="form-control" id="staff_search" type="text" placeholder="Search staff to assign&hellip;" autocomplete="off">
+                    <div id="staffTags" class="staff-tags"></div>
+                    <div id="staffHiddenInputs" style="display:none;"></div>
+                    <div class="autocomplete-dropdown" id="staff-dropdown"></div>
+                </div>
+                <div id="staffOtherWrap" style="margin-top:8px;display:none;">
+                    <div class="staff-other-row">
+                        <input class="form-control" id="customStaffInput" type="text" maxlength="120" placeholder="Enter staff member name">
+                        <button type="button" class="btn btn-outline btn-sm" id="customStaffAdd">Add</button>
                     </div>
                 </div>
+                @error('staff_names')<div class="form-error">{{ $message }}</div>@enderror
             </div>
 
             <div class="form-group" style="margin-top:16px;">
@@ -126,27 +110,122 @@
     var serviceIdInput = document.getElementById('service_id');
     var serviceDropdown = document.getElementById('service-dropdown');
 
-    // "Other / not listed" for Assigned Staff — reveal & enable custom input
-    var customStaffToggle = document.getElementById('customStaffToggle');
+    // --- Assigned Staff: compact tag multi-select ---
+    var staffOptions = @json(collect($staffRoster)->map(fn ($m) => ['name' => $m['name'], 'label' => $m['label']])->values());
+    var staffSearch = document.getElementById('staff_search');
+    var staffDropdown = document.getElementById('staff-dropdown');
+    var staffTags = document.getElementById('staffTags');
+    var staffHidden = document.getElementById('staffHiddenInputs');
+    var staffOtherWrap = document.getElementById('staffOtherWrap');
     var customStaffInput = document.getElementById('customStaffInput');
-    customStaffToggle.addEventListener('change', function () {
-        customStaffInput.disabled = !customStaffToggle.checked;
-        if (customStaffToggle.checked) customStaffInput.focus();
+    var customStaffAdd = document.getElementById('customStaffAdd');
+    var selected = {};          // key: name -> { label }
+
+    function renderTags() {
+        staffTags.innerHTML = '';
+        Object.keys(selected).forEach(function (name) {
+            var item = selected[name];
+            var tag = document.createElement('span');
+            tag.className = 'staff-tag';
+            tag.setAttribute('data-name', name);
+            tag.title = 'Remove ' + name;
+            var label = document.createElement('span');
+            label.className = 'staff-tag-label';
+            label.textContent = item.label;
+            var x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'staff-tag-remove';
+            x.textContent = '×';
+            x.setAttribute('aria-label', 'Remove ' + name);
+            tag.appendChild(label);
+            tag.appendChild(x);
+            x.addEventListener('click', function (e) {
+                e.stopPropagation();
+                removeStaff(name);
+            });
+            staffTags.appendChild(tag);
+        });
+    }
+
+    function addStaff(name, label) {
+        var key = String(name || '').trim();
+        if (!key || selected[key]) { staffDropdown.style.display = 'none'; return; }
+        var roster = staffOptions.find(function (o) { return o.name === key; });
+        selected[key] = { label: roster ? roster.label : (label || key) };
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'staff_names[]';
+        hidden.value = key;
+        hidden.setAttribute('data-staff-hidden', key);
+        staffHidden.appendChild(hidden);
+        renderTags();
+        staffSearch.value = '';
+        staffDropdown.style.display = 'none';
+        return key;
+    }
+
+    function removeStaff(name) {
+        var key = name;
+        var hidden = staffHidden.querySelector('input[data-staff-hidden="' + key + '"]');
+        if (hidden) hidden.remove();
+        delete selected[key];
+        renderTags();
+    }
+
+    function renderStaffDropdown() {
+        var q = staffSearch.value.trim().toLowerCase();
+        staffDropdown.innerHTML = '';
+        var matches = staffOptions.filter(function (o) {
+            return o.label.toLowerCase().indexOf(q) !== -1;
+        });
+        matches.forEach(function (o) {
+            if (selected[o.name]) return;
+            var div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.textContent = o.label;
+            div.addEventListener('click', function () { addStaff(o.name, o.label); });
+            staffDropdown.appendChild(div);
+        });
+        var other = document.createElement('div');
+        other.className = 'autocomplete-item staff-other-item';
+        other.style.color = 'var(--sky-deep)';
+        other.style.fontWeight = '600';
+        other.style.cursor = 'pointer';
+        other.textContent = '+ Other / not listed';
+        other.addEventListener('click', function () {
+            staffDropdown.style.display = 'none';
+            staffOtherWrap.style.display = 'block';
+            customStaffInput.focus();
+        });
+        staffDropdown.appendChild(other);
+        staffDropdown.style.display = 'block';
+    }
+
+    staffSearch.addEventListener('focus', renderStaffDropdown);
+    staffSearch.addEventListener('input', renderStaffDropdown);
+
+    customStaffAdd.addEventListener('click', function () {
+        var v = customStaffInput.value.trim();
+        if (!v) { customStaffInput.focus(); return; }
+        addStaff(v, v);
+        customStaffInput.value = '';
+        staffOtherWrap.style.display = 'none';
+    });
+    customStaffInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); customStaffAdd.click(); }
     });
 
-    // Primary responsible: "Other / not listed" reveals a custom input
-    var primarySelect = document.getElementById('primary_responsible');
-    var primaryOther = document.getElementById('primary_other');
-    var primaryOtherWrap = document.getElementById('primaryOtherWrap');
-    function syncPrimary() {
-        var isOther = primarySelect.value === '__other__';
-        primaryOtherWrap.style.display = isOther ? 'block' : 'none';
-        primarySelect.disabled = isOther;
-        primaryOther.disabled = !isOther;
-        if (isOther) primaryOther.focus();
-    }
-    primarySelect.addEventListener('change', syncPrimary);
-    syncPrimary();
+    // Restore previous selections on validation-error re-render
+    (function restore() {
+        var prevNames = @json(old('staff_names') ? array_values(old('staff_names')) : []);
+        prevNames.forEach(function (n) { if (!selected[n]) addStaff(n, n); });
+        renderTags();
+    })();
+
+    // Close the staff dropdown when clicking elsewhere
+    staffSearch.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') staffDropdown.style.display = 'none';
+    });
 
     // Client autocomplete
     var clientTimer = null;

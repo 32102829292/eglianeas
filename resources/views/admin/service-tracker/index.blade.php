@@ -88,7 +88,6 @@
                         <th>Client</th>
                         <th class="text-center">Status</th>
                         <th>Assigned Staff</th>
-                        <th>Primary</th>
                         <th>Started</th>
                         <th class="text-end">Actions</th>
                     </tr>
@@ -122,7 +121,6 @@
                                     <span class="text-muted">—</span>
                                 @endforelse
                             </td>
-                            <td data-col="Primary">{{ $instance->primary_responsible ?? '—' }}</td>
                             <td data-col="Started">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Actions" class="text-end">
                                 @if ($instance->notes)
@@ -131,7 +129,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="text-center text-muted py-4">No service instances yet.</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted py-4">No service instances yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -143,7 +141,6 @@
                         <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="text-muted">{{ $instance->client?->name }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="text-muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->staff_name }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="text-muted">—</span>@endforelse</span></div>
-                        <div class="cv-row"><span class="cv-label">Primary</span><span class="cv-value">{{ $instance->primary_responsible ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if ($instance->notes)<span class="text-muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif</span></div>
                     </div>
