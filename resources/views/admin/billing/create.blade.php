@@ -15,7 +15,3 @@
 
     @include('admin.billing._form', ['formMode' => 'create'])
 @endsection
-
-@push('scripts')
-    <script src="/js/billing.js" defer></script>
-@endpush

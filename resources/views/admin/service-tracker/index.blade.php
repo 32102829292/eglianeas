@@ -38,14 +38,14 @@
             <span class="stat-label">To Do</span>
             <b class="stat-value">{{ $stats['todo'] }}</b>
         </div>
-        <div class="stat-card stat-info">
+        <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-9-9"/><path d="M21 3v6h-6"/></svg>
             </div>
             <span class="stat-label">In Progress</span>
             <b class="stat-value">{{ $stats['inProgress'] }}</b>
         </div>
-        <div class="stat-card stat-icon-info">
+        <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
             </div>

@@ -21,7 +21,3 @@
 
     @include('admin.billing._form', ['formMode' => 'edit'])
 @endsection
-
-@push('scripts')
-    <script src="/js/billing.js" defer></script>
-@endpush
