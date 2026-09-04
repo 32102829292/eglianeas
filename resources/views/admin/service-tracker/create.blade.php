@@ -44,13 +44,13 @@
                     <label class="form-label" for="primary_responsible">Primary responsible</label>
                     <select class="form-control" id="primary_responsible" name="primary_responsible">
                         <option value="">Select staff member</option>
-                        @foreach ($staffRoster as $name => $label)
-                            <option value="{{ $name }}" @selected(old('primary_responsible') === $name)>{{ $label }}</option>
+                        @foreach ($staffRoster as $member)
+                            <option value="{{ $member['name'] }}" @selected(old('primary_responsible') === $member['name'])>{{ $member['label'] }}</option>
                         @endforeach
-                        <option value="__other__" @selected(old('primary_responsible') && ! $staffRoster->has(old('primary_responsible')))>Other / not listed</option>
+                        <option value="__other__" @selected(old('primary_responsible') && ! $rosterNames->contains(old('primary_responsible')))>Other / not listed</option>
                     </select>
                     <div id="primaryOtherWrap" style="margin-top:8px;display:none;">
-                        <input class="form-control" id="primary_other" name="primary_responsible" type="text" maxlength="120" value="{{ old('primary_responsible') && ! $staffRoster->has(old('primary_responsible')) ? old('primary_responsible') : '' }}" placeholder="Enter staff member name" disabled>
+                        <input class="form-control" id="primary_other" name="primary_responsible" type="text" maxlength="120" value="{{ old('primary_responsible') && ! $rosterNames->contains(old('primary_responsible')) ? old('primary_responsible') : '' }}" placeholder="Enter staff member name" disabled>
                     </div>
                     @error('primary_responsible')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
@@ -81,20 +81,20 @@
             <div class="form-group">
                 <label class="form-label">Assigned Staff</label>
                 <p class="form-hint" style="margin-top:0;">Select one or more staff members responsible. Each can be marked done independently.</p>
-                <div class="bir-form-grid" style="margin-bottom:10px;">
-                    @foreach ($staffRoster as $name => $label)
-                        <label class="bir-form-check @if(in_array(old('staff_names') ?? [], [$name])) is-checked @endif">
-                            <input type="checkbox" name="staff_names[]" value="{{ $name }}" @checked(in_array(old('staff_names') ?? [], [$name]))>
-                            <span>{{ $label }}</span>
+                <div class="staff-checklist" style="margin-bottom:10px;">
+                    @foreach ($staffRoster as $member)
+                        <label class="staff-check-row">
+                            <input type="checkbox" name="staff_names[]" value="{{ $member['name'] }}" @checked(in_array(old('staff_names') ?? [], [$member['name']]))>
+                            <span>{{ $member['label'] }}</span>
                         </label>
                     @endforeach
-                </div>
-                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                    <label class="bir-form-check" id="customStaffToggleLabel">
+                    <label class="staff-check-row" id="customStaffToggleLabel" style="border-bottom:none;">
                         <input type="checkbox" id="customStaffToggle">
                         <span>Other / not listed</span>
                     </label>
-                    <input class="form-control" id="customStaffInput" name="staff_names[]" type="text" maxlength="120" placeholder="Enter staff member name" disabled style="flex:1;min-width:180px;">
+                    <div class="staff-custom-wrap">
+                        <input class="form-control" id="customStaffInput" name="staff_names[]" type="text" maxlength="120" placeholder="Enter staff member name" disabled>
+                    </div>
                 </div>
             </div>
 
@@ -125,19 +125,12 @@
     var serviceSearch = document.getElementById('service_search');
     var serviceIdInput = document.getElementById('service_id');
     var serviceDropdown = document.getElementById('service-dropdown');
-    // Staff roster checkboxes toggle .is-checked pill state
-    document.querySelectorAll('.bir-form-check input[type="checkbox"][name="staff_names[]"]').forEach(function (cb) {
-        cb.addEventListener('change', function () {
-            cb.closest('.bir-form-check').classList.toggle('is-checked', cb.checked);
-        });
-    });
 
     // "Other / not listed" for Assigned Staff — reveal & enable custom input
     var customStaffToggle = document.getElementById('customStaffToggle');
     var customStaffInput = document.getElementById('customStaffInput');
     customStaffToggle.addEventListener('change', function () {
         customStaffInput.disabled = !customStaffToggle.checked;
-        document.getElementById('customStaffToggleLabel').classList.toggle('is-checked', customStaffToggle.checked);
         if (customStaffToggle.checked) customStaffInput.focus();
     });
 

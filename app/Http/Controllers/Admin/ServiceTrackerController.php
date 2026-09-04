@@ -24,8 +24,22 @@ class ServiceTrackerController extends Controller
         $serviceId = $request->get('service_id');
         $staff = trim((string) $request->get('staff'));
 
+        $isStaff = ! auth()->user()->isAdmin();
+        $user = auth()->user();
+
+        $scopeToOwn = function ($query) use ($isStaff, $user) {
+            if (! $isStaff) {
+                return;
+            }
+            $query->whereHas('assignments', function ($assignment) use ($user) {
+                $assignment->where('staff_id', $user->id)
+                    ->orWhereRaw('LOWER(staff_name) = ?', [mb_strtolower(trim((string) $user->name))]);
+            });
+        };
+
         $instances = TrackerInstance::query()
             ->with('service', 'client', 'assignments')
+            ->tap($scopeToOwn)
             ->when($q !== '', function ($query) use ($q) {
                 $query->whereHas('client', function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -45,43 +59,52 @@ class ServiceTrackerController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $allInstances = TrackerInstance::query()->with('assignments')->get();
-        $totalAssignments = $allInstances->flatMap->assignments->count();
-        $doneAssignments = $allInstances->flatMap->assignments->where('completed', true)->count();
+        $scopedAll = TrackerInstance::query()
+            ->with('assignments')
+            ->tap($scopeToOwn)
+            ->get();
 
         return view('admin.service-tracker.index', [
             'instances' => $instances,
             'services' => TrackerService::ordered()->get(),
-            'allStaff' => TrackerAssignment::distinct()->pluck('staff_name')->filter()->sort()->values(),
+            'allStaff' => $scopedAll->flatMap->assignments->pluck('staff_name')->filter()->unique()->sort()->values(),
             'q' => $q,
             'activeStatus' => $status,
             'activeServiceId' => $serviceId,
             'activeStaff' => $staff,
             'stats' => [
-                'total' => $allInstances->count(),
-                'done' => $allInstances->where('status', TrackerInstance::STATUS_DONE)->count(),
-                'todo' => $allInstances->where('status', TrackerInstance::STATUS_TODO)->count(),
-                'assignmentsTotal' => $totalAssignments,
-                'assignmentsDone' => $doneAssignments,
+                'total' => $scopedAll->count(),
+                'done' => $scopedAll->where('status', TrackerInstance::STATUS_DONE)->count(),
+                'inProgress' => $scopedAll->where('status', TrackerInstance::STATUS_IN_PROGRESS)->count(),
+                'todo' => $scopedAll->where('status', TrackerInstance::STATUS_TODO)->count(),
+                'assignmentsTotal' => $scopedAll->flatMap->assignments->count(),
+                'assignmentsDone' => $scopedAll->flatMap->assignments->where('completed', true)->count(),
             ],
         ]);
     }
 
     public function create(): View
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can create service instances.');
+
         return view('admin.service-tracker.create', [
             'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
             'services' => TrackerService::ordered()->get(),
             'staffRoster' => TeamMember::ordered()
-                ->get(['name', 'position'])
-                ->mapWithKeys(fn (TeamMember $member) => [
-                    $member->name => trim($member->name.' — '.$member->position),
+                ->get(['name', 'position', 'user_id'])
+                ->map(fn (TeamMember $member) => [
+                    'name' => $member->name,
+                    'user_id' => $member->user_id,
+                    'label' => trim($member->name.' — '.$member->position),
                 ]),
+            'rosterNames' => TeamMember::ordered()->pluck('name'),
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can create service instances.');
+
         $validated = $request->validate([
             'client_id' => ['required', 'exists:users,id'],
             'service_id' => ['required', 'exists:tracker_services,id'],
@@ -100,9 +123,15 @@ class ServiceTrackerController extends Controller
         $staffNames = $request->input('staff_names', []);
         $staffNames = array_filter(array_map('trim', $staffNames));
 
+        $nameToUserId = TeamMember::query()
+            ->whereNotNull('user_id')
+            ->get(['name', 'user_id'])
+            ->mapWithKeys(fn (TeamMember $member) => [mb_strtolower($member->name) => $member->user_id]);
+
         foreach ($staffNames as $name) {
             $instance->assignments()->create([
                 'staff_name' => $name,
+                'staff_id' => $nameToUserId[mb_strtolower($name)] ?? null,
                 'completed' => false,
             ]);
         }
@@ -131,6 +160,8 @@ class ServiceTrackerController extends Controller
 
     public function summary(): View
     {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can view the summary.');
+
         $services = TrackerService::ordered()->with('instances.assignments')->get();
 
         $serviceSummary = $services->map(function (TrackerService $service) {

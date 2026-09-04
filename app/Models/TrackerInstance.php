@@ -14,10 +14,12 @@ class TrackerInstance extends Model
     protected $table = 'tracker_instances';
 
     public const STATUS_TODO = 'todo';
+    public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_DONE = 'done';
 
     public const STATUSES = [
         self::STATUS_TODO => 'To Do',
+        self::STATUS_IN_PROGRESS => 'In Progress',
         self::STATUS_DONE => 'Done',
     ];
 
@@ -83,8 +85,17 @@ class TrackerInstance extends Model
             return;
         }
 
-        $allDone = $assignments->every('completed', true);
-        $this->status = $allDone ? self::STATUS_DONE : self::STATUS_TODO;
+        $done = $assignments->where('completed', true)->count();
+        $total = $assignments->count();
+
+        if ($done >= $total) {
+            $this->status = self::STATUS_DONE;
+        } elseif ($done > 0) {
+            $this->status = self::STATUS_IN_PROGRESS;
+        } else {
+            $this->status = self::STATUS_TODO;
+        }
+
         $this->saveQuietly();
     }
 }

@@ -9,8 +9,10 @@
             <p>Track service completion across all clients and staff.</p>
         </div>
         <div class="page-head-actions">
-            <a href="{{ route('admin.service-tracker.summary') }}" class="btn btn-outline btn-sm">Summary</a>
-            <a href="{{ route('admin.service-tracker.create') }}" class="btn btn-primary">New instance</a>
+            @if (auth()->user()->isAdmin())
+                <a href="{{ route('admin.service-tracker.summary') }}" class="btn btn-outline btn-sm">Summary</a>
+                <a href="{{ route('admin.service-tracker.create') }}" class="btn btn-primary">New instance</a>
+            @endif
         </div>
     </div>
 
@@ -36,6 +38,13 @@
             <span class="stat-label">To Do</span>
             <b class="stat-value">{{ $stats['todo'] }}</b>
         </div>
+        <div class="stat-card stat-info">
+            <div class="stat-icon stat-icon-info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-9-9"/><path d="M21 3v6h-6"/></svg>
+            </div>
+            <span class="stat-label">In Progress</span>
+            <b class="stat-value">{{ $stats['inProgress'] }}</b>
+        </div>
         <div class="stat-card stat-icon-info">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
@@ -57,6 +66,7 @@
             <select name="status" onchange="this.form.submit()">
                 <option value="">All statuses</option>
                 <option value="todo" @selected($activeStatus === 'todo')>To Do</option>
+                <option value="in_progress" @selected($activeStatus === 'in_progress')>In Progress</option>
                 <option value="done" @selected($activeStatus === 'done')>Done</option>
             </select>
             <select name="staff" onchange="this.form.submit()">
@@ -95,7 +105,7 @@
                             </td>
                             <td data-col="Status" class="text-center">
                                 @php($s = $instance->status)
-                                <span class="badge {{ $s === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span>
+                                <span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
                                     <div><small class="text-muted">{{ $instance->completionPercent() }}%</small></div>
                                 @endif
@@ -131,7 +141,7 @@
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $instance->service?->name }}</span></div>
                         <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="text-muted">{{ $instance->client?->name }}</small></span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="text-muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="text-muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->staff_name }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="text-muted">—</span>@endforelse</span></div>
                         <div class="cv-row"><span class="cv-label">Primary</span><span class="cv-value">{{ $instance->primary_responsible ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>

@@ -14,6 +14,7 @@ class TrackerAssignment extends Model
 
     protected $fillable = [
         'instance_id',
+        'staff_id',
         'staff_name',
         'completed',
         'completed_at',
@@ -30,6 +31,11 @@ class TrackerAssignment extends Model
     public function instance(): BelongsTo
     {
         return $this->belongsTo(TrackerInstance::class, 'instance_id');
+    }
+
+    public function staff(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'staff_id');
     }
 
     public function toggleComplete(): void

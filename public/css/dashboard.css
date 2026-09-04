@@ -1367,6 +1367,28 @@ a.contact-link:hover { text-decoration: underline; }
 .bir-form-badges { display: flex; flex-wrap: wrap; gap: 6px; }
 .bir-form-badge { font-size: 12.5px; padding: 4px 12px; }
 
+/* ---------- Service Tracker: assigned staff checklist ---------- */
+.staff-checklist {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.staff-check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13.5px;
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.staff-check-row:last-child { border-bottom: none; }
+.staff-check-row input { accent-color: var(--sky-deep); margin: 0; flex-shrink: 0; }
+.staff-check-row:hover { background: var(--sky-soft); }
+.staff-custom-wrap { padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
+
 /* ---------- Batch statement printing ---------- */
 .print-check-cell { width: 34px; text-align: center; }
 .print-check-cell input { cursor: pointer; }
