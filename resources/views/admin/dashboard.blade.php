@@ -39,11 +39,11 @@
         </div>
     </div>
 
-    <div class="db-metric-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="grid-3">
         <div class="db-metric-card">
             <div class="db-metric-head">
-                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Revenue collected (14d)</span>
-                <div class="stat-icon" style="background:var(--success-soft);color:var(--success);">
+                <span class="stat-label">Revenue collected (14d)</span>
+                <div class="stat-icon stat-icon-ok">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 </div>
             </div>
@@ -53,8 +53,8 @@
 
         <div class="db-metric-card">
             <div class="db-metric-head">
-                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">New billings (14d)</span>
-                <div class="stat-icon" style="background:var(--sky-soft);color:var(--sky-deep);">
+                <span class="stat-label">New billings (14d)</span>
+                <div class="stat-icon stat-icon-info">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 </div>
             </div>
@@ -64,8 +64,8 @@
 
         <div class="db-metric-card">
             <div class="db-metric-head">
-                <span class="stat-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Overdue count (14d)</span>
-                <div class="stat-icon" style="background:var(--danger-soft);color:var(--danger);">
+                <span class="stat-label">Overdue count (14d)</span>
+                <div class="stat-icon stat-icon-danger">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
                 </div>
             </div>
@@ -102,57 +102,47 @@
         </div>
     </div>
 
-    <div class="row g-3 mb-3">
-        <div class="col-lg-4">
-            <div class="card glass-panel h-100">
-                <div class="card-body d-flex flex-column align-items-center text-center gap-3">
-                    <h3 class="card-title">Billing Status Breakdown</h3>
-                    <x-donut-chart :segments="[
-                        ['label' => 'Draft', 'value' => $draftCount, 'color' => '#8E8E93', 'tint' => '#E5E5EA'],
-                        ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
-                        ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)', 'tint' => '#FADBC0'],
-                        ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)', 'tint' => '#AFAFBA'],
-                        ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
-                    ]" />
-                </div>
+    <div class="grid-3">
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Billing Status Breakdown</h3>
+            </div>
+            <x-donut-chart :segments="[
+                ['label' => 'Draft', 'value' => $draftCount, 'color' => '#8E8E93', 'tint' => '#E5E5EA'],
+                ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
+                ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)', 'tint' => '#FADBC0'],
+                ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)', 'tint' => '#AFAFBA'],
+                ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
+            ]" />
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Billing status</h3>
+                <a href="{{ route('admin.billing.index') }}" class="text-decoration-none">Manage billing statements</a>
+            </div>
+            <div class="chart-canvas-wrap">
+                @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
+                @if ($bsTotal > 0)
+                    <canvas id="billingStatusChart" height="220"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
             </div>
         </div>
 
-        <div class="col-lg-4">
-            <div class="card glass-panel h-100">
-                <div class="card-body d-flex flex-column gap-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h3 class="card-title mb-0">Billing status</h3>
-                        <a href="{{ route('admin.billing.index') }}" class="text-decoration-none">Manage billing statements</a>
-                    </div>
-                    <div class="chart-canvas-wrap flex-grow-1">
-                        @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
-                        @if ($bsTotal > 0)
-                            <canvas id="billingStatusChart" height="220"></canvas>
-                        @else
-                            <p class="chart-empty">Not enough data yet.</p>
-                        @endif
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Client account status</h3>
+                <a href="{{ route('admin.clients.index') }}" class="text-decoration-none">View clients</a>
             </div>
-        </div>
-
-        <div class="col-lg-4">
-            <div class="card glass-panel h-100">
-                <div class="card-body d-flex flex-column gap-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h3 class="card-title mb-0">Client account status</h3>
-                        <a href="{{ route('admin.clients.index') }}" class="text-decoration-none">View clients</a>
-                    </div>
-                    <div class="chart-canvas-wrap flex-grow-1">
-                        @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
-                        @if ($csTotal > 0)
-                            <canvas id="clientStatusChart" height="220"></canvas>
-                        @else
-                            <p class="chart-empty">Not enough data yet.</p>
-                        @endif
-                    </div>
-                </div>
+            <div class="chart-canvas-wrap">
+                @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
+                @if ($csTotal > 0)
+                    <canvas id="clientStatusChart" height="220"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
             </div>
         </div>
     </div>

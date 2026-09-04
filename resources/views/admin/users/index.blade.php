@@ -11,30 +11,35 @@
     </div>
 
     <div class="card">
-        <div class="card-body">
-            <h2 class="h5 mb-3">Create an account</h2>
-            <form method="POST" action="{{ route('admin.users.store') }}" class="row g-3">
-                @csrf
-                <div class="col-md-4">
+        <div class="card-head">
+            <h2 class="card-title">Create an account</h2>
+        </div>
+        <form method="POST" action="{{ route('admin.users.store') }}">
+            @csrf
+            <div class="form-grid two">
+                <div class="form-group">
                     <label class="form-label" for="name">Name</label>
                     <input type="text" id="name" name="name" class="form-control" value="{{ old('name') }}" required>
+                    @error('name')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-5">
+                <div class="form-group">
                     <label class="form-label" for="email">Email</label>
                     <input type="email" id="email" name="email" class="form-control" value="{{ old('email') }}" required>
+                    @error('email')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-md-3">
+                <div class="form-group">
                     <label class="form-label" for="role">Role</label>
-                    <select id="role" name="role" class="form-select" required>
+                    <select id="role" name="role" class="form-control" required>
                         <option value="staff" @selected(old('role') === 'staff')>Staff</option>
                         <option value="admin" @selected(old('role') === 'admin')>Admin</option>
                     </select>
+                    @error('role')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
-                <div class="col-12">
-                    <button type="submit" class="btn btn-primary">Create account</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="btn-group-row">
+                <button type="submit" class="btn btn-primary">Create account</button>
+            </div>
+        </form>
     </div>
 
     <div class="card mt-4">
