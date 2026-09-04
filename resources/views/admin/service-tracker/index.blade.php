@@ -114,7 +114,7 @@
                                     <form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">
                                         @csrf
 <button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">
-                                            {{ $assignment->staff_name }} {{ $assignment->completed ? '✓' : '○' }}
+                                            {{ $assignment->displayName() }} {{ $assignment->completed ? '✓' : '○' }}
                                         </button>
                                     </form>
                                 @empty
@@ -140,7 +140,7 @@
                         <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $instance->service?->name }}</span></div>
                         <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="text-muted">{{ $instance->client?->name }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="text-muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->staff_name }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="text-muted">—</span>@endforelse</span></div>
+                        <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->displayName() }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="text-muted">—</span>@endforelse</span></div>
                         <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if ($instance->notes)<span class="text-muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif</span></div>
                     </div>

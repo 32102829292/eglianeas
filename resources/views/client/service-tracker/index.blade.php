@@ -62,7 +62,7 @@
                             </td>
                             <td>
                                 @forelse ($instance->assignments as $a)
-                                    <span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->staff_name }} {{ $a->completed ? '✓' : '○' }}</span>
+                                    <span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->displayName() }} {{ $a->completed ? '✓' : '○' }}</span>
                                 @empty
                                     <span class="text-muted">—</span>
                                 @endforelse

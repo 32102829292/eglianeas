@@ -26,7 +26,7 @@ class ServiceTrackerController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $all = $user->trackerInstances()->with('assignments')->get();
+        $all = $user->trackerInstances()->with('assignments.staff')->get();
 
         return view('client.service-tracker.index', [
             'instances' => $instances,

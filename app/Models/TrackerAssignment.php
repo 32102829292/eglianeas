@@ -38,6 +38,11 @@ class TrackerAssignment extends Model
         return $this->belongsTo(User::class, 'staff_id');
     }
 
+    public function displayName(): string
+    {
+        return $this->staff?->name ?: (string) $this->staff_name;
+    }
+
     public function toggleComplete(): void
     {
         $this->completed = ! $this->completed;

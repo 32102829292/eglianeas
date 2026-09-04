@@ -38,7 +38,7 @@ class ServiceTrackerController extends Controller
         };
 
         $instances = TrackerInstance::query()
-            ->with('service', 'client', 'assignments')
+            ->with('service', 'client', 'assignments.staff')
             ->tap($scopeToOwn)
             ->when($q !== '', function ($query) use ($q) {
                 $query->whereHas('client', function ($query) use ($q) {
@@ -52,7 +52,8 @@ class ServiceTrackerController extends Controller
             ->when($serviceId, fn ($query) => $query->where('service_id', $serviceId))
             ->when($staff !== '', function ($query) use ($staff) {
                 $query->whereHas('assignments', function ($query) use ($staff) {
-                    $query->where('staff_name', 'like', "%{$staff}%");
+                    $query->where('staff_name', 'like', "%{$staff}%")
+                        ->orWhereHas('staff', fn ($q) => $q->where('name', 'like', "%{$staff}%"));
                 });
             })
             ->orderByDesc('id')
@@ -60,14 +61,19 @@ class ServiceTrackerController extends Controller
             ->withQueryString();
 
         $scopedAll = TrackerInstance::query()
-            ->with('assignments')
+            ->with('assignments.staff')
             ->tap($scopeToOwn)
             ->get();
 
         return view('admin.service-tracker.index', [
             'instances' => $instances,
             'services' => TrackerService::ordered()->get(),
-            'allStaff' => $scopedAll->flatMap->assignments->pluck('staff_name')->filter()->unique()->sort()->values(),
+            'allStaff' => $scopedAll->flatMap->assignments
+                ->map(fn (TrackerAssignment $a) => $a->displayName())
+                ->filter()
+                ->unique(fn (string $n) => mb_strtolower(trim($n)))
+                ->sort()
+                ->values(),
             'q' => $q,
             'activeStatus' => $status,
             'activeServiceId' => $serviceId,
@@ -175,18 +181,28 @@ class ServiceTrackerController extends Controller
             ->sortByDesc(fn (array $entry) => $entry['total'])
             ->values();
 
-        $allAssignments = TrackerAssignment::all();
-        $staffNames = $allAssignments->pluck('staff_name')->filter()->unique()->sort()->values();
+        $allAssignments = TrackerAssignment::with('staff')->get();
 
-        $staffSummary = $staffNames->map(function (string $name) use ($allAssignments) {
-            $myAssignments = $allAssignments->where('staff_name', $name);
+        // Group by a canonical person key: the linked staff_id when available
+        // (immune to name changes and casing variants), otherwise the
+        // normalized free-text name for "Other / not listed" custom entries.
+        $staffSummary = $allAssignments
+            ->groupBy(function (TrackerAssignment $assignment) {
+                return $assignment->staff_id !== null
+                    ? 'id:'.$assignment->staff_id
+                    : 'name:'.mb_strtolower(trim((string) $assignment->staff_name));
+            })
+            ->map(function ($group) {
+                $first = $group->first();
 
-            return [
-                'name' => $name,
-                'total' => $myAssignments->count(),
-                'done' => $myAssignments->where('completed', true)->count(),
-            ];
-        })->sortByDesc(fn (array $entry) => $entry['total'])->values();
+                return [
+                    'name' => $first->displayName(),
+                    'total' => $group->count(),
+                    'done' => $group->where('completed', true)->count(),
+                ];
+            })
+            ->sortByDesc(fn (array $entry) => $entry['total'])
+            ->values();
 
         return view('admin.service-tracker.summary', [
             'serviceSummary' => $serviceSummary,
