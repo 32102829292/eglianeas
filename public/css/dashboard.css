@@ -1499,3 +1499,181 @@ a.contact-link:hover { text-decoration: underline; }
   margin: 0 0 16px;
 }
 .stat-box .sparkline { margin-top: 8px; }
+
+/* ---------- Service Tracker: shared page polish ---------- */
+
+/* Details grid on the history page: the label sits ABOVE its value, so a
+   label and value can never run into each other. Two columns on desktop. */
+.info-grid { display: grid; grid-template-columns: 1fr; gap: 18px 28px; align-items: start; }
+@media (min-width: 720px) { .info-grid { grid-template-columns: 1fr 1fr; } }
+.info-field.wide { grid-column: 1 / -1; }
+.info-field .info-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.info-field .info-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+  min-width: 0;
+  word-break: break-word;
+}
+.info-field .info-value .sub { display: block; font-size: 12.5px; font-weight: 500; color: var(--text-muted); }
+.info-field .info-value.is-service { font-size: 15px; font-weight: 700; color: var(--navy); }
+
+/* History page header: service title · client + status badge */
+.page-head p .badge { margin-left: 10px; vertical-align: middle; }
+.page-head p .title-service { font-weight: 700; color: var(--navy); }
+.page-head p .title-sep { margin: 0 8px; color: var(--border); }
+.page-head p .title-client { color: var(--text-muted); }
+
+/* Prominent status badge for card headers */
+.badge-lg { font-size: .85em; padding: .5em .95em; letter-spacing: .04em; }
+
+/* Service history page: details | timeline on desktop, stacked on mobile */
+.grid-2.details-timeline { align-items: start; }
+@media (min-width: 900px) {
+  .grid-2.details-timeline { grid-template-columns: 5fr 7fr; }
+}
+
+/* Timeline */
+.timeline { position: relative; padding-left: 26px; margin: 2px 0 0; }
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: var(--border);
+  border-radius: 2px;
+}
+.timeline-item { position: relative; padding: 0 0 24px; }
+.timeline-item:last-child { padding-bottom: 4px; }
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -26px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--sky-deep);
+  box-shadow: 0 0 0 3px var(--sky-soft);
+}
+.timeline-item:last-child::before { border-color: var(--success); box-shadow: 0 0 0 3px #E6F7EE; }
+.timeline-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.timeline-action { font-weight: 700; font-size: 14px; color: var(--navy); }
+.timeline-when { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.timeline-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.timeline-user-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sky-soft);
+  color: var(--sky-deep);
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.timeline-desc { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--text-muted); word-break: break-word; }
+.timeline + .empty-state { margin-top: 0; }
+
+/* Service Tracker index table: roomier rows, no cramped action cell */
+.table.tracker-table th { padding: 10px 16px; }
+.table.tracker-table td { padding: 12px 16px; }
+.cell-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cv-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+.cv-actions .btn, .cv-actions .badge { flex-shrink: 0; }
+.actions-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Fill Up form: section titles, actions, Assigned Staff panel */
+.form-section + .form-section { border-top: 1px solid var(--border-subtle); padding-top: 24px; margin-top: 24px; }
+.form-section-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--navy);
+  margin: 0 0 14px;
+}
+.form-section-title .staff-count { margin-left: auto; }
+.form-actions { display: flex; gap: 10px; margin-top: 26px; align-items: center; }
+.form-actions .btn { min-width: 140px; }
+.staff-assign-panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  padding: 16px 18px;
+}
+.staff-count { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+.staff-assign-panel .form-hint { margin: 4px 0 12px; font-size: 12px; line-height: 1.5; }
+.staff-assign-panel .staff-tags { margin-top: 12px; }
+.staff-tag {
+  background: var(--sky-soft);
+  border-color: var(--sky);
+  color: var(--navy);
+}
+.staff-tag:hover { background: #E4F2FC; border-color: var(--sky-deep); }
+.staff-tag-remove { color: var(--sky-deep); }
+.staff-tag-remove:hover { color: #e5484d; background: rgba(229,72,77,.12); }
+
+/* Assigned staff chips (index table + history details) */
+.staff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: #EEF1F5;
+  color: #4A5568;
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.staff-chip.is-done { background: #E6F7EE; border-color: #B8E6CC; color: #196F3D; }
+button.staff-chip { cursor: pointer; transition: filter .15s ease; }
+button.staff-chip:hover { filter: brightness(.96); }

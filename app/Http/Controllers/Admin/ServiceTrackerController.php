@@ -81,7 +81,7 @@ class ServiceTrackerController extends Controller
             'badgeClasses' => [
                 TrackerInstance::STATUS_TODO => 'badge-warn',
                 TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
-                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-neutral',
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'stats' => [
@@ -272,14 +272,14 @@ class ServiceTrackerController extends Controller
             'badgeClasses' => [
                 TrackerInstance::STATUS_TODO => 'badge-warn',
                 TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
-                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-neutral',
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'eventLabels' => [
                 'service.created' => 'Service requested',
                 'service.staff_assigned' => 'Staff assigned',
                 'service.started' => 'Work started',
-                'service.on_hold' => 'Service paused',
+                'service.on_hold' => 'Service placed on hold',
                 'service.resumed' => 'Work resumed',
                 'service.completed' => 'Service completed',
                 'admin.tracker_instance_created' => 'Instance created',

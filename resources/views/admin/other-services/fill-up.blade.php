@@ -10,7 +10,7 @@
 
     <div class="page-head">
         <h1>Fill Up Form</h1>
-        <p>Record a one-off service request for a client.</p>
+        <p>Record a one-off service request for a client. It will appear in the Service Tracker.</p>
     </div>
 
     <div class="card">
@@ -21,79 +21,90 @@
         <form method="POST" action="{{ route('admin.other-services.store') }}" id="serviceForm">
             @csrf
 
-            <div class="form-grid two">
-                <div class="form-group">
-                    <label class="form-label" for="client_search">Client</label>
-                    <div class="autocomplete-wrap" id="client-autocomplete">
-                        <input class="form-control" id="client_search" type="text" placeholder="Search by name, business, or email&hellip;" autocomplete="off" required>
-                        <input type="hidden" name="client_id" id="client_id" value="{{ old('client_id') }}">
-                        <div class="autocomplete-dropdown" id="client-dropdown"></div>
+            <div class="form-section">
+                <h3 class="form-section-title">Service Information</h3>
+                <div class="form-grid two">
+                    <div class="form-group">
+                        <label class="form-label" for="client_search">Client</label>
+                        <div class="autocomplete-wrap" id="client-autocomplete">
+                            <input class="form-control" id="client_search" type="text" placeholder="Search by name, business, or email&hellip;" autocomplete="off" required>
+                            <input type="hidden" name="client_id" id="client_id" value="{{ old('client_id') }}">
+                            <div class="autocomplete-dropdown" id="client-dropdown"></div>
+                        </div>
+                        @error('client_id')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
-                    @error('client_id')<div class="form-error">{{ $message }}</div>@enderror
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="service_type_id">Other Service</label>
-                    <div class="autocomplete-wrap" id="service-autocomplete">
-                        <input class="form-control" id="service_search" type="text" placeholder="Search service type&hellip;" autocomplete="off">
-                        <input type="hidden" name="service_type_id" id="service_type_id" value="{{ old('service_type_id') }}">
-                        <div class="autocomplete-dropdown" id="service-dropdown"></div>
+                    <div class="form-group">
+                        <label class="form-label" for="service_type_id">Other Service</label>
+                        <div class="autocomplete-wrap" id="service-autocomplete">
+                            <input class="form-control" id="service_search" type="text" placeholder="Search service type&hellip;" autocomplete="off">
+                            <input type="hidden" name="service_type_id" id="service_type_id" value="{{ old('service_type_id') }}">
+                            <div class="autocomplete-dropdown" id="service-dropdown"></div>
+                        </div>
+                        @error('service_type_id')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
-                    @error('service_type_id')<div class="form-error">{{ $message }}</div>@enderror
+                    <div class="form-group" id="customLabelGroup" style="{{ old('service_type_id') ? 'display:none' : '' }}">
+                        <label class="form-label" for="custom_label">Custom label (if &ldquo;Other&rdquo; or no type selected)</label>
+                        <input class="form-control" id="custom_label" name="custom_label" type="text" maxlength="120" value="{{ old('custom_label') }}" placeholder="e.g. Special Filing">
+                        @error('custom_label')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="amount">Amount</label>
+                        <input class="form-control" id="amount" name="amount" type="number" step="0.01" min="0" value="{{ old('amount') }}" required placeholder="0.00">
+                        @error('amount')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
                 </div>
-                <div class="form-group" id="customLabelGroup" style="{{ old('service_type_id') ? 'display:none' : '' }}">
-                    <label class="form-label" for="custom_label">Custom label (if &ldquo;Other&rdquo; or no type selected)</label>
-                    <input class="form-control" id="custom_label" name="custom_label" type="text" maxlength="120" value="{{ old('custom_label') }}" placeholder="e.g. Special Filing">
-                    @error('custom_label')<div class="form-error">{{ $message }}</div>@enderror
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="amount">Amount</label>
-                    <input class="form-control" id="amount" name="amount" type="number" step="0.01" min="0" value="{{ old('amount') }}" required placeholder="0.00">
-                    @error('amount')<div class="form-error">{{ $message }}</div>@enderror
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="requested_at">Date requested</label>
-                    <input class="form-control" id="requested_at" name="requested_at" type="date" value="{{ old('requested_at', now()->format('Y-m-d')) }}">
-                    @error('requested_at')<div class="form-error">{{ $message }}</div>@enderror
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="due_date">Due date (optional)</label>
-                    <input class="form-control" id="due_date" name="due_date" type="date" value="{{ old('due_date') }}">
-                    @error('due_date')<div class="form-error">{{ $message }}</div>@enderror
+
+                <div id="clientInfo" class="client-info-box" style="display:none; margin-top:16px;">
+                    <div class="client-info-grid">
+                        <div><span class="muted">Client ID:</span> <b id="info-client-code"></b></div>
+                        <div><span class="muted">Business:</span> <b id="info-business-name"></b></div>
+                        <div><span class="muted">Contact:</span> <b id="info-name"></b></div>
+                        <div><span class="muted">Email:</span> <b id="info-email"></b></div>
+                    </div>
                 </div>
             </div>
 
-            {{-- Client info reference --}}
-            <div id="clientInfo" class="client-info-box" style="display:none">
-                <div class="client-info-grid">
-                    <div><span class="muted">Client ID:</span> <b id="info-client-code"></b></div>
-                    <div><span class="muted">Business:</span> <b id="info-business-name"></b></div>
-                    <div><span class="muted">Contact:</span> <b id="info-name"></b></div>
-                    <div><span class="muted">Email:</span> <b id="info-email"></b></div>
+            <div class="form-section">
+                <h3 class="form-section-title">Schedule</h3>
+                <div class="form-grid two">
+                    <div class="form-group">
+                        <label class="form-label" for="requested_at">Date requested</label>
+                        <input class="form-control" id="requested_at" name="requested_at" type="date" value="{{ old('requested_at', now()->format('Y-m-d')) }}">
+                        @error('requested_at')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="due_date">Due date (optional)</label>
+                        <input class="form-control" id="due_date" name="due_date" type="date" value="{{ old('due_date') }}">
+                        @error('due_date')<div class="form-error">{{ $message }}</div>@enderror
+                    </div>
                 </div>
             </div>
 
-            <div class="section-divider"></div>
-
-            <div class="form-group">
-                <label class="form-label">Assigned Staff</label>
-                <p class="form-hint" style="margin-top:0;">Assign one or more staff members to process this service. The service will appear in the Service Tracker with these assignments.</p>
-                <div class="autocomplete-wrap" id="staff-autocomplete">
-                    <input class="form-control" id="staff_search" type="text" placeholder="Search staff to assign&hellip;" autocomplete="off">
+            <div class="form-section">
+                <h3 class="form-section-title">Assigned Staff <span id="staffCount" class="staff-count"></span></h3>
+                <div class="staff-assign-panel">
+                    <p class="form-hint mb-0">Assign one or more staff members to process this service. The service will appear in the Service Tracker with these assignments.</p>
+                    <div class="autocomplete-wrap" id="staff-autocomplete">
+                        <input class="form-control" id="staff_search" type="text" placeholder="Search staff to assign&hellip;" autocomplete="off">
+                        <div class="autocomplete-dropdown" id="staff-dropdown"></div>
+                    </div>
                     <div id="staffTags" class="staff-tags"></div>
                     <div id="staffHiddenInputs" style="display:none;"></div>
-                    <div class="autocomplete-dropdown" id="staff-dropdown"></div>
+                    @error('staff_ids')<div class="form-error">{{ $message }}</div>@enderror
+                    @error('staff_ids.*')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
-                @error('staff_ids')<div class="form-error">{{ $message }}</div>@enderror
-                @error('staff_ids.*')<div class="form-error">{{ $message }}</div>@enderror
             </div>
 
-            <div class="form-group" style="margin-top:16px;">
-                <label class="form-label" for="notes">Notes / Remarks</label>
-                <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="1000" placeholder="Optional notes about this service request">{{ old('notes') }}</textarea>
-                @error('notes')<div class="form-error">{{ $message }}</div>@enderror
+            <div class="form-section">
+                <h3 class="form-section-title">Notes</h3>
+                <div class="form-group mb-0">
+                    <label class="form-label" for="notes">Notes / Remarks</label>
+                    <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="1000" placeholder="Optional notes about this service request">{{ old('notes') }}</textarea>
+                    @error('notes')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
             </div>
 
-            <div class="btn-group-row">
+            <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Submit</button>
                 <a href="{{ route('admin.other-services.billing') }}" class="btn btn-outline">Cancel</a>
             </div>
@@ -216,6 +227,11 @@
             });
             staffTags.appendChild(tag);
         });
+        var countEl = document.getElementById('staffCount');
+        if (countEl) {
+            var n = Object.keys(selectedStaff).length;
+            countEl.textContent = n + ' staff assigned';
+        }
     }
 
     function addStaff(id, name) {
