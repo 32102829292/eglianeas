@@ -85,6 +85,15 @@
         About
     </a>
 
+    <div class="nav-support-card">
+        <div class="nav-support-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span>Need help?</span>
+        </div>
+        <p>Ask the built-in assistant for guidance around the admin panel.</p>
+        <a href="{{ route('admin.chatbot') }}" class="btn btn-sm btn-outline">Open assistant</a>
+    </div>
+
     <div class="dash-nav-conf">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         <span>Confidential &mdash; do not share client data</span>

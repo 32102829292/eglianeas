@@ -1,4 +1,4 @@
-@props(['segments' => [], 'size' => 128, 'thickness' => 12])
+@props(['segments' => [], 'size' => 128, 'thickness' => 12, 'showTotalLabel' => false, 'legend' => 'bottom', 'showPct' => false, 'emptyText' => 'No billing data yet.'])
 
 @php
     static $donutIdx = 0;
@@ -19,8 +19,9 @@
     $ti = 0;
 @endphp
 
-<div class="donut-chart">
+<div class="donut-chart {{ $legend === 'right' ? 'is-legend-right' : '' }}">
     @if($hasData)
+        @if($legend === 'right')<div class="donut-figure">@endif
         <svg width="{{ $size }}" height="{{ $size }}" viewBox="0 0 {{ $size }} {{ $size }}">
             <defs>
                 @foreach($segments as $i => $seg)
@@ -50,15 +51,30 @@
                     @php $offset += $dash; @endphp
                 @endforeach
             </g>
-            <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" class="donut-chart-total">{{ $total }}</text>
+            @if($showTotalLabel)
+                <text x="50%" y="46%" text-anchor="middle" class="donut-chart-total">{{ $total }}</text>
+                <text x="50%" y="58%" text-anchor="middle" class="donut-chart-total-label">Total</text>
+            @else
+                <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" class="donut-chart-total">{{ $total }}</text>
+            @endif
         </svg>
-        <ul class="donut-chart-legend list-unstyled d-flex flex-wrap gap-3 justify-content-center mb-0">
+        @if($legend === 'right')</div>@endif
+        <ul class="donut-chart-legend list-unstyled d-flex flex-wrap gap-3 {{ $legend === 'right' ? 'legend-right' : 'justify-content-center' }} mb-0">
             @foreach($segments as $seg)
                 @if((int) $seg['value'] <= 0) @continue @endif
-                <li class="d-flex align-items-center gap-1 m-0"><span class="donut-chart-dot" style="background:{{ $seg['color'] }};"></span>{{ $seg['label'] }} — {{ $seg['value'] }}</li>
+                @php $segPct = round($seg['value'] / $total * 100, 1); @endphp
+                <li class="d-flex align-items-center gap-2 m-0">
+                    <span class="donut-chart-dot" style="background:{{ $seg['color'] }};"></span>
+                    @if($legend === 'right')
+                        <span class="legend-label">{{ $seg['label'] }}</span>
+                        <span class="legend-value">{{ $seg['value'] }}@if($showPct) <small>({{ $segPct }}%)</small>@endif</span>
+                    @else
+                        {{ $seg['label'] }} — {{ $seg['value'] }}@if($showPct) ({{ $segPct }}%)@endif
+                    @endif
+                </li>
             @endforeach
         </ul>
     @else
-        <p class="chart-empty">No billing data yet.</p>
+        <p class="chart-empty">{{ $emptyText }}</p>
     @endif
 </div>

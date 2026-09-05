@@ -2,13 +2,75 @@
 
 @section('title', 'Admin Dashboard — Egliane Accounting Services')
 
+@php
+    // ---------- Presentation-only derivations from existing controller data ----------
+    // Trend: second half of the 14-day window vs its first half (reads as "vs previous 14 days").
+    $revSeries = collect($snapshotRevenue ?? [])->values();
+    $bilSeries = collect($snapshotNewBillings ?? [])->values();
+    $firstHalfCount = max(1, (int) floor($revSeries->count() / 2));
+    $trendPct = function (string $which) use ($revSeries, $bilSeries, $firstHalfCount) {
+        $s = $which === 'rev' ? $revSeries : $bilSeries;
+        if ($s->count() < 2) return null;
+        $first = $s->take($firstHalfCount)->sum();
+        $second = $s->slice($firstHalfCount)->sum();
+        if ($first <= 0 && $second <= 0) return null;
+        if ($first <= 0) return 0.0;
+        return round(($second - $first) / $first * 100, 1);
+    };
+    $revTrend = $trendPct('rev');
+    $bilTrend = $trendPct('bil');
+
+    $fmtPct = function (float $p): string {
+        return number_format($p, (float) round($p) === $p ? 0 : 1);
+    };
+
+    // Billing status breakdown (Paid / Draft / Pending / Unpaid / Overdue), non-zero, by count desc.
+    $bsSegments = collect([
+        ['label' => 'Paid', 'value' => (int) ($paidCount ?? 0), 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
+        ['label' => 'Draft', 'value' => (int) ($draftCount ?? 0), 'color' => '#8E8E93', 'tint' => '#E5E5EA'],
+        ['label' => 'Pending', 'value' => (int) ($pendingCount ?? 0), 'color' => 'var(--warning)', 'tint' => '#FADBC0'],
+        ['label' => 'Unpaid', 'value' => (int) ($unpaidCount ?? 0), 'color' => 'var(--navy)', 'tint' => '#AFAFBA'],
+        ['label' => 'Overdue', 'value' => (int) ($overdueCount ?? 0), 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
+    ])->filter(fn ($s) => $s['value'] > 0)->sortByDesc('value')->values();
+    $bsTotal = $bsSegments->sum('value');
+    $bsPaid = (int) ($paidCount ?? 0);
+    $bsPaidPct = $bsTotal > 0 ? round($bsPaid / $bsTotal * 100, 1) : 0.0;
+
+    // Client account status (Current / Pending / Delinquent / Critical), non-zero, by count desc.
+    $csMap = collect($analytics['charts']['clientStatus'] ?? [])->keyBy('label');
+    $csSegments = collect([
+        ['Current', 'var(--success)', '#B3E3C7'],
+        ['Pending', 'var(--warning)', '#FADBC0'],
+        ['Delinquent', 'var(--danger)', '#F7C0BB'],
+        ['Critical', 'var(--navy)', '#AFAFBA'],
+    ])
+        ->map(fn (array $def) => ['label' => $def[0], 'value' => (int) ($csMap[$def[0]]['count'] ?? 0), 'color' => $def[1], 'tint' => $def[2]])
+        ->filter(fn (array $s) => $s['value'] > 0)
+        ->sortByDesc('value')
+        ->values();
+    $csTotal = $csSegments->sum('value');
+    $csCurrent = (int) ($csMap['Current']['count'] ?? 0);
+    $csCurrentPct = $csTotal > 0 ? round($csCurrent / $csTotal * 100, 1) : 0.0;
+
+    $btRows = collect($analytics['charts']['businessType'] ?? [])->filter(fn ($r) => ((int) $r['count']) > 0)->values();
+    $lobRows = collect($analytics['charts']['lineOfBusiness'] ?? [])->filter(fn ($r) => ((int) $r['count']) > 0)->values();
+@endphp
+
 @section('content')
-    <div class="page-head">
-        <h1>Admin dashboard</h1>
-        <p>Overview of accounts, filings and activity.</p>
+    <div class="page-head page-head-row page-head-dash">
+        <div>
+            <h1>Admin dashboard</h1>
+            <p>Overview of accounts, filings and activity.</p>
+        </div>
+        <div class="date-filter">
+            <span class="date-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="4"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Last 14 days
+            </span>
+        </div>
     </div>
 
-    <div class="stat-grid">
+    <div class="stat-grid cols-4 dash-kpi">
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -17,7 +79,7 @@
             <b class="stat-value">{{ $stats['clients'] ?? 0 }}</b>
         </div>
         <div class="stat-card">
-            <div class="stat-icon stat-icon-info">
+            <div class="stat-icon stat-icon-ok">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
             </div>
             <span class="stat-label">Transactions</span>
@@ -39,111 +101,119 @@
         </div>
     </div>
 
-    <div class="grid-3">
-        <div class="db-metric-card">
-            <div class="db-metric-head">
-                <span class="stat-label">Revenue collected (14d)</span>
-                <div class="stat-icon stat-icon-ok">
+    <div class="dash-analytics">
+        <div class="card analytics-card">
+            <div class="analytics-head">
+                <span class="analytics-title">Revenue collected (14D)</span>
+                <span class="analytics-icon analytics-icon-green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                </div>
+                </span>
             </div>
-            <div class="db-metric-value">₱{{ number_format($snapshotRevenue->sum(), 0) }}</div>
-            <x-sparkline :values="$snapshotRevenue" :width="200" :height="32" color="var(--success)" />
+            <div class="analytics-value">₱{{ number_format($snapshotRevenue->sum(), 0) }}</div>
+            @if ($revTrend !== null)
+                <span class="analytics-trend {{ $revTrend >= 0 ? 'is-up' : 'is-down' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        @if ($revTrend >= 0)
+                            <polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/>
+                        @else
+                            <polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/>
+                        @endif
+                    </svg>
+                    {{ $revTrend > 0 ? '+' : '' }}{{ number_format($revTrend, 1) }}% vs previous 14 days
+                </span>
+            @else
+                <span class="analytics-trend">Trend data unavailable</span>
+            @endif
+            <div class="mini-chart"><canvas id="revenueTrendChart"></canvas></div>
         </div>
 
-        <div class="db-metric-card">
-            <div class="db-metric-head">
-                <span class="stat-label">New billings (14d)</span>
-                <div class="stat-icon stat-icon-info">
+        <div class="card analytics-card">
+            <div class="analytics-head">
+                <span class="analytics-title">New billings (14D)</span>
+                <span class="analytics-icon analytics-icon-blue">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                </div>
+                </span>
             </div>
-            <div class="db-metric-value">{{ $snapshotNewBillings->sum() }}</div>
-            <x-sparkline :values="$snapshotNewBillings" :width="200" :height="32" color="var(--sky-deep)" />
+            <div class="analytics-value">{{ $snapshotNewBillings->sum() }}</div>
+            @if ($bilTrend !== null)
+                <span class="analytics-trend {{ $bilTrend >= 0 ? 'is-up' : 'is-down' }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        @if ($bilTrend >= 0)
+                            <polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/>
+                        @else
+                            <polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/>
+                        @endif
+                    </svg>
+                    {{ $bilTrend > 0 ? '+' : '' }}{{ number_format($bilTrend, 1) }}% vs previous 14 days
+                </span>
+            @else
+                <span class="analytics-trend">Trend data unavailable</span>
+            @endif
+            <div class="mini-chart"><canvas id="newBillingsTrendChart"></canvas></div>
         </div>
 
-        <div class="db-metric-card">
-            <div class="db-metric-head">
-                <span class="stat-label">Overdue count (14d)</span>
-                <div class="stat-icon stat-icon-danger">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                </div>
-            </div>
-            <div class="db-metric-value">{{ $snapshotOverdue->last() ?? 0 }}</div>
-            <x-sparkline :values="$snapshotOverdue" :width="200" :height="32" color="var(--danger)" />
-        </div>
-    </div>
-
-    <div class="section-gap">
-        <div class="grid-2">
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Revenue vs new billings (14d)</h3>
-                    <a href="{{ route('admin.billing.index') }}">Manage billing</a>
-                </div>
-                <div class="chart-canvas-wrap">
-                    <canvas id="revenueTrendChart" height="220"></canvas>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-head">
-                    <h3 class="card-title">Billing amounts by category</h3>
-                    <a href="{{ route('admin.billing.index') }}">View statements</a>
-                </div>
-                <div class="chart-canvas-wrap">
-                    @if (count($categoryChart['labels'] ?? []) > 0)
-                        <canvas id="categoryChart" height="220"></canvas>
-                    @else
-                        <p class="chart-empty">Not enough data yet.</p>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid-3">
-        <div class="card">
+        <div class="card analytics-card">
             <div class="card-head">
                 <h3 class="card-title">Billing Status Breakdown</h3>
             </div>
-            <x-donut-chart :segments="[
-                ['label' => 'Draft', 'value' => $draftCount, 'color' => '#8E8E93', 'tint' => '#E5E5EA'],
-                ['label' => 'Paid', 'value' => $paidCount, 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
-                ['label' => 'Pending', 'value' => $pendingCount, 'color' => 'var(--warning)', 'tint' => '#FADBC0'],
-                ['label' => 'Unpaid', 'value' => $unpaidCount, 'color' => 'var(--navy)', 'tint' => '#AFAFBA'],
-                ['label' => 'Overdue', 'value' => $overdueCount, 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
-            ]" />
+            <x-donut-chart :segments="$bsSegments->all()" :size="116" :thickness="13" :show-total-label="true" legend="right" :show-pct="true" />
+            @if ($bsTotal > 0)
+                <div class="summary-strip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>{{ $fmtPct($bsPaidPct) }}% of billings are paid</span>
+                </div>
+            @endif
         </div>
 
-        <div class="card">
+        <div class="card analytics-card">
             <div class="card-head">
-                <h3 class="card-title">Billing status</h3>
-                <a href="{{ route('admin.billing.index') }}" class="text-decoration-none">Manage billing statements</a>
+                <h3 class="card-title">Client Account Status</h3>
             </div>
-            <div class="chart-canvas-wrap">
-                @php $bsTotal = collect($analytics['charts']['billingStatus'] ?? [])->sum('count'); @endphp
-                @if ($bsTotal > 0)
-                    <canvas id="billingStatusChart" height="220"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
-            </div>
+            <x-donut-chart :segments="$csSegments->all()" :size="116" :thickness="13" :show-total-label="true" legend="right" :show-pct="true" empty-text="No client data yet." />
+            @if ($csTotal > 0)
+                <div class="summary-strip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>{{ $fmtPct($csCurrentPct) }}% of accounts are current</span>
+                </div>
+            @endif
         </div>
 
-        <div class="card">
+        <div class="card analytics-card">
             <div class="card-head">
-                <h3 class="card-title">Client account status</h3>
-                <a href="{{ route('admin.clients.index') }}" class="text-decoration-none">View clients</a>
+                <h3 class="card-title">Business Types</h3>
             </div>
-            <div class="chart-canvas-wrap">
-                @php $csTotal = collect($analytics['charts']['clientStatus'] ?? [])->sum('count'); @endphp
-                @if ($csTotal > 0)
-                    <canvas id="clientStatusChart" height="220"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
+            @if ($btRows->isNotEmpty())
+                <div class="hbar">
+                    @foreach ($btRows as $row)
+                        <div class="hbar-row">
+                            <div class="hbar-label" title="{{ $row['label'] }}">{{ $row['label'] }}</div>
+                            <div class="hbar-track"><div class="hbar-fill hbar-blue" style="width:{{ max((float) ($row['pct'] ?? 0), 2.5) }}%"></div></div>
+                            <div class="hbar-value">{{ $row['count'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="chart-empty">Not enough data yet.</p>
+            @endif
+        </div>
+
+        <div class="card analytics-card">
+            <div class="card-head">
+                <h3 class="card-title">Lines of Business</h3>
             </div>
+            @if ($lobRows->isNotEmpty())
+                <div class="hbar">
+                    @foreach ($lobRows as $row)
+                        <div class="hbar-row">
+                            <div class="hbar-label" title="{{ $row['label'] }}">{{ $row['label'] }}</div>
+                            <div class="hbar-track"><div class="hbar-fill hbar-green" style="width:{{ max((float) ($row['pct'] ?? 0), 2.5) }}%"></div></div>
+                            <div class="hbar-value">{{ $row['count'] }}</div>
+                        </div>
+                    @endforeach
+                </div>
+            @else
+                <p class="chart-empty">Not enough data yet.</p>
+            @endif
         </div>
     </div>
 
@@ -209,35 +279,7 @@
         @endif
     </div>
 
-    <div class="grid-3">
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Business types</h3>
-            </div>
-            <div class="chart-canvas-wrap chart-bar-wrap">
-                @php $btTotal = collect($analytics['charts']['businessType'] ?? [])->sum('count'); @endphp
-                @if ($btTotal > 0)
-                    <canvas id="businessTypesChart" height="150"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Lines of business</h3>
-            </div>
-            <div class="chart-canvas-wrap chart-bar-wrap">
-                @php $lobTotal = collect($analytics['charts']['lineOfBusiness'] ?? [])->sum('count'); @endphp
-                @if ($lobTotal > 0)
-                    <canvas id="lobChart" height="150"></canvas>
-                @else
-                    <p class="chart-empty">Not enough data yet.</p>
-                @endif
-            </div>
-        </div>
-
+    <div class="grid-2">
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Highest outstanding clients</h3>
@@ -258,6 +300,20 @@
             @else
                 <p class="chart-empty">No outstanding balances yet.</p>
             @endif
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <h3 class="card-title">Billing amounts by category</h3>
+                <a href="{{ route('admin.billing.index') }}">View statements</a>
+            </div>
+            <div class="chart-canvas-wrap">
+                @if (count($categoryChart['labels'] ?? []) > 0)
+                    <canvas id="categoryChart" height="220"></canvas>
+                @else
+                    <p class="chart-empty">Not enough data yet.</p>
+                @endif
+            </div>
         </div>
     </div>
 
@@ -385,300 +441,67 @@
 (function () {
     'use strict';
 
-    var bsData = {!! json_encode($analytics['charts']['billingStatus'] ?: []) !!};
-    var csData = {!! json_encode($analytics['charts']['clientStatus'] ?: []) !!};
-    var btData = {!! json_encode($analytics['charts']['businessType'] ?: []) !!};
-    var lobData = {!! json_encode($analytics['charts']['lineOfBusiness'] ?: []) !!};
-    var snapLabels = {!! json_encode($snapshotLabels ?? []) !!};
-    var snapRevenue = {!! json_encode($snapshotRevenue ?? []) !!};
-    var snapNewBillings = {!! json_encode($snapshotNewBillings ?? []) !!};
+    var snapLabels = {!! json_encode(collect($snapshotLabels ?? [])->values()->all()) !!};
+    var snapRevenue = {!! json_encode(collect($snapshotRevenue ?? [])->map(fn ($v) => (float) ($v ?? 0))->values()->all()) !!};
+    var snapNewBillings = {!! json_encode(collect($snapshotNewBillings ?? [])->map(fn ($v) => (float) ($v ?? 0))->values()->all()) !!};
     var catLabels = {!! json_encode($categoryChart['labels'] ?? []) !!};
     var catTotals = {!! json_encode($categoryChart['totals'] ?? []) !!};
 
-    var total = function (d) { return d.reduce(function (s, v) { return s + v.count; }, 0); };
-    var labels = function (d) { return d.map(function (v) { return v.label; }); };
-    var counts = function (d) { return d.map(function (v) { return v.count; }); };
-
-    var pctLabel = {
-        id: 'pctLabel',
-        afterDatasetsDraw: function (chart) {
-            var ctx = chart.ctx;
-            ctx.save();
-            ctx.font = '600 12px system-ui, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            var total = chart.data.datasets[0].data.reduce(function (a, b) { return a + b; }, 0);
-            if (total === 0) return;
-            var meta = chart.getDatasetMeta(0);
-            meta.data.forEach(function (arc, i) {
-                var val = chart.data.datasets[0].data[i];
-                if (val === 0) return;
-                var pct = ((val / total) * 100).toFixed(0) + '%';
-                var pos = arc.tooltipPosition();
-                ctx.fillStyle = '#fff';
-                ctx.fillText(pct, pos.x, pos.y);
-            });
-            ctx.restore();
-        }
-    };
-
     var isMobile = window.innerWidth <= 640;
+    var gridLine = 'rgba(27,27,58,0.06)';
+    var tick = { font: { size: isMobile ? 9 : 11 }, color: '#8A93A2' };
 
-    // Resolve a CSS variable defined on :root to a concrete color string,
-    // so Chart.js (canvas) can use the same design tokens as the SVG charts.
-    var token = function (name) {
-        var v = getComputedStyle(document.documentElement).getPropertyValue(name);
-        return v ? v.trim() : '';
-    };
-
-    // Returns a Chart.js per-datapoint backgroundColor callback that fills the
-    // segment with a soft vertical (top -> bottom) gradient from a light tint
-    // to the full segment color.
-    //
-    // IMPORTANT: must be a SINGLE function, not an array of functions. Chart.js
-    // resolves per-datapoint scriptable colors by invoking one function with a
-    // context that carries context.dataIndex. An array-of-functions backgroundColor
-    // is NOT invoked by Chart.js (it's treated as opaque), which is what caused the
-    // black/never-logging donuts. Dispatch on context.dataIndex instead.
-    var gradient = function (pairs) {
-        return function (context) {
-            var idx = context.dataIndex || 0;
-            var p = pairs[idx >= 0 && idx < pairs.length ? idx : 0];
-            var solid = p ? p[1] : 'rgba(0,0,0,0.85)';
-            var ctx = context && context.chart && context.chart.ctx;
-            var area = ctx && context.chart.chartArea;
-            // If there's no real drawable context or the chart area is not ready
-            // (legend/tooltip/hit-test phases), return the solid color rather than
-            // build a gradient (which could throw or be 0-height and collapse to
-            // the black default).
-            if (!ctx || !area || (area.bottom - area.top) < 1) {
-                return solid;
-            }
-            var g = ctx.createLinearGradient(0, area.top, 0, area.bottom);
-            g.addColorStop(0, p[0]);
-            g.addColorStop(1, p[1]);
-            return g;
-        };
-    };
-
-    var legendMobile = isMobile
-        ? { usePointStyle: true, padding: 6, font: { size: 10 }, boxWidth: 8 }
-        : { usePointStyle: true, padding: 14, font: { size: 12 }, boxWidth: 12 };
-
-    if (document.getElementById('billingStatusChart')) {
-        new Chart(document.getElementById('billingStatusChart'), {
-            type: 'doughnut',
-            data: {
-                labels: labels(bsData),
-                datasets: [{
-                    data: counts(bsData),
-                    // Billing status order (Billing::STATUSES): Draft, Pending,
-                    // Unpaid, Overdue, Paid. Pairs are matched positionally by
-                    // dataIndex, so Draft must be the first entry.
-                    // Draft neutral gray: light tint -> full gray.
-                    backgroundColor: gradient([
-                        ['#E5E5EA', '#8E8E93'],
-                        ['#FADBC0', token('--warning')],
-                        ['#AFAFBA', token('--navy')],
-                        ['#F7C0BB', token('--danger')],
-                        ['#B3E3C7', token('--success')],
-                    ]),
-                    borderWidth: 2,
-                    borderColor: 'rgba(255,255,255,0.6)',
-                    borderRadius: 6,
-                }],
-            },
-            options: {
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: legendMobile,
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                var t = total(bsData);
-                                var v = ctx.raw;
-                                return ctx.label + ': ' + v + ' (' + ((v / t) * 100).toFixed(0) + '%)';
-                            }
-                        }
-                    }
-                },
-                cutout: '78%',
-                responsive: true,
-                maintainAspectRatio: false,
-            },
-            plugins: [pctLabel],
-        });
-    }
-
-    if (document.getElementById('clientStatusChart')) {
-        new Chart(document.getElementById('clientStatusChart'), {
-            type: 'doughnut',
-            data: {
-                labels: labels(csData),
-                datasets: [{
-                    data: counts(csData),
-                    // Client status order (ClientProfile::STATUSES): Current,
-                    // Pending, Delinquent, Critical. Pairs are matched positionally
-                    // by dataIndex. Colors resolve theme tokens (--success/warning/
-                    // danger/navy); tints match the SVG donut styling.
-                    backgroundColor: gradient([
-                        ['#B3E3C7', token('--success')],
-                        ['#FADBC0', token('--warning')],
-                        ['#F7C0BB', token('--danger')],
-                        ['#AFAFBA', token('--navy')],
-                    ]),
-                    borderWidth: 2,
-                    borderColor: 'rgba(255,255,255,0.6)',
-                    borderRadius: 6,
-                }],
-            },
-            options: {
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: legendMobile,
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                var t = total(csData);
-                                var v = ctx.raw;
-                                return ctx.label + ': ' + v + ' (' + ((v / t) * 100).toFixed(0) + '%)';
-                            }
-                        }
-                    }
-                },
-                cutout: '78%',
-                responsive: true,
-                maintainAspectRatio: false,
-            },
-            plugins: [pctLabel],
-        });
-    }
-
-    function makeBarChart(canvasId, data, color) {
-        var el = document.getElementById(canvasId);
-        if (!el) return;
-
-        if (isMobile && data.length > 0) {
-            var h = Math.max(180, data.length * 34 + 60);
-            el.parentElement.style.height = h + 'px';
-            el.style.height = h + 'px';
-        }
-
+    // Compact area/line trend — one per metric (green revenue, blue billings).
+    function miniLine(id, data, color, fill, money) {
+        var el = document.getElementById(id);
+        if (!el || !data.length) return;
         new Chart(el, {
-            type: 'bar',
-            data: {
-                labels: labels(data),
-                datasets: [{
-                    data: counts(data),
-                    backgroundColor: color,
-                    borderRadius: 6,
-                }],
-            },
-            options: {
-                indexAxis: 'y',
-                layout: { padding: { top: 4, bottom: 4, right: 8 } },
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { precision: 0, font: { size: isMobile ? 10 : 12 }, maxTicksLimit: isMobile ? 5 : 10 },
-                        grid: { display: !isMobile },
-                    },
-                    y: {
-                        grid: { display: false },
-                        ticks: {
-                            font: { size: isMobile ? 11 : 12 },
-                            autoSkip: false,
-                            callback: function (value) {
-                                var label = this.getLabelForValue(value);
-                                if (!isMobile) return label;
-                                var max = Math.floor(((this.chart.chartArea || {}).right || 300) / 7);
-                                if (label.length > max) return label.substring(0, max - 1) + '\u2026';
-                                return label;
-                            }
-                        },
-                    },
-                },
-                responsive: true,
-                maintainAspectRatio: false,
-            },
-        });
-    }
-
-    makeBarChart('businessTypesChart', btData, '#5AB3F0');
-    makeBarChart('lobChart', lobData, '#22C55E');
-
-    /* Revenue vs new billings — line/area trend over the last 14 days */
-    if (document.getElementById('revenueTrendChart') && snapLabels.length) {
-        new Chart(document.getElementById('revenueTrendChart'), {
             type: 'line',
             data: {
                 labels: snapLabels,
-                datasets: [
-                    {
-                        label: 'Revenue collected',
-                        data: snapRevenue,
-                        yAxisID: 'y',
-                        borderColor: '#22C55E',
-                        backgroundColor: 'rgba(34, 197, 94, 0.12)',
-                        fill: true,
-                        tension: 0.35,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                    },
-                    {
-                        label: 'New billings',
-                        data: snapNewBillings,
-                        yAxisID: 'y1',
-                        borderColor: '#5AB3F0',
-                        backgroundColor: 'rgba(90, 179, 240, 0.12)',
-                        fill: true,
-                        tension: 0.35,
-                        borderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
-                    },
-                ],
+                datasets: [{
+                    label: '',
+                    data: data,
+                    borderColor: color,
+                    backgroundColor: fill,
+                    fill: true,
+                    tension: 0.38,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: color,
+                }],
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { position: 'bottom', labels: legendMobile },
+                    legend: { display: false },
                     tooltip: {
                         callbacks: {
                             label: function (ctx) {
-                                return ctx.dataset.label + ': ' + (ctx.dataset.label.indexOf('Revenue') === 0 ? '₱' : '') + ctx.raw;
+                                return (money ? '₱' : '') + Number(ctx.raw).toLocaleString();
                             }
                         }
                     }
                 },
                 scales: {
-                    x: { grid: { display: false }, ticks: { font: { size: isMobile ? 10 : 12 } } },
+                    x: { grid: { display: false }, border: { display: false }, ticks: tick },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(27,27,58,0.06)' },
-                        ticks: {
-                            font: { size: isMobile ? 10 : 12 },
-                            callback: function (value) { return '₱' + Number(value).toLocaleString(); }
-                        },
-                    },
-                    y1: {
-                        beginAtZero: true,
-                        position: 'right',
-                        grid: { display: false },
-                        ticks: { font: { size: isMobile ? 10 : 12 }, precision: 0 },
+                        grid: { color: gridLine },
+                        border: { display: false },
+                        ticks: money
+                            ? { font: { size: isMobile ? 9 : 11 }, color: '#8A93A2', callback: function (v) { return '₱' + Number(v).toLocaleString(); } }
+                            : tick,
                     },
                 },
             },
         });
     }
+
+    miniLine('revenueTrendChart', snapRevenue, '#27AE60', 'rgba(39,174,96,0.10)', true);
+    miniLine('newBillingsTrendChart', snapNewBillings, '#2E9BDE', 'rgba(46,155,222,0.10)', false);
 
     /* Billing amounts by category — vertical bar of ₱ totals */
     if (document.getElementById('categoryChart')) {
@@ -722,9 +545,10 @@
                     },
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(27,27,58,0.06)' },
+                        grid: { color: gridLine },
                         ticks: {
-                            font: { size: isMobile ? 10 : 11 },
+                            font: { size: isMobile ? 9 : 11 },
+                            color: '#8A93A2',
                             callback: function (value) { return '₱' + value; }
                         },
                     },
