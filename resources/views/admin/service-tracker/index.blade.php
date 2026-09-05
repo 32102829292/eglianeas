@@ -16,27 +16,13 @@
         </div>
     </div>
 
-    <div class="stat-grid">
+    <div class="stat-grid cols-4">
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </div>
-            <span class="stat-label">Total instances</span>
+            <span class="stat-label">Total Services</span>
             <b class="stat-value">{{ $stats['total'] }}</b>
-        </div>
-        <div class="stat-card stat-ok">
-            <div class="stat-icon stat-icon-ok">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            </div>
-            <span class="stat-label">Done</span>
-            <b class="stat-value">{{ $stats['done'] }}</b>
-        </div>
-        <div class="stat-card stat-warn">
-            <div class="stat-icon stat-icon-warn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </div>
-            <span class="stat-label">To Do</span>
-            <b class="stat-value">{{ $stats['todo'] }}</b>
         </div>
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
@@ -45,12 +31,19 @@
             <span class="stat-label">In Progress</span>
             <b class="stat-value">{{ $stats['inProgress'] }}</b>
         </div>
-        <div class="stat-card">
-            <div class="stat-icon stat-icon-info">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <div class="stat-card stat-warn">
+            <div class="stat-icon stat-icon-warn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <span class="stat-label">Assignments done</span>
-            <b class="stat-value">{{ $stats['assignmentsDone'] }} / {{ $stats['assignmentsTotal'] }}</b>
+            <span class="stat-label">On Hold</span>
+            <b class="stat-value">{{ $stats['onHold'] }}</b>
+        </div>
+        <div class="stat-card stat-ok">
+            <div class="stat-icon stat-icon-ok">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <span class="stat-label">Completed</span>
+            <b class="stat-value">{{ $stats['done'] }}</b>
         </div>
     </div>
 

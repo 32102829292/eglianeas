@@ -169,7 +169,7 @@
                         </tr>
                         {{-- Inline edit row --}}
                         <tr id="edit-{{ $concern->id }}" style="display:none;">
-                            <td colspan="8" style="background:#f8fafc; padding:16px 20px;">
+                            <td colspan="8" style="background:var(--surface-sunken); padding:16px 20px;">
                                 <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">
                                     @csrf
                                     @method('PUT')

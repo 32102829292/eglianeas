@@ -79,9 +79,9 @@ class ServiceTrackerController extends Controller
             'activeServiceId' => $serviceId,
             'activeStaff' => $staff,
             'badgeClasses' => [
-                TrackerInstance::STATUS_TODO => 'badge-warn',
+                TrackerInstance::STATUS_TODO => 'badge-neutral',
                 TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
-                TrackerInstance::STATUS_ON_HOLD => 'badge-neutral',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'stats' => [
@@ -89,6 +89,7 @@ class ServiceTrackerController extends Controller
                 'done' => $scopedAll->where('status', TrackerInstance::STATUS_DONE)->count(),
                 'inProgress' => $scopedAll->where('status', TrackerInstance::STATUS_IN_PROGRESS)->count(),
                 'todo' => $scopedAll->where('status', TrackerInstance::STATUS_TODO)->count(),
+                'onHold' => $scopedAll->where('status', TrackerInstance::STATUS_ON_HOLD)->count(),
                 'assignmentsTotal' => $scopedAll->flatMap->assignments->count(),
                 'assignmentsDone' => $scopedAll->flatMap->assignments->where('completed', true)->count(),
             ],
@@ -270,9 +271,9 @@ class ServiceTrackerController extends Controller
         return view('admin.service-tracker.show', [
             'instance' => $instance,
             'badgeClasses' => [
-                TrackerInstance::STATUS_TODO => 'badge-warn',
+                TrackerInstance::STATUS_TODO => 'badge-neutral',
                 TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
-                TrackerInstance::STATUS_ON_HOLD => 'badge-neutral',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'eventLabels' => [

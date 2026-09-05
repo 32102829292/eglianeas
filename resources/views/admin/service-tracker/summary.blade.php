@@ -64,8 +64,8 @@
                                 <td class="text-end">
                                     @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
                                     <div class="progress-bar-sm" style="width:80px;display:inline-block;vertical-align:middle;">
-                                        <div style="background:#e9ecef;border-radius:4px;height:8px;width:100%;position:relative;">
-                                            <div style="background:{{ $pct === 100 ? '#16a34a' : '#5AB3F0' }};border-radius:4px;height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
+                                        <div style="background:var(--surface-sunken);border-radius:var(--radius-btn);height:8px;width:100%;position:relative;">
+                                            <div style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};border-radius:var(--radius-btn);height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
                                         </div>
                                     </div>
                                     <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>
@@ -103,8 +103,8 @@
                                 <td class="text-end">
                                     @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
                                     <div class="progress-bar-sm" style="width:80px;display:inline-block;vertical-align:middle;">
-                                        <div style="background:#e9ecef;border-radius:4px;height:8px;width:100%;position:relative;">
-                                            <div style="background:{{ $pct === 100 ? '#16a34a' : '#5AB3F0' }};border-radius:4px;height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
+                                        <div style="background:var(--surface-sunken);border-radius:var(--radius-btn);height:8px;width:100%;position:relative;">
+                                            <div style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};border-radius:var(--radius-btn);height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
                                         </div>
                                     </div>
                                     <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>

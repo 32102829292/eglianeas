@@ -49,7 +49,10 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label" for="amount">Amount</label>
-                        <input class="form-control" id="amount" name="amount" type="number" step="0.01" min="0" value="{{ old('amount') }}" required placeholder="0.00">
+                        <div class="currency-field">
+                            <span class="currency-prefix" aria-hidden="true">₱</span>
+                            <input class="form-control" id="amount" name="amount" type="number" step="0.01" min="0" value="{{ old('amount') }}" required placeholder="0.00">
+                        </div>
                         @error('amount')<div class="form-error">{{ $message }}</div>@enderror
                     </div>
                 </div>
@@ -105,8 +108,8 @@
             </div>
 
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Submit</button>
                 <a href="{{ route('admin.other-services.billing') }}" class="btn btn-outline">Cancel</a>
+                <button type="submit" class="btn btn-primary">Submit</button>
             </div>
         </form>
     </div>
