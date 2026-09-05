@@ -3,8 +3,8 @@
 @section('title', 'Customer Satisfaction Survey — Egliane Accounting Services')
 
 @section('content')
-    <div class="page-header-bar">
-        <div class="page-header-left">
+    <div class="page-head page-head-row">
+        <div>
             <h1>Customer satisfaction survey</h1>
             <p>Monthly client survey responses and who is yet to complete theirs.</p>
         </div>

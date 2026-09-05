@@ -133,7 +133,7 @@
     @include('components.confirm-modal')
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="/js/confirm.js?v=1" defer></script>
-    <script src="/js/app.js?v=3" defer></script>
+    <script src="/js/app.js?v=4" defer></script>
     <script src="/js/auth.js?v=2" defer></script>
     <script src="/js/push.js?v=2" defer></script>
     @stack('scripts')

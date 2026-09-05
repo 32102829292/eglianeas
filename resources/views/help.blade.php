@@ -3,7 +3,7 @@
 @section('title', 'How to Use This System — Egliane Accounting Services')
 
 @section('content')
-<div class="container" style="max-width:820px; margin:0 auto; padding:40px 20px;">
+<div class="container help-page" style="max-width:820px; margin:0 auto; padding:40px 20px;">
     <h1 style="margin-bottom:8px;">How to Use This System</h1>
     <p style="color:var(--text-muted); margin-bottom:32px;">
         A structured guide to the Client portal and the Admin/Staff workspace. For quick questions,

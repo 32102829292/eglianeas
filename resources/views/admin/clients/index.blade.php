@@ -11,12 +11,12 @@
 @endphp
 
 @section('content')
-    <div class="page-header-bar">
-        <div class="page-header-left">
+    <div class="page-head page-head-row">
+        <div>
             <h1>Clients</h1>
             <p>Manage client accounts, their information, and account status.</p>
         </div>
-        <div class="page-header-right">
+        <div class="page-head-actions">
             <a href="{{ route('admin.clients.create') }}" class="btn btn-primary btn-sm">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Client

@@ -95,19 +95,23 @@
   updateOnlineState();
 
   /* ---------- Toast ---------- */
-  var toastEl = null;
-  E.toast = function (message) {
+var toastEl = null;
+  E.toast = function (message, type) {
     if (!toastEl) {
       toastEl = document.createElement('div');
       toastEl.className = 'toast';
       document.body.appendChild(toastEl);
+    }
+    toastEl.classList.remove('toast-success', 'toast-error', 'toast-warning', 'toast-info');
+    if (type === 'success' || type === 'error' || type === 'warning' || type === 'info') {
+      toastEl.classList.add('toast-' + type);
     }
     toastEl.textContent = message;
     toastEl.classList.add('show');
     clearTimeout(E.toast._t);
     E.toast._t = setTimeout(function () {
       toastEl.classList.remove('show');
-    }, 3200);
+    }, 3000);
   };
 
   /* ---------- Mobile nav toggle ---------- */
