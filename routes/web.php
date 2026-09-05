@@ -252,6 +252,11 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::get('/service-tracker/create', [AdminServiceTrackerController::class, 'create'])->name('service-tracker.create');
     Route::post('/service-tracker', [AdminServiceTrackerController::class, 'store'])->name('service-tracker.store');
     Route::post('/service-tracker/assignment/{assignment}/toggle', [AdminServiceTrackerController::class, 'toggleAssignment'])->name('service-tracker.toggle-assignment');
+    Route::post('/service-tracker/{instance}/start', [AdminServiceTrackerController::class, 'start'])->name('service-tracker.start');
+    Route::post('/service-tracker/{instance}/hold', [AdminServiceTrackerController::class, 'hold'])->name('service-tracker.hold');
+    Route::post('/service-tracker/{instance}/resume', [AdminServiceTrackerController::class, 'resume'])->name('service-tracker.resume');
+    Route::post('/service-tracker/{instance}/complete', [AdminServiceTrackerController::class, 'complete'])->name('service-tracker.complete');
+    Route::get('/service-tracker/{instance}/history', [AdminServiceTrackerController::class, 'show'])->name('service-tracker.show');
     Route::get('/service-tracker/summary', [AdminServiceTrackerController::class, 'summary'])->name('service-tracker.summary');
     Route::get('/service-tracker/concerns', [AdminServiceTrackerController::class, 'concerns'])->name('service-tracker.concerns');
     Route::post('/service-tracker/concerns', [AdminServiceTrackerController::class, 'storeConcern'])->name('service-tracker.concerns.store');

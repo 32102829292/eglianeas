@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class OtherService extends Model
 {
@@ -50,6 +51,11 @@ class OtherService extends Model
     public function serviceType(): BelongsTo
     {
         return $this->belongsTo(ServiceType::class);
+    }
+
+    public function trackerInstance(): HasOne
+    {
+        return $this->hasOne(TrackerInstance::class, 'other_service_id');
     }
 
     public function serviceName(): string

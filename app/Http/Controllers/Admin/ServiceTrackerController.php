@@ -38,7 +38,7 @@ class ServiceTrackerController extends Controller
         };
 
         $instances = TrackerInstance::query()
-            ->with('service', 'client', 'assignments.staff')
+            ->with('service', 'client', 'assignments.staff', 'otherService')
             ->tap($scopeToOwn)
             ->when($q !== '', function ($query) use ($q) {
                 $query->whereHas('client', function ($query) use ($q) {
@@ -78,6 +78,12 @@ class ServiceTrackerController extends Controller
             'activeStatus' => $status,
             'activeServiceId' => $serviceId,
             'activeStaff' => $staff,
+            'badgeClasses' => [
+                TrackerInstance::STATUS_TODO => 'badge-warn',
+                TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
+                TrackerInstance::STATUS_DONE => 'badge-success',
+            ],
             'stats' => [
                 'total' => $scopedAll->count(),
                 'done' => $scopedAll->where('status', TrackerInstance::STATUS_DONE)->count(),
@@ -156,10 +162,130 @@ class ServiceTrackerController extends Controller
         ActivityLog::record(
             auth()->user(),
             'admin.tracker_assignment_toggled',
-            "Toggled \"{$assignment->staff_name}\" completion on \"{$assignment->instance?->service?->name}\"."
+            $assignment->completed
+                ? "Marked \"{$assignment->staff_name}\" as done on \"{$assignment->instance?->service?->name}\"."
+                : "Reopened \"{$assignment->staff_name}\" on \"{$assignment->instance?->service?->name}\".",
+            $assignment->instance
         );
 
         return back()->with('status', 'Assignment status updated.');
+    }
+
+    private function authorizeManage(TrackerInstance $instance): void
+    {
+        $user = auth()->user();
+        abort_unless($user->isAdmin() || $instance->isAssignedTo($user), 403, 'You are not assigned to this service.');
+    }
+
+    public function start(TrackerInstance $instance): RedirectResponse
+    {
+        $this->authorizeManage($instance);
+
+        try {
+            $instance->startProcessing();
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['action' => $e->getMessage()]);
+        }
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.started',
+            "Started \"{$instance->service?->name}\" for {$instance->client?->name}.",
+            $instance
+        );
+
+        return back()->with('status', 'Service marked as in progress.');
+    }
+
+    public function hold(Request $request, TrackerInstance $instance): RedirectResponse
+    {
+        $this->authorizeManage($instance);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        try {
+            $instance->hold($validated['reason']);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['action' => $e->getMessage()]);
+        }
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.on_hold',
+            "Put \"{$instance->service?->name}\" on hold for {$instance->client?->name}: \"{$validated['reason']}\".",
+            $instance
+        );
+
+        return back()->with('status', 'Service put on hold.');
+    }
+
+    public function resume(TrackerInstance $instance): RedirectResponse
+    {
+        $this->authorizeManage($instance);
+
+        try {
+            $instance->resume();
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['action' => $e->getMessage()]);
+        }
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.resumed',
+            "Resumed \"{$instance->service?->name}\" for {$instance->client?->name}.",
+            $instance
+        );
+
+        return back()->with('status', 'Service resumed.');
+    }
+
+    public function complete(TrackerInstance $instance): RedirectResponse
+    {
+        $this->authorizeManage($instance);
+
+        try {
+            $instance->complete();
+        } catch (\InvalidArgumentException $e) {
+            return back()->withErrors(['action' => $e->getMessage()]);
+        }
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.completed',
+            "Completed \"{$instance->service?->name}\" for {$instance->client?->name}.",
+            $instance
+        );
+
+        return back()->with('status', 'Service completed.');
+    }
+
+    public function show(TrackerInstance $instance): View
+    {
+        $this->authorizeManage($instance);
+
+        $instance->load('service', 'client', 'assignments.staff', 'history.user', 'otherService.serviceType');
+
+        return view('admin.service-tracker.show', [
+            'instance' => $instance,
+            'badgeClasses' => [
+                TrackerInstance::STATUS_TODO => 'badge-warn',
+                TrackerInstance::STATUS_IN_PROGRESS => 'badge-info',
+                TrackerInstance::STATUS_ON_HOLD => 'badge-warn',
+                TrackerInstance::STATUS_DONE => 'badge-success',
+            ],
+            'eventLabels' => [
+                'service.created' => 'Service requested',
+                'service.staff_assigned' => 'Staff assigned',
+                'service.started' => 'Work started',
+                'service.on_hold' => 'Service paused',
+                'service.resumed' => 'Work resumed',
+                'service.completed' => 'Service completed',
+                'admin.tracker_instance_created' => 'Instance created',
+                'admin.tracker_assignment_toggled' => 'Assignment updated',
+            ],
+        ]);
     }
 
     public function summary(): View

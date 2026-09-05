@@ -72,6 +72,21 @@
                 </div>
             </div>
 
+            <div class="section-divider"></div>
+
+            <div class="form-group">
+                <label class="form-label">Assigned Staff</label>
+                <p class="form-hint" style="margin-top:0;">Assign one or more staff members to process this service. The service will appear in the Service Tracker with these assignments.</p>
+                <div class="autocomplete-wrap" id="staff-autocomplete">
+                    <input class="form-control" id="staff_search" type="text" placeholder="Search staff to assign&hellip;" autocomplete="off">
+                    <div id="staffTags" class="staff-tags"></div>
+                    <div id="staffHiddenInputs" style="display:none;"></div>
+                    <div class="autocomplete-dropdown" id="staff-dropdown"></div>
+                </div>
+                @error('staff_ids')<div class="form-error">{{ $message }}</div>@enderror
+                @error('staff_ids.*')<div class="form-error">{{ $message }}</div>@enderror
+            </div>
+
             <div class="form-group" style="margin-top:16px;">
                 <label class="form-label" for="notes">Notes / Remarks</label>
                 <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="1000" placeholder="Optional notes about this service request">{{ old('notes') }}</textarea>
@@ -169,9 +184,97 @@
         serviceDropdown.style.display = matches.length || q.length > 0 ? 'block' : 'none';
     });
 
+    // --- Assigned Staff: compact tag multi-select (bound to staff user IDs) ---
+    var staffOptions = @json($staffRoster->map(fn ($u) => ['id' => (int) $u->id, 'name' => $u->name])->values());
+    var staffSearch = document.getElementById('staff_search');
+    var staffDropdown = document.getElementById('staff-dropdown');
+    var staffTags = document.getElementById('staffTags');
+    var staffHidden = document.getElementById('staffHiddenInputs');
+    var selectedStaff = {};
+
+    function renderStaffTags() {
+        staffTags.innerHTML = '';
+        Object.keys(selectedStaff).forEach(function (id) {
+            var item = selectedStaff[id];
+            var tag = document.createElement('span');
+            tag.className = 'staff-tag';
+            tag.setAttribute('data-id', id);
+            tag.title = 'Remove ' + item.name;
+            var label = document.createElement('span');
+            label.className = 'staff-tag-label';
+            label.textContent = item.name;
+            var x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'staff-tag-remove';
+            x.textContent = '×';
+            x.setAttribute('aria-label', 'Remove ' + item.name);
+            tag.appendChild(label);
+            tag.appendChild(x);
+            x.addEventListener('click', function (e) {
+                e.stopPropagation();
+                removeStaff(id);
+            });
+            staffTags.appendChild(tag);
+        });
+    }
+
+    function addStaff(id, name) {
+        var key = String(id);
+        if (!key || selectedStaff[key]) { staffDropdown.style.display = 'none'; return; }
+        selectedStaff[key] = { name: name };
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'staff_ids[]';
+        hidden.value = key;
+        hidden.setAttribute('data-staff-hidden', key);
+        staffHidden.appendChild(hidden);
+        renderStaffTags();
+        staffSearch.value = '';
+        staffDropdown.style.display = 'none';
+    }
+
+    function removeStaff(id) {
+        var key = String(id);
+        var hidden = staffHidden.querySelector('input[data-staff-hidden="' + key + '"]');
+        if (hidden) hidden.remove();
+        delete selectedStaff[key];
+        renderStaffTags();
+    }
+
+    function renderStaffDropdown() {
+        var q = staffSearch.value.trim().toLowerCase();
+        staffDropdown.innerHTML = '';
+        staffOptions.forEach(function (o) {
+            if (selectedStaff[o.id]) return;
+            if (q && o.name.toLowerCase().indexOf(q) === -1) return;
+            var div = document.createElement('div');
+            div.className = 'autocomplete-item';
+            div.textContent = o.name;
+            div.addEventListener('click', function () { addStaff(o.id, o.name); });
+            staffDropdown.appendChild(div);
+        });
+        staffDropdown.style.display = staffDropdown.children.length ? 'block' : 'none';
+    }
+
+    staffSearch.addEventListener('focus', renderStaffDropdown);
+    staffSearch.addEventListener('input', renderStaffDropdown);
+    staffSearch.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') staffDropdown.style.display = 'none';
+    });
+
+    (function restoreStaff() {
+        var prevIds = @json(old('staff_ids') ? array_values(old('staff_ids')) : []);
+        prevIds.forEach(function (id) {
+            var o = staffOptions.find(function (s) { return String(s.id) === String(id); });
+            if (o) addStaff(o.id, o.name);
+        });
+        renderStaffTags();
+    })();
+
     document.addEventListener('click', function (e) {
         if (!e.target.closest('#client-autocomplete')) clientDropdown.style.display = 'none';
         if (!e.target.closest('#service-autocomplete')) serviceDropdown.style.display = 'none';
+        if (!e.target.closest('#staff-autocomplete')) staffDropdown.style.display = 'none';
     });
 })();
 </script>

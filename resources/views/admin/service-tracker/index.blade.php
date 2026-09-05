@@ -67,6 +67,7 @@
                 <option value="">All statuses</option>
                 <option value="todo" @selected($activeStatus === 'todo')>To Do</option>
                 <option value="in_progress" @selected($activeStatus === 'in_progress')>In Progress</option>
+                <option value="on_hold" @selected($activeStatus === 'on_hold')>On Hold</option>
                 <option value="done" @selected($activeStatus === 'done')>Done</option>
             </select>
             <select name="staff" onchange="this.form.submit()">
@@ -80,6 +81,7 @@
     </div>
 
     <div class="card">
+        @error('action')<div class="form-error" style="margin-bottom:12px;">{{ $message }}</div>@enderror
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="thead-muted">
@@ -89,6 +91,8 @@
                         <th class="text-center">Status</th>
                         <th>Assigned Staff</th>
                         <th>Started</th>
+                        <th>Due</th>
+                        <th>Completed</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -104,7 +108,7 @@
                             </td>
                             <td data-col="Status" class="text-center">
                                 @php($s = $instance->status)
-                                <span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>
+                                <span class="badge {{ $badgeClasses[$s] ?? 'badge-neutral' }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
                                     <div><small class="muted">{{ $instance->completionPercent() }}%</small></div>
                                 @endif
@@ -122,9 +126,35 @@
                                 @endforelse
                             </td>
                             <td data-col="Started">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Due">{{ $instance->otherService?->due_date?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Completed">{{ $instance->date_completed?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Actions" class="text-end">
                                 @if ($instance->notes)
                                     <span class="muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>
+                                @endif
+
+                                <a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-sm btn-link">History</a>
+
+                                @if ($instance->status === 'todo')
+                                    <form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline">Start</button>
+                                    </form>
+                                @elseif ($instance->status === 'in_progress')
+                                    <form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="d-inline">
+                                        @csrf
+                                        <input type="text" name="reason" class="form-control form-control-sm" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason">
+                                        <button type="submit" class="btn btn-sm btn-outline">Hold</button>
+                                    </form>
+                                    <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-success">Complete</button>
+                                    </form>
+                                @elseif ($instance->status === 'on_hold')
+                                    <form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline">Resume</button>
+                                    </form>
                                 @endif
                             </td>
                         </tr>
@@ -139,10 +169,12 @@
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value">{{ $instance->service?->name }}</span></div>
                         <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $instance->client?->business_name ?: $instance->client?->name }}<br><small class="muted">{{ $instance->client?->name }}</small></span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $s === 'done' ? 'badge-success' : ($s === 'in_progress' ? 'badge-info' : 'badge-warn') }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $instance->status)<span class="badge {{ $badgeClasses[$s] ?? 'badge-neutral' }}">{{ $instance->statusLabel() }}</span>@if ($instance->assignments->count()) <small class="muted">{{ $instance->completionPercent() }}%</small>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Assigned Staff</span><span class="cv-value">@forelse ($instance->assignments as $assignment)<form method="POST" action="{{ route('admin.service-tracker.toggle-assignment', $assignment) }}" class="d-inline">@csrf<button type="submit" class="badge {{ $assignment->completed ? 'badge-success' : 'badge-neutral' }}" title="Click to toggle">{{ $assignment->displayName() }} {{ $assignment->completed ? '✓' : '○' }}</button></form>@empty<span class="muted">—</span>@endforelse</span></div>
                         <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if ($instance->notes)<span class="muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Due</span><span class="cv-value">{{ $instance->otherService?->due_date?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Completed</span><span class="cv-value">{{ $instance->date_completed?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-sm btn-link">History</a>@if ($instance->notes)<span class="muted" title="{{ $instance->notes }}" style="cursor:help;">📝</span>@endif @if ($instance->status === 'todo')<form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}" class="d-inline">@csrf<button type="submit" class="btn btn-sm btn-outline">Start</button></form>@elseif ($instance->status === 'in_progress')<form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="d-inline">@csrf<input type="text" name="reason" class="form-control form-control-sm" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason"><button type="submit" class="btn btn-sm btn-outline">Hold</button></form> <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}" class="d-inline">@csrf<button type="submit" class="btn btn-sm btn-success">Complete</button></form>@elseif ($instance->status === 'on_hold')<form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}" class="d-inline">@csrf<button type="submit" class="btn btn-sm btn-outline">Resume</button></form>@endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No service instances yet.</p>

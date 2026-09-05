@@ -7,12 +7,15 @@ use App\Models\ActivityLog;
 use App\Models\Notification;
 use App\Models\OtherService;
 use App\Models\ServiceType;
+use App\Models\TrackerInstance;
+use App\Models\TrackerService;
 use App\Models\User;
 use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class OtherServiceController extends Controller
@@ -22,6 +25,10 @@ class OtherServiceController extends Controller
         return view('admin.other-services.fill-up', [
             'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
             'serviceTypes' => ServiceType::ordered()->get(),
+            'staffRoster' => User::query()
+                ->where('role', User::ROLE_STAFF)
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ]);
     }
 
@@ -35,6 +42,8 @@ class OtherServiceController extends Controller
             'requested_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'due_date' => ['nullable', 'date'],
+            'staff_ids' => ['nullable', 'array'],
+            'staff_ids.*' => ['integer', 'distinct', Rule::exists('users', 'id')->where('role', User::ROLE_STAFF)],
         ]);
 
         if (empty($validated['service_type_id']) && empty($validated['custom_label'])) {
@@ -43,6 +52,8 @@ class OtherServiceController extends Controller
 
         $validated['requested_at'] = $validated['requested_at'] ?? now();
         $validated['status'] = OtherService::STATUS_UNPAID;
+        $staffIds = array_values(array_unique(array_map('intval', $validated['staff_ids'] ?? [])));
+        unset($validated['staff_ids']);
 
         $service = OtherService::create($validated);
 
@@ -64,6 +75,60 @@ class OtherServiceController extends Controller
             'admin.other_service_created',
             "Created \"{$service->serviceName()}\" service for {$service->client?->name}."
         );
+
+        $label = $service->serviceName();
+
+        $trackerService = TrackerService::query()
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($label))])
+            ->first()
+            ?? TrackerService::query()->create([
+                'name' => mb_substr(trim($label), 0, 180),
+                'sort_order' => (int) TrackerService::query()->max('sort_order') + 1,
+            ]);
+
+        $instance = TrackerInstance::query()->create([
+            'service_id' => $trackerService->id,
+            'client_id' => $service->client_id,
+            'other_service_id' => $service->id,
+            'status' => TrackerInstance::STATUS_TODO,
+            'date_identified' => Carbon::parse($validated['requested_at'])->toDateString(),
+            'notes' => $service->notes,
+        ]);
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.created',
+            "Created \"{$label}\" service request in the tracker for {$service->client?->name}.",
+            $instance
+        );
+
+        if ($staffIds !== []) {
+            $assignedStaff = User::query()->whereIn('id', $staffIds)->get();
+            $assignedNames = [];
+
+            foreach ($staffIds as $staffId) {
+                $member = $assignedStaff->firstWhere('id', $staffId);
+                if (! $member) {
+                    continue;
+                }
+
+                $instance->assignments()->create([
+                    'staff_id' => $member->id,
+                    'staff_name' => $member->name,
+                    'completed' => false,
+                ]);
+                $assignedNames[] = $member->name;
+            }
+
+            if ($assignedNames !== []) {
+                ActivityLog::record(
+                    auth()->user(),
+                    'service.staff_assigned',
+                    'Assigned '.count($assignedNames).' staff member'.(count($assignedNames) === 1 ? '' : 's').': '.implode(', ', $assignedNames).'.',
+                    $instance
+                );
+            }
+        }
 
         return redirect()->route('admin.other-services.billing')->with('status', 'Service request created.');
     }
