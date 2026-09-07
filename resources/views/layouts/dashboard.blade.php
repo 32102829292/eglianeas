@@ -72,7 +72,7 @@
                     <span class="dash-role">{{ ucfirst($user->role) }}</span>
                 </div>
                 <button type="button" class="btn btn-outline-light btn-sm hidden" data-install>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;margin-right:4px;vertical-align:-2px"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Install
                 </button>
                 <div class="ios-install-tip hidden" id="iosInstallTip" role="tooltip" aria-hidden="true">
@@ -109,6 +109,20 @@
             @include('partials.dashboard-nav')
         </aside>
 
+        <script>
+            /* Restore the desktop sidebar scroll position before first paint so
+               navigation doesn't jump it back to the top. The value is saved by
+               app.js ("Desktop sidebar scroll persistence") under
+               key egliane:dash-nav:scrollTop. */
+            (function () {
+                var nav = document.querySelector('.dash-nav');
+                if (!nav) return;
+                var top = -1;
+                try { top = parseInt(sessionStorage.getItem('egliane:dash-nav:scrollTop'), 10); } catch (e) {}
+                if (top > 0) nav.scrollTop = top;
+            })();
+        </script>
+
         <main class="dash-main">
             @if (session('status'))
                 <div class="alert alert-success">{{ session('status') }}</div>
@@ -133,7 +147,7 @@
     @include('components.confirm-modal')
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="/js/confirm.js?v=1" defer></script>
-    <script src="/js/app.js?v=4" defer></script>
+    <script src="/js/app.js?v=5" defer></script>
     <script src="/js/auth.js?v=2" defer></script>
     <script src="/js/push.js?v=2" defer></script>
     @stack('scripts')

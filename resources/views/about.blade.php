@@ -13,7 +13,7 @@
     </div>
 </section>
 
-<section class="section" style="padding-top:0;">
+<section class="section section--no-pad-top">
     <div class="container">
         @php
             $missionText = $about->mission ?? 'To provide reliable, accurate, and transparent accounting services that allow our clients to focus on what they do best, knowing their financial health is in expert hands.';
@@ -268,7 +268,7 @@
         <div class="cta-band">
             <h2>Ready to hand over your books?</h2>
             <p>Sign up today and let our team handle your accounting while you focus on your business.</p>
-            <div class="hero-cta" style="justify-content:center;">
+            <div class="hero-cta hero-cta--center">
                 <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
                 <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>
             </div>

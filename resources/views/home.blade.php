@@ -29,8 +29,8 @@
                                     <h3>{{ $announcement->title }}</h3>
                                 @endif
                                 @if ($announcement->hasImage())
-                                    <div style="margin: 10px 0;">
-                                        <img src="{{ $announcement->imageUrl() }}" alt="Announcement image" style="max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb;">
+                                    <div class="announcement-media">
+                                        <img src="{{ $announcement->imageUrl() }}" alt="Announcement image" class="announcement-media-img">
                                     </div>
                                 @endif
                                 <p>{{ $announcement->body }}</p>
@@ -47,7 +47,7 @@
             <div class="landing-label">Log In</div>
             <div class="login-card">
                 @auth
-                    <p class="muted" style="margin-bottom:14px;">You&rsquo;re signed in as <b>{{ auth()->user()->name }}</b>.</p>
+                    <p class="muted mb-2">You&rsquo;re signed in as <b>{{ auth()->user()->name }}</b>.</p>
                     <a href="{{ auth()->user()->getDashboardRoute() }}" class="btn btn-primary btn-block">Go to Dashboard</a>
                     <form method="POST" action="{{ route('logout') }}" class="inline-form mt-2" onsubmit="return egliane.confirm.form(this, { title: 'Log out?', message: 'You&rsquo;ll need to log in again to access your account.', confirmLabel: 'Log out' });">
                         @csrf
@@ -93,7 +93,7 @@
     <div class="container">
         <div class="about-grid">
             <div>
-                <div class="section-head" style="text-align:left;margin-bottom:18px;">
+                <div class="section-head section-head--left">
                     <span class="eyebrow">Why Egliane</span>
                     <h2>An accounting firm built for small businesses</h2>
                 </div>
@@ -114,12 +114,12 @@
                     <div class="stat-box"><b>100%</b><span>BIR-compliant</span></div>
                     <div class="stat-box"><b>24/7</b><span>Access your records</span></div>
                 </div>
-                <div class="card mt-3" style="margin-bottom:0;">
+                <div class="card mt-3 mb-0">
                     <h3 class="card-title">Get started in 3 steps</h3>
                     <ol class="detail-list">
-                        <li><span class="k">1</span><span class="v" style="font-weight:400;">Sign up with your Gmail</span></li>
-                        <li><span class="k">2</span><span class="v" style="font-weight:400;">Verify with a 6-digit code</span></li>
-                        <li><span class="k">3</span><span class="v" style="font-weight:400;">Upload documents &amp; follow your filings</span></li>
+                        <li><span class="k">1</span><span class="v">Sign up with your Gmail</span></li>
+                        <li><span class="k">2</span><span class="v">Verify with a 6-digit code</span></li>
+                        <li><span class="k">3</span><span class="v">Upload documents &amp; follow your filings</span></li>
                     </ol>
                 </div>
             </div>
@@ -137,10 +137,10 @@
         <div class="cta-band">
             <h2>Ready to hand over your books?</h2>
             <p>Sign up today and start uploading your receipts. Our accountants will take it from there.</p>
-            <div class="hero-cta" style="justify-content:center;">
+            <div class="hero-cta hero-cta--center">
                 <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
                 <a href="{{ config('contact.facebook_url') }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-light btn-lg" aria-label="Visit our Facebook Page">
-                    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" style="width:18px;height:18px;margin-right:8px;vertical-align:-3px;"><path d="M24 12.073C24 5.414 18.627.036 12 .036S0 5.414 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.026 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" class="inline-social"><path d="M24 12.073C24 5.414 18.627.036 12 .036S0 5.414 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.026 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
                     Facebook Page
                 </a>
                 <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>

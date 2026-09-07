@@ -29,7 +29,7 @@
                     </form>
                 </div>
             @empty
-                <p class="muted" style="margin:0;">No service types yet. Add one below.</p>
+                <p class="muted m-0">No service types yet. Add one below.</p>
             @endforelse
         </div>
 

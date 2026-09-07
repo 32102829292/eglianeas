@@ -1,6 +1,6 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Service Tracker Summary — Egliane Accounting Services')
+@section('title', 'Service Tracker Summary 遯ｶ繝ｻEgliane Accounting Services')
 
 @section('content')
     <a href="{{ route('admin.service-tracker.index') }}" class="back-link">
@@ -63,12 +63,12 @@
                                 <td class="text-center text-warning">{{ $entry['todo'] }}</td>
                                 <td class="text-end">
                                     @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
-                                    <div class="progress-bar-sm" style="width:80px;display:inline-block;vertical-align:middle;">
-                                        <div style="background:var(--surface-sunken);border-radius:var(--radius-btn);height:8px;width:100%;position:relative;">
-                                            <div style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};border-radius:var(--radius-btn);height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
+                                    <div class="pbar">
+                                        <div class="pbar-track">
+                                            <div class="pbar-fill" style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};width:{{ $pct }}%;"></div>
                                         </div>
                                     </div>
-                                    <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>
+                                    <small class="muted ms-1">{{ $pct }}%</small>
                                 </td>
                             </tr>
                         @empty
@@ -102,12 +102,12 @@
                                 <td class="text-center text-success">{{ $entry['done'] }}</td>
                                 <td class="text-end">
                                     @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
-                                    <div class="progress-bar-sm" style="width:80px;display:inline-block;vertical-align:middle;">
-                                        <div style="background:var(--surface-sunken);border-radius:var(--radius-btn);height:8px;width:100%;position:relative;">
-                                            <div style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};border-radius:var(--radius-btn);height:100%;width:{{ $pct }}%;position:absolute;top:0;left:0;"></div>
+                                    <div class="pbar">
+                                        <div class="pbar-track">
+                                            <div class="pbar-fill" style="background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};width:{{ $pct }}%;"></div>
                                         </div>
                                     </div>
-                                    <small class="muted" style="margin-left:6px;">{{ $pct }}%</small>
+                                    <small class="muted ms-1">{{ $pct }}%</small>
                                 </td>
                             </tr>
                         @empty

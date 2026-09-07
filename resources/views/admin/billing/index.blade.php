@@ -13,7 +13,7 @@
         </div>
     </div>
 
-    <div class="stat-grid">
+    <div class="stat-grid billing-summary">
         <div class="stat-card">
             <div class="stat-icon stat-icon-info">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -45,15 +45,26 @@
     </div>
 
     <div class="page-toolbar">
-        <form class="search-combo" method="GET" action="{{ route('admin.billing.index') }}" role="search">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;" aria-label="Search billing statements">
-            <button type="submit" class="search-combo-btn">Filter</button>
+        <form id="billing-search" class="toolbar-form" method="GET" action="{{ route('admin.billing.index') }}" role="search">
+            <div class="search-combo">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;" aria-label="Search billing statements">
+            </div>
+            <label class="toolbar-field">
+                <span class="toolbar-label">Quarter</span>
+                <select name="quarter" class="toolbar-select" aria-label="Filter by quarter">
+                    <option value="">All quarters</option>
+                    @foreach ($availableQuarters as $quarter)
+                        <option value="{{ $quarter->key() }}" @selected($activeQuarter?->equals($quarter))>{{ $quarter->label() }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <button type="submit" class="btn btn-outline btn-sm">Filter</button>
         </form>
         <div class="page-toolbar-group">
             <div class="dropdown-wrap">
                 <button type="button" class="btn btn-outline btn-sm dropdown-toggle" data-dropdown="billing-download-menu">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                     Download Billing Summary
                 </button>
                 <div class="dropdown-menu billing-download-panel" id="billing-download-menu">
@@ -72,12 +83,12 @@
                         <select class="form-control form-control-sm" id="dl-year"></select>
                     </div>
                     <div class="billing-download-btns">
-                        <a href="#" id="dl-xlsx" class="btn btn-outline-primary btn-sm">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <a href="#" id="dl-xlsx" class="btn btn-outline btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                             XLSX
                         </a>
-                        <a href="#" id="dl-pdf" class="btn btn-outline-danger btn-sm">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px;"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <a href="#" id="dl-pdf" class="btn btn-outline danger btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                             PDF
                         </a>
                     </div>
@@ -90,7 +101,16 @@
 
     <div class="card">
         <div class="table-wrap table-card-view">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 finance-table">
+                <colgroup>
+                    <col class="col-business">
+                    <col class="col-contact">
+                    <col class="col-bills">
+                    <col class="col-total">
+                    <col class="col-outstanding">
+                    <col class="col-status">
+                    <col class="col-actions">
+                </colgroup>
                 <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
@@ -112,18 +132,18 @@
                             </td>
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
-                                <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></small>
+                                <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link contact-email">{{ $client->email }}</a></small>
                             </td>
-                            <td class="text-center" data-col="Bills">{{ $entry['billing_count'] }}</td>
-                            <td class="text-end fw-semibold" data-col="Total billed">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
-                            <td class="text-end" data-col="Outstanding">
+                            <td class="text-center td-bills" data-col="Bills">{{ $entry['billing_count'] }}</td>
+                            <td class="text-end fw-semibold td-money" data-col="Total billed">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
+                            <td class="text-end td-money" data-col="Outstanding">
                                 @if ($entry['outstanding'] > 0)
                                     <span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>
                                 @else
                                     <span class="muted">—</span>
                                 @endif
                             </td>
-                            <td class="text-center" data-col="Status">
+                            <td class="text-center td-status" data-col="Status">
                                 @if ($entry['status'] === 'none')
                                     <span class="badge badge-neutral">No billing statements</span>
                                 @else
@@ -131,9 +151,8 @@
                                     <span class="badge badge-{{ $s }}">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>
                                 @endif
                             </td>
-                            <td class="text-end" data-col="Actions">
-                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing statement</a>
-                                <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-link btn-sm">CSV</a>
+                            <td class="text-end col-actions" data-col="Actions">
+                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline btn-sm row-action">Open billing statement</a>
                             </td>
                         </tr>
                     @empty
@@ -146,12 +165,12 @@
                     @php($client = $entry['user'])
                     <div class="cv-card">
                         <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></span></div>
                         <div class="cv-row"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
                         <div class="cv-row"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
                         <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $entry['status'] === 'none' ? 'No billing statements' : (App\Models\Billing::STATUSES[$entry['status']] ?? ucfirst($entry['status'])) }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline-primary btn-sm">Open billing statement</a> <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-link btn-sm">CSV</a></span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline btn-sm">Open billing statement</a></span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>
@@ -215,5 +234,11 @@
     quarterSelect.addEventListener('change', refreshLinks);
     yearSelect.addEventListener('change', refreshLinks);
 })();
+    document.getElementById('billing-search').addEventListener('submit', function (e) {
+        var q = this.elements.namedItem('q');
+        if (q && !q.value.trim()) q.disabled = true;
+        var quarter = this.elements.namedItem('quarter');
+        if (quarter && !quarter.value) quarter.disabled = true;
+    });
 </script>
 @endpush

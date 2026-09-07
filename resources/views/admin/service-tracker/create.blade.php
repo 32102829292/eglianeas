@@ -66,14 +66,14 @@
 
             <div class="form-group">
                 <label class="form-label">Assigned Staff</label>
-                <p class="form-hint" style="margin-top:0;">Search and pick one or more staff members. Each can be marked done independently.</p>
+                <p class="form-hint">Search and pick one or more staff members. Each can be marked done independently.</p>
                 <div class="autocomplete-wrap" id="staff-autocomplete">
                     <input class="form-control" id="staff_search" type="text" placeholder="Search staff to assign&hellip;" autocomplete="off">
                     <div id="staffTags" class="staff-tags"></div>
                     <div id="staffHiddenInputs" style="display:none;"></div>
                     <div class="autocomplete-dropdown" id="staff-dropdown"></div>
                 </div>
-                <div id="staffOtherWrap" style="margin-top:8px;display:none;">
+                <div id="staffOtherWrap" class="mt-2" style="display:none;">
                     <div class="staff-other-row">
                         <input class="form-control" id="customStaffInput" type="text" maxlength="120" placeholder="Enter staff member name">
                         <button type="button" class="btn btn-outline btn-sm" id="customStaffAdd">Add</button>

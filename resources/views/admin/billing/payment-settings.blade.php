@@ -28,8 +28,8 @@
                 <div class="form-group">
                     <label class="form-label">QR code image</label>
                     @if ($gcashQrCode)
-                        <div style="margin-bottom:8px;">
-                            <img src="{{ route('payment.image', 'gcash') }}" alt="GCash QR" style="max-width:120px;max-height:120px;border:1px solid var(--border);border-radius:6px;">
+                        <div class="qr-upload">
+                            <img src="{{ route('payment.image', 'gcash') }}" alt="GCash QR">
                         </div>
                     @endif
                     <input class="form-control" name="gcash_qr_code" type="file" accept="image/*">
@@ -44,12 +44,14 @@
             <div class="card-head">
                 <h3 class="card-title">Bank Accounts</h3>
             </div>
-            <p class="card-sub" style="margin-bottom:16px;">Add one or more bank accounts. These appear on receipts alongside GCash.</p>
+            <p class="card-sub mb-3">Add one or more bank accounts. These appear on receipts alongside GCash.</p>
 
             <div id="bank-accounts-wrap">
                 @forelse ($bankAccounts as $i => $account)
-                    <div class="bank-account-entry" style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;position:relative;">
-                        <button type="button" class="btn btn-link text-danger" onclick="this.closest('.bank-account-entry').remove()" style="position:absolute;top:8px;right:8px;padding:2px 6px;" title="Remove this bank account">&times;</button>
+                    <div class="bank-account-entry">
+                        <div class="bank-actions">
+                            <button type="button" class="btn btn-link text-danger" onclick="this.closest('.bank-account-entry').remove()" title="Remove this bank account">&times;</button>
+                        </div>
                         <input type="hidden" name="bank_accounts[{{ $i }}][existing_bank_qr_code]" value="{{ $account['bank_qr_code'] ?? '' }}">
                         <div class="form-grid two">
                             <div class="form-group">
@@ -67,8 +69,8 @@
                             <div class="form-group">
                                 <label class="form-label">QR code image (optional)</label>
                                 @if (! empty($account['bank_qr_code']))
-                                    <div style="margin-bottom:8px;">
-                                        <img src="{{ route('payment.image', ['type' => 'bank', 'index' => $i]) }}" alt="Bank QR" style="max-width:100px;max-height:100px;border:1px solid var(--border);border-radius:6px;">
+                                    <div class="qr-upload">
+                                        <img src="{{ route('payment.image', ['type' => 'bank', 'index' => $i]) }}" alt="Bank QR">
                                     </div>
                                 @endif
                                 <input class="form-control" name="bank_accounts[{{ $i }}][bank_qr_code]" type="file" accept="image/*">
@@ -76,7 +78,7 @@
                         </div>
                     </div>
                 @empty
-                    <p class="muted" id="no-banks-note">No bank accounts added yet.</p>
+                    <p class="muted empty-note" id="no-banks-note">No bank accounts added yet.</p>
                 @endforelse
             </div>
 
@@ -93,8 +95,10 @@
             document.getElementById('no-banks-note')?.remove();
             const wrap = document.getElementById('bank-accounts-wrap');
             const html = `
-                <div class="bank-account-entry" style="border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;position:relative;">
-                    <button type="button" class="btn btn-link text-danger" onclick="this.closest('.bank-account-entry').remove()" style="position:absolute;top:8px;right:8px;padding:2px 6px;" title="Remove this bank account">&times;</button>
+                <div class="bank-account-entry">
+                    <div class="bank-actions">
+                        <button type="button" class="btn btn-link text-danger" onclick="this.closest('.bank-account-entry').remove()" title="Remove this bank account">&times;</button>
+                    </div>
                     <div class="form-grid two">
                         <div class="form-group">
                             <label class="form-label">Bank name</label>

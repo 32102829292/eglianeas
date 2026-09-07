@@ -89,7 +89,7 @@
                     <input type="hidden" id="distLng" name="longitude">
                     <div class="form-group col-span-2">
                         <button type="button" class="btn btn-outline btn-sm" onclick="var el=document.getElementById('distCoordValues'); el.hidden=!el.hidden; this.textContent=el.hidden?'Show coordinates':'Hide coordinates';">Show coordinates</button>
-                        <div id="distCoordValues" hidden style="margin-top:8px;">
+                        <div id="distCoordValues" class="mt-2" hidden>
                             <div class="form-grid two">
                                 <div class="form-group">
                                     <label class="form-label" for="distLatDisplay">Latitude</label>

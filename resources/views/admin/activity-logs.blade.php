@@ -8,11 +8,11 @@
         <p>Every important action across the portal.</p>
     </div>
 
-    <form method="GET" action="{{ route('admin.activity-logs') }}" class="filter-bar">
-        <input class="form-control" type="search" name="q" value="{{ $query }}" placeholder="Search action or details…">
+    <form method="GET" action="{{ route('admin.activity-logs') }}" class="filter-bar log-search-bar">
+        <input class="form-control log-search-input" type="search" name="q" value="{{ $query }}" placeholder="Search action or details…">
         <button type="submit" class="btn btn-outline">Search</button>
         @if ($query)
-            <a href="{{ route('admin.activity-logs') }}" class="btn btn-link">Clear</a>
+            <a href="{{ route('admin.activity-logs') }}" class="btn btn-outline btn-sm">Clear</a>
         @endif
     </form>
 

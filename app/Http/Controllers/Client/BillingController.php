@@ -15,34 +15,54 @@ class BillingController extends Controller
     {
         $user = auth()->user();
 
+        $available = Billing::billedPeriodsFor($user->id);
+        $availableQuarters = Billing::dropdownPeriods($available);
+        $activeQuarter = Billing::resolveViewableQuarter($available, $request->query('quarter'));
+
         $billings = $user->billings()
-            ->whereIn('status', Billing::ACTIVE_STATUSES)
+            ->activeOnly()
+            ->forPeriod($activeQuarter)
             ->with('lineItems')
             ->latest('year')
             ->latest('quarter')
             ->latest('id')
             ->paginate(15)
-            ->withQueryString();
+            ->withQueryString(['quarter' => $activeQuarter->key()]);
 
-        $allBillings = $user->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->get();
-        $summary = $allBillings->reduce(
-            function (array $carry, Billing $billing): array {
-                $carry['billed'] += (float) $billing->total;
-                if ($billing->isPaid()) {
-                    $carry['paid'] += (float) $billing->total;
-                } else {
-                    $carry['outstanding'] += (float) $billing->total;
-                }
+        $quarterBilled = (float) $user->billings()->activeOnly()->forPeriod($activeQuarter)->sum('total');
+        $quarterPaid = (float) $user->billings()->activeOnly()->forPeriod($activeQuarter)->where('status', Billing::STATUS_PAID)->sum('total');
 
-                return $carry;
-            },
-            ['billed' => 0.0, 'paid' => 0.0, 'outstanding' => 0.0]
-        );
+        $globalUnpaid = $this->globalUnpaid($user->id);
 
         return view('client.billing.index', [
             'billings' => $billings,
-            'summary' => $summary,
+            'activeQuarter' => $activeQuarter,
+            'availableQuarters' => $availableQuarters,
+            'quarterSummary' => [
+                'billed' => $quarterBilled,
+                'paid' => $quarterPaid,
+                'outstanding' => $quarterBilled - $quarterPaid,
+            ],
+            'globalUnpaid' => $globalUnpaid,
+            'summary' => [
+                'billed' => (float) $user->billings()->activeOnly()->sum('total'),
+                'paid' => (float) $user->billings()->activeOnly()->where('status', Billing::STATUS_PAID)->sum('total'),
+                'outstanding' => $globalUnpaid,
+            ],
         ]);
+    }
+
+    /**
+     * Total unpaid balance across ALL of the client's active billings,
+     * regardless of the quarter currently being viewed.
+     */
+    private function globalUnpaid(int $clientId): float
+    {
+        return (float) Billing::query()
+            ->where('client_id', $clientId)
+            ->activeOnly()
+            ->where('status', '!=', Billing::STATUS_PAID)
+            ->sum('total');
     }
 
     public function show(Billing $billing): View

@@ -26,10 +26,10 @@
             <p>{{ $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
         </div>
         <div class="btn-row">
-            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
+            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
                 @csrf
                 <button type="submit" class="btn btn-outline">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     Login as Client
                 </button>
             </form>
@@ -206,7 +206,7 @@
                 <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
             </div>
             @if ($profile->remarks)
-                <p style="white-space: pre-wrap;">{{ $profile->remarks }}</p>
+                <p class="pre-wrap">{{ $profile->remarks }}</p>
             @else
                 <div class="form-hint">No remarks yet.</div>
             @endif
@@ -227,11 +227,11 @@
                                         data-entry-id="{{ $entry->id }}"
                                         data-key="{{ $entry->key }}"
                                         data-value="{{ $entry->value }}"
-                                        style="margin-left:4px;">Edit</button>
-                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" style="display:inline;" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
+                                        class="ms-1">Edit</button>
+                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-outline danger btn-sm" style="margin-left:2px;">Del</button>
+                                    <button type="submit" class="btn btn-outline danger btn-sm ms-1">Del</button>
                                 </form>
                             </span>
                         </div>
@@ -255,10 +255,10 @@
                         <input class="form-control" id="info-value" name="value" type="text" placeholder="e.g. December 31">
                     </div>
                 </div>
-                <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Add entry</button>
+                <button type="submit" class="btn btn-outline btn-sm mt-2">Add entry</button>
             </form>
 
-            <div id="edit-info-modal" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:var(--card-bg);">
+            <div id="edit-info-modal" class="edit-info-box">
                 <form method="POST" id="edit-info-form" class="form-inline">
                     @csrf
                     @method('PUT')

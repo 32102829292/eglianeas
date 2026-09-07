@@ -48,7 +48,7 @@
                             </td>
                             <td class="text-center" data-col="Softcopies">{{ $entry['softcopies'] }}</td>
                             <td class="text-end" data-col="Actions">
-                                <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline-primary btn-sm">Open</a>
+                                <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline btn-sm">Open</a>
                             </td>
                         </tr>
                     @empty
@@ -65,7 +65,7 @@
                         <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
                         <div class="cv-row"><span class="cv-label">BIR Forms</span><span class="cv-value">{{ $entry['filed'] }}/{{ $entry['total'] }}</span></div>
                         <div class="cv-row"><span class="cv-label">Softcopies</span><span class="cv-value">{{ $entry['softcopies'] }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline-primary btn-sm">Open</a></span></div>
+                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline btn-sm">Open</a></span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>

@@ -331,6 +331,11 @@
   scrollbar-gutter: stable;
   box-shadow: var(--shadow-card);
 }
+/* Desktop sidebar scrollbar: slightly wider than the shared 6px so the slim
+   muted-blue thumb (app.css) is easy to grab. Colour/hover come from the
+   themed block in app.css; the mobile drawer keeps the platform scrollbar. */
+.dash-nav { scrollbar-width: thin; }
+.dash-nav::-webkit-scrollbar { width: 7px; }
 .dash-nav a {
   display: flex;
   align-items: center;
@@ -448,6 +453,34 @@
 .stat-neutral { border-bottom-color: var(--border); }
 .stat-neutral .stat-value { color: #46506B; }
 .stat-neutral .stat-icon { background: var(--surface-sunken); color: #7A869E; }
+
+/* ---------- Billing summary cards (admin billing index) ---------- */
+.stat-grid.billing-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.stat-grid.billing-summary .stat-card {
+  padding: 14px 16px;
+  border-radius: 12px;
+  gap: 5px;
+}
+.stat-grid.billing-summary .stat-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  margin-bottom: 0;
+}
+.stat-grid.billing-summary .stat-icon svg { width: 16px; height: 16px; }
+.stat-grid.billing-summary .stat-value {
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+}
+@media (min-width: 1100px) {
+  .stat-grid.billing-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .stat-grid.billing-summary { grid-template-columns: 1fr; }
+}
 .stat-tile { background: var(--surface); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); box-shadow: var(--shadow-card); padding: 16px 18px; }
 .stat-tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 .stat-tile .value { font-family: var(--font-head); font-size: 24px; font-weight: 800; color: var(--navy); margin-top: 4px; }

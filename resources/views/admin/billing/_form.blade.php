@@ -85,15 +85,15 @@
             <p class="muted" id="lineItemsPlaceholder">Select a client to load their applicable BIR forms and generate billing line items.</p>
         </div>
 
-        <div id="customItemsContainer" style="margin-top:16px;"></div>
+        <div id="customItemsContainer" class="mt-4"></div>
 
-        <button type="button" class="btn btn-outline btn-sm" id="addCustomItemBtn" style="margin-top:8px;">
+        <button type="button" class="btn btn-outline btn-sm mt-2" id="addCustomItemBtn">
             + Add another item
         </button>
 
-        <div class="form-group" style="margin-top:16px;">
+        <div class="form-group mt-4">
             <label class="form-label">Computed total payment</label>
-            <div class="form-control" id="totalDisplay" readonly style="font-weight:700;font-size:1.1em;">₱0.00</div>
+            <div class="form-control amount-display" id="totalDisplay" readonly>₱0.00</div>
         </div>
 
         <div class="btn-group-row">
@@ -515,9 +515,6 @@
                         hint = document.createElement('p');
                         hint.id = 'carryForwardHint';
                         hint.className = 'form-hint';
-                        hint.style.marginTop = '-8px';
-                        hint.style.marginBottom = '16px';
-                        hint.style.color = '#6b7280';
                         container.parentNode.insertBefore(hint, container);
                     }
                     hint.textContent = 'Amounts carried forward from ' + lastData.period_title + '. Edit as needed.';

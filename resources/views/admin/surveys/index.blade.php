@@ -139,7 +139,7 @@
         <div class="card-head">
             <span class="card-title">Clients yet to complete (last 30 days) <span class="count-pill">{{ $dueClients->total() }}</span></span>
         </div>
-        <div class="card-body">
+        <div>
             @if ($dueClients->isEmpty())
                 <p class="muted mb-0">All clients are up to date.</p>
             @else

@@ -72,8 +72,8 @@
         <div class="card-head">
             <h2 class="card-title">Filter concerns</h2>
         </div>
-        <form method="GET" action="{{ route('admin.service-tracker.concerns') }}" style="padding:0 20px 20px;">
-            <div class="form-grid three" style="align-items:end; gap:12px;">
+        <form method="GET" action="{{ route('admin.service-tracker.concerns') }}" class="filter-panel">
+            <div class="form-grid three align-items-end gap-3">
                 <div class="form-group">
                     <label class="form-label" for="filter_submitted_by">Submitted by</label>
                     <select class="form-control" id="filter_submitted_by" name="submitted_by">
@@ -90,7 +90,7 @@
                         <option value="1" @selected($reviewedFilter === '1')>Reviewed</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex; gap:8px; align-items:end;">
+                <div class="form-group d-flex gap-2 align-items-end">
                     <button type="submit" class="btn btn-primary">Filter</button>
                     @if ($submittedByFilter || $reviewedFilter)
                         <a href="{{ route('admin.service-tracker.concerns') }}" class="btn btn-outline">Clear</a>
@@ -168,12 +168,12 @@
                             </td>
                         </tr>
                         {{-- Inline edit row --}}
-                        <tr id="edit-{{ $concern->id }}" style="display:none;">
-                            <td colspan="8" style="background:var(--surface-sunken); padding:16px 20px;">
+                        <tr id="edit-{{ $concern->id }}" class="edit-row">
+                            <td colspan="8" class="cell-edit">
                                 <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">
                                     @csrf
                                     @method('PUT')
-                                    <div class="form-grid two" style="gap:12px;">
+                                    <div class="form-grid two gap-2">
                                         <div class="form-group">
                                             <label class="form-label">Description of issue</label>
                                             <textarea class="form-control" name="description_of_issue" rows="2" maxlength="2000" required>{{ $concern->description_of_issue }}</textarea>
@@ -200,7 +200,7 @@
                                             </select>
                                         </div>
                                     </div>
-                                    <div style="margin-top:12px; display:flex; gap:8px;">
+                                    <div class="mt-3 d-flex gap-2">
                                         <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
                                         <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit({{ $concern->id }})">Cancel</button>
                                     </div>
@@ -224,11 +224,11 @@
                         <div class="cv-row"><span class="cv-label">Frequency</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Source</span><span class="cv-value">@if ($concern->isClientSubmitted())<span class="badge badge-info">Client</span>@else<span class="badge badge-neutral">Staff</span>@endif</span></div>
                         <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><button type="button" class="btn btn-link btn-sm" onclick="toggleEditCard(this)">Edit</button>@if ($concern->isNew())<form method="POST" action="{{ route('admin.service-tracker.concerns.review', $concern) }}" class="d-inline">@csrf<button type="submit" class="btn btn-link btn-sm">Mark reviewed</button></form>@endif<form method="POST" action="{{ route('admin.service-tracker.concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form></span></div>
-                        <div class="cv-edit-form" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+                        <div class="cv-edit-form">
                             <form method="POST" action="{{ route('admin.service-tracker.concerns.update', $concern) }}">
                                 @csrf
                                 @method('PUT')
-                                <div class="form-grid two" style="gap:10px;">
+                                <div class="form-grid two gap-2">
                                     <div class="form-group">
                                         <label class="form-label">Description of issue</label>
                                         <textarea class="form-control" name="description_of_issue" rows="2" maxlength="2000" required>{{ $concern->description_of_issue }}</textarea>
@@ -255,7 +255,7 @@
                                         </select>
                                     </div>
                                 </div>
-                                <div style="margin-top:10px; display:flex; gap:8px;">
+                                <div class="mt-3 d-flex gap-2">
                                     <button type="submit" class="btn btn-primary btn-sm">Save changes</button>
                                     <button type="button" class="btn btn-outline btn-sm" onclick="toggleEditCard(this)">Cancel</button>
                                 </div>

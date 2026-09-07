@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use App\Support\Quarter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -32,28 +33,56 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BillingController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         $q = trim((string) $request->get('q'));
+        $activeQuarter = Quarter::fromKey((string) $request->get('quarter'));
+
+        // Native GET forms serialize every non-disabled control, so an empty
+        // search field produces "?q=" even when nothing was searched. The
+        // frontend disables empty fields on submit, but that only runs when
+        // the submit event fires. Canonicalize on the server instead so the
+        // URL stays clean regardless of how the request was made.
+        if ($redirect = $this->canonicalBillingQuery($request, $q, $activeQuarter)) {
+            return $redirect;
+        }
 
         // Priority ordering reproduced from clientStatus(): clients with
         // overdue/unpaid/pending statements surface first, then paid-only,
         // then those with no statements. Kept in SQL so pagination is stable.
+        // When a quarter is selected, priorities are computed only within it.
         $priority = '(SELECT MAX(CASE b.status '
             ."WHEN '".Billing::STATUS_OVERDUE."' THEN 5 "
             ."WHEN '".Billing::STATUS_UNPAID."' THEN 4 "
             ."WHEN '".Billing::STATUS_PENDING."' THEN 3 "
             ."WHEN '".Billing::STATUS_PAID."' THEN 2 "
-            .'ELSE 1 END) FROM billings b WHERE b.client_id = users.id)';
+            .'ELSE 1 END) FROM billings b WHERE b.client_id = users.id';
+
+        if ($activeQuarter) {
+            $priority .= ' AND b.year = '.$activeQuarter->year.' AND b.quarter = '.$activeQuarter->quarter;
+        }
+
+        $priority .= ')';
 
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
-            ->with(['profile', 'billings'])
+            ->with(['profile', 'billings' => function ($query) use ($activeQuarter) {
+                if ($activeQuarter) {
+                    $query->where('year', $activeQuarter->year)
+                        ->where('quarter', $activeQuarter->quarter);
+                }
+            }])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
                         ->orWhere('business_name', 'like', "%{$q}%")
                         ->orWhere('email', 'like', "%{$q}%");
+                });
+            })
+            ->when($activeQuarter, function ($query) use ($activeQuarter) {
+                $query->whereHas('billings', function ($query) use ($activeQuarter) {
+                    $query->where('year', $activeQuarter->year)
+                        ->where('quarter', $activeQuarter->quarter);
                 });
             })
             ->orderByRaw("{$priority} DESC NULLS LAST")
@@ -73,6 +102,8 @@ class BillingController extends Controller
         return view('admin.billing.index', [
             'entries' => $clients,
             'q' => $q,
+            'activeQuarter' => $activeQuarter,
+            'availableQuarters' => Billing::filterQuarters(),
             'stats' => [
                 'billed' => (float) Billing::query()->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
                 'collected' => (float) Billing::query()->where('status', Billing::STATUS_PAID)->sum('total'),
@@ -80,6 +111,48 @@ class BillingController extends Controller
                 'overdue' => Billing::query()->where('status', Billing::STATUS_OVERDUE)->count(),
             ],
         ]);
+    }
+
+    /**
+     * When a GET filter request carries an empty "q" or "quarter" parameter
+     * (e.g. a bare search form submission), redirect to the clean equivalent
+     * URL so bookmarks/shared links never retain "?q=&quarter=" cruft. Invalid
+     * quarter keys are left untouched — they already fall back to "all".
+     */
+    private function canonicalBillingQuery(Request $request, string $q, ?Quarter $activeQuarter): ?RedirectResponse
+    {
+        $query = $request->query();
+
+        // Unexpected extra parameters: leave the URL alone to avoid data loss.
+        if (count(array_diff_key($query, array_flip(['q', 'quarter', 'page']))) > 0) {
+            return null;
+        }
+
+        // Empty query params arrive as '' before the request goes through the
+        // ConvertEmptyStringsToNull middleware, then become null afterward —
+        // treat both as empty.
+        $emptyFilterKey = collect($query)
+            ->filter(fn ($value) => $value === null || (is_string($value) && trim($value) === ''))
+            ->keys()
+            ->intersect(['q', 'quarter'])
+            ->isNotEmpty();
+
+        if (! $emptyFilterKey) {
+            return null;
+        }
+
+        $params = [];
+        if ($q !== '') {
+            $params['q'] = $q;
+        }
+        if ($activeQuarter) {
+            $params['quarter'] = $activeQuarter->key();
+        }
+        if (($page = $query['page'] ?? null) !== null && trim((string) $page) !== '') {
+            $params['page'] = $page;
+        }
+
+        return redirect()->route('admin.billing.index', $params ?: null);
     }
 
     public function show(User $client): View

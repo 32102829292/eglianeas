@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\Quarter;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class Billing extends Model
@@ -44,6 +47,36 @@ class Billing extends Model
     ];
 
     public const QUARTERS = [1 => '1st', 2 => '2nd', 3 => '3rd', 4 => '4th'];
+
+    /**
+     * The complete set of filterable calendar quarters for the admin billing
+     * and collections toolbars: Q1–Q4 for every year that has billing records,
+     * plus the current year, ordered newest first. Every quarter of a year is
+     * always offered so a sparse period (e.g. only Q4 finalized so far) can
+     * still be selected and will simply return empty results.
+     */
+    public static function filterQuarters(): Collection
+    {
+        $years = self::query()
+            ->whereNotNull('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($year): int => (int) $year)
+            ->push((int) now()->format('Y'))
+            ->unique()
+            ->sortByDesc(fn (int $year): int => $year)
+            ->values();
+
+        $quarters = new Collection;
+        foreach ($years as $year) {
+            for ($q = 4; $q >= 1; $q--) {
+                $quarters->push(new Quarter($year, $q));
+            }
+        }
+
+        return $quarters;
+    }
 
     protected $fillable = [
         'client_id',
@@ -141,6 +174,124 @@ class Billing extends Model
     public function isActive(): bool
     {
         return in_array($this->status, self::ACTIVE_STATUSES, true);
+    }
+
+    public function scopeActiveOnly(Builder $query): Builder
+    {
+        return $query->whereIn('status', self::ACTIVE_STATUSES);
+    }
+
+    /**
+     * Filters to billings issued within a specific calendar period. Uses the
+     * billing's own issued period (quarter + year) rather than any date.
+     */
+    public function scopeForPeriod(Builder $query, Quarter $period): Builder
+    {
+        return $query->where('year', $period->year)
+            ->where('quarter', $period->quarter);
+    }
+
+    /**
+     * Filters to billings that were actually PAID within a calendar period.
+     * The payment date (paid_at) drives the quarter here, not the bill period.
+     */
+    public function scopePaidDuring(Builder $query, Quarter $period): Builder
+    {
+        return $query->where('status', self::STATUS_PAID)
+            ->where('paid_at', '>=', $period->start())
+            ->where('paid_at', '<', $period->nextQuarterStart());
+    }
+
+    /**
+     * Distinct billing periods (year + quarter) across a client's active
+     * statements, newest period first.
+     */
+    public static function billedPeriodsFor(int $clientId): array
+    {
+        return self::query()
+            ->where('client_id', $clientId)
+            ->activeOnly()
+            ->whereNotNull('year')
+            ->whereNotNull('quarter')
+            ->select('year', 'quarter')
+            ->distinct()
+            ->orderByDesc('year')
+            ->orderByDesc('quarter')
+            ->get()
+            ->map(fn ($row) => new Quarter((int) $row->year, (int) $row->quarter))
+            ->all();
+    }
+
+    /**
+     * Distinct payment periods derived from the paid_at date of a client's paid
+     * billings, newest period first.
+     */
+    public static function paymentPeriodsFor(int $clientId): array
+    {
+        $paidAts = self::query()
+            ->where('client_id', $clientId)
+            ->where('status', self::STATUS_PAID)
+            ->whereNotNull('paid_at')
+            ->get(['paid_at']);
+
+        $quarters = [];
+        foreach ($paidAts as $billing) {
+            $quarter = Quarter::fromDate($billing->paid_at);
+            $quarters[$quarter->key()] = $quarter;
+        }
+        krsort($quarters);
+
+        return array_values($quarters);
+    }
+
+    /**
+     * The quarter the client's view should default to for an available set of
+     * periods: the current calendar quarter when it contains records, otherwise
+     * the most recent period with records. An explicit, strictly validated key
+     * wins — including the current quarter even when it has no records yet
+     * (it is always offered in the dropdown). Any other period the client has
+     * no records for falls back to the same default.
+     */
+    public static function resolveViewableQuarter(array $available, ?string $requested): Quarter
+    {
+        $candidate = Quarter::fromKey($requested);
+        $current = Quarter::current();
+
+        if ($candidate !== null) {
+            foreach ($available as $period) {
+                if ($period->equals($candidate)) {
+                    return $period;
+                }
+            }
+            if ($candidate->equals($current)) {
+                return $current;
+            }
+        }
+
+        foreach ($available as $period) {
+            if ($period->equals($current)) {
+                return $current;
+            }
+        }
+
+        return $available[0] ?? $current;
+    }
+
+    /**
+     * Quarter options for the client's period dropdown: the current calendar
+     * quarter first (even when it has no records yet), then every period with
+     * records, newest first.
+     */
+    public static function dropdownPeriods(array $available): array
+    {
+        $quarters = [Quarter::current()];
+        foreach ($available as $period) {
+            if (! $period->equals($quarters[0])) {
+                $quarters[] = $period;
+            }
+        }
+
+        return $quarters;
     }
 
     public function isOverdue(): bool

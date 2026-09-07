@@ -41,15 +41,15 @@
                 <div class="services-grid">
                     @foreach ($coreValues as $value)
                         <div class="service-card">
-                            <div class="service-icon" style="background:var(--sky-soft); color:var(--sky-deep);">
+                            <div class="service-icon service-icon--sky">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                             </div>
-                            <h3 style="font-size:15px;">{{ $value->label }}</h3>
+                            <h3>{{ $value->label }}</h3>
                         </div>
                     @endforeach
                 </div>
             @else
-                <p class="muted" style="margin-bottom:0;">No core values added yet.</p>
+                <p class="muted mb-0">No core values added yet.</p>
             @endif
         </div>
 
@@ -78,7 +78,7 @@
                     @endforeach
                 </div>
             @else
-                <p class="muted" style="margin-bottom:0;">No certificates uploaded yet.</p>
+                <p class="muted mb-0">No certificates uploaded yet.</p>
             @endif
         </div>
     @else
@@ -131,12 +131,12 @@
             </div>
         </form>
 
-        <div class="card" style="margin-top:20px;">
+        <div class="card mt-4">
             <div class="card-head">
                 <h2 class="card-title">Certificates</h2>
             </div>
             @if ($certificates->count())
-                <div class="cert-admin-grid" style="margin-bottom:20px;">
+                <div class="cert-admin-grid mb-4">
                     @foreach ($certificates as $cert)
                         <div class="cert-admin-item">
                             @if ($cert->isImage())
@@ -198,7 +198,7 @@
                     @endforeach
                 </div>
             @else
-                <p class="muted" style="margin-bottom:0;">No team members added yet.</p>
+                <p class="muted mb-0">No team members added yet.</p>
             @endif
         </div>
 @endsection

@@ -13,10 +13,6 @@
         <p>Create a new client account with login credentials.</p>
     </div>
 
-    @if (session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
-    @endif
-
     <div class="card">
         <div class="card-head">
             <h2 class="card-title">New client account</h2>

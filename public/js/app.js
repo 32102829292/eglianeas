@@ -199,6 +199,40 @@ var toastEl = null;
     if (e.key === 'Escape' && drawer && drawer.classList.contains('open')) setDrawer(false);
   });
 
+  /* ---------- Desktop sidebar scroll persistence ----------
+     The admin sidebar (.dash-nav) is an internally-scrolling column, and a
+     full-page navigation tears it down and re-creates it with scrollTop 0.
+     Persist its scrollTop to sessionStorage (per-tab, survives same-tab
+     navigations) as the user scrolls, flush on pagehide so the last position
+     is never lost, and restore it early on the next page via the small
+     <script> right after the <aside> in layouts/dashboard.blade.php (before
+     first paint). A load-time re-apply covers any font/reflow clamping. */
+  var NAV_SCROLL_KEY = 'egliane:dash-nav:scrollTop';
+  var sideNav = document.querySelector('.dash-nav');
+  var pendingNavSave = false;
+
+  function saveSideNavScroll() {
+    pendingNavSave = false;
+    if (!sideNav) return;
+    try { sessionStorage.setItem(NAV_SCROLL_KEY, String(sideNav.scrollTop)); } catch (e) {}
+  }
+
+  if (sideNav) {
+    sideNav.addEventListener('scroll', function () {
+      pendingNavSave = true;
+      clearTimeout(saveSideNavScroll._t);
+      saveSideNavScroll._t = setTimeout(saveSideNavScroll, 15);
+    }, { passive: true });
+    window.addEventListener('pagehide', function () {
+      if (pendingNavSave) saveSideNavScroll();
+    });
+    window.addEventListener('load', function () {
+      var top = -1;
+      try { top = parseInt(sessionStorage.getItem(NAV_SCROLL_KEY), 10); } catch (e) {}
+      if (top > 0) sideNav.scrollTop = top;
+    });
+  }
+
   /* ---------- Announcement dismiss ---------- */
   var annClose = document.getElementById('announcementClose');
   if (annClose) {

@@ -8,20 +8,30 @@ use App\Models\Billing;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use App\Support\Quarter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class CollectionController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         $status = $request->get('status');
+        $activeQuarter = Quarter::fromKey((string) $request->get('quarter'));
+
+        // Canonicalize empty filter params server-side (see BillingController).
+        if ($redirect = $this->canonicalCollectionQuery($request, $status, $activeQuarter)) {
+            return $redirect;
+        }
 
         $billings = Billing::query()
             ->with('client')
             ->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
             ->when($status, fn ($query, $value) => $query->where('status', $value))
+            ->when($activeQuarter, fn ($query) => $query
+                ->where('year', $activeQuarter->year)
+                ->where('quarter', $activeQuarter->quarter))
             ->orderByRaw('due_date IS NULL')
             ->orderBy('due_date')
             ->orderByDesc('id')
@@ -33,6 +43,8 @@ class CollectionController extends Controller
         return view('admin.collections.index', [
             'billings' => $billings,
             'statuses' => Billing::STATUSES,
+            'activeQuarter' => $activeQuarter,
+            'availableQuarters' => Billing::filterQuarters(),
             'stats' => [
                 'outstanding' => (float) $all->sum('total'),
                 'overdueCount' => $all->where('status', Billing::STATUS_OVERDUE)->count(),
@@ -43,6 +55,46 @@ class CollectionController extends Controller
             ],
             'activeStatus' => $status,
         ]);
+    }
+
+    /**
+     * Redirect empty "quarter"/"status" GET params to the clean equivalent URL
+     * so filters never persist "?status=" cruft in address bars and links.
+     */
+    private function canonicalCollectionQuery(Request $request, mixed $status, ?Quarter $activeQuarter): ?RedirectResponse
+    {
+        $query = $request->query();
+
+        // Unexpected extra parameters: leave the URL alone to avoid data loss.
+        if (count(array_diff_key($query, array_flip(['quarter', 'status', 'page']))) > 0) {
+            return null;
+        }
+
+        // Empty query params arrive as '' before the request goes through the
+        // ConvertEmptyStringsToNull middleware, then become null afterward —
+        // treat both as empty.
+        $emptyFilterKey = collect($query)
+            ->filter(fn ($value) => $value === null || (is_string($value) && trim($value) === ''))
+            ->keys()
+            ->intersect(['quarter', 'status'])
+            ->isNotEmpty();
+
+        if (! $emptyFilterKey) {
+            return null;
+        }
+
+        $params = [];
+        if ($activeQuarter) {
+            $params['quarter'] = $activeQuarter->key();
+        }
+        if (is_string($status) && $status !== '') {
+            $params['status'] = $status;
+        }
+        if (($page = $query['page'] ?? null) !== null && trim((string) $page) !== '') {
+            $params['page'] = $page;
+        }
+
+        return redirect()->route('admin.collections.index', $params ?: null);
     }
 
     public function remind(Billing $billing): RedirectResponse

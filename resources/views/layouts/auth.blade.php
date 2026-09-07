@@ -6,14 +6,14 @@
 
     <div class="auth-card {{ $cardClass ?? '' }}">
         <a href="{{ route('home') }}" class="auth-brand">
-            <img src="/images/logo-icon.png" alt="Egliane Accounting Services logo" style="width:120px;height:auto;border-radius:0;">
+            <img src="/images/logo-icon.png" alt="Egliane Accounting Services logo">
         </a>
 
         @yield('content')
         {{ $slot ?? '' }}
     </div>
 
-    <script src="/js/app.js?v=4" defer></script>
+    <script src="/js/app.js?v=5" defer></script>
     <script src="/js/auth.js?v=2" defer></script>
     @stack('scripts')
 </body>

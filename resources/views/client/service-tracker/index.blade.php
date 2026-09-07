@@ -38,7 +38,7 @@
         <div class="card-head">
             <h2 class="card-title">Your services</h2>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="thead-muted">
                     <tr>
@@ -52,29 +52,42 @@
                 <tbody>
                     @forelse ($instances as $instance)
                         <tr>
-                            <td class="fw-semibold">{{ $instance->service?->name }}</td>
-                            <td class="text-center">
+                            <td data-col="Service" class="fw-semibold">{{ $instance->service?->name }}</td>
+                            <td data-col="Status" class="text-center">
                                 @php($s = $instance->status)
                                 <span class="badge {{ $s === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span>
                                 @if ($instance->assignments->count())
                                     <div><small class="muted">{{ $instance->completionPercent() }}% complete</small></div>
                                 @endif
                             </td>
-                            <td>
+                            <td data-col="Staff">
                                 @forelse ($instance->assignments as $a)
                                     <span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->displayName() }} {{ $a->completed ? '✓' : '○' }}</span>
                                 @empty
                                     <span class="muted">—</span>
                                 @endforelse
                             </td>
-                            <td>{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
-                            <td>{{ $instance->notes ? Str::limit($instance->notes, 40) : '—' }}</td>
+                            <td data-col="Started">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Notes">{{ $instance->notes ? Str::limit($instance->notes, 40) : '—' }}</td>
                         </tr>
                     @empty
                         <tr><td colspan="5" class="empty-cell">No services tracked yet.</td></tr>
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($instances as $instance)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value fw-semibold">{{ $instance->service?->name }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge {{ $instance->status === 'done' ? 'badge-success' : 'badge-warn' }}">{{ $instance->statusLabel() }}</span> @if ($instance->assignments->count())<small class="muted">{{ $instance->completionPercent() }}% complete</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Staff</span><span class="cv-value">@forelse ($instance->assignments as $a)<span class="badge {{ $a->completed ? 'badge-success' : 'badge-neutral' }}">{{ $a->displayName() }} {{ $a->completed ? '✓' : '○' }}</span>@empty<span class="muted">—</span>@endforelse</span></div>
+                        <div class="cv-row"><span class="cv-label">Started</span><span class="cv-value">{{ $instance->date_started?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Notes</span><span class="cv-value">{{ $instance->notes ? Str::limit($instance->notes, 40) : '—' }}</span></div>
+                    </div>
+                @empty
+                    <p class="cv-card cv-empty">No services tracked yet.</p>
+                @endforelse
+            </div>
         </div>
         {{ $instances->links('pagination.simple') }}
     </div>

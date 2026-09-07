@@ -43,20 +43,40 @@
     </div>
 
     <div class="filter-bar">
-        <form method="GET" action="{{ route('admin.collections.index') }}">
-            <select name="status" onchange="this.form.submit()">
-                <option value="">All statuses</option>
-                @foreach (['pending' => 'Pending', 'unpaid' => 'Unpaid', 'overdue' => 'Overdue'] as $value => $label)
-                    <option value="{{ $value }}" @selected($activeStatus === $value)>{{ $label }}</option>
-                @endforeach
-            </select>
+        <form id="collections-filter" method="GET" action="{{ route('admin.collections.index') }}">
+            <label class="toolbar-field">
+                <span class="toolbar-label">Quarter</span>
+                <select name="quarter" class="toolbar-select" aria-label="Filter by quarter">
+                    <option value="">All quarters</option>
+                    @foreach ($availableQuarters as $quarter)
+                        <option value="{{ $quarter->key() }}" @selected($activeQuarter?->equals($quarter))>{{ $quarter->label() }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <label class="toolbar-field">
+                <span class="toolbar-label">Status</span>
+                <select name="status" class="toolbar-select" aria-label="Filter by status">
+                    <option value="">All statuses</option>
+                    @foreach (['pending' => 'Pending', 'unpaid' => 'Unpaid', 'overdue' => 'Overdue'] as $value => $label)
+                        <option value="{{ $value }}" @selected($activeStatus === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </label>
             <button type="submit" class="btn btn-outline btn-sm">Filter</button>
         </form>
     </div>
 
     <div class="card">
         <div class="table-wrap table-card-view">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 collections-table">
+                <colgroup>
+                    <col class="col-business">
+                    <col class="col-period">
+                    <col class="col-total">
+                    <col class="col-status">
+                    <col class="col-due">
+                    <col class="col-actions">
+                </colgroup>
                 <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
@@ -64,7 +84,7 @@
                         <th class="text-end">Total</th>
                         <th class="text-center">Status</th>
                         <th>Due date</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -78,31 +98,18 @@
                                 <div class="fw-semibold">{{ $billing->periodTitleUppercase() }} BILLING</div>
                                 <small class="muted">{{ $billing->period_label }}</small>
                             </td>
-                            <td class="text-end fw-semibold" data-col="Total">{{ $billing->money($billing->total) }}</td>
-                            <td class="text-center" data-col="Status">
-                                @php($s = $billing->status)
-                                <span class="badge @if($s==='paid') badge-success @elseif($s==='unpaid') badge-danger @elseif($s==='overdue') badge-danger @elseif($s==='pending') badge-warn @else badge-neutral @endif">{{ $billing->statusLabel() }}</span>
+                            <td class="text-end fw-semibold td-money" data-col="Total">{{ $billing->money($billing->total) }}</td>
+                            <td class="text-center td-status" data-col="Status">
+                                <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>
                             </td>
-                            <td data-col="Due date">
+                            <td class="td-due" data-col="Due date">
                                 {{ $billing->due_date?->format('M j, Y') ?? '—' }}
                                 @if ($billing->status === 'overdue')
                                     <div><small class="text-danger">{{ $billing->due_date?->diffForHumans() }}</small></div>
                                 @endif
                             </td>
-                            <td class="text-end" data-col="Actions">
-                                <a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a>
-                                <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">
-                                    @csrf
-                                    <button type="submit" class="btn btn-link btn-sm">Send reminder</button>
-                                </form>
-                                @if (auth()->user()->isAdmin())
-                                    <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">
-                                        @csrf
-                                        <input type="hidden" name="status" value="paid">
-                                        <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid">
-                                        <button type="submit" class="btn btn-link btn-sm">Mark paid</button>
-                                    </form>
-                                @endif
+                            <td class="col-actions" data-col="Actions">
+                                @include('admin.collections._row-actions', ['billing' => $billing, 'menuType' => 'table'])
                             </td>
                         </tr>
                     @empty
@@ -116,9 +123,11 @@
                         <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $billing->client?->business_name ?: $billing->client?->name }}</span></div>
                         <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
                         <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $billing->statusLabel() }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline-primary btn-sm">View receipt</a> <form method="POST" action="{{ route('admin.collections.remind', $billing) }}" class="d-inline">@csrf <button type="submit" class="btn btn-link btn-sm">Send reminder</button></form> @if (auth()->user()->isAdmin()) <form method="POST" action="{{ route('admin.billing.pay', $billing) }}" class="d-inline-flex align-items-center gap-1">@csrf <input type="hidden" name="status" value="paid"> <input type="date" name="paid_at" class="form-control form-control-sm" style="width:auto" value="{{ old('paid_at', now()->format('Y-m-d')) }}" title="Date paid" aria-label="Date paid"> <button type="submit" class="btn btn-link btn-sm">Mark paid</button></form> @endif</span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Actions</span><span class="cv-value">
+                            @include('admin.collections._row-actions', ['billing' => $billing, 'menuType' => 'card'])
+                        </span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">Nothing to collect right now.</p>
@@ -128,3 +137,61 @@
         {{ $billings->links('pagination.simple') }}
     </div>
 @endsection
+
+@push('scripts')
+<script>
+    document.getElementById('collections-filter').addEventListener('submit', function (e) {
+        var quarter = this.elements.namedItem('quarter');
+        if (quarter && !quarter.value) quarter.disabled = true;
+        var status = this.elements.namedItem('status');
+        if (status && !status.value) status.disabled = true;
+    });
+
+    (function () {
+        var menus = Array.prototype.slice.call(document.querySelectorAll('.more-menu'));
+
+        function closeAll(except) {
+            menus.forEach(function (menu) {
+                if (menu === except) return;
+                menu.style.display = 'none';
+                var btn = document.getElementById(menu.getAttribute('aria-labelledby'));
+                if (btn) btn.setAttribute('aria-expanded', 'false');
+            });
+        }
+
+        function setPos(menu) {
+            var rect = menu.getBoundingClientRect();
+            menu.classList.toggle('dropdown-menu--up', rect.bottom > window.innerHeight - 8);
+        }
+
+        document.addEventListener('click', function (e) {
+            var toggle = e.target.closest('[data-dropdown]');
+            if (toggle) {
+                var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+                if (!menu) return;
+                var willOpen = menu.style.display !== 'block';
+                closeAll(menu);
+                if (willOpen) {
+                    menu.style.display = 'block';
+                    toggle.setAttribute('aria-expanded', 'true');
+                    setPos(menu);
+                } else {
+                    menu.style.display = 'none';
+                    toggle.setAttribute('aria-expanded', 'false');
+                }
+                return;
+            }
+            if (e.target.closest('.dropdown-menu')) return;
+            closeAll();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeAll();
+        });
+
+        window.addEventListener('resize', function () {
+            closeAll();
+        });
+    })();
+</script>
+@endpush

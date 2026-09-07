@@ -38,7 +38,7 @@
         <div class="card-head">
             <h2 class="card-title">Service requests</h2>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0">
                 <thead class="thead-muted">
                     <tr>
@@ -52,18 +52,18 @@
                 <tbody>
                     @forelse ($services as $service)
                         <tr>
-                            <td>
+                            <td data-col="Service">
                                 <div class="cell-name">{{ $service->serviceName() }}</div>
                                 @if ($service->notes)
                                     <small class="muted">{{ Str::limit($service->notes, 60) }}</small>
                                 @endif
                             </td>
-                            <td>{{ $service->requested_at?->format('M j, Y') ?? '—' }}</td>
-                            <td class="text-end fw-semibold">₱{{ number_format($service->amount, 2) }}</td>
-                            <td class="text-center">
+                            <td data-col="Date requested">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Amount" class="text-end fw-semibold">₱{{ number_format($service->amount, 2) }}</td>
+                            <td data-col="Status" class="text-center">
                                 <span class="badge badge-{{ $service->status }}">{{ $service->statusLabel() }}</span>
                             </td>
-                            <td class="text-end">
+                            <td data-col="Statement" class="text-end">
                                 <a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a>
                             </td>
                         </tr>
@@ -72,6 +72,19 @@
                     @endforelse
                 </tbody>
             </table>
+            <div class="card-view-list">
+                @forelse ($services as $service)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value"><div class="cell-name">{{ $service->serviceName() }}</div>@if ($service->notes)<small class="muted">{{ Str::limit($service->notes, 60) }}</small>@endif</span></div>
+                        <div class="cv-row"><span class="cv-label">Date requested</span><span class="cv-value">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value fw-semibold">₱{{ number_format($service->amount, 2) }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $service->status }}">{{ $service->statusLabel() }}</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Statement</span><span class="cv-value"><a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a></span></div>
+                    </div>
+                @empty
+                    <p class="cv-card cv-empty">No service requests yet.</p>
+                @endforelse
+            </div>
         </div>
         {{ $services->links('pagination.simple') }}
     </div>

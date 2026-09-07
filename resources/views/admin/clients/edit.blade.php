@@ -29,10 +29,6 @@
         <p>{{ $client->business_name ?: $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
     </div>
 
-    @if (session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
-    @endif
-
     <form method="POST" action="{{ route('admin.clients.update', $client) }}" id="clientEditForm">
         @csrf
         @method('PUT')

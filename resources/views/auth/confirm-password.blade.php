@@ -1,4 +1,8 @@
-<x-guest-layout>
+@extends('layouts.auth')
+
+@section('title', 'Confirm Password — Egliane Accounting Services')
+
+@section('content')
     <h1 class="auth-title">Confirm your password</h1>
     <p class="auth-sub">This is a secure area of the app. Please confirm your password to continue.</p>
 
@@ -9,6 +13,6 @@
             <input class="form-control" id="password" type="password" name="password" required autocomplete="current-password">
             @error('password')<div class="form-error">{{ $message }}</div>@enderror
         </div>
-        <button type="submit" class="btn btn-primary btn-block mt-2">Confirm</button>
+        <button type="submit" class="btn btn-primary btn-block mt-4">Confirm</button>
     </form>
-</x-guest-layout>
+@endsection

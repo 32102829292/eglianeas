@@ -64,7 +64,7 @@
                             </form>
                         </div>
                     @empty
-                        <p class="muted" style="margin:0;">No presets yet.</p>
+                        <p class="muted empty-note m-0">No presets yet.</p>
                     @endforelse
                 </div>
 
