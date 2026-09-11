@@ -164,13 +164,27 @@
                 @forelse ($entries as $entry)
                     @php($client = $entry['user'])
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></span></div>
-                        <div class="cv-row"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">{{ $entry['status'] === 'none' ? 'No billing statements' : (App\Models\Billing::STATUSES[$entry['status']] ?? ucfirst($entry['status'])) }}</span></div>
-                        <div class="cv-row cv-actions"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline btn-sm">Open billing statement</a></span></div>
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
+                                <div class="cv-head-sub">{{ $client->profile?->line_of_business ?? '—' }}{{ $client->client_code ? ' · '.$client->client_code : '' }}</div>
+                            </div>
+                            @if ($entry['status'] === 'none')
+                                <span class="badge badge-neutral">No billing statements</span>
+                            @else
+                                @php($s = $entry['status'])
+                                <span class="badge badge-{{ $s }}">{{ App\Models\Billing::STATUSES[$s] ?? ucfirst($s) }}</span>
+                            @endif
+                        </div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link contact-email">{{ $client->email }}</a></span></div>
+                            <div class="cv-pair"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
+                        </div>
+                        <div class="cv-card-actions">
+                            <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-primary btn-sm row-action">Open billing statement</a>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>

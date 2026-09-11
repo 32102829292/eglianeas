@@ -60,12 +60,21 @@
                 @forelse ($clients as $entry)
                     @php($client = $entry['user'])
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Client Code</span><span class="cv-value">{{ $client->client_code ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">BIR Forms</span><span class="cv-value">{{ $entry['filed'] }}/{{ $entry['total'] }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Softcopies</span><span class="cv-value">{{ $entry['softcopies'] }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline btn-sm">Open</a></span></div>
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
+                                <div class="cv-head-sub">{{ $client->profile?->line_of_business ?? '—' }}{{ $client->client_code ? ' · '.$client->client_code : '' }}</div>
+                            </div>
+                            <span class="badge @if($entry['filed'] > 0) badge-success @else badge-neutral @endif">{{ $entry['filed'] }}/{{ $entry['total'] }}</span>
+                        </div>
+                        <div class="cv-card-body wide">
+                            <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></span></div>
+                            <div class="cv-pair"><span class="cv-label">BIR Forms</span><span class="cv-value">{{ $entry['filed'] }}/{{ $entry['total'] }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">Softcopies</span><span class="cv-value">{{ $entry['softcopies'] }}</span></div>
+                        </div>
+                        <div class="cv-card-actions">
+                            <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-primary btn-sm">Open</a>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>

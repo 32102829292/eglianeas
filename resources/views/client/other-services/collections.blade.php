@@ -77,7 +77,7 @@
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value">{{ $service->money() }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $service->status }}">{{ $service->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $service->paid_at?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value">@if ($service->isPaid())<a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Receipt</span><span class="cv-value">@if ($service->isPaid())<a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a>@else<span class="muted">—</span>@endif</span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No service records yet.</p>

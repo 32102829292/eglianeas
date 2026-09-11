@@ -79,7 +79,7 @@
                         <div class="cv-row"><span class="cv-label">Total payment</span><span class="cv-value fw-semibold">{{ $billing->money($billing->total) }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
                         <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Receipt</span><span class="cv-value"><a href="{{ route('client.billing.show', $billing) }}?from=collections" class="btn btn-outline btn-sm">View receipt</a></span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Receipt</span><span class="cv-value"><a href="{{ route('client.billing.show', $billing) }}?from=collections" class="btn btn-outline btn-sm">View receipt</a></span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No payments were recorded for this quarter.</p>

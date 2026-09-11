@@ -2,10 +2,11 @@
     <div class="container">
         <div class="footer-grid">
             <div class="footer-brand">
-                <a href="{{ route('home') }}" class="brand">
-                    <img src="/images/logo-icon.png" alt="Egliane logo" class="brand-logo">
+                <a href="{{ route('home') }}" class="brand" aria-label="Egliane Accounting Services — Home">
+                    <img src="{{ asset('images/logo-icon.png') }}" alt="" class="brand-logo">
                     <span class="brand-name">Egliane Accounting Services</span>
                 </a>
+                <span class="footer-tagline">Bookkeeping &middot; Tax &middot; Payroll</span>
                 <p>Trusted bookkeeping and accounting services for growing businesses. We handle your numbers so you can grow your business.</p>
             </div>
 
@@ -14,8 +15,8 @@
                 <ul>
                     <li><a href="{{ route('home') }}#services">Services</a></li>
                     <li><a href="{{ route('home') }}#about">About</a></li>
-                    <li><a href="{{ route('login') }}">Login</a></li>
-                    <li><a href="{{ route('register') }}">Sign Up</a></li>
+                    <li><a href="{{ route('home') }}#contact">Contact</a></li>
+                    <li><a href="{{ route('help') }}">Help</a></li>
                     <li><a href="{{ route('terms') }}">Terms &amp; Confidentiality</a></li>
                 </ul>
             </div>
@@ -31,23 +32,15 @@
             </div>
 
             <div class="footer-col">
-                <h4>Contact</h4>
-                <ul class="footer-contact">
+                <h4>Get Started</h4>
+                <ul>
+                    <li><a href="{{ route('login') }}">Log In</a></li>
+                    <li><a href="{{ route('register') }}">Sign Up</a></li>
                     <li>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.08 4.18 2 2 0 0 1 4.06 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        <span><a href="tel:+639765841391">0976 584 1391</a></span>
+                        <a href="{{ config('contact.facebook_url') }}" target="_blank" rel="noopener noreferrer">Facebook Page</a>
                     </li>
                     <li>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                        <span><a href="mailto:eglianeas2017@gmail.com">eglianeas2017@gmail.com</a></span>
-                    </li>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M24 12.073C24 5.414 18.627.036 12 .036S0 5.414 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.026 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-                        <span><a href="{{ config('contact.facebook_url') }}" target="_blank" rel="noopener noreferrer">Egliane Accounting Service Facebook</a></span>
-                    </li>
-                    <li>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-                        <span><a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener">Egliane Accounting Service Messenger</a></span>
+                        <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener">Messenger</a>
                     </li>
                 </ul>
             </div>

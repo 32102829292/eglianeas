@@ -145,42 +145,48 @@
                 @forelse ($clients as $entry)
                     @php($client = $entry['user'])
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $client->business_name ?: $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $entry['status']){{ $statuses[$s] ?? $s }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Payment</span><span class="cv-value">{{ $entry['payment_status'] ? ucfirst($entry['payment_status']) : '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Outstanding</span><span class="cv-value">{{ $entry['outstanding'] > 0 ? '₱'.number_format($entry['outstanding'], 2) : '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">
-                            <div class="client-actions">
-                                <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-primary btn-sm">Open client</a>
-                                <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-outline btn-sm">Edit</a>
-                                <span class="actions-divider"></span>
-                                <div class="dropdown-wrap">
-                                    <button type="button" class="btn btn-outline btn-sm icon-btn" data-dropdown="client-more-{{ $client->id }}-c" aria-label="More actions" title="More actions">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
-                                    </button>
-                                    <div class="dropdown-menu" id="client-more-{{ $client->id }}-c">
-                                        <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
-                                            @csrf
-                                            <button type="submit" class="dropdown-item btn-item">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                                Login as client
-                                            </button>
-                                        </form>
-                                        <div class="dropdown-divider"></div>
-                                        <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this client?', message: 'Are you sure you want to delete this client? This action can be undone by support.', danger: true, confirmLabel: 'Delete' });">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="dropdown-item btn-item dropdown-item-danger">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                                Delete client
-                                            </button>
-                                        </form>
-                                    </div>
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
+                                <div class="cv-head-sub">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}{{ $entry['profile']?->tin_no ? ' · TIN '.$maskTin($entry['profile']->tin_no) : '' }}</div>
+                            </div>
+                            @php($s = $entry['status'])
+                            <span class="badge @if($s==='current') badge-success @elseif($s==='delinquent') badge-warn @elseif($s==='critical') badge-danger @else badge-neutral @endif">{{ $statuses[$s] ?? $s }}</span>
+                        </div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></span></div>
+                            <div class="cv-pair"><span class="cv-label">Payment</span><span class="cv-value">@if ($entry['payment_status'])@php($p = $entry['payment_status'])<span class="badge @if($p==='paid') badge-success @elseif($p==='unpaid') badge-danger @elseif($p==='partial') badge-warn @else badge-neutral @endif">{{ ucfirst($p) }}</span>@else<span class="muted">—</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
+                        </div>
+                        <div class="cv-card-actions">
+                            <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-primary btn-sm">Open client</a>
+                            <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-outline btn-sm">Edit</a>
+                            <span class="actions-divider"></span>
+                            <div class="dropdown-wrap">
+                                <button type="button" class="btn btn-outline btn-sm icon-btn" data-dropdown="client-more-{{ $client->id }}-c" aria-label="More actions" title="More actions">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                                </button>
+                                <div class="dropdown-menu" id="client-more-{{ $client->id }}-c">
+                                    <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
+                                        @csrf
+                                        <button type="submit" class="dropdown-item btn-item">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                            Login as client
+                                        </button>
+                                    </form>
+                                    <div class="dropdown-divider"></div>
+                                    <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this client?', message: 'Are you sure you want to delete this client? This action can be undone by support.', danger: true, confirmLabel: 'Delete' });">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="dropdown-item btn-item dropdown-item-danger">
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                            Delete client
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
-                        </span></div>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>

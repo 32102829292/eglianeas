@@ -19,20 +19,12 @@ class OtherServiceController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $all = $user->otherServices()->get();
-        $summary = $all->reduce(
-            function (array $carry, OtherService $service): array {
-                $carry['billed'] += (float) $service->amount;
-                if ($service->isPaid()) {
-                    $carry['paid'] += (float) $service->amount;
-                } else {
-                    $carry['outstanding'] += (float) $service->amount;
-                }
-
-                return $carry;
-            },
-            ['billed' => 0.0, 'paid' => 0.0, 'outstanding' => 0.0]
-        );
+        $all = $user->otherServices();
+        $summary = [
+            'billed' => (float) $all->clone()->sum('amount'),
+            'paid' => (float) $all->clone()->where('status', OtherService::STATUS_PAID)->sum('amount'),
+            'outstanding' => (float) $all->clone()->where('status', '!=', OtherService::STATUS_PAID)->sum('amount'),
+        ];
 
         return view('client.other-services.billing', [
             'services' => $services,

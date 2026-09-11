@@ -28,8 +28,9 @@ class BirFormsController extends Controller
                 });
             })
             ->orderBy('business_name')
-            ->get()
-            ->map(function (User $client): array {
+            ->paginate(50)
+            ->withQueryString()
+            ->through(function (User $client): array {
                 $statuses = $client->birFormStatuses->pluck('applicable', 'form_type');
                 $applicableCount = $statuses->filter()->count();
 

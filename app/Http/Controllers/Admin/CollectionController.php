@@ -38,7 +38,7 @@ class CollectionController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $all = Billing::query()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->get();
+        $statsQuery = Billing::query()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE]);
 
         return view('admin.collections.index', [
             'billings' => $billings,
@@ -46,12 +46,14 @@ class CollectionController extends Controller
             'activeQuarter' => $activeQuarter,
             'availableQuarters' => Billing::filterQuarters(),
             'stats' => [
-                'outstanding' => (float) $all->sum('total'),
-                'overdueCount' => $all->where('status', Billing::STATUS_OVERDUE)->count(),
-                'dueSoon' => $all->filter(fn (Billing $billing) => $billing->status === Billing::STATUS_UNPAID
-                    && $billing->due_date !== null
-                    && $billing->due_date->lte(now()->addDays(7)))->count(),
-                'pendingCount' => $all->where('status', Billing::STATUS_PENDING)->count(),
+                'outstanding' => (float) $statsQuery->clone()->sum('total'),
+                'overdueCount' => $statsQuery->clone()->where('status', Billing::STATUS_OVERDUE)->count(),
+                'dueSoon' => $statsQuery->clone()
+                    ->where('status', Billing::STATUS_UNPAID)
+                    ->whereNotNull('due_date')
+                    ->where('due_date', '<=', now()->addDays(7))
+                    ->count(),
+                'pendingCount' => $statsQuery->clone()->where('status', Billing::STATUS_PENDING)->count(),
             ],
             'activeStatus' => $status,
         ]);

@@ -37,15 +37,20 @@
 .dash-topbar .brand-name small { color: rgba(255,255,255,.55); font-size: 10px; }
 .dash-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .ios-install-tip {
-  position: relative;
-  max-width: 260px;
+  position: fixed;
+  top: calc(64px + env(safe-area-inset-top) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(92vw, 340px);
+  max-width: 92vw;
   background: #fff;
   color: #1B1B3A;
   border-radius: 12px;
   padding: 12px 34px 12px 14px;
   font-size: 12px;
   line-height: 1.45;
-  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  box-shadow: 0 12px 32px rgba(0,0,0,.3);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -70,17 +75,6 @@
 }
 .ios-install-tip-close:hover { background: #EEF2F7; color: #1B1B3A; }
 .ios-install-tip-close svg { width: 12px; height: 12px; }
-@media (max-width: 900px) {
-  .ios-install-tip {
-    position: fixed;
-    top: calc(64px + env(safe-area-inset-top) + 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    width: min(92vw, 340px);
-    max-width: 92vw;
-    box-shadow: 0 12px 32px rgba(0,0,0,.3);
-  }
-}
 .dash-user-chip {
   display: flex;
   align-items: center;
@@ -1944,3 +1938,667 @@ button.staff-chip:active { transform: translateY(1px); }
 .nav-support-head svg { width: 15px; height: 15px; color: var(--sky-deep); flex: 0 0 15px; }
 .nav-support-card p { margin: 0; font-size: 11.5px; color: var(--text-muted); line-height: 1.45; }
 .nav-support-card .btn { align-self: flex-start; }
+
+/* ============================================================
+   RESPONSIVE POLISH (v12) — mobile-first tuning across the app
+   Scoped, additive rules only. Loaded after Bootstrap + app.css.
+   ============================================================ */
+
+/* Card-view action rows get a light dashed separator so primary actions
+   read as a distinct tap zone inside each mobile card. */
+.table-card-view .cv-card .cv-row.cv-actions {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+/* Mobile drawer needs breathing room above the iOS home indicator. */
+.dash-drawer { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+/* Touch/tap sizing + full-bleed action rows on phones */
+@media (max-width: 560px) {
+  /* Inputs at 16px prevent iOS Safari auto-zoom on focus */
+  .form-control,
+  .form-control-inline,
+  .page-search input,
+  .filter-bar select,
+  .filter-bar input,
+  .toolbar-select,
+  .search-combo input,
+  .quarter-filter-select,
+  .log-search-input,
+  .chat-input-row input,
+  .hold-input { font-size: 16px; }
+
+  /* Compact icon buttons reach comfortable touch size */
+  .more-btn { width: 44px; height: 44px; flex-basis: 44px; border-radius: 10px; }
+  .bir-toggle { width: 42px; height: 42px; border-radius: 10px; }
+  .dash-help-btn { width: 44px; height: 44px; }
+
+  /* Dropdown menu touch targets */
+  .dropdown-item { padding: 12px 14px; }
+  .more-menu .dropdown-item { min-height: 44px; display: flex; align-items: center; }
+
+  /* Pagination links — roomier tap zones */
+  .pagination .page-link { padding: 10px 14px; font-size: 14px; }
+
+  /* Page header rows stack: title block then full-width action group */
+  .page-head-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .page-head-actions { width: 100%; }
+  .page-head-actions .btn { flex: 1 1 auto; min-width: 0; }
+
+  /* Stacked action bars bottom-align so nothing floats mid-card */
+  .form-actions .btn { flex: 1 1 140px; min-height: 44px; }
+}
+
+@media (max-width: 480px) {
+  .form-actions .btn { flex: 1 1 100%; min-width: 0; min-height: 44px; }
+}
+
+/* Native vertical overscroll keeps rubber-banding; only horizontal bleed is
+   clipped. This is a safety net on top of the per-layout fixes so one wide
+   element can never push the whole page sideways on a phone. */
+.dash-body { overflow-x: clip; }
+
+/* ============================================================
+   RESPONSIVE POLISH (v13) — very-narrow screens + action ergonomics
+   ============================================================ */
+
+/* --- Reusable mobile full-width action group ---
+   Use on card/panel footers, filter bars, and modal footers that hold 2+
+   buttons. On phones every button becomes a full-width 44px+ touch target
+   stacked vertically; on tablets they wrap onto the same row. */
+.action-group-stack { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.action-group-stack .btn,
+.action-group-stack .form-control,
+.action-group-stack select,
+.action-group-stack input[type="date"] {
+  min-height: 44px;
+}
+@media (max-width: 480px) {
+  .action-group-stack { flex-direction: column; align-items: stretch; }
+  .action-group-stack .btn,
+  .action-group-stack .form-control,
+  .action-group-stack select,
+  .action-group-stack input[type="date"] {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}
+
+/* --- Admin "Mark paid" sub-form: stack on phones so the date field is not
+   squashed next to the button (touch-friendly) --- */
+@media (max-width: 480px) {
+  .menu-pay-row { flex-direction: column; align-items: stretch; }
+  .menu-pay-row .form-control { width: 100%; }
+  .menu-pay-row .btn { width: 100%; }
+}
+
+/* --- Very narrow topbar: keep brand + bell/help/user/logout in one row and
+   prevent the right cluster from overflowing at 375px. The wordmark shrinks
+   at ≤414px and is dropped below 380px where the icon alone is enough. --- */
+@media (max-width: 414px) {
+  .dash-topbar-inner { gap: 6px; padding: 0 8px; }
+  .dash-topbar .brand-name { font-size: 13px; }
+  .dash-topbar-right { gap: 6px; }
+  .dash-user-chip { padding: 3px; }
+  .dash-user-chip .avatar { width: 26px; height: 26px; }
+}
+
+@media (max-width: 379px) {
+  .dash-topbar .brand-name { display: none; }
+  .dash-topbar .brand-logo { height: 28px; flex-basis: 28px; }
+}
+
+/* Modals become bottom-sheets on narrow screens (tall survey modals etc.).
+   The card is capped to the viewport minus a consistent 24px gutter so it can
+   never touch the screen edges or exceed the visible area, and scrolls
+   internally while the page behind stays locked. */
+@media (max-width: 560px) {
+  .modal { align-items: flex-end; padding: 12px; }
+  .modal-card {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    border-radius: 18px 18px 0 0;
+    padding: 22px 18px max(22px, env(safe-area-inset-bottom));
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================================================
+   RESPONSIVE REDESIGN (v15) — tables on desktop, cards on phones
+   Reusable mobile-card component upgrade. Additive + scoped; loads
+   after Bootstrap + app.css + the v12/v13 polish layers.
+   ============================================================ */
+
+/* Convert to cards across the whole phone range (was ≤640px).
+   Tablets (768–1023) keep the table with an internal scroll wrapper. */
+@media (max-width: 767px) {
+  .table-card-view { border: none; box-shadow: none; overflow: visible; }
+  .table-card-view table { display: none; }
+  .table-card-view .card-view-list { display: flex; flex-direction: column; gap: 12px; }
+  .table-card-view .card-view-empty { display: block; }
+}
+
+/* ---------- Card anatomy: header / body / actions ---------- */
+/* Cards never clip their content or footers. */
+.table-card-view .cv-card { overflow: visible; }
+
+/* Header: title + subtitle line left, status badge right. */
+.table-card-view .cv-card-head {
+  display: flex; align-items: center; gap: 12px;
+  margin: -14px -16px 0; padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.table-card-view .cv-head-main { flex: 1 1 auto; min-width: 0; }
+.table-card-view .cv-card-head .avatar { flex: 0 0 auto; }
+.table-card-view .cv-head-title { font-size: 16px; font-weight: 800; color: var(--navy); line-height: 1.25; word-break: break-word; }
+.table-card-view .cv-head-sub { margin-top: 3px; font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.table-card-view .cv-card-head .badge { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+
+/* Body: 2-column definition pairs; single column on tiny phones. */
+.table-card-view .cv-card-body {
+  margin: 0 -16px; padding: 12px 16px 14px;
+  display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px;
+}
+.table-card-view .cv-card-body.wide { grid-template-columns: 1fr; }
+.table-card-view .cv-pair { min-width: 0; padding: 7px 0; }
+.table-card-view .cv-pair.cv-full { grid-column: 1 / -1; }
+.table-card-view .cv-pair .cv-label {
+  display: block; font-size: 11px; font-weight: 700; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px;
+}
+.table-card-view .cv-pair .cv-value {
+  display: block; font-weight: 600; color: #334155; font-size: 14px;
+  word-break: break-word; overflow-wrap: anywhere;
+}
+@media (max-width: 390px) {
+  .table-card-view .cv-card-body { grid-template-columns: 1fr; }
+}
+
+/* Actions footer: dedicated in-flow section — a clean top border with its own
+   padding. No negative margins, no overlapping surface, button-safe 44px+.
+   The card's own bottom padding supplies the finish line. */
+.table-card-view .cv-card-actions {
+  margin: 0 -16px 0; padding: 14px 16px 0;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.table-card-view .cv-card-actions .btn {
+  flex: 1 1 auto; margin: 0; min-height: 44px; font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  white-space: nowrap;
+}
+.table-card-view .cv-card-actions .btn-primary { flex-grow: 1.5; }
+.table-card-view .cv-card-actions .btn-success { flex-grow: 1.5; }
+.table-card-view .cv-card-actions > form { flex: 1 1 100%; min-width: 0; }
+.table-card-view .cv-card-actions > form .btn,
+.table-card-view .cv-card-actions > form button { width: 100%; }
+.table-card-view .cv-card-actions .hold-form { display: flex; gap: 8px; }
+.table-card-view .cv-card-actions .hold-form .form-control { flex: 1 1 auto; min-width: 0; font-size: 16px; }
+.table-card-view .cv-card-actions .hold-form .btn { flex: 0 0 auto; width: auto; }
+
+/* Compact action groups inside card footers fill the strip, never clip. */
+.table-card-view .cv-card-actions > .actions-compact {
+  width: 100%; display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+.table-card-view .cv-card-actions > .actions-compact .btn { flex: 1 1 auto; min-width: 0; }
+
+/* Legacy inline "Actions" rows get the same dedicated in-flow section. */
+.table-card-view .cv-card .cv-row.cv-actions {
+  display: block;
+  margin: 14px -16px 0; padding: 14px 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-label { display: none; }
+.table-card-view .cv-card .cv-row.cv-actions .cv-value {
+  display: flex; flex-direction: column; gap: 8px; text-align: left;
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-value > *,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value form,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .client-actions,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .tracker-actions,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .ta-row,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .menu-pay-row {
+  width: 100%; flex: 1 1 100%;
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .btn {
+  width: 100%; min-height: 44px; margin: 0;
+  display: inline-flex; align-items: center; justify-content: center; white-space: nowrap;
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .tracker-actions,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .ta-row { display: flex; flex-direction: column; gap: 8px; }
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .ta-row > *,
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form .btn {
+  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form {
+  display: flex; gap: 8px; width: 100%;
+}
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form .form-control { flex: 1 1 auto; min-width: 0; font-size: 16px; }
+.table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form .btn { flex: 0 0 auto; }
+
+/* Legacy cards without a header: promote the first row to a title. */
+.table-card-view .cv-card > .cv-row:first-child {
+  padding-top: 2px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle); margin-bottom: 6px;
+}
+.table-card-view .cv-card > .cv-row:first-child .cv-label { display: none; }
+.table-card-view .cv-card > .cv-row:first-child .cv-value {
+  text-align: left; font-size: 15px; font-weight: 800; color: var(--navy);
+}
+
+/* Inline edit panel that follows a card-actions footer keeps breathing room. */
+.table-card-view .cv-card > .cv-edit-form { margin-top: 14px; }
+
+/* ---------- Table niceties ---------- */
+.table thead th { white-space: nowrap; }
+.table .td-money, .table .td-bills, .table .badge, .table .code-pill { white-space: nowrap; }
+.table td.text-end { white-space: nowrap; }
+
+/* Horizontal scrollbar inside table wrappers (slim, themed). */
+.table-wrap { scrollbar-width: thin; scrollbar-color: rgba(46,155,222,.55) var(--surface-sunken); }
+.table-wrap::-webkit-scrollbar { height: 8px; width: 8px; }
+.table-wrap::-webkit-scrollbar-track { background: var(--surface-sunken); border-radius: 0 0 10px 10px; }
+.table-wrap::-webkit-scrollbar-thumb {
+  background-color: rgba(46,155,222,.55); border-radius: 999px;
+  border: 2px solid var(--surface-sunken);
+}
+.table-wrap::-webkit-scrollbar-thumb:hover { background-color: rgba(46,155,222,.75); }
+
+/* ============================================================
+   MOBILE LAYOUT INTEGRITY (v15.1) — nothing overlaps on phones
+   ------------------------------------------------------------
+   Guarantees that the fixed bottom UI (offline pill + chat FAB)
+   can never cover the last card, its actions, pagination, or page
+   text, that card footers are clean in-flow sections, and that
+   search/filter rows stack comfortably at every phone width.
+   Additive; loaded after all v12/v13/v15 layers.
+   ============================================================ */
+
+/* 1) Bottom clearance for the fixed stack on phones.
+   Stack (bottom→top): FAB 14→66px, pill 78→~126px (2-line safe),
+   gap. Content reserves past it so the last card + pagination sit
+   fully visible above both overlays. */
+@media (max-width: 767px) {
+  .dash-main { padding-bottom: calc(140px + env(safe-area-inset-bottom)); }
+  body:not(.dash-body):not(.auth-body) main { padding-bottom: calc(128px + env(safe-area-inset-bottom)); }
+}
+
+/* 2) Search / filter toolbars stack vertically on phones so nothing
+   gets squeezed onto one cramped row; search leads, filters follow. */
+@media (max-width: 767px) {
+  .page-head-actions { flex-direction: column; align-items: stretch; }
+  .page-head-actions .page-search { width: 100%; }
+  .page-head-actions .page-search input { flex: 1 1 0; min-width: 0; }
+  .page-head-actions > .btn,
+  .page-head-actions > .dropdown-wrap { width: 100%; }
+  .page-head-actions .dropdown-wrap .dropdown-toggle { width: 100%; }
+
+  .filter-bar, .filter-bar form,
+  .toolbar-form { flex-direction: column; align-items: stretch; }
+  .filter-bar .search-combo,
+  .toolbar-form .search-combo { flex: 1 1 auto; max-width: none; width: 100%; }
+  .filter-bar form .btn,
+  .toolbar-form .btn { flex: 1 1 100%; min-width: 0; }
+  .toolbar-field { width: 100%; min-width: 0; }
+  .toolbar-field select, .toolbar-field .toolbar-select { flex: 1 1 auto; min-width: 0; }
+}
+
+/* 3) Touch-friendly input sizing across the whole phone range
+   (16px prevents iOS Safari auto-zoom on focus). */
+@media (max-width: 767px) {
+  .form-control,
+  .form-control-inline,
+  .page-search input,
+  .filter-bar select,
+  .filter-bar input,
+  .toolbar-select,
+  .search-combo input,
+  .quarter-filter-select,
+  .log-search-input,
+  .chat-input-row input,
+  .hold-input { font-size: 16px; }
+}
+
+/* ============================================================
+   MOBILE SPEC COMPLIANCE (v15.2) — real-app feel, full width
+   ------------------------------------------------------------
+   Turns mobile pages into genuine phone UIs: 60px header with
+   tappable 44px controls, 20-22px page title, FULL-WIDTH primary
+   actions, FULL-WIDTH search + filter, comfortable 42-46px touch
+   targets, cards reading at 14-16px with 12px+ gaps. All scoped to
+   <=767px so desktop is untouched.
+   ============================================================ */
+
+/* 1) Header: 60px high on phones, controls 44px tappable. */
+@media (max-width: 767px) {
+  .dash-topbar-inner { height: 60px; }
+  .hamburger, .bell-btn, .dash-help-btn { width: 44px; height: 44px; flex-basis: 44px; }
+  .dash-topbar .brand-name { font-size: 15px; }
+  .bell-dropdown { top: 60px; }
+  .ios-install-tip { top: calc(60px + env(safe-area-inset-top) + 10px); }
+}
+
+/* 2) Page header: title 20-22px, description 12-14px, airy spacing. */
+@media (max-width: 767px) {
+  .page-head h1 { font-size: 22px; }
+  .page-head p { font-size: 14px; line-height: 1.45; }
+}
+
+/* 3) Page actions: primary + download go full width and 44-46px tall;
+   the search box fills the width with the Filter control on its own
+   full-width button below (never squeezed into one row). */
+@media (max-width: 767px) {
+  .page-head-actions > .btn,
+  .page-head-actions > .dropdown-wrap .dropdown-toggle {
+    width: 100%;
+    min-height: 46px;
+    font-size: 14px;
+  }
+  .page-head-actions .page-search {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  .page-head-actions .page-search input {
+    width: 100%;
+    min-height: 46px;
+    font-size: 16px;
+  }
+  .page-head-actions .page-search .btn {
+    width: 100%;
+    min-height: 46px;
+    font-size: 14px;
+  }
+  .page-search input::placeholder { font-size: 15px; }
+}
+
+/* 4) Inline filter/toolbar controls 46px, full-width buttons. */
+@media (max-width: 767px) {
+  .filter-bar select,
+  .filter-bar input,
+  .toolbar-select,
+  .search-combo input,
+  .quarter-filter-select,
+  .log-search-input {
+    min-height: 46px;
+  }
+  .log-search-input { height: auto; }
+  .filter-bar .btn,
+  .filter-bar form .btn,
+  .toolbar-form .btn { min-height: 46px; font-size: 14px; }
+  .filter-bar form { gap: 8px; }
+}
+
+/* 5) Cards: title weight 600-700; badge wraps below title at <=360px. */
+.table-card-view .cv-head-title { font-weight: 700; }
+.table-card-view .cv-card > .cv-row:first-child .cv-value { font-weight: 700; }
+@media (max-width: 360px) {
+  .table-card-view .cv-card-head { flex-wrap: wrap; }
+  .table-card-view .cv-card-head .badge { flex-basis: auto; }
+}
+
+/* ============================================================
+   SHARED MOBILE CARD SYSTEM (v16) — real layout, never overlaps
+   ------------------------------------------------------------
+   One system reused by EVERY table-card-view page (clients,
+   billings, collections, service tracker, BIR forms, distribution,
+   surveys/feedback, users, activity logs, client billing/collections/
+   service-tracker). Cards have flowing height with header / body /
+   a dedicated action footer; text always wraps in place; the page
+   can never scroll horizontally; toolbars stack full width; and the
+   fixed bottom stack (chat FAB + offline pill) lives at the corners
+   so it can never cover cards, actions or pagination.
+   Everything is scoped to <=767px (cards only render there) with an
+   extra <=360px pass; desktop is untouched.
+   ============================================================ */
+
+@media (max-width: 767px) {
+  /* 1) Wrappers: no horizontal bleed, airy consistent list gap. */
+  .table-wrap,
+  .table-card-view,
+  .table-card-view .card-view-list {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .card > .table-wrap { min-width: 0; max-width: 100%; }
+  .table-card-view .card-view-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* 2) Cards: width 100%, flowing height, never clip footers. */
+  .table-card-view .cv-card {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: visible;
+    height: auto;
+    min-height: 0;
+    padding: 14px;
+  }
+  .table-card-view .cv-card.cv-empty { padding: 34px 16px; }
+  .table-card-view .cv-card-head {
+    margin: -14px 0 0;
+    padding: 14px 0 12px;
+  }
+  .table-card-view .cv-card-body {
+    margin: 0;
+    padding: 12px 0 14px;
+  }
+
+  /* 3) Text always wraps inside its own box — no absolute positions,
+     no fixed heights, min-width 0 so flex/grid children shrink. */
+  .table-card-view .cv-head-main,
+  .table-card-view .cv-head-title,
+  .table-card-view .cv-head-sub,
+  .table-card-view .cv-label,
+  .table-card-view .cv-value,
+  .table-card-view .cv-card > .cv-row:first-child .cv-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* 4) Dedicated action footer (spec grid):
+        minmax(0,1fr) auto auto — primary grows, Edit/More keep a
+        comfortable fixed-ish footprint and can never overflow.
+        In flow, 14px above, 12px padded, 1px top border. */
+  .table-card-view .cv-card-actions {
+    margin: 14px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border-subtle);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+  }
+  /* The old 1px vertical divider is clutter between touch targets:
+     hidden on mobile card action rows (replaced by the grid gap). */
+  .table-card-view .cv-card-actions > .actions-divider { display: none; }
+  .table-card-view .cv-card-actions > .btn {
+    flex: 0 1 auto;
+    margin: 0;
+    min-width: 0;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .table-card-view .cv-card-actions > .dropdown-wrap {
+    width: auto;
+    min-width: 0;
+    display: flex;
+  }
+  .table-card-view .cv-card-actions > .dropdown-wrap .more-btn {
+    width: 44px; height: 44px; margin: 0;
+  }
+  /* Full-width forms (e.g. user Delete) and on-card option groups
+     always occupy their own full row inside the footer. */
+  .table-card-view .cv-card-actions > form { grid-column: 1 / -1; min-width: 0; margin: 0; }
+  .table-card-view .cv-card-actions > form .btn,
+  .table-card-view .cv-card-actions > form button { width: 100%; }
+  .table-card-view .cv-card-actions .hold-form { display: flex; gap: 8px; }
+  .table-card-view .cv-card-actions .hold-form .form-control { flex: 1 1 auto; min-width: 0; font-size: 16px; }
+  .table-card-view .cv-card-actions .hold-form .btn { width: auto; }
+  .table-card-view .cv-card-actions > .actions-compact {
+    grid-column: 1 / -1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .table-card-view .cv-card-actions > .actions-compact .btn { flex: 1 1 auto; min-width: 0; }
+  .table-card-view .cv-card-actions > .actions-compact .dropdown-wrap { flex: 0 0 auto; }
+
+  /* 5) Legacy inline "Actions" rows (client billing / collections,
+        surveys) get the same dedicated footer. Buttons auto-fit —
+        a single button goes full width, several share a row and
+        wrap safely when the screen is very narrow. */
+  .table-card-view .cv-card .cv-row.cv-actions {
+    display: block;
+    margin: 14px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-label { display: none; }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+    gap: 8px;
+    align-items: stretch;
+    text-align: left;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value > *,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value form,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .client-actions,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .tracker-actions,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .ta-row,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .menu-pay-row {
+    width: 100%;
+    min-width: 0;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .btn {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .tracker-actions,
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .ta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form .form-control { flex: 1 1 auto; min-width: 0; font-size: 16px; }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value .hold-form .btn { flex: 0 0 auto; }
+
+  /* 6) Page toolbars / filter bars: search + filter + download each
+        full width and stacked, never sharing a cramped row. */
+  .page-toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .page-toolbar .toolbar-form,
+  .page-toolbar .page-toolbar-group { width: 100%; min-width: 0; max-width: 100%; }
+  .page-toolbar .page-toolbar-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .page-toolbar .page-toolbar-group > .btn,
+  .page-toolbar .page-toolbar-group > .dropdown-wrap { flex: 1 1 100%; min-width: 0; }
+  .page-toolbar .page-toolbar-group .dropdown-wrap .dropdown-toggle { width: 100%; }
+  .toolbar-form,
+  .toolbar-field,
+  .search-combo,
+  .filter-bar { max-width: 100%; min-width: 0; }
+  .toolbar-form .toolbar-field { width: 100%; }
+  .page-toolbar .toolbar-form .search-combo,
+  .toolbar-form .search-combo { width: 100%; }
+  .toolbar-form .btn,
+  .filter-bar form .btn { width: 100%; }
+
+  /* 7) Fixed bottom stack — chat FAB bottom-right, offline pill
+        centered on the very bottom edge. Neither can cover tables,
+        cards, actions or pagination (content reserves 140px). */
+  .chat-fab {
+    right: 12px;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    width: 50px;
+    height: 50px;
+  }
+  .chat-widget {
+    right: 12px;
+    bottom: calc(122px + env(safe-area-inset-bottom));
+  }
+  body:not(.auth-body) .offline-banner {
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    white-space: normal;
+  }
+
+  /* 8) Drawer hygiene: internal scroll only, no page push, no jump. */
+  .dash-drawer {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .drawer-close { width: 44px; height: 44px; }
+}
+
+@media (max-width: 390px) {
+  .chat-fab {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 360px) {
+  /* Spec: 1fr 1fr auto keeps Add icon + Edit + More on one row even at
+     320px; anything extra wraps to a fresh full-width row below. */
+  .table-card-view .cv-card-actions {
+    grid-template-columns: 1fr 1fr auto;
+  }
+  body:not(.auth-body) .offline-banner {
+    max-width: calc(100vw - 20px);
+  }
+  .page-toolbar .page-toolbar-group { flex-direction: column; }
+}
+
+/* Legacy inline action footer: keep the "date + Mark paid" inline flex
+   form (admin/client other-services collections) readable on phones —
+   input grows, button keeps its own size instead of stretching. */
+@media (max-width: 767.98px) {
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value form.d-inline-flex {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    width: 100%;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value form.d-inline-flex .btn {
+    width: auto;
+    min-height: 0;
+    flex: 0 0 auto;
+    padding: 8px 14px;
+  }
+  .table-card-view .cv-card .cv-row.cv-actions .cv-value form.d-inline-flex input {
+    flex: 1 1 130px;
+    min-width: 0;
+    font-size: 16px;
+  }
+}

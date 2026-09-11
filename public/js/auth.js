@@ -124,8 +124,10 @@
     (function (tab) {
       tab.addEventListener('click', function () {
         var panelId = tab.getAttribute('data-tab');
-        for (var j = 0; j < tabs.length; j++) tabs[j].classList.remove('active');
-        tab.classList.add('active');
+        for (var j = 0; j < tabs.length; j++) {
+          tabs[j].classList.remove('active');
+          tabs[j].setAttribute('aria-selected', tabs[j] === tab ? 'true' : 'false');
+        }
         var panels = document.querySelectorAll('.auth-panel');
         for (var k = 0; k < panels.length; k++) {
           panels[k].classList.toggle('active', panels[k].getAttribute('data-panel') === panelId);
@@ -179,19 +181,46 @@
   var pinError = document.getElementById('pinError');
 
   if (loginKeypad && pinForm) {
+    var submitPin = function () {
+      var email = authEmail ? authEmail.value.trim() : '';
+      if (!email) {
+        if (pinError) { pinError.textContent = 'Enter your email address first.'; pinError.hidden = false; }
+        loginPad.clear();
+        return;
+      }
+      if (pinError) pinError.hidden = true;
+      document.getElementById('pinEmail').value = email;
+      pinForm.dispatchEvent(new Event('submit', { cancelable: true }));
+    };
+
     var loginPad = wireKeypad(loginKeypad, {
       valueEl: document.getElementById('pinValue'),
       autoSubmit: true,
-      onAutoSubmit: function () {
-        var email = authEmail ? authEmail.value.trim() : '';
-        if (!email) {
-          if (pinError) { pinError.textContent = 'Enter your email address first.'; pinError.hidden = false; }
-          loginPad.clear();
-          return;
-        }
-        if (pinError) pinError.hidden = true;
-        document.getElementById('pinEmail').value = email;
-        pinForm.dispatchEvent(new Event('submit', { cancelable: true }));
+      onAutoSubmit: submitPin,
+      onOk: submitPin
+    });
+
+    /* Physical-keyboard PIN entry when the PIN panel is active (additive). */
+    document.addEventListener('keydown', function (e) {
+      var target = e.target;
+      var inText = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (inText || e.metaKey || e.ctrlKey || e.altKey) return;
+      var pinPanel = document.querySelector('.auth-panel[data-panel="pin"]');
+      if (!pinPanel || !pinPanel.classList.contains('active')) return;
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        var v = loginPad.get();
+        if (v.length >= 4) return;
+        loginPad.set(v + e.key);
+        if (loginPad.get().length === 4) submitPin();
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        loginPad.set(loginPad.get().slice(0, -1));
+      } else if (e.key === 'Enter') {
+        var okKey = pinPanel.querySelector('.key[data-key="ok"]');
+        var subBtn = document.getElementById('pinSubmitBtn');
+        if (okKey && !okKey.disabled) { e.preventDefault(); okKey.click(); }
+        else if (subBtn && loginPad.get().length === 4) { e.preventDefault(); subBtn.click(); }
       }
     });
 
@@ -301,7 +330,7 @@
             '<span class="saved-account-name">' + escapeHtml(account.name) + '</span>' +
             '<span class="saved-account-email">' + escapeHtml(savedAccountsMask(account.email)) + '</span>' +
           '</span>' +
-          '<span class="saved-account-remove" title="Remove account" data-remove="' + escapeHtml(account.email) + '">&times;</span>';
+          '<span class="saved-account-remove" role="button" tabindex="-1" title="Remove account" aria-label="Remove ' + escapeHtml(account.name) + '" data-remove="' + escapeHtml(account.email) + '">&times;</span>';
         savedContainer.appendChild(btn);
       })(accounts[i]);
     }

@@ -122,17 +122,25 @@
             <div class="card-view-list">
                 @forelse ($accounts as $account)
                     <div class="cv-card">
-                        <div class="cv-member">
+                        <div class="cv-card-head">
                             <span class="avatar avatar-md avatar-tint">{{ $initials($account->name) }}</span>
-                            <div class="cv-member-lines">
-                                <div class="member-name">{{ $account->name }} @if ($account->id === auth()->id())<small class="muted">(You)</small>@endif</div>
-                                <div class="member-email">{{ $account->email }}</div>
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $account->name }} @if ($account->id === auth()->id())<small class="muted">(You)</small>@endif</div>
+                                <div class="cv-head-sub">{{ $account->email }}</div>
                             </div>
+                            @if ($lastActiveAt->has($account->id))<span class="badge badge-success">Active</span>@else<span class="badge badge-neutral">Inactive</span>@endif
                         </div>
-                        <div class="cv-row"><span class="cv-label">Role</span><span class="cv-value"><span class="badge @if ($account->isAdmin()) badge-admin @else badge-staff @endif">{{ ucfirst($account->role) }}</span></span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@if ($lastActiveAt->has($account->id))<span class="badge badge-success">Active</span>@else<span class="badge badge-neutral">Inactive</span>@endif</span></div>
-                        <div class="cv-row"><span class="cv-label">Last active</span><span class="cv-value">{{ $lastActiveAt[$account->id] ?? '' ? \Carbon\Carbon::parse($lastActiveAt[$account->id])->format('M j, Y') : '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if (auth()->user()->isAdmin() && $account->id !== auth()->id())<form method="POST" action="{{ route('admin.users.destroy', $account) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete {{ addslashes($account->name) }}?', message: 'This {{ $account->role }} account can be restored by support.', danger: true, confirmLabel: 'Delete' })">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>@else<span class="muted">—</span>@endif</span></div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Role</span><span class="cv-value"><span class="badge @if ($account->isAdmin()) badge-admin @else badge-staff @endif">{{ ucfirst($account->role) }}</span></span></div>
+                            <div class="cv-pair"><span class="cv-label">Last active</span><span class="cv-value">{{ $lastActiveAt[$account->id] ?? '' ? \Carbon\Carbon::parse($lastActiveAt[$account->id])->format('M j, Y') : '—' }}</span></div>
+                        </div>
+                        <div class="cv-card-actions">
+                            @if (auth()->user()->isAdmin() && $account->id !== auth()->id())
+                                <form method="POST" action="{{ route('admin.users.destroy', $account) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete {{ addslashes($account->name) }}?', message: 'This {{ $account->role }} account can be restored by support.', danger: true, confirmLabel: 'Delete' })">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
+                            @else
+                                <span class="muted">—</span>
+                            @endif
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No admin or staff accounts yet.</p>

@@ -79,7 +79,7 @@
                         <div class="cv-row"><span class="cv-label">Date requested</span><span class="cv-value">{{ $service->requested_at?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-row"><span class="cv-label">Amount</span><span class="cv-value fw-semibold">₱{{ number_format($service->amount, 2) }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $service->status }}">{{ $service->statusLabel() }}</span></span></div>
-                        <div class="cv-row"><span class="cv-label">Statement</span><span class="cv-value"><a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a></span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Statement</span><span class="cv-value"><a href="{{ route('client.other-services.receipt', $service) }}" class="btn btn-outline btn-sm">View receipt</a></span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No service requests yet.</p>

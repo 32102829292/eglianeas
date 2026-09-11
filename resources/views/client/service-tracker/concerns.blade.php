@@ -70,11 +70,18 @@
             <div class="card-view-list">
                 @forelse ($concerns as $concern)
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Issue</span><span class="cv-value">{{ $concern->description_of_issue }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Related Service</span><span class="cv-value">{{ $concern->relatedService?->name ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Solution</span><span class="cv-value">{{ $concern->proposed_solution ?? '—' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value">@php($s = $concern->status)<span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span></span></div>
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $concern->description_of_issue }}</div>
+                                <div class="cv-head-sub">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</div>
+                            </div>
+                            @php($s = $concern->status)
+                            <span class="badge {{ $s === 'frequent' ? 'badge-danger' : ($s === 'seldom' ? 'badge-warn' : 'badge-neutral') }}">{{ $concern->statusLabel() }}</span>
+                        </div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Related Service</span><span class="cv-value">{{ $concern->relatedService?->name ?? '—' }}</span></div>
+                            <div class="cv-pair cv-full"><span class="cv-label">Solution</span><span class="cv-value">{{ $concern->proposed_solution ?? '—' }}</span></div>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No concerns logged yet.</p>

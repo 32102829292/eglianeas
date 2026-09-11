@@ -60,20 +60,24 @@ class ServiceTrackerController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $scopedAll = TrackerInstance::query()
-            ->with('assignments.staff')
-            ->tap($scopeToOwn)
-            ->get();
+        $statsQuery = TrackerInstance::query()
+            ->tap($scopeToOwn);
+
+        $scopedInstanceQuery = TrackerInstance::query()->tap($scopeToOwn)->select('id');
+
+        $allStaff = TrackerAssignment::query()
+            ->whereIn('instance_id', $scopedInstanceQuery)
+            ->get(['staff_name', 'staff_id'])
+            ->map(fn (TrackerAssignment $a) => $a->displayName())
+            ->filter()
+            ->unique(fn (string $n) => mb_strtolower(trim($n)))
+            ->sort()
+            ->values();
 
         return view('admin.service-tracker.index', [
             'instances' => $instances,
             'services' => TrackerService::ordered()->get(),
-            'allStaff' => $scopedAll->flatMap->assignments
-                ->map(fn (TrackerAssignment $a) => $a->displayName())
-                ->filter()
-                ->unique(fn (string $n) => mb_strtolower(trim($n)))
-                ->sort()
-                ->values(),
+            'allStaff' => $allStaff,
             'q' => $q,
             'activeStatus' => $status,
             'activeServiceId' => $serviceId,
@@ -85,13 +89,13 @@ class ServiceTrackerController extends Controller
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'stats' => [
-                'total' => $scopedAll->count(),
-                'done' => $scopedAll->where('status', TrackerInstance::STATUS_DONE)->count(),
-                'inProgress' => $scopedAll->where('status', TrackerInstance::STATUS_IN_PROGRESS)->count(),
-                'todo' => $scopedAll->where('status', TrackerInstance::STATUS_TODO)->count(),
-                'onHold' => $scopedAll->where('status', TrackerInstance::STATUS_ON_HOLD)->count(),
-                'assignmentsTotal' => $scopedAll->flatMap->assignments->count(),
-                'assignmentsDone' => $scopedAll->flatMap->assignments->where('completed', true)->count(),
+                'total' => $statsQuery->clone()->count(),
+                'done' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_DONE)->count(),
+                'inProgress' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_IN_PROGRESS)->count(),
+                'todo' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_TODO)->count(),
+                'onHold' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_ON_HOLD)->count(),
+                'assignmentsTotal' => TrackerAssignment::query()->whereIn('instance_id', $scopedInstanceQuery)->count(),
+                'assignmentsDone' => TrackerAssignment::query()->whereIn('instance_id', $scopedInstanceQuery)->where('completed', true)->count(),
             ],
         ]);
     }
@@ -363,7 +367,7 @@ class ServiceTrackerController extends Controller
             $query->where('reviewed', true);
         }
 
-        $concerns = $query->get();
+        $concerns = $query->paginate(50)->withQueryString();
 
         return view('admin.service-tracker.concerns', [
             'concerns' => $concerns,

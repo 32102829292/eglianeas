@@ -2,6 +2,10 @@
 (function () {
   'use strict';
 
+  /* Marker so CSS can opt into JS-only enhancement (e.g. landing reveals)
+     without hiding content for users without JavaScript. */
+  document.documentElement.classList.add('js');
+
   var E = (window.egliane = window.egliane || {});
 
   /* ---------- Install prompt ---------- */
@@ -114,14 +118,51 @@ var toastEl = null;
     }, 3000);
   };
 
-  /* ---------- Mobile nav toggle ---------- */
+  /* ---------- Mobile nav toggle (site header) ---------- */
   var navToggle = document.getElementById('navToggle');
   var mobileNav = document.getElementById('mobileNav');
   if (navToggle && mobileNav) {
+    function setMobileNav(open) {
+      mobileNav.classList.toggle('open', open);
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    }
     navToggle.addEventListener('click', function () {
-      mobileNav.classList.toggle('open');
+      setMobileNav(!mobileNav.classList.contains('open'));
+    });
+    mobileNav.addEventListener('click', function (e) {
+      if (e.target.closest('a')) setMobileNav(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && mobileNav.classList.contains('open')) {
+        setMobileNav(false);
+        navToggle.focus();
+      }
     });
   }
+
+  /* ---------- Landing page reveal on scroll ----------
+     Content is fully visible without JS; we only lift elements into
+     place when the observer is available and motion is allowed. */
+  (function initLandingReveal() {
+    var revealEls = document.querySelectorAll('.lp-reveal');
+    if (!revealEls.length) return;
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var supportsIO = 'IntersectionObserver' in window;
+    if (!supportsIO || reduceMotion) {
+      for (var i = 0; i < revealEls.length; i++) revealEls[i].classList.add('lp-reveal--in');
+      return;
+    }
+    var revealIo = new IntersectionObserver(function (entries) {
+      for (var k = 0; k < entries.length; k++) {
+        if (entries[k].isIntersecting) {
+          entries[k].target.classList.add('lp-reveal--in');
+          revealIo.unobserve(entries[k].target);
+        }
+      }
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    for (var j = 0; j < revealEls.length; j++) revealIo.observe(revealEls[j]);
+  })();
 
   /* ---------- Notification bell dropdown ---------- */
   var bellBtn = document.getElementById('bellBtn');
@@ -177,6 +218,8 @@ var toastEl = null;
     }
   }
 
+  var lastDrawerTrigger = null;
+
   function setDrawer(open) {
     if (!drawer || !backdrop) return;
     drawer.classList.toggle('open', open);
@@ -184,6 +227,23 @@ var toastEl = null;
     if (hamburger) hamburger.setAttribute('aria-expanded', open ? 'true' : 'false');
     drawer.setAttribute('aria-hidden', open ? 'false' : 'true');
     document.body.style.overflow = open ? 'hidden' : '';
+
+    if (open) {
+      lastDrawerTrigger = document.activeElement || hamburger;
+      /* Keep the trigger in the tab order but move focus into the drawer so
+         keyboard/AT users land on the navigation; the Escape/backdrop handlers
+         return focus to the hamburger on close. */
+      if (hamburger) hamburger.setAttribute('tabindex', '-1');
+      var firstLink = drawer.querySelector('a, button');
+      if (firstLink) setTimeout(function () { firstLink.focus(); }, 100);
+    } else {
+      if (hamburger) hamburger.setAttribute('tabindex', '0');
+      if (lastDrawerTrigger) {
+        var toFocus = lastDrawerTrigger;
+        lastDrawerTrigger = null;
+        setTimeout(function () { toFocus.focus(); }, 0);
+      }
+    }
     verifyMobileLayout();
   }
 
@@ -192,44 +252,112 @@ var toastEl = null;
   if (backdrop) backdrop.addEventListener('click', function () { setDrawer(false); });
   if (drawer) {
     drawer.addEventListener('click', function (e) {
-      if (e.target.closest('a')) setDrawer(false);
+      /* Close when a real navigation link is clicked (any <a> we own). We keep
+         the click-through so the browser can navigate to the target page. */
+      var link = e.target.closest('a');
+      if (link && drawer.contains(link)) {
+        lastDrawerTrigger = lastDrawerTrigger || hamburger;
+        setDrawer(false);
+      }
     });
   }
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && drawer && drawer.classList.contains('open')) setDrawer(false);
   });
+  /* Simple focus trap inside the open drawer: Tab / Shift+Tab cycle through the
+     drawer's focusable elements so focus never escapes behind the backdrop. */
+  document.addEventListener('keydown', function (e) {
+    if (!drawer || !drawer.classList.contains('open')) return;
+    if (e.key !== 'Tab') return;
+    var focusables = drawer.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])');
+    if (!focusables.length) return;
+    var first = focusables[0];
+    var last = focusables[focusables.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === drawer)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
 
-  /* ---------- Desktop sidebar scroll persistence ----------
-     The admin sidebar (.dash-nav) is an internally-scrolling column, and a
-     full-page navigation tears it down and re-creates it with scrollTop 0.
-     Persist its scrollTop to sessionStorage (per-tab, survives same-tab
-     navigations) as the user scrolls, flush on pagehide so the last position
-     is never lost, and restore it early on the next page via the small
-     <script> right after the <aside> in layouts/dashboard.blade.php (before
-     first paint). A load-time re-apply covers any font/reflow clamping. */
-  var NAV_SCROLL_KEY = 'egliane:dash-nav:scrollTop';
+  /* ---------- Sidebar / drawer scroll persistence ----------
+     Both the desktop sidebar (.dash-nav) and the mobile drawer (.dash-drawer)
+     are internally-scrolling columns that render the same navigation partial.
+     A full-page navigation tears them down and re-creates them with scrollTop 0,
+     which makes the sidebar/drawer "jump back to the top" when you click a page
+     and reopen navigation. We persist scrollTop to sessionStorage under
+     egliane_sidebar_scroll (per-tab, survives same-tab navigations), flush on
+     pagehide so the last position is never lost, and restore it early on the
+     next page via the inline <script> in layouts/dashboard.blade.php (before
+     first paint), then re-apply on load to cover any font/reflow clamping.
+
+     The key is shared between the sidebar and drawer deliberately: they contain
+     the same nav items, so keeping a single scroll position keeps navigation
+     feeling consistent whether it is opened on desktop or from the mobile drawer.
+     Because only one of them is on-screen/scrollable at a time (the other is
+     display:none on desktop and off-canvas on mobile), writing to one shared
+     value is race-free. */
+  var NAV_SCROLL_KEY = 'egliane_sidebar_scroll';
+  var scrollContainers = [];
   var sideNav = document.querySelector('.dash-nav');
+  var drawerNav = document.getElementById('dashDrawer');
   var pendingNavSave = false;
 
-  function saveSideNavScroll() {
+  if (sideNav) scrollContainers.push(sideNav);
+  if (drawerNav) scrollContainers.push(drawerNav);
+
+  function saveNavScroll() {
     pendingNavSave = false;
-    if (!sideNav) return;
-    try { sessionStorage.setItem(NAV_SCROLL_KEY, String(sideNav.scrollTop)); } catch (e) {}
+    var top = 0;
+    for (var i = 0; i < scrollContainers.length; i++) {
+      var el = scrollContainers[i];
+      if (!el) continue;
+      /* Only read from a container that is actually laid out/visible, so the
+         desktop sidebar (display:none on mobile) can't overwrite the drawer's
+         position with its own 0 and vice-versa. */
+      if (el.offsetParent !== null || el === drawerNav) {
+        top = el.scrollTop;
+        break;
+      }
+    }
+    try { sessionStorage.setItem(NAV_SCROLL_KEY, String(top)); } catch (e) {}
   }
 
-  if (sideNav) {
-    sideNav.addEventListener('scroll', function () {
-      pendingNavSave = true;
-      clearTimeout(saveSideNavScroll._t);
-      saveSideNavScroll._t = setTimeout(saveSideNavScroll, 15);
-    }, { passive: true });
-    window.addEventListener('pagehide', function () {
-      if (pendingNavSave) saveSideNavScroll();
-    });
-    window.addEventListener('load', function () {
-      var top = -1;
-      try { top = parseInt(sessionStorage.getItem(NAV_SCROLL_KEY), 10); } catch (e) {}
-      if (top > 0) sideNav.scrollTop = top;
+  for (var i = 0; i < scrollContainers.length; i++) {
+    (function (el) {
+      el.addEventListener('scroll', function () {
+        pendingNavSave = true;
+        clearTimeout(saveNavScroll._t);
+        saveNavScroll._t = setTimeout(saveNavScroll, 15);
+      }, { passive: true });
+    })(scrollContainers[i]);
+  }
+
+  window.addEventListener('pagehide', function () {
+    if (pendingNavSave) saveNavScroll();
+  });
+
+  function restoreNavScroll() {
+    var top = -1;
+    try { top = parseInt(sessionStorage.getItem(NAV_SCROLL_KEY), 10); } catch (e) {}
+    if (!(top > 0)) return;
+    for (var i = 0; i < scrollContainers.length; i++) {
+      if (scrollContainers[i]) scrollContainers[i].scrollTop = top;
+    }
+  }
+
+  window.addEventListener('load', restoreNavScroll);
+  /* Re-apply whenever the drawer is opened so an in-session reopen on the same
+     page (no navigation) still lands where the user left off. */
+  if (drawerNav) {
+    drawerNav.addEventListener('transitionend', function (e) {
+      if (e.propertyName === 'transform' && drawerNav.classList.contains('open')) {
+        var top = -1;
+        try { top = parseInt(sessionStorage.getItem(NAV_SCROLL_KEY), 10); } catch (err) {}
+        if (top > 0) drawerNav.scrollTop = top;
+      }
     });
   }
 
@@ -808,7 +936,8 @@ var toastEl = null;
       btn.dataset.origHtml = isInput ? (btn.value || '') : btn.innerHTML;
       btn.disabled = true;
       if (!isInput) {
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving…';
+        var isGet = (form.getAttribute('method') || 'get').toLowerCase() === 'get';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + (isGet ? 'Loading…' : 'Saving…');
       }
     }
   });

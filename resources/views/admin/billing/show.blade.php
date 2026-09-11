@@ -108,13 +108,24 @@
                     <div class="card-view-list">
                         @forelse ($billings as $billing)
                             <div class="cv-card">
-                                <div class="cv-row"><span class="cv-label">Print</span><span class="cv-value"><input type="checkbox" class="batch-print-check" value="{{ $billing->id }}" aria-label="Select {{ $billing->period_label }} for printing"></span></div>
-                                <div class="cv-row"><span class="cv-label">Quarter</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
-                                <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
-                                <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
-                                <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value">@if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Finalize this billing statement?', message: 'This will make it active and visible to the client.', confirmLabel: 'Finalize' });">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif <a href="{{ route('admin.billing.csv', $billing) }}" class="link">CSV</a> @if(! $billing->isPaid())<a href="{{ route('admin.billing.edit', $billing) }}" class="link">Edit</a>@endif</span></div>
+                                <div class="cv-card-head">
+                                    <div class="cv-head-main">
+                                        <div class="cv-head-title">{{ $billing->periodTitleUppercase() }} BILLING</div>
+                                        <div class="cv-head-sub">{{ $billing->period_label }}</div>
+                                    </div>
+                                    <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>
+                                </div>
+                                <div class="cv-card-body">
+                                    <div class="cv-pair"><span class="cv-label">Print</span><span class="cv-value"><input type="checkbox" class="batch-print-check" value="{{ $billing->id }}" aria-label="Select {{ $billing->period_label }} for printing"></span></div>
+                                    <div class="cv-pair"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
+                                    <div class="cv-pair"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}</span></div>
+                                    <div class="cv-pair"><span class="cv-label">Date paid</span><span class="cv-value">{{ $billing->paid_at?->format('M j, Y') ?? '—' }}</span></div>
+                                </div>
+                                <div class="cv-card-actions">
+                                    @if($billing->isDraft())<form method="POST" action="{{ route('admin.billing.finalize', $billing) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Finalize this billing statement?', message: 'This will make it active and visible to the client.', confirmLabel: 'Finalize' });">@csrf <button type="submit" class="btn btn-primary btn-sm">Finalize</button></form>@else<a href="{{ route('admin.billing.receipt', $billing) }}" class="btn btn-outline btn-sm">View receipt</a>@endif
+                                    <a href="{{ route('admin.billing.csv', $billing) }}" class="btn btn-outline btn-sm">CSV</a>
+                                    @if(! $billing->isPaid())<a href="{{ route('admin.billing.edit', $billing) }}" class="btn btn-outline btn-sm">Edit</a>@endif
+                                </div>
                             </div>
                         @empty
                             <p class="cv-card cv-empty">No billing statements for this client yet.</p>

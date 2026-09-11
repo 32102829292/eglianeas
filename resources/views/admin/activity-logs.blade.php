@@ -40,11 +40,18 @@
             <div class="card-view-list">
                 @forelse ($logs as $log)
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">User</span><span class="cv-value">{{ $log->user?->name ?? 'Guest' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Action</span><span class="cv-value"><code class="code-pill">{{ $log->action }}</code></span></div>
-                        <div class="cv-row"><span class="cv-label">Details</span><span class="cv-value">{{ $log->description }}</span></div>
-                        <div class="cv-row"><span class="cv-label">IP</span><span class="cv-value">{{ $log->ip_address }}</span></div>
-                        <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title"><code class="code-pill">{{ $log->action }}</code></div>
+                                <div class="cv-head-sub">{{ $log->user?->name ?? 'Guest' }}</div>
+                            </div>
+                            <span class="badge badge-neutral">{{ $log->created_at->diffForHumans() }}</span>
+                        </div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair cv-full"><span class="cv-label">Details</span><span class="cv-value">{{ $log->description }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">IP</span><span class="cv-value">{{ $log->ip_address }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No activity found.</p>

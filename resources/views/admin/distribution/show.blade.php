@@ -226,13 +226,25 @@
                 <div class="card-view-list">
                     @forelse ($deliveries as $del)
                         <div class="cv-card">
-                            <div class="cv-row"><span class="cv-label">Form Type</span><span class="cv-value">{{ $del->form_type }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Method</span><span class="cv-value">{{ $del->methodLabel() }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Date</span><span class="cv-value">{{ $del->date_received?->format('M j, Y') ?? '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Time</span><span class="cv-value">{{ $del->timeLabel() ?? '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Remarks</span><span class="cv-value">{{ $del->remarks ?: '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">No File</span><span class="cv-value">{{ $del->no_file_flag ? 'Yes' : '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Actions</span><span class="cv-value"><form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Remove this delivery entry?', message: 'This delivery record will be permanently removed.', danger: true, confirmLabel: 'Remove' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Remove</button></form></span></div>
+                            <div class="cv-card-head">
+                                <div class="cv-head-main">
+                                    <div class="cv-head-title"><span class="code-pill">{{ $del->form_type }}</span></div>
+                                    <div class="cv-head-sub">{{ $del->methodLabel() }}{{ $del->no_file_flag ? ' · No File' : '' }}</div>
+                                </div>
+                                <span class="badge badge-neutral">{{ $del->date_received?->format('M j, Y') ?? '—' }}</span>
+                            </div>
+                            <div class="cv-card-body">
+                                <div class="cv-pair"><span class="cv-label">Date</span><span class="cv-value">{{ $del->date_received?->format('M j, Y') ?? '—' }}</span></div>
+                                <div class="cv-pair"><span class="cv-label">Time</span><span class="cv-value">{{ $del->timeLabel() ?? '—' }}</span></div>
+                                <div class="cv-pair cv-full"><span class="cv-label">Remarks</span><span class="cv-value">{{ $del->remarks ?: '—' }}</span></div>
+                            </div>
+                            <div class="cv-card-actions">
+                                <form method="POST" action="{{ route('admin.distribution.destroy-delivery', [$client, $del]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Remove this delivery entry?', message: 'This delivery record will be permanently removed.', danger: true, confirmLabel: 'Remove' });">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline danger btn-sm">Remove</button>
+                                </form>
+                            </div>
                         </div>
                     @empty
                         <p class="cv-card cv-empty">No deliveries logged yet.</p>

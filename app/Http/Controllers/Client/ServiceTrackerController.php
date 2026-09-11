@@ -26,14 +26,14 @@ class ServiceTrackerController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $all = $user->trackerInstances()->with('assignments.staff')->get();
+        $statsQuery = $user->trackerInstances();
 
         return view('client.service-tracker.index', [
             'instances' => $instances,
             'summary' => [
-                'total' => $all->count(),
-                'done' => $all->where('status', TrackerInstance::STATUS_DONE)->count(),
-                'todo' => $all->where('status', TrackerInstance::STATUS_TODO)->count(),
+                'total' => $statsQuery->clone()->count(),
+                'done' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_DONE)->count(),
+                'todo' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_TODO)->count(),
             ],
         ]);
     }

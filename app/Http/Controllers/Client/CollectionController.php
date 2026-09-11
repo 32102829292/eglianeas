@@ -31,20 +31,12 @@ class CollectionController extends Controller
             ->where('status', '!=', Billing::STATUS_PAID)
             ->sum('total');
 
-        $allBillings = $user->billings()->get();
-        $summary = $allBillings->reduce(
-            function (array $carry, Billing $billing): array {
-                $carry['total'] += (float) $billing->total;
-                if ($billing->isPaid()) {
-                    $carry['paid'] += (float) $billing->total;
-                } else {
-                    $carry['outstanding'] += (float) $billing->total;
-                }
-
-                return $carry;
-            },
-            ['total' => 0.0, 'paid' => 0.0, 'outstanding' => 0.0]
-        );
+        $allBillings = $user->billings();
+        $summary = [
+            'total' => (float) $allBillings->clone()->sum('total'),
+            'paid' => (float) $allBillings->clone()->where('status', Billing::STATUS_PAID)->sum('total'),
+            'outstanding' => (float) $allBillings->clone()->where('status', '!=', Billing::STATUS_PAID)->sum('total'),
+        ];
 
         return view('client.collections.index', [
             'collections' => $collections,

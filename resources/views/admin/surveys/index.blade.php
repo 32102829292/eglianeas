@@ -86,6 +86,25 @@
                     @endforelse
                 </tbody>
             </table>
+
+            <div class="card-view-list">
+                @forelse ($responses as $response)
+                    <div class="cv-card">
+                        <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value"><span class="fw-semibold">{{ $response->user->name }}</span> <small class="muted d-block">{{ $response->user->email }}</small></span></div>
+                        <div class="cv-row"><span class="cv-label">Overall</span><span class="cv-value"><span class="rating-stars">@for ($i = 1; $i <= 5; $i++)<span class="star @if ($i <= $response->overall_rating) on @endif">★</span>@endfor</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Services</span><span class="cv-value"><span class="rating-stars">@for ($i = 1; $i <= 5; $i++)<span class="star @if ($i <= $response->service_rating) on @endif">★</span>@endfor</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Portal</span><span class="cv-value"><span class="rating-stars">@for ($i = 1; $i <= 5; $i++)<span class="star @if ($i <= $response->portal_rating) on @endif">★</span>@endfor</span></span></div>
+                        <div class="cv-row"><span class="cv-label">Comments</span><span class="cv-value">{{ $response->comments ? mb_strimwidth($response->comments, 0, 80, '…') : '—' }}</span></div>
+                        <div class="cv-row"><span class="cv-label">Submitted</span><span class="cv-value muted">{{ $response->submitted_at->format('M j, Y g:i A') }}</span></div>
+                        <div class="cv-actions">
+                            <span class="cv-label">Action</span>
+                            <span class="cv-value"><button type="button" class="btn btn-outline btn-sm" data-toggle="#response-{{ $response->id }}">View</button></span>
+                        </div>
+                    </div>
+                @empty
+                    <p class="cv-card cv-empty">No survey responses yet.</p>
+                @endforelse
+            </div>
         </div>
         {{ $responses->links('pagination.simple') }}
     </div>

@@ -90,8 +90,8 @@
         </div>
     </div>
 
-    <div class="dash-drawer-backdrop" id="dashDrawerBackdrop"></div>
-    <nav class="dash-drawer" id="dashDrawer" aria-hidden="true">
+    <div class="dash-drawer-backdrop" id="dashDrawerBackdrop" aria-hidden="true"></div>
+    <nav class="dash-drawer" id="dashDrawer" aria-label="Navigation menu" aria-hidden="true" tabindex="-1">
         <div class="dash-drawer-head">
             <a href="{{ route('home') }}" class="brand">
                 <img src="/images/logo-icon.png" alt="Egliane logo" class="brand-logo">
@@ -110,16 +110,20 @@
         </aside>
 
         <script>
-            /* Restore the desktop sidebar scroll position before first paint so
-               navigation doesn't jump it back to the top. The value is saved by
-               app.js ("Desktop sidebar scroll persistence") under
-               key egliane:dash-nav:scrollTop. */
+            /* Restore the sidebar/drawer scroll position before first paint so
+               navigation doesn't jump back to the top. The value is saved by
+               app.js ("Sidebar / drawer scroll persistence") under the key
+               egliane_sidebar_scroll (shared by the desktop sidebar and the
+               mobile drawer, which render the same nav partial). */
             (function () {
-                var nav = document.querySelector('.dash-nav');
-                if (!nav) return;
+                var KEY = 'egliane_sidebar_scroll';
                 var top = -1;
-                try { top = parseInt(sessionStorage.getItem('egliane:dash-nav:scrollTop'), 10); } catch (e) {}
-                if (top > 0) nav.scrollTop = top;
+                try { top = parseInt(sessionStorage.getItem(KEY), 10); } catch (e) {}
+                if (!(top > 0)) return;
+                var nav = document.querySelector('.dash-nav');
+                if (nav) nav.scrollTop = top;
+                var drawer = document.getElementById('dashDrawer');
+                if (drawer) drawer.scrollTop = top;
             })();
         </script>
 
@@ -147,7 +151,7 @@
     @include('components.confirm-modal')
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="/js/confirm.js?v=1" defer></script>
-    <script src="/js/app.js?v=5" defer></script>
+    <script src="/js/app.js?v=8" defer></script>
     <script src="/js/auth.js?v=2" defer></script>
     <script src="/js/push.js?v=2" defer></script>
     @stack('scripts')

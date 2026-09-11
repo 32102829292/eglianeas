@@ -174,20 +174,23 @@ class OtherServiceController extends Controller
             ->orderByRaw('due_date IS NULL')
             ->orderBy('due_date')
             ->orderByDesc('id')
-            ->get();
+            ->paginate(50)
+            ->withQueryString();
 
-        $all = OtherService::query()->whereIn('status', [OtherService::STATUS_UNPAID, OtherService::STATUS_OVERDUE])->get();
+        $statsQuery = OtherService::query()->whereIn('status', [OtherService::STATUS_UNPAID, OtherService::STATUS_OVERDUE]);
 
         return view('admin.other-services.collections', [
             'services' => $services,
             'statuses' => OtherService::STATUSES,
             'stats' => [
-                'outstanding' => (float) $all->sum('amount'),
-                'overdueCount' => $all->filter(fn (OtherService $s) => $s->status === OtherService::STATUS_OVERDUE)->count(),
-                'dueSoon' => $all->filter(fn (OtherService $s) => $s->status === OtherService::STATUS_UNPAID
-                    && $s->due_date !== null
-                    && $s->due_date->lte(now()->addDays(7)))->count(),
-                'unpaidCount' => $all->where('status', OtherService::STATUS_UNPAID)->count(),
+                'outstanding' => (float) $statsQuery->clone()->sum('amount'),
+                'overdueCount' => $statsQuery->clone()->where('status', OtherService::STATUS_OVERDUE)->count(),
+                'dueSoon' => $statsQuery->clone()
+                    ->where('status', OtherService::STATUS_UNPAID)
+                    ->whereNotNull('due_date')
+                    ->where('due_date', '<=', now()->addDays(7))
+                    ->count(),
+                'unpaidCount' => $statsQuery->clone()->where('status', OtherService::STATUS_UNPAID)->count(),
             ],
             'activeStatus' => $status,
         ]);

@@ -86,7 +86,7 @@
                         <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value"><div class="cell-name">{{ $billing->periodTitleUppercase() }} BILLING</div><small class="muted">{{ $billing->period_label }}</small></span></div>
                         <div class="cv-row"><span class="cv-label">Total payment</span><span class="cv-value fw-semibold">₱{{ number_format($billing->total, 2) }}</span></div>
                         <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
-                        <div class="cv-row"><span class="cv-label">Statement</span><span class="cv-value"><a href="{{ route('client.billing.show', $billing) }}" class="btn btn-outline btn-sm">View statement</a></span></div>
+                        <div class="cv-row cv-actions"><span class="cv-label">Statement</span><span class="cv-value"><a href="{{ route('client.billing.show', $billing) }}" class="btn btn-outline btn-sm">View statement</a></span></div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No billing statements were recorded for this quarter.</p>

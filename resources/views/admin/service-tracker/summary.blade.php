@@ -43,7 +43,7 @@
             <div class="card-head">
                 <h2 class="card-title">By Service</h2>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="thead-muted">
                         <tr>
@@ -76,6 +76,21 @@
                         @endforelse
                     </tbody>
                 </table>
+
+                <div class="card-view-list">
+                    @forelse ($serviceSummary as $entry)
+                        @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Service</span><span class="cv-value fw-semibold">{{ $entry['service']->name }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $entry['total'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Done</span><span class="cv-value text-success">{{ $entry['done'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">To Do</span><span class="cv-value text-warning">{{ $entry['todo'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Progress</span><span class="cv-value"><span class="d-inline-flex align-items-center gap-2" style="width:100%"><span class="pbar flex-grow-1"><span class="pbar-track"><span class="pbar-fill" style="display:block;background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};width:{{ $pct }}%;"></span></span></span><small class="muted">{{ $pct }}%</small></span></span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card cv-empty">No tracked services yet.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
 
@@ -84,7 +99,7 @@
             <div class="card-head">
                 <h2 class="card-title">By Staff</h2>
             </div>
-            <div class="table-wrap">
+            <div class="table-wrap table-card-view">
                 <table class="table table-hover align-middle mb-0">
                     <thead class="thead-muted">
                         <tr>
@@ -115,6 +130,20 @@
                         @endforelse
                     </tbody>
                 </table>
+
+                <div class="card-view-list">
+                    @forelse ($staffSummary as $entry)
+                        @php($pct = $entry['total'] > 0 ? round(($entry['done'] / $entry['total']) * 100) : 0)
+                        <div class="cv-card">
+                            <div class="cv-row"><span class="cv-label">Staff</span><span class="cv-value fw-semibold">{{ $entry['name'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Assigned</span><span class="cv-value">{{ $entry['total'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Done</span><span class="cv-value text-success">{{ $entry['done'] }}</span></div>
+                            <div class="cv-row"><span class="cv-label">Progress</span><span class="cv-value"><span class="d-inline-flex align-items-center gap-2" style="width:100%"><span class="pbar flex-grow-1"><span class="pbar-track"><span class="pbar-fill" style="display:block;background:{{ $pct === 100 ? 'var(--success)' : 'var(--sky)' }};width:{{ $pct }}%;"></span></span></span><small class="muted">{{ $pct }}%</small></span></span></div>
+                        </div>
+                    @empty
+                        <p class="cv-card cv-empty">No staff assignments yet.</p>
+                    @endforelse
+                </div>
             </div>
         </div>
     </div>

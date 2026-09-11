@@ -120,14 +120,20 @@
             <div class="card-view-list">
                 @forelse ($billings as $billing)
                     <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">Business</span><span class="cv-value">{{ $billing->client?->business_name ?: $billing->client?->name }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Period</span><span class="cv-value">{{ $billing->periodTitleUppercase() }} BILLING</span></div>
-                        <div class="cv-row"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></span></div>
-                        <div class="cv-row"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
-                        <div class="cv-row cv-actions"><span class="cv-label">Actions</span><span class="cv-value">
+                        <div class="cv-card-head">
+                            <div class="cv-head-main">
+                                <div class="cv-head-title">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
+                                <div class="cv-head-sub">{{ $billing->periodTitleUppercase() }} BILLING</div>
+                            </div>
+                            <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>
+                        </div>
+                        <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
+                        </div>
+                        <div class="cv-card-actions">
                             @include('admin.collections._row-actions', ['billing' => $billing, 'menuType' => 'card'])
-                        </span></div>
+                        </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">Nothing to collect right now.</p>
