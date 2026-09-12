@@ -2249,12 +2249,26 @@ button.staff-chip:active { transform: translateY(1px); }
 
   .filter-bar, .filter-bar form,
   .toolbar-form { flex-direction: column; align-items: stretch; }
-  .filter-bar .search-combo,
+.filter-bar .search-combo,
   .toolbar-form .search-combo { flex: 1 1 auto; max-width: none; width: 100%; }
   .filter-bar form .btn,
   .toolbar-form .btn { flex: 1 1 100%; min-width: 0; }
   .toolbar-field { width: 100%; min-width: 0; }
   .toolbar-field select, .toolbar-field .toolbar-select { flex: 1 1 auto; min-width: 0; }
+
+  /* Billing Statements: the shared toolbar rules above combine
+     `flex-direction: column` (this block) with the base rule's
+     `flex-wrap: wrap` and `flex: 1 1 100%` (a vertical-axis basis).
+     Together they wrap the Filter button into a side column that pushes
+     past the phone viewport and balloon its height. Force the billing
+     filter form into a true single column: no side wrap, natural heights,
+     and a full-width 46px Filter button. Scoped to #billing-search so
+     other pages and all desktop layouts are untouched. */
+  #billing-search.toolbar-form { flex-wrap: nowrap; flex: 0 0 auto; align-self: stretch; }
+  #billing-search.toolbar-form .search-combo { flex: 0 0 auto; width: 100%; }
+  #billing-search.toolbar-form > button.btn,
+  #billing-search.toolbar-form > .btn { flex: 0 0 auto; width: 100%; min-width: 0; }
+  #billing-search.toolbar-form .search-combo input { flex: 1 1 0; }
 }
 
 /* 3) Touch-friendly input sizing across the whole phone range
@@ -2790,4 +2804,105 @@ button.staff-chip:active { transform: translateY(1px); }
 @media (prefers-reduced-motion: reduce) {
   .eas-onboard-card, .eas-onboard-top, .eas-onboard-left,
   .eas-onboard-right, .eas-onboard-bottom, .eas-onboard-ring { transition: none !important; }
+}
+
+/* ============================================================
+   FILL UP FORM ENHANCEMENT — admin → Other Services → Fill Up Form
+   UI/UX polish only. Scoped to .fill-form-* so no other page is
+   affected. Reuses existing tokens, .card, .form-section,
+   .autocomplete-wrap, .currency-field, .form-actions, .btn and the
+   shared submit-guard pattern. All field IDs/names/behavior unchanged.
+   ============================================================ */
+
+/* Desktop: keep the form at a comfortable reading width */
+.fill-form-card { max-width: 880px; }
+
+/* Page header hierarchy: small eyebrow above the H1 */
+.fill-form-page-head { margin-bottom: 20px; }
+.fill-form-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: var(--sky-deep);
+  margin-bottom: 6px;
+}
+.fill-form-eyebrow::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 2px;
+  background: var(--sky-deep);
+}
+
+/* Section head: icon chip + title + helper text */
+.fill-form-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.fill-form-section-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--sky-soft, #E9F3FC);
+  color: var(--sky-deep);
+}
+.fill-form-section-icon svg { width: 18px; height: 18px; }
+.fill-form-section-head .form-section-title { margin: 2px 0 2px; }
+.fill-form-section-head .form-section-title::before { display: none; }
+.fill-form-section-hint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* Search autocompletes with an inline search icon */
+.fill-autocomplete .fill-field-icon {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+.fill-autocomplete .fill-search-input { padding-left: 37px; }
+
+/* Selected client: distinct visual state (hidden input unchanged) */
+.fill-autocomplete.is-selected:not(:focus-within) .fill-search-input,
+.fill-autocomplete.is-selected .fill-search-input {
+  border-color: var(--sky);
+  background-color: #F2F8FE;
+}
+
+/* Custom label: subtle attention pulse when “Other” is chosen */
+@keyframes fill-label-pulse {
+  0% { background: var(--sky-soft); }
+  100% { background: transparent; }
+}
+.fill-form-card #customLabelGroup.is-relevant { animation: fill-label-pulse 1.4s ease; }
+
+/* Bottom actions */
+.fill-form-actions { margin-top: 28px; }
+.fill-form-actions .btn-primary { min-width: 210px; }
+
+/* Mobile / tablet: comfortable touch targets and clean stacking */
+@media (max-width: 767px) {
+  .fill-form-card { padding: 18px 16px; }
+  .fill-form-section-head { gap: 10px; margin-bottom: 16px; }
+  .fill-form-section-icon { width: 34px; height: 34px; flex-basis: 34px; }
+  .fill-form-card input.form-control { min-height: 46px; }
+  .fill-form-actions .btn { min-height: 46px; }
+  .fill-form-actions .btn-primary { min-width: 0; }
+  .fill-selected-client .client-info-grid { grid-template-columns: 1fr; }
 }
