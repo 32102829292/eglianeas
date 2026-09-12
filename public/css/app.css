@@ -2241,3 +2241,68 @@ form.filter-bar.log-search-bar { width: 100%; max-width: 560px; --search-h: 40px
 .section--announcements-top .section-head { max-width: 680px; margin-bottom: 40px; }
 .section--announcements-top .lp-ann-featured { margin-bottom: 22px; }
 .lp-hero { scroll-margin-top: 84px; overflow-x: clip; }
+
+/* ============================================================
+   ABOUT PAGE ENHANCEMENTS — hero, company intro, section polish
+   Reuses existing tokens, buttons, reveal, and card systems.
+   ============================================================ */
+
+/* ---------- Hero ---------- */
+.about-hero-inner { text-align: center; max-width: 800px; margin: 0 auto; }
+.about-hero .hero-eyebrow { margin: 0 auto 18px; }
+.about-hero .hero-sub { margin-left: auto; margin-right: auto; max-width: 640px; }
+.about-hero .hero-cta { justify-content: center; }
+
+.about-rule {
+  display: block;
+  width: 56px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sky), var(--sky-deep));
+  margin: -36px auto 0;
+  position: relative;
+}
+
+/* ---------- Company intro ---------- */
+.about-intro .about-grid { align-items: center; }
+.about-intro .section-head--left { margin-bottom: 10px; }
+
+.about-snapshot {
+  position: relative;
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.about-snapshot:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.about-snapshot-title {
+  font-family: var(--font-head);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.about-snapshot .about-stats { margin-top: 20px; }
+.about-snapshot .stat-box { padding: 12px 10px; }
+.about-snapshot .stat-box b { font-size: 22px; }
+
+/* ---------- Core value cards with descriptions ---------- */
+.value-card p { line-height: 1.55; }
+
+/* ---------- Team photo polish ---------- */
+.team-photo {
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.team-photo:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); }
+.team-photo-caption {
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 520px;
+  margin: 16px auto 4px;
+}
+
+/* ---------- CTA actions inside the dark band ---------- */
+.cta-band .hero-cta { justify-content: center; }
+
+/* ---------- Mobile: comfortable spacing, stacked snapshot ---------- */
+@media (max-width: 639.98px) {
+  .about-rule { margin-top: -44px; }
+  .about-snapshot .about-stats { gap: 10px; }
+}

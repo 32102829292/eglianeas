@@ -3,12 +3,78 @@
 @section('title', 'About — Egliane Accounting Services')
 
 @section('content')
-<section class="section">
+{{-- ============================================================
+     HERO
+     ============================================================ --}}
+<section class="hero about-hero" id="about-top">
     <div class="container">
-        <div class="section-head">
-            <span class="eyebrow">About us</span>
-            <h2>Mission and Vision</h2>
-            <p>The principles that guide how we serve every client.</p>
+        <div class="about-hero-inner lp-reveal">
+            <span class="hero-eyebrow">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                About Egliane
+            </span>
+            <h1>Reliable Accounting <span class="accent">Support</span> for Your Business</h1>
+            <p class="hero-sub">Egliane Accounting Services helps small businesses stay compliant and organized with dependable bookkeeping, BIR-compliant tax filing, payroll, and financial reporting — all backed by a secure client portal.</p>
+            <div class="hero-cta hero-cta--center">
+                <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
+                <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline btn-lg">Contact Us</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<span class="about-rule" aria-hidden="true"></span>
+
+{{-- ============================================================
+     COMPANY INTRODUCTION
+     ============================================================ --}}
+<section class="section about-intro">
+    <div class="container">
+        <div class="about-grid">
+            <div class="lp-reveal">
+                <div class="section-head section-head--left">
+                    <span class="eyebrow">Who we are</span>
+                    <h2>An accounting team built for your business</h2>
+                </div>
+                <p class="muted">Egliane Accounting Services has been helping small businesses stay compliant and organized since 2017. From day-to-day bookkeeping to full compliance, we handle the accounting work so you can focus on running your business.</p>
+                <ul class="about-list">
+                    <li><b>Organized financial records</b> — every income, expense, and receipt recorded and categorized.</li>
+                    <li><b>BIR-compliant tax filing</b> — deadlines monitored so you stay prepared.</li>
+                    <li><b>Payroll support</b> — computations, deductions, and remittances handled on schedule.</li>
+                    <li><b>Secure client portal</b> — view filings, statements, and documents anytime, anywhere.</li>
+                </ul>
+                <a href="{{ route('register') }}" class="btn btn-sky">Get Started</a>
+            </div>
+
+            <div class="lp-reveal">
+                <div class="hero-card about-snapshot">
+                    <div class="hero-card-head">
+                        <span class="dot" aria-hidden="true"></span>
+                        <b class="about-snapshot-title">Egliane at a glance</b>
+                    </div>
+                    <div class="hero-card-row">
+                        <span class="label">Established</span>
+                        <span class="val">Since 2017</span>
+                    </div>
+                    <div class="hero-card-row">
+                        <span class="label">Record access</span>
+                        <span class="val">24/7 portal</span>
+                    </div>
+                    <div class="hero-card-row">
+                        <span class="label">Compliance</span>
+                        <span class="val">BIR-compliant</span>
+                    </div>
+                    <div class="hero-card-row">
+                        <span class="label">Sign-in security</span>
+                        <span class="val">6-digit PIN</span>
+                    </div>
+                    <div class="about-stats">
+                        <div class="stat-box"><b>2017</b><span>Serving clients since</span></div>
+                        <div class="stat-box"><b>24/7</b><span>Access your records</span></div>
+                        <div class="stat-box"><b>100%</b><span>BIR-compliant</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </section>
@@ -23,7 +89,12 @@
                 ? 'Guided by ' . $valueCount . ' core values that define how we work with every client.'
                 : 'Guided by core values that define how we work with every client.';
         @endphp
-        <div class="about-banner">
+        <div class="section-head lp-reveal">
+            <span class="eyebrow">Mission and Vision</span>
+            <h2>What drives our work every day</h2>
+            <p>The principles that guide how we serve every client.</p>
+        </div>
+        <div class="about-banner lp-reveal">
             <div class="about-banner-col">
                 <div class="about-banner-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="28" height="28"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -56,7 +127,7 @@
 
 <section class="section section-alt">
     <div class="container">
-        <div class="section-head">
+        <div class="section-head lp-reveal">
             <span class="eyebrow">What we stand for</span>
             <h2>Core Values</h2>
         </div>
@@ -80,17 +151,31 @@
                 'Continuous Improvement & Competence' => '<path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/>',
                 'Objectivity & Professional Independence' => '<path d="M12 3v18"/><path d="M1 6l5 6-5 6"/><path d="M23 6l-5 6 5 6"/><circle cx="8" cy="6" r="0"/><circle cx="16" cy="6" r="0"/>',
             ];
+
+            $valueDescriptions = [
+                'Integrity' => 'Honest, transparent handling of your financial records, built on a foundation of financial integrity.',
+                'Precision' => 'Clean and accurate books and filings, checked thoroughly before every deadline.',
+                'Accessibility' => 'Your filings, statements, and documents available anytime in your secure client portal.',
+                'Professional Excellence' => 'Professional accounting service delivered with care from experienced accountants.',
+                'Accountability & Stewardship' => 'We look after your financial records with the same care as our own.',
+                'Continuous Improvement & Competence' => 'We keep up with rules and tools so your books stay accurate and compliant.',
+                'Objectivity & Professional Independence' => 'Independent, unbiased accounting work and advice you can rely on.',
+            ];
         @endphp
         <div class="values-grid">
             @foreach ($displayValues as $value)
                 @php
                     $iconPath = $valueIcons[$value->label] ?? '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>';
+                    $desc = $valueDescriptions[$value->label] ?? null;
                 @endphp
-                <div class="value-card">
+                <div class="value-card lp-reveal">
                     <div class="value-icon">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{!! $iconPath !!}</svg>
                     </div>
                     <h3>{{ $value->label }}</h3>
+                    @if ($desc)
+                        <p>{{ $desc }}</p>
+                    @endif
                 </div>
             @endforeach
         </div>
@@ -100,7 +185,7 @@
 @if ($certificates->count())
 <section class="section">
     <div class="container">
-        <div class="section-head">
+        <div class="section-head lp-reveal">
             <span class="eyebrow">Legitimacy</span>
             <h2>Certificates &amp; Registrations</h2>
             <p>Our official registrations and professional credentials.</p>
@@ -201,9 +286,9 @@
 @endpush
 @endif
 
-<section class="section">
+<section class="section section-alt">
     <div class="container">
-        <div class="section-head">
+        <div class="section-head lp-reveal">
             <span class="eyebrow">People</span>
             <h2>Meet Our Team</h2>
             <p>The people behind Egliane's reliable accounting services.</p>
@@ -211,6 +296,7 @@
         <div class="team-photo lp-reveal">
             <img src="{{ asset('images/teams.jfif') }}" alt="Egliane Accounting Services team" width="1024" height="768">
         </div>
+        <p class="team-photo-caption">The Egliane team — accountants, specialists, and support staff working together for every client.</p>
         @php
             $teamByRank = $teamMembers->groupBy('rank');
             $rankOrder = ['Managerial', 'Supervisory', 'Supervisory / Specialist', 'Technical Specialist / Advisory', 'Rank and File / Analyst', 'Rank and File / Specialist', 'Rank and File'];
@@ -266,14 +352,14 @@
     </div>
 </section>
 
-<section class="section section-alt">
+<section class="section">
     <div class="container">
-        <div class="cta-band">
+        <div class="cta-band lp-reveal">
             <h2>Ready to hand over your books?</h2>
             <p>Sign up today and let our team handle your accounting while you focus on your business.</p>
             <div class="hero-cta hero-cta--center">
                 <a href="{{ route('register') }}" class="btn btn-sky btn-lg">Get Started</a>
-                <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Message us on Messenger</a>
+                <a href="{{ config('contact.messenger_url') }}" target="_blank" rel="noopener" class="btn btn-outline-light btn-lg">Contact Us</a>
             </div>
         </div>
     </div>
