@@ -943,5 +943,89 @@ var toastEl = null;
     }
   });
 
+  /* ---------- BIR forms: async applicability toggle ----------
+     Selecting a form used to submit a native POST and reload the page.
+     Intercept the submit on .bir-toggle-form, POST via fetch (same endpoint,
+     CSRF header included), optimistically flip the icon, and keep the page in
+     place. The per-form pending flag blocks duplicate/concurrent requests;
+     on failure the previous state is restored and a toast explains the error.
+     With JavaScript disabled the native submit still works. */
+  var birToggleForms = document.querySelectorAll('.inline-form.bir-toggle-form');
+  for (var bi = 0; bi < birToggleForms.length; bi++) {
+    birToggleForms[bi].addEventListener('submit', birToggleSubmit);
+  }
+
+  function birSetState(btn, on) {
+    btn.classList.toggle('bir-toggle-on', on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+
+  function birRefreshCounts(form) {
+    var scope = form.closest('.cv-card') || form.closest('tr');
+    if (!scope) return;
+    var total = scope.querySelectorAll('.inline-form.bir-toggle-form').length;
+    var on = scope.querySelectorAll('.bir-toggle.bir-toggle-on').length;
+    var badges = scope.querySelectorAll('.bir-count-badge');
+    for (var j = 0; j < badges.length; j++) {
+      badges[j].textContent = on + '/' + total;
+      badges[j].classList.toggle('badge-success', on > 0);
+      badges[j].classList.toggle('badge-neutral', on === 0);
+    }
+  }
+
+  function birToggleSubmit(e) {
+    e.preventDefault();
+    var form = e.target;
+    if (!form || form.nodeName !== 'FORM' || form.dataset.pending === '1') return;
+
+    var btn = form.querySelector('.bir-toggle');
+    var token = form.querySelector('input[name="_token"]');
+    var formType = form.querySelector('input[name="form_type"]');
+    if (!btn || !token || !formType) return;
+
+    var wasOn = btn.classList.contains('bir-toggle-on');
+    var savedTitle = btn.title;
+
+    birSetState(btn, !wasOn);
+    form.dataset.pending = '1';
+    btn.disabled = true;
+    btn.classList.add('bir-toggle-pending');
+    btn.title = 'Saving…';
+
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': token.value, 'Accept': 'application/json' },
+      body: new FormData(form),
+      credentials: 'same-origin'
+    })
+      .then(function (res) {
+        return res.json()
+          .catch(function () { return null; })
+          .then(function (data) {
+            if (!res.ok || !data || data.ok === false) {
+              throw new Error(data && data.message ? data.message : 'Could not update this form. Please try again.');
+            }
+            return data;
+          });
+      })
+      .then(function (data) {
+        var on = !!data.applicable;
+        birSetState(btn, on);
+        btn.title = formType.value + ': ' + (on ? 'Applicable' : 'Not applicable');
+        birRefreshCounts(form);
+        E.toast(data.message || formType.value + ' updated.', 'success');
+      })
+      .catch(function (err) {
+        birSetState(btn, wasOn);
+        btn.title = savedTitle;
+        E.toast(err && err.message ? err.message : 'Could not update this form. Please try again.', 'error');
+      })
+      .finally(function () {
+        form.dataset.pending = '';
+        btn.classList.remove('bir-toggle-pending');
+        btn.disabled = false;
+      });
+  }
+
   window.addEventListener('pageshow', function () { restoreSubmitButtons(document); });
 })();

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\BirFormStatus;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -50,7 +51,7 @@ class BirFormsController extends Controller
         ]);
     }
 
-    public function toggleApplicable(Request $request, User $client): RedirectResponse
+    public function toggleApplicable(Request $request, User $client): RedirectResponse|JsonResponse
     {
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
@@ -77,7 +78,18 @@ class BirFormsController extends Controller
             "Marked {$validated['form_type']} as {$state} for {$displayName}."
         );
 
-        return back()->with('status', "{$validated['form_type']} marked as {$state}.");
+        $message = "{$validated['form_type']} marked as {$state}.";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'ok' => true,
+                'form_type' => $validated['form_type'],
+                'applicable' => $record->applicable,
+                'message' => $message,
+            ]);
+        }
+
+        return back()->with('status', $message);
     }
 
     public function exportXlsx(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse

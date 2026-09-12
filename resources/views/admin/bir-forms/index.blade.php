@@ -72,21 +72,18 @@
                             @foreach ($formTypes as $ft)
                                 @php($isOn = $statuses[$ft] ?? false)
                                 <td class="text-center">
-                                    <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form">
+                                    <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form bir-toggle-form">
                                         @csrf
                                         <input type="hidden" name="form_type" value="{{ $ft }}">
-                                        <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}">
-                                            @if ($isOn)
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
-                                            @else
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                            @endif
+                                        <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}" aria-pressed="{{ $isOn ? 'true' : 'false' }}">
+                                            <svg class="bir-ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                                            <svg class="bir-ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                         </button>
                                     </form>
                                 </td>
                             @endforeach
                             <td class="text-center">
-                                <span class="badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
+                                <span class="badge bir-count-badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
                             </td>
                         </tr>
                     @empty
@@ -104,23 +101,20 @@
                                 <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
                                 <div class="cv-head-sub">{{ $client->name }}{{ $client->client_code ? ' · '.$client->client_code : '' }}</div>
                             </div>
-                            <span class="badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
+                            <span class="badge bir-count-badge @if($entry['applicableCount'] > 0) badge-success @else badge-neutral @endif">{{ $entry['applicableCount'] }}/{{ $entry['totalForms'] }}</span>
                         </div>
-                        <div class="cv-card-body">
+                        <div class="cv-card-body bir-card-body">
                             @foreach ($formTypes as $ft)
                                 @php($isOn = $statuses[$ft] ?? false)
                                 <div class="cv-pair">
                                     <span class="cv-label">{{ $ft }}</span>
                                     <span class="cv-value">
-                                        <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form">
+                                        <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form bir-toggle-form">
                                             @csrf
                                             <input type="hidden" name="form_type" value="{{ $ft }}">
-                                            <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}">
-                                                @if ($isOn)
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
-                                                @else
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                                @endif
+                                            <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}" aria-pressed="{{ $isOn ? 'true' : 'false' }}">
+                                                <svg class="bir-ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
+                                                <svg class="bir-ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                                             </button>
                                         </form>
                                     </span>

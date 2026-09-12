@@ -566,6 +566,13 @@
 .bir-toggle:hover { border-color: var(--sky); color: var(--sky); }
 .bir-toggle-on { background: #dcfce7; border-color: #22c55e; color: #16a34a; }
 .bir-toggle-on:hover { background: #bbf7d0; }
+.bir-toggle .bir-ico-on { display: none; }
+.bir-toggle .bir-ico-off { display: inline-block; }
+.bir-toggle-on .bir-ico-on { display: inline-block; }
+.bir-toggle-on .bir-ico-off { display: none; }
+.bir-toggle-pending { opacity: .55; cursor: wait; }
+.bir-toggle:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.bir-toggle:disabled { cursor: not-allowed; }
 
 /* Badges: unified system lives in app.css */
 
@@ -2663,3 +2670,25 @@ button.staff-chip:active { transform: translateY(1px); }
   }
   .table-card-view .cv-card-actions .coll-actions .coll-pay-row .btn { width: 100%; }
 }
+
+/* ---------- BIR forms card (mobile): compact checklist ----------
+   Each form becomes one short row — code on the left, 42px tap target on the
+   right — and the grid stays two columns even on the smallest phones because
+   every row is merely a form code plus a fixed-size toggle. Adds no fixed
+   heights; rows grow only if the code needs to wrap. */
+.table-card-view .cv-card-body.bir-card-body {
+  grid-template-columns: 1fr 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+}
+.table-card-view .bir-card-body .cv-pair {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; min-height: 44px; padding: 1px 0;
+}
+.table-card-view .bir-card-body .cv-label {
+  margin: 0; font-size: 13px; font-weight: 700; color: var(--text);
+  text-transform: none; letter-spacing: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.table-card-view .bir-card-body .cv-value { flex: 0 0 auto; min-width: 0; }
+.table-card-view .bir-card-body .bir-toggle { width: 42px; height: 42px; border-radius: 10px; }
