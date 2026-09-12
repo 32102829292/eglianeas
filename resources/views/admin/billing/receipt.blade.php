@@ -175,7 +175,13 @@
                 menu.style.bottom = '';
             }
 
-            if (navigator.share) {
+            // Desktop always opens the explicit menu so Messenger, Viber,
+            // Telegram, Email and Copy Link stay available even when the
+            // native target list has no Messenger. Mobile keeps the native
+            // Share Sheet where the browser exposes one (unchanged behavior).
+            var mobileFormFactor = (typeof navigator.userAgentData !== 'undefined' && navigator.userAgentData && navigator.userAgentData.mobile) || window.matchMedia('(max-width: 767px)').matches;
+
+            if (navigator.share && mobileFormFactor) {
                 btn.addEventListener('click', function (e) {
                     e.stopPropagation();
                     navigator.share({ title: 'Egliane Billing Statement', text: shortMessage(), url: statementUrl() }).catch(function (err) {
