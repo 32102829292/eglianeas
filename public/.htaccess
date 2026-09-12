@@ -23,3 +23,8 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Serve .jfif team photos with the correct image type (Apache/nginx: charset-on; XAMPP)
+<IfModule mod_mime.c>
+    AddType image/jpeg .jfif
+</IfModule>

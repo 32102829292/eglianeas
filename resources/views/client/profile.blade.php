@@ -40,6 +40,10 @@
             <h1>My profile</h1>
             <p>Keep your business information up to date.</p>
         </div>
+        <button type="button" class="btn btn-outline btn-sm" data-onboarding-replay>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+            Take a tour
+        </button>
     </div>
 
     @if ($hasData)

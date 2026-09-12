@@ -17,7 +17,7 @@
         </div>
     @endif
 
-    <script src="/js/app.js?v=8" defer></script>
+    <script src="/js/app.js?v=9" defer></script>
     <script src="/js/auth.js?v=3" defer></script>
     @stack('scripts')
 </body>

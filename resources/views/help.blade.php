@@ -447,6 +447,14 @@
                 @if ($isClient)
                 <div class="help-task-card">
                     <span class="ht-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+                    </span>
+                    <b>Interactive tour</b>
+                    <span>Get a quick walkthrough of the main tools in your portal.</span>
+                    <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-onboarding-replay data-onboarding-role="{{ $user->role }}" data-onboarding-dash="{{ route('client.dashboard') }}">Take a tour</button></div>
+                </div>
+                <div class="help-task-card">
+                    <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/><path d="M12 12l3-2"/></svg>
                     </span>
                     <b>Income &amp; expenses</b>
@@ -498,6 +506,14 @@
                 </div>
 
                 @elseif ($isStaffOrAdmin)
+                <div class="help-task-card">
+                    <span class="ht-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+                    </span>
+                    <b>Interactive tour</b>
+                    <span>Get a quick walkthrough of the main tools in your portal.</span>
+                    <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-onboarding-replay data-onboarding-role="{{ $user->role }}" data-onboarding-dash="{{ route('admin.dashboard') }}">Take a tour</button></div>
+                </div>
                 <div class="help-task-card">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>

@@ -1027,5 +1027,412 @@ var toastEl = null;
       });
   }
 
+  /* ---------- Interactive onboarding tour ----------
+     Canva-style tutorial spotlighted over the live dashboard UI. Rendered by
+     <x-onboarding /> only on the dashboard layout. Auto-shows once per role
+     (localStorage, keyed by a version so future tours replay for everyone) and
+     can be replayed from the Help / profile pages. */
+  var ONB_VERSION = '1';
+  var ONB_VERSION_KEY = 'eas_onboarding_version';
+  var ONB_DONE_PREFIX = 'eas_onboarding_done_';
+  var ONB_REPLAY_PREFIX = 'eas_onboarding_replay_';
+  var ONB_MOBILE_BP = 900;
+
+  var onboardRoot = document.getElementById('easOnboarding');
+  var onboardRole = onboardRoot ? (onboardRoot.getAttribute('data-role') || '') : '';
+  var onboardSteps = [];
+  try {
+    var onboardRaw = document.getElementById('easOnboardSteps');
+    if (onboardRaw && onboardRaw.textContent) {
+      var onboardParsed = JSON.parse(onboardRaw.textContent);
+      if (onboardParsed && onboardParsed.steps) onboardSteps = onboardParsed.steps;
+    }
+  } catch (e) { onboardSteps = []; }
+
+  var onboardCard = document.getElementById('easOnboardCard');
+  var onboardTitle = document.getElementById('easOnboardTitle');
+  var onboardDesc = document.getElementById('easOnboardDesc');
+  var onboardProgress = document.getElementById('easOnboardProgress');
+  var onboardDots = document.getElementById('easOnboardDots');
+  var onboardNext = document.getElementById('easOnboardNext');
+  var onboardBack = document.getElementById('easOnboardBack');
+  var onboardSkip = document.getElementById('easOnboardSkip');
+  var onboardClose = document.getElementById('easOnboardClose');
+  var onboardPanels = [
+    document.querySelector('.eas-onboard-top'),
+    document.querySelector('.eas-onboard-left'),
+    document.querySelector('.eas-onboard-right'),
+    document.querySelector('.eas-onboard-bottom'),
+    document.querySelector('.eas-onboard-ring')
+  ];
+
+  var onboardDoneKey = onboardRole ? (ONB_DONE_PREFIX + onboardRole) : '';
+  var onboardReplayKey = onboardRole ? (ONB_REPLAY_PREFIX + onboardRole) : '';
+
+  var onboardVisible = [];
+  var onboardIndex = 0;
+  var onboardRunning = false;
+  var onboardLastFocus = null;
+  var onboardRaf = 0;
+  var onboardOpenedDrawer = false;
+  var onboardJustOpenedDrawer = false;
+  var onboardTarget = null;
+
+  function onboardStorageGet(key) {
+    try { return localStorage.getItem(key); } catch (e) { return null; }
+  }
+  function onboardStorageSet(key, val) {
+    try { localStorage.setItem(key, val); } catch (e) { /* storage disabled — tour still works */ }
+  }
+  function onboardStorageDel(key) {
+    try { localStorage.removeItem(key); } catch (e) { /* no-op */ }
+  }
+
+  function onboardMarkDone() {
+    onboardStorageSet(ONB_VERSION_KEY, ONB_VERSION);
+    if (onboardDoneKey) onboardStorageSet(onboardDoneKey, '1');
+    if (onboardReplayKey) onboardStorageDel(onboardReplayKey);
+  }
+
+  function onboardShouldAutoStart() {
+    if (!onboardRoot || !onboardRole) return false;
+    if (onboardStorageGet(ONB_VERSION_KEY) !== ONB_VERSION) return true;
+    if (onboardStorageGet(onboardDoneKey) !== '1') return true;
+    if (onboardStorageGet(onboardReplayKey) === '1') return true;
+    return false;
+  }
+
+  function onboardIsMobile() {
+    return window.matchMedia('(max-width: ' + ONB_MOBILE_BP + 'px)').matches;
+  }
+
+  function onboardElVisible(el) {
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    if (r.right <= 0 || r.left >= window.innerWidth || r.bottom <= 0 || r.top >= window.innerHeight) return false;
+    for (var a = el; a && a !== document.documentElement; a = a.parentElement) {
+      var cs = getComputedStyle(a);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+    }
+    return true;
+  }
+
+  function onboardResolveTarget(step) {
+    if (step.final) return null;
+    var selectors = step.selectors || [];
+    for (var i = 0; i < selectors.length; i++) {
+      try {
+        var el = document.querySelector(selectors[i]);
+        if (onboardElVisible(el)) return el;
+      } catch (e) { /* bad selector — try next */ }
+    }
+    return null;
+  }
+
+  function onboardIsSidebarStep(step) {
+    return /#dashDrawer/.test((step.selectors || []).join(' '));
+  }
+
+  function onboardPickTarget(step) {
+    onboardJustOpenedDrawer = false;
+    var isSidebar = onboardIsSidebarStep(step);
+    if (!isSidebar && onboardOpenedDrawer && drawer && drawer.classList.contains('open')) {
+      setDrawer(false);
+      onboardOpenedDrawer = false;
+      onboardJustOpenedDrawer = true;
+    }
+    if (step.final) { onboardTarget = null; return; }
+    var el = onboardResolveTarget(step);
+    if (!el && isSidebar && onboardIsMobile()) {
+      if (drawer && !drawer.classList.contains('open')) {
+        setDrawer(true);
+        onboardOpenedDrawer = true;
+        onboardJustOpenedDrawer = true;
+      }
+      el = onboardResolveTarget(step);
+    }
+    onboardTarget = el || null;
+  }
+
+  function onboardEnsureInView(el) {
+    if (!el) return;
+    var cs = getComputedStyle(el);
+    if (cs.position === 'fixed' || cs.position === 'sticky') return;
+    var r = el.getBoundingClientRect();
+    var c = r.top + r.height / 2;
+    if (c > 96 && c < window.innerHeight - 96) return;
+    try { el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); }
+    catch (e) { el.scrollIntoView(true); }
+  }
+
+  function onboardPosition() {
+    if (!onboardRunning) return;
+    var vw = window.innerWidth;
+    var vh = window.innerHeight;
+    var topbarH = 64;
+
+    if (!onboardTarget) {
+      var cardW = onboardCard.offsetWidth || 320;
+      var cardH = onboardCard.offsetHeight || 220;
+      for (var p = 0; p < onboardPanels.length; p++) { if (onboardPanels[p]) onboardPanels[p].style.opacity = p < 4 ? '0.35' : '0'; }
+      onboardCard.style.top = Math.max(topbarH + 10, Math.round((vh - cardH) * 0.42)) + 'px';
+      onboardCard.style.left = Math.max(10, Math.round((vw - cardW) / 2)) + 'px';
+      onboardCard.style.transform = 'translateY(0)';
+      onboardCard.setAttribute('data-arrow', 'none');
+      return;
+    }
+
+    var r = onboardTarget.getBoundingClientRect();
+    var pad = 8;
+    var hx = Math.max(0, r.left - pad);
+    var hy = Math.max(0, r.top - pad);
+    var hw = Math.min(vw, r.width + pad * 2);
+    var hh = Math.min(vh, r.height + pad * 2);
+
+    var t = hx;
+    var l = hy;
+    var ri = Math.max(0, vw - (hx + hw));
+    var b = Math.max(0, vh - (hy + hh));
+
+    if (onboardPanels[0]) {
+      onboardPanels[0].style.top = '0';
+      onboardPanels[0].style.left = '0';
+      onboardPanels[0].style.width = vw + 'px';
+      onboardPanels[0].style.height = hy + 'px';
+    }
+    if (onboardPanels[1]) {
+      onboardPanels[1].style.top = hy + 'px';
+      onboardPanels[1].style.left = '0';
+      onboardPanels[1].style.width = hx + 'px';
+      onboardPanels[1].style.height = hh + 'px';
+    }
+    if (onboardPanels[2]) {
+      onboardPanels[2].style.top = hy + 'px';
+      onboardPanels[2].style.left = (hx + hw) + 'px';
+      onboardPanels[2].style.width = ri + 'px';
+      onboardPanels[2].style.height = hh + 'px';
+    }
+    if (onboardPanels[3]) {
+      onboardPanels[3].style.top = (hy + hh) + 'px';
+      onboardPanels[3].style.left = '0';
+      onboardPanels[3].style.width = vw + 'px';
+      onboardPanels[3].style.height = b + 'px';
+    }
+    if (onboardPanels[4]) {
+      onboardPanels[4].style.left = hx + 'px';
+      onboardPanels[4].style.top = hy + 'px';
+      onboardPanels[4].style.width = hw + 'px';
+      onboardPanels[4].style.height = hh + 'px';
+    }
+    for (var q = 0; q < 5; q++) { if (onboardPanels[q]) onboardPanels[q].style.opacity = '1'; }
+
+    var cardW = onboardCard.offsetWidth || 320;
+    var cardH = onboardCard.offsetHeight || 220;
+    var gap = 14;
+    var below = vh - (r.bottom + gap);
+    var above = r.top - gap - topbarH;
+    var place;
+    if (above >= cardH) place = 'above';
+    else if (below >= cardH) place = 'below';
+    else place = (above >= below) ? 'above' : 'below';
+
+    var cardX = r.left + r.width / 2 - cardW / 2;
+    var cardY = place === 'above' ? (r.top - gap - cardH) : (r.bottom + gap);
+    cardX = Math.max(10, Math.min(cardX, vw - cardW - 10));
+    if (cardY < topbarH + 10) cardY = topbarH + 12;
+    if (cardY + cardH > vh - 10) cardY = Math.max(topbarH + 12, vh - cardH - 10);
+
+    onboardCard.style.top = cardY + 'px';
+    onboardCard.style.left = cardX + 'px';
+    onboardCard.style.transform = 'translateY(0)';
+
+    var arrowPct = (r.left + r.width / 2 - cardX) / cardW * 100;
+    arrowPct = Math.max(16, Math.min(arrowPct, 84));
+    onboardCard.style.setProperty('--eas-arrow-x', arrowPct + '%');
+    onboardCard.setAttribute('data-arrow', place === 'above' ? 'down' : 'up');
+  }
+
+  function onboardSchedule() {
+    if (onboardRaf) cancelAnimationFrame(onboardRaf);
+    onboardRaf = requestAnimationFrame(function () {
+      onboardRaf = 0;
+      if (!onboardRunning) return;
+      if (onboardTarget && !onboardElVisible(onboardTarget)) {
+        onboardEnsureInView(onboardTarget);
+      }
+      onboardPosition();
+    });
+  }
+
+  function onboardRender() {
+    var step = onboardVisible[onboardIndex];
+    if (!step) return;
+    onboardTitle.textContent = step.title || '';
+    onboardDesc.textContent = step.desc || '';
+    onboardProgress.textContent = (onboardIndex + 1) + ' of ' + onboardVisible.length;
+    onboardDots.innerHTML = '';
+    for (var i = 0; i < onboardVisible.length; i++) {
+      var dot = document.createElement('span');
+      dot.className = 'eas-onboard-dot' + (i === onboardIndex ? ' on' : '');
+      onboardDots.appendChild(dot);
+    }
+    var isLast = onboardIndex >= onboardVisible.length - 1;
+    onboardNext.textContent = isLast ? (step.confirm || 'Finish') : 'Next';
+    onboardBack.disabled = onboardIndex === 0;
+  }
+
+  function onboardGoto(idx) {
+    if (!onboardVisible.length || !onboardRunning) return;
+    onboardIndex = Math.max(0, Math.min(idx, onboardVisible.length - 1));
+    var step = onboardVisible[onboardIndex];
+    onboardPickTarget(step);
+    onboardRender();
+    if (onboardTarget) onboardEnsureInView(onboardTarget);
+    if (onboardJustOpenedDrawer) {
+      setTimeout(function () {
+        if (!onboardRunning) return;
+        var cur = onboardVisible[onboardIndex];
+        if (cur && !cur.final && !onboardTarget && onboardIsSidebarStep(cur)) {
+          onboardTarget = onboardResolveTarget(cur);
+          if (onboardTarget) onboardEnsureInView(onboardTarget);
+        }
+        onboardPosition();
+        onboardCard.focus({ preventScroll: true });
+      }, 340);
+    } else {
+      onboardPosition();
+      onboardCard.focus({ preventScroll: true });
+    }
+  }
+
+  function onboardFocusables() {
+    return Array.prototype.filter.call(
+      onboardCard.querySelectorAll('button'),
+      function (b) { return !b.disabled; }
+    );
+  }
+
+  function onboardTrapFocus(e) {
+    var items = onboardFocusables();
+    if (!items.length) { e.preventDefault(); onboardCard.focus(); return; }
+    var first = items[0];
+    var last = items[items.length - 1];
+    var active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || !onboardCard.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (active === last || !onboardCard.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }
+
+  function onboardKeydown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); onboardCloseTour(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); onboardNextClick(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); if (onboardIndex > 0) onboardGoto(onboardIndex - 1); }
+    else if (e.key === 'Tab') { onboardTrapFocus(e); }
+  }
+
+  function onboardNextClick() {
+    if (onboardIndex >= onboardVisible.length - 1) {
+      onboardCloseTour();
+      return;
+    }
+    onboardGoto(onboardIndex + 1);
+  }
+
+  function onboardBackClick() { if (onboardIndex > 0) onboardGoto(onboardIndex - 1); }
+  function onboardSkipClick() { onboardCloseTour(); }
+  function onboardCloseClick() { onboardCloseTour(); }
+
+  function onboardBindEvents() {
+    window.addEventListener('resize', onboardSchedule);
+    window.addEventListener('orientationchange', onboardSchedule);
+    window.addEventListener('scroll', onboardSchedule, true);
+    document.addEventListener('keydown', onboardKeydown);
+    onboardNext.addEventListener('click', onboardNextClick);
+    onboardBack.addEventListener('click', onboardBackClick);
+    onboardSkip.addEventListener('click', onboardSkipClick);
+    onboardClose.addEventListener('click', onboardCloseClick);
+  }
+
+  function onboardUnbindEvents() {
+    window.removeEventListener('resize', onboardSchedule);
+    window.removeEventListener('orientationchange', onboardSchedule);
+    window.removeEventListener('scroll', onboardSchedule, true);
+    document.removeEventListener('keydown', onboardKeydown);
+    onboardNext.removeEventListener('click', onboardNextClick);
+    onboardBack.removeEventListener('click', onboardBackClick);
+    onboardSkip.removeEventListener('click', onboardSkipClick);
+    onboardClose.removeEventListener('click', onboardCloseClick);
+  }
+
+  function onboardCloseTour() {
+    if (!onboardRunning) return;
+    onboardRunning = false;
+    onboardJustOpenedDrawer = false;
+    if (onboardRaf) cancelAnimationFrame(onboardRaf);
+    if (onboardOpenedDrawer && drawer && drawer.classList.contains('open')) setDrawer(false);
+    onboardOpenedDrawer = false;
+    onboardUnbindEvents();
+    onboardRoot.hidden = true;
+    onboardRoot.classList.remove('running');
+    if (onboardLastFocus && document.contains(onboardLastFocus)) {
+      try { onboardLastFocus.focus({ preventScroll: true }); } catch (e) { onboardLastFocus.focus(); }
+    }
+    onboardMarkDone();
+  }
+
+  function onboardStart(auto) {
+    if (!onboardRoot || onboardRunning) return;
+    onboardVisible = [];
+    for (var i = 0; i < onboardSteps.length; i++) {
+      var step = onboardSteps[i];
+      if (step.final || onboardResolveTarget(step)) { onboardVisible.push(step); continue; }
+      if (step && onboardIsSidebarStep(step) && onboardIsMobile() && drawer) {
+        for (var k = 0; k < (step.selectors || []).length; k++) {
+          if (String(step.selectors[k]).indexOf('#dashDrawer') === 0 && document.querySelector(step.selectors[k])) {
+            onboardVisible.push(step);
+            break;
+          }
+        }
+      }
+    }
+    if (!onboardVisible.length) return;
+    if (!auto) onboardStorageDel(onboardReplayKey);
+    onboardLastFocus = document.activeElement;
+    onboardIndex = 0;
+    onboardRunning = true;
+    onboardOpenedDrawer = false;
+    onboardRoot.hidden = false;
+    onboardRoot.classList.add('running');
+    onboardBindEvents();
+    onboardGoto(0);
+  }
+
+  if (onboardRoot && onboardShouldAutoStart()) onboardStart(true);
+
+  /* Replay entry points (Help page + profile pages). Buttons carry the role so
+     the site-layout Help page can pre-arm the tour for the correct account. */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-onboarding-replay]');
+    if (!btn) return;
+    e.preventDefault();
+    var role = btn.getAttribute('data-onboarding-role') || onboardRole;
+    if (onboardRoot) {
+      if (!onboardRunning) onboardStart(false);
+    } else if (role) {
+      onboardStorageSet(ONB_REPLAY_PREFIX + role, '1');
+      var dash = btn.getAttribute('data-onboarding-dash');
+      if (dash) { window.location.assign(dash); return; }
+    }
+  });
+
   window.addEventListener('pageshow', function () { restoreSubmitButtons(document); });
 })();

@@ -208,6 +208,9 @@
             <h2>Meet Our Team</h2>
             <p>The people behind Egliane's reliable accounting services.</p>
         </div>
+        <div class="team-photo lp-reveal">
+            <img src="{{ asset('images/teams.jfif') }}" alt="Egliane Accounting Services team" width="1024" height="768">
+        </div>
         @php
             $teamByRank = $teamMembers->groupBy('rank');
             $rankOrder = ['Managerial', 'Supervisory', 'Supervisory / Specialist', 'Technical Specialist / Advisory', 'Rank and File / Analyst', 'Rank and File / Specialist', 'Rank and File'];
