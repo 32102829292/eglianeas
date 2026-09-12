@@ -1339,19 +1339,35 @@ table.data tr:hover td { background: var(--surface-raised); }
 .collections-table th { white-space: nowrap; }
 .collections-table .td-money, .collections-table .td-status, .collections-table .td-due { white-space: nowrap; }
 .collections-table .td-money { font-variant-numeric: tabular-nums; }
-.collections-table .col-business { width: 20%; }
-.collections-table .col-period { width: 19%; }
-.collections-table .col-total { width: 11%; }
-.collections-table .col-status { width: 10%; }
-.collections-table .col-due { width: 14%; }
-.collections-table .col-actions { width: 15%; min-width: 165px; }
+.collections-table .col-business { width: 16%; }
+.collections-table .col-period { width: 16%; }
+.collections-table .col-total { width: 10%; }
+.collections-table .col-status { width: 9%; }
+.collections-table .col-due { width: 13%; }
+.collections-table .col-actions { width: 18%; min-width: 264px; }
 
-/* Collection actions -- compact: a visible primary button + a 站ｮ more-menu.
-   Secondary/recurring actions (send reminder, mark paid) live in the menu. */
-.actions-compact { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.collections-table td.col-actions { text-align: center; }
-.collections-table td .actions-compact { justify-content: center; }
-.actions-compact .btn { white-space: nowrap; margin: 0; }
+/* Collection actions -- in-flow, never overlaid: an explicit mini-grid places
+   [View receipt] + [⋯] on the first row and [Date] [Mark paid] on the second
+   (which spans both columns), so the date never floats over another column and
+   nothing is clipped. On phones the same grid re-stacks (see dashboard.css v21):
+   View receipt, then Date, then Mark paid, then the "⋯ More" row. */
+.coll-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "view more" "pay pay";
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+.collections-table td.col-actions { text-align: left; }
+.collections-table td .coll-actions { align-content: center; }
+.coll-actions > a.btn { grid-area: view; }
+.coll-actions .dropdown-wrap { grid-area: more; min-width: 0; }
+.coll-actions .coll-pay-form { grid-area: pay; min-width: 0; }
+.coll-pay-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.coll-pay-row .form-control { flex: 1 1 auto; min-width: 0; padding: 7px 10px; font-size: 13px; }
+.coll-pay-row .btn { flex: 0 0 auto; white-space: nowrap; }
+.more-btn-label { display: none; }
 
 /* 站ｮ "More actions" -- compact square icon button */
 .more-btn {

@@ -937,7 +937,8 @@ var toastEl = null;
       btn.disabled = true;
       if (!isInput) {
         var isGet = (form.getAttribute('method') || 'get').toLowerCase() === 'get';
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + (isGet ? 'Loading…' : 'Saving…');
+        var label = form.getAttribute('data-submit-label') || (isGet ? 'Loading…' : 'Saving…');
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + label;
       }
     }
   });

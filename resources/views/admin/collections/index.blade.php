@@ -128,6 +128,7 @@
                             <span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span>
                         </div>
                         <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Client</span><span class="cv-value">{{ $billing->client?->name }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Total</span><span class="cv-value">{{ $billing->money($billing->total) }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Due date</span><span class="cv-value">{{ $billing->due_date?->format('M j, Y') ?? '—' }}{{ $billing->status === 'overdue' ? ' ('.$billing->due_date?->diffForHumans().')' : '' }}</span></div>
                         </div>

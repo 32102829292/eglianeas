@@ -990,6 +990,9 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .profile-v .reveal-text-btn { font-size: 11px; padding: 3px 10px; }
 a.contact-link { color: var(--sky-deep); text-decoration: none; }
 a.contact-link:hover { text-decoration: underline; }
+a.url-link { color: var(--sky-deep); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; word-break: break-word; }
+a.url-link:hover { text-decoration: underline; }
+.url-link-plain { color: var(--text); overflow-wrap: anywhere; word-break: break-word; }
 
 /* ---------- Print ---------- */
 @media print {
@@ -2572,6 +2575,15 @@ button.staff-chip:active { transform: translateY(1px); }
   .table-card-view .cv-card-actions {
     grid-template-columns: 1fr 1fr auto;
   }
+  /* Single-action footers (e.g. Billing Statements' "Open billing statement")
+     must fill the whole row: with the 1fr 1fr auto spec above they would
+     otherwise be squeezed into the first half-width column and clip. */
+  .table-card-view .cv-card-actions > .btn:only-child {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
   body:not(.auth-body) .offline-banner {
     max-width: calc(100vw - 20px);
   }
@@ -2601,4 +2613,53 @@ button.staff-chip:active { transform: translateY(1px); }
     min-width: 0;
     font-size: 16px;
   }
+}
+
+/* ============================================================
+   COLLECTIONS ACTIONS (v21) — inline payment row + card footer
+   Desktop table: the action cell is an in-flow mini-grid — row 1
+   [View receipt] [⋯], row 2 [Date] [Mark paid] — so the date never
+   floats over another column and nothing gets clipped. Phones stack
+   the same block full-width in the card footer in the exact order
+   View receipt → Date → Mark paid → "⋯ More", all 46px+ targets.
+   ============================================================ */
+
+/* The ⋯ stays a compact square on desktop … */
+.coll-actions .more-btn-label { display: none; }
+
+/* …and inside the phone touch stack it becomes the full-width
+   "⋯ More" row that closes the list. */
+@media (max-width: 767px) {
+  .table-card-view .cv-card-actions > .coll-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "view"
+      "pay"
+      "more";
+    gap: 10px;
+  }
+  .table-card-view .cv-card-actions .coll-actions > a.btn,
+  .table-card-view .cv-card-actions .coll-actions .dropdown-wrap,
+  .table-card-view .cv-card-actions .coll-actions .more-btn,
+  .table-card-view .cv-card-actions .coll-actions .coll-pay-row .form-control,
+  .table-card-view .cv-card-actions .coll-actions .coll-pay-row .btn {
+    width: 100%;
+    min-height: 46px;
+    justify-self: stretch;
+  }
+  .table-card-view .cv-card-actions .coll-actions .more-btn { height: 46px; justify-content: center; }
+  .table-card-view .cv-card-actions .coll-actions .more-btn-label { display: inline; }
+  .table-card-view .cv-card-actions .coll-actions .coll-pay-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .table-card-view .cv-card-actions .coll-actions .coll-pay-row .form-control {
+    width: 100%;
+    font-size: 16px;
+  }
+  .table-card-view .cv-card-actions .coll-actions .coll-pay-row .btn { width: 100%; }
 }

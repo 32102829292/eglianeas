@@ -7,9 +7,11 @@ use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\Notification;
 use App\Models\User;
+use App\Mail\BillingStatementMail;
 use App\Services\PushNotificationService;
 use App\Support\Quarter;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -101,34 +103,51 @@ class CollectionController extends Controller
 
     public function remind(Billing $billing): RedirectResponse
     {
-        abort_unless(in_array($billing->status, [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE], true), 422);
+        if (! in_array($billing->status, [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE], true)) {
+            return back()->with('error', 'Reminder not sent: this billing is no longer awaiting payment.');
+        }
+
+        $client = User::find($billing->client_id);
+        $recipient = $client?->email;
+
+        if (! $client || ! $recipient) {
+            return back()->with('error', 'Reminder not sent: this client has no registered email address.');
+        }
 
         $overdue = $billing->isOverdue();
+        $title = $overdue ? 'Billing overdue' : 'Billing payment due';
+        $emailBody = $overdue
+            ? "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is now overdue. Please settle it at your earliest convenience."
+            : "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is due on {$billing->due_date?->format('F j, Y')}.";
+        $pushBody = $overdue
+            ? "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is now overdue."
+            : "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is due on {$billing->due_date?->format('F j, Y')}.";
+
+        try {
+            Mail::to($recipient)->send(new BillingStatementMail($billing->loadMissing(['client.profile', 'lineItems'])));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('error', 'Reminder not sent: the email could not be delivered. Please try again later.');
+        }
 
         Notification::remind(
             $billing->client_id,
             "billing_due:{$billing->id}",
-            $overdue ? 'Billing overdue' : 'Billing payment due',
-            $overdue
-                ? "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is now overdue. Please settle it at your earliest convenience."
-                : "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is due on {$billing->due_date?->format('F j, Y')}.",
+            $title,
+            $emailBody,
             $overdue ? 'billing_overdue' : 'billing_due',
             route('client.collections.index')
         );
 
-        $client = User::find($billing->client_id);
-        if ($client) {
-            PushNotificationService::send(
-                $client,
-                $overdue ? 'Billing overdue' : 'Billing payment due',
-                $overdue
-                    ? "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is now overdue."
-                    : "Your {$billing->periodTitle()} billing of {$billing->money($billing->total)} is due on {$billing->due_date?->format('F j, Y')}.",
-                route('client.collections.index')
-            );
-        }
+        PushNotificationService::send(
+            $client,
+            $title,
+            $pushBody,
+            route('client.collections.index')
+        );
 
-        ActivityLog::record(auth()->user(), 'admin.collection_reminded', "Sent a manual payment reminder for {$billing->period_label} to {$billing->client?->name}.");
+        ActivityLog::record(auth()->user(), 'admin.collection_reminded', "Sent a manual payment reminder (email to {$recipient}) for {$billing->period_label} to {$billing->client?->name}.");
 
         return back()->with('status', 'Payment reminder sent to the client.');
     }

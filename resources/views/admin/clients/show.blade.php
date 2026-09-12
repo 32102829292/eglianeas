@@ -135,7 +135,7 @@
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">@if($profile->contact_no)<a href="tel:{{ $profile->contact_no }}" class="contact-link">{{ $profile->contact_no }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)<a href="tel:{{ $profile->second_contact_no }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->second_contact_display }}@endif@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)<a href="tel:{{ $profile->second_contact_no }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->secondContactChannelLabel() }}: <x-url-link :value="$profile->second_contact_no" />@endif@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">@if($profile->second_email)<a href="mailto:{{ $profile->second_email }}" class="contact-link">{{ $profile->second_email }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>
@@ -222,7 +222,11 @@
                         <div class="profile-row">
                             <span class="profile-k">{{ $entry->key }}</span>
                             <span class="profile-v">
-                                {{ $entry->value ?: '—' }}
+                                @if ($entry->value)
+                                    <x-url-link :value="$entry->value" />
+                                @else
+                                    —
+                                @endif
                                 <button type="button" class="btn btn-link btn-sm muted edit-info-btn"
                                         data-entry-id="{{ $entry->id }}"
                                         data-key="{{ $entry->key }}"
