@@ -12,6 +12,10 @@
   var sendBtn = null;
   var typingEl = null;
   var quickEl = null;
+  var chatView = null;
+  var settingsWrap = null;
+  var settingsToggle = null;
+  var settingsForm = null;
   var cfg = null;
   var busy = false;
   var welcomeShown = false;
@@ -36,11 +40,35 @@
   function addMessage(html, who) {
     var div = document.createElement('div');
     div.className = 'msg msg-' + who;
-    div.innerHTML = html;
     var meta = document.createElement('span');
     meta.className = 'meta';
     meta.textContent = timeStr();
-    div.appendChild(meta);
+
+    if (who === 'bot') {
+      var avatar = document.createElement('div');
+      avatar.className = 'msg-avatar';
+      avatar.setAttribute('aria-hidden', 'true');
+      avatar.textContent = 'E';
+      var row = document.createElement('div');
+      row.className = 'msg-row';
+      var bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      bubble.innerHTML = html;
+      row.appendChild(bubble);
+      row.appendChild(meta);
+      div.appendChild(avatar);
+      div.appendChild(row);
+    } else {
+      var inner = document.createElement('div');
+      inner.className = 'msg-user-inner';
+      var bubble2 = document.createElement('div');
+      bubble2.className = 'msg-bubble';
+      bubble2.innerHTML = html;
+      inner.appendChild(bubble2);
+      inner.appendChild(meta);
+      div.appendChild(inner);
+    }
+
     messagesEl.appendChild(div);
     scrollDown();
     return div;
@@ -112,12 +140,29 @@
     }, 700);
   }
 
+  function setSettingsOpen(open) {
+    if (!settingsWrap || !settingsToggle) return;
+    settingsWrap.hidden = !open;
+    settingsToggle.setAttribute('aria-expanded', String(open));
+    var back = document.querySelectorAll('[data-back-to-chat]');
+    back.forEach(function (el) { el.setAttribute('aria-expanded', String(open)); });
+    if (chatView) chatView.hidden = open;
+    if (open) {
+      var firstInput = settingsWrap.querySelector('.form-control');
+      if (firstInput) firstInput.focus();
+    }
+  }
+
   function init() {
     messagesEl = $('adminChatMessages');
     inputEl = $('adminChatInput');
     sendBtn = $('adminChatSend');
     typingEl = $('adminChatTyping');
     quickEl = $('adminChatQuick');
+    chatView = $('adminChatView');
+    settingsWrap = $('chatbotSettingsWrap');
+    settingsToggle = $('chatbotSettingsToggle');
+    settingsForm = $('chatbotSettingsForm');
 
     if (!messagesEl || !inputEl || !sendBtn || !typingEl) return;
 
@@ -136,13 +181,25 @@
       if (btn) submit(btn.getAttribute('data-q'));
     });
 
-    var toggle = $('chatbotSettingsToggle');
-    var wrap = $('chatbotSettingsWrap');
-    if (toggle && wrap) {
-      toggle.addEventListener('click', function () {
-        var open = wrap.hasAttribute('hidden');
-        wrap.hidden = !open;
-        toggle.setAttribute('aria-expanded', String(open));
+    if (settingsToggle && settingsWrap) {
+      settingsToggle.addEventListener('click', function () {
+        setSettingsOpen(settingsWrap.hasAttribute('hidden'));
+      });
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('[data-back-to-chat]')) {
+          setSettingsOpen(false);
+        }
+      });
+    }
+
+    if (settingsForm) {
+      var saveBtn = $('chatbotSettingsSave');
+      settingsForm.addEventListener('submit', function () {
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.classList.add('is-saving');
+          saveBtn.textContent = 'Saving\u2026';
+        }
       });
     }
 
