@@ -571,6 +571,39 @@ var toastEl = null;
   var CHAT_POS_KEY = 'egliane:chatbot:pos';
   var CHAT_EDGE = 18;
 
+  /* Shared response engine. Used by the floating chatbot widget AND the
+     /admin/chatbot conversation page so both answer from the same rules,
+     welcome/fallback messages and Messenger link. */
+  E.chatEscape = function (text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  E.chatMarkdown = function (text) {
+    return E.chatEscape(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  };
+
+  E.chatReply = function (text, cfg) {
+    var rules = (cfg && cfg.rules) || [];
+    var normalized = text.toLowerCase();
+
+    for (var i = 0; i < rules.length; i++) {
+      var rule = rules[i];
+      if (!rule || !rule.keywords) continue;
+      for (var k = 0; k < rule.keywords.length; k++) {
+        if (normalized.indexOf(rule.keywords[k].toLowerCase()) !== -1) {
+          return E.chatMarkdown(rule.response);
+        }
+      }
+    }
+
+    var fb = (cfg && cfg.fallback_message) || "I'm not sure about that one yet.";
+    var url = (cfg && cfg.messenger_url) || 'https://www.facebook.com/harris.egliane.2025';
+    return E.chatMarkdown(fb) +
+      '<br><br><a href="' + url + '" target="_blank" rel="noopener">Message us on Messenger →</a>';
+  };
+
   function Chatbot(opts) {
     this.opts = opts || {};
     this.cfg = null;
@@ -863,34 +896,15 @@ var toastEl = null;
   };
 
   Chatbot.prototype.respondTo = function (text) {
-    var cfg = this.cfg;
-    var rules = (cfg && cfg.rules) || [];
-    var normalized = text.toLowerCase();
-
-    for (var i = 0; i < rules.length; i++) {
-      var rule = rules[i];
-      if (!rule || !rule.keywords) continue;
-      for (var k = 0; k < rule.keywords.length; k++) {
-        if (normalized.indexOf(rule.keywords[k].toLowerCase()) !== -1) {
-          return this.markdown(rule.response);
-        }
-      }
-    }
-
-    var fb = (cfg && cfg.fallback_message) || "I'm not sure about that one yet.";
-    var url = (cfg && cfg.messenger_url) || 'https://www.facebook.com/harris.egliane.2025';
-    return this.markdown(fb) +
-      '<br><br><a href="' + url + '" target="_blank" rel="noopener">Message us on Messenger →</a>';
+    return E.chatReply(text, this.cfg);
   };
 
   Chatbot.prototype.markdown = function (text) {
-    return this.escape(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    return E.chatMarkdown(text);
   };
 
   Chatbot.prototype.escape = function (text) {
-    var div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return E.chatEscape(text);
   };
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -1435,4 +1449,86 @@ var toastEl = null;
   });
 
   window.addEventListener('pageshow', function () { restoreSubmitButtons(document); });
+
+  /* ---------- Brand page loader ----------
+     Minimal, non-blocking loading UI shared by every layout. Visible from
+     first paint because the component's inline script adds the active marker
+     before app.js runs; this module fades it out once the page is ready.
+     Same-origin anchor navigation re-shows it before the browser navigates.
+     Everything else is left untouched: buttons/forms (incl. the existing
+     data-submit-label guard), downloads, external/mailto:/tel:/# links,
+     target=_blank, modifier-key clicks, and AJAX/fetch requests. The overlay
+     is pointer-events:none so it can never trap input, and it always recovers
+     via pageshow (back/forward cache), a short navigation probe, and a hard
+     failsafe. */
+  (function () {
+    var loader = document.getElementById('pageLoader');
+    if (!loader) return;
+
+    var htmlEl = document.documentElement;
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var startedAt = Date.now();
+    var fadeTimer = null;
+    var done = false;
+
+    function hideLoader() {
+      if (done) return;
+      done = true;
+      clearTimeout(fadeTimer);
+      /* Removing the marker fades the overlay out via the CSS transition. */
+      htmlEl.classList.remove('egliane-page-loader-active');
+      loader.setAttribute('aria-hidden', 'true');
+    }
+
+    function showLoader() {
+      done = false;
+      htmlEl.classList.add('egliane-page-loader-active');
+      loader.setAttribute('aria-hidden', 'false');
+      fadeTimer = setTimeout(hideLoader, 4000);
+    }
+
+    function onReady() {
+      if (done) return;
+      clearTimeout(fadeTimer);
+      var minShow = reduceMotion ? 0 : 500;
+      var wait = Math.max(0, minShow - (Date.now() - startedAt));
+      fadeTimer = setTimeout(hideLoader, wait);
+    }
+
+    window.addEventListener('load', onReady);
+    if (document.readyState === 'complete') onReady();
+
+    /* Back/forward cache restore must never leave the loader up. A fresh
+       (non-persisted) pageshow follows load and is handled by onReady(). */
+    window.addEventListener('pageshow', function (e) { if (e.persisted) hideLoader(); });
+
+    document.addEventListener('click', function (e) {
+      if (e.defaultPrevented) return;
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+      if (!a) return;
+      if (a.hasAttribute('download')) return;
+      if (a.target && String(a.target).toLowerCase() !== '_self') return;
+
+      var url;
+      try { url = new URL(a.href, location.href); } catch (err) { return; }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      if (url.origin !== location.origin) return;
+
+      /* Same-page hash link / identical URL: no navigation, no loader. */
+      var current = new URL(location.href);
+      if (url.pathname === current.pathname && url.search === current.search) return;
+
+      /* Show the loader, then let the browser navigate normally. If no page
+         unload starts shortly (download link, JS-cancelled click), fade back. */
+      showLoader();
+      var navigated = false;
+      var onUnload = function () { navigated = true; };
+      window.addEventListener('pagehide', onUnload, { once: true });
+      setTimeout(function () {
+        window.removeEventListener('pagehide', onUnload);
+        if (!navigated) hideLoader();
+      }, 350);
+    });
+  })();
 })();
