@@ -2435,14 +2435,16 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 }
 
 /* ---------- Admin chatbot conversation + settings page ---------- */
-.admin-chat-page { max-width: 1100px; margin: 0 auto; }
+.admin-chat-page { min-height: 0; height: calc(100dvh - 120px); display: flex; flex-direction: column; }
+.dash-main:has(> .admin-chat-page) { padding-bottom: 16px; }
 .admin-chat[hidden], .chatbot-settings[hidden] { display: none !important; }
 
 .admin-chat {
   display: flex;
   flex-direction: column;
   max-width: 100%;
-  height: clamp(440px, calc(100dvh - 225px), 720px);
+  height: 100%;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 18px;
   overflow: hidden;
@@ -2558,7 +2560,9 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 /* ---- Messages ---- */
 .admin-chat-messages {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -2568,6 +2572,8 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   background-size: 22px 22px;
   scroll-behavior: smooth;
 }
+.admin-chat-messages::-webkit-scrollbar { display: none; width: 0; }
+.admin-chat-messages { scrollbar-width: none; }
 
 #adminChatMessages .msg { animation: admin-chat-in .22s ease both; }
 @keyframes admin-chat-in {
@@ -2575,7 +2581,17 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   to { opacity: 1; transform: none; }
 }
 
-#adminChatMessages .msg-bot { display: flex; align-items: flex-start; gap: 10px; }
+#adminChatMessages .msg-bot {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  max-width: 100%;
+}
 #adminChatMessages .msg-avatar {
   flex: 0 0 32px;
   width: 32px;
@@ -2594,18 +2610,18 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 #adminChatMessages .msg-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: min(80%, 520px); min-width: 0; }
 #adminChatMessages .msg-bubble {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   color: var(--text);
   overflow-wrap: break-word;
   word-break: break-word;
   min-width: 0;
 }
 #adminChatMessages .msg-bot .msg-bubble {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 16px 16px 16px 5px;
-  padding: 11px 15px;
-  box-shadow: 0 2px 8px rgba(30, 41, 59, .04);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 4px 2px;
+  box-shadow: none;
 }
 #adminChatMessages .msg-user { display: flex; justify-content: flex-end; }
 #adminChatMessages .msg-user-inner { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: min(84%, 520px); min-width: 0; }
@@ -2751,7 +2767,7 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 }
 
 /* ---- Settings view ---- */
-.chatbot-settings { max-width: 920px; margin: 0 auto; animation: admin-chat-settings-in .22s ease both; }
+.chatbot-settings { max-width: 920px; margin: 0 auto; flex: 0 0 auto; animation: admin-chat-settings-in .22s ease both; }
 @keyframes admin-chat-settings-in {
   from { opacity: 0; transform: translateY(9px); }
   to { opacity: 1; transform: none; }
@@ -2930,22 +2946,20 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
-  .admin-chat { height: clamp(420px, calc(100dvh - 205px), 700px); }
-}
-
-@media (max-width: 900px) {
-  .admin-chat-page { max-width: none; }
+  .admin-chat { height: 100%; }
 }
 
 @media (max-width: 767px) {
-  .admin-chat-page { margin: -12px -14px 0; }
-  .admin-chat { height: clamp(400px, calc(100dvh - 170px), 660px); border-radius: 14px; }
+  .dash-main:has(> .admin-chat-page) { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .admin-chat-page { margin: 0; height: calc(100dvh - 100px - env(safe-area-inset-bottom)); }
+  .admin-chat { height: 100%; min-height: 0; border-radius: 14px; }
   .admin-chat-head { padding: 13px 16px; gap: 11px; }
   .admin-chat-identity .title { font-size: 15.5px; }
   .admin-chat-identity .sub { font-size: 11px; line-height: 1.4; }
-  .admin-chat-messages { padding: 16px 14px; gap: 16px; }
-  .admin-chat-quick { padding: 10px 14px 4px; gap: 7px; }
+  .admin-chat-messages { flex: 1 1 auto; min-height: 0; padding: 16px 14px; gap: 16px; }
+  .admin-chat-quick { flex-wrap: wrap; flex: 0 0 auto; overflow: visible; padding: 10px 14px 12px; gap: 8px; }
   .admin-chat-quick button { font-size: 12.5px; padding: 8px 13px; min-height: 44px; }
+  .admin-chat-composer { padding-bottom: env(safe-area-inset-bottom, 0px); }
   .admin-chat-input-row { padding: 10px 14px 6px; }
   .typing-indicator { padding: 8px 14px 0; }
   .admin-chat-hint { padding: 0 14px 8px; }
@@ -2978,8 +2992,9 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 }
 
 @media (max-width: 480px) {
-  .admin-chat-head { flex-wrap: wrap; gap: 8px 10px; padding: 14px 16px 12px; }
+  .admin-chat-head { flex-wrap: wrap; gap: 5px 10px; padding: 10px 16px 8px; }
   .admin-chat-head-actions { flex-direction: row; width: 100%; align-items: center; justify-content: space-between; gap: 8px; }
+  .admin-chat-identity { flex: 1 1 0; }
   .admin-chat-settings-btn { font-size: 12px; padding: 8px 13px; min-height: 44px; }
   .admin-chat-settings-btn svg { width: 14px; height: 14px; }
   .admin-chat-identity .title { font-size: 16px; }
@@ -2989,6 +3004,8 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 }
 
 @media (max-width: 414px) {
+  .admin-chat-quick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px 14px 12px; }
+  .admin-chat-quick button { width: 100%; min-width: 0; justify-content: flex-start; white-space: normal; line-height: 1.35; min-height: 44px; }
   .admin-chat-avatar { width: 40px; height: 40px; flex: 0 0 40px; }
   .admin-chat-avatar .admin-chat-avatar-core { width: 34px; height: 34px; font-size: 16px; }
   .admin-chat-status { font-size: 11px; }
