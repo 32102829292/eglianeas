@@ -893,6 +893,7 @@
         .then(function (res) {
           if (res.status === 200) {
             setStatus('Face / biometric login is now enabled.', true);
+            try { window.dispatchEvent(new CustomEvent('egliane:biometric-enabled')); } catch (e) { /* ignore */ }
             setTimeout(function () { window.location.reload(); }, 900);
           } else {
             throw { data: res.data };

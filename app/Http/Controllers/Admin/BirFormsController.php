@@ -17,10 +17,16 @@ class BirFormsController extends Controller
     public function index(Request $request): View
     {
         $q = trim((string) $request->get('q'));
+        // Deep-link support: billing create lands here with ?client_id=X so
+        // the exact client's row is shown and highlighted for quick toggling.
+        $highlightClientId = (int) $request->get('client_id') ?: null;
 
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with('profile', 'birFormStatuses')
+            ->when($highlightClientId, function ($query) use ($highlightClientId) {
+                $query->where('id', $highlightClientId);
+            })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -48,6 +54,7 @@ class BirFormsController extends Controller
             'clients' => $clients,
             'q' => $q,
             'formTypes' => BirFormStatus::FORM_TYPES,
+            'highlightClientId' => $highlightClientId,
         ]);
     }
 

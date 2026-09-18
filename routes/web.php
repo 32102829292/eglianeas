@@ -89,6 +89,8 @@ Route::middleware(['auth', 'client.survey'])->group(function () {
 
     Route::get('/webauthn/register/options', [WebauthnController::class, 'options'])->name('webauthn.register.options');
     Route::post('/webauthn/register/verify', [WebauthnController::class, 'verify'])->name('webauthn.register.verify');
+    Route::post('/webauthn/test/options', [WebauthnController::class, 'testOptions'])->name('webauthn.test.options');
+    Route::post('/webauthn/test/verify', [WebauthnController::class, 'testVerify'])->name('webauthn.test.verify');
     Route::delete('/webauthn/credentials/{credential}', [WebauthnController::class, 'destroy'])->name('webauthn.credentials.destroy');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

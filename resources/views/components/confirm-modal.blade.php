@@ -11,13 +11,19 @@
         position: fixed;
         top: 0;
         left: 0;
-        width: 100%;
+        /* 100vw (not 100%) so the dim covers the full viewport including the
+           scrollbar strip. Bootstrap's scroll-lock compensation adds inline
+           padding-right to reserve the removed scrollbar's space — but on a
+           viewport-filling fixed overlay that would leave an uncovered strip
+           on the right and off-center the dialog. The body keeps Bootstrap's
+           padding-right (no content jump); this overlay zeroes it instead. */
+        width: 100vw;
         height: 100%;
         z-index: 1055;
         overflow-x: hidden;
         overflow-y: auto;
         outline: 0;
-        padding: 0;
+        padding: 0 !important;
         margin: 0;
         background: transparent;
         align-items: normal;

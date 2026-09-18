@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
+use App\Models\BillingLineItem;
 use App\Models\BirFormStatus;
 use App\Models\ClientSurveyResponse;
 use App\Models\Document;
@@ -135,6 +136,11 @@ class FullFunctionalityQaTest extends TestCase
     {
         $admin = $this->admin();
         $client = $this->client('Billing Client');
+        BirFormStatus::create([
+            'client_id' => $client->id,
+            'form_type' => BirFormStatus::FORM_TYPES[0],
+            'applicable' => true,
+        ]);
 
         // create
         $this->actingAs($admin)->post('/admin/billings', [
@@ -142,6 +148,16 @@ class FullFunctionalityQaTest extends TestCase
             'quarter' => 2,
             'year' => 2026,
             'due_date' => now()->addDays(10)->toDateString(),
+            'line_items' => [
+                [
+                    'category' => BillingLineItem::CATEGORY_BOOKKEEPING_FEE,
+                    'form_type' => '',
+                    'month' => '',
+                    'label' => 'Bookkeeping',
+                    'amount' => 2500,
+                    'fee_rate_id' => null,
+                ],
+            ],
         ])->assertSessionHasNoErrors()->assertRedirect(route('admin.billing.index'));
 
         $billing = Billing::where('client_id', $client->id)->first();

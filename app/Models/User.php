@@ -207,6 +207,16 @@ class User extends Authenticatable
         return $this->hasMany(ActivityLog::class);
     }
 
+    public function teamMember(): HasOne
+    {
+        return $this->hasOne(TeamMember::class, 'user_id');
+    }
+
+    public function trackerAssignments(): HasMany
+    {
+        return $this->hasMany(TrackerAssignment::class, 'staff_id');
+    }
+
     public function birFormStatuses(): HasMany
     {
         return $this->hasMany(BirFormStatus::class, 'client_id');

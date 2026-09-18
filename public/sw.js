@@ -1,11 +1,10 @@
 /* Egliane Accounting Services — Service Worker (hand-rolled) */
 
-const VERSION = 'egliane-v10';
+const VERSION = 'egliane-v20';
 const SHELL_CACHE = 'egliane-shell-' + VERSION;
 const DATA_CACHE = 'egliane-data-' + VERSION;
 
 const SHELL_ASSETS = [
-  '/',
   '/offline.html',
   '/manifest.json',
   '/css/app.css',
@@ -39,7 +38,14 @@ function bareUrl(url) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
+      /* Pre-cache each shell asset independently so a single transient
+         failure (e.g. one 404 / offline hiccup) can never reject the
+         whole install with an uncaught "Cache.addAll failed" error. */
+      .then((cache) =>
+        Promise.allSettled(
+          SHELL_ASSETS.map((asset) => cache.add(asset).catch(() => {}))
+        )
+      )
       .then(() => self.skipWaiting())
   );
 });

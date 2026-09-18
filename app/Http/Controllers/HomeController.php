@@ -30,7 +30,7 @@ class HomeController extends Controller
             return $defaults;
         }
 
-        $decoded = json_decode((string) $stored, true);
+        $decoded = is_array($stored) ? $stored : json_decode((string) $stored, true);
 
         if (! is_array($decoded)) {
             return $defaults;

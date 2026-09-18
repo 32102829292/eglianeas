@@ -71,30 +71,35 @@
         <div class="chatbot-settings" id="chatbotSettingsWrap" hidden aria-label="Chatbot settings">
             <div class="chatbot-settings-card">
                 <header class="chatbot-settings-head">
-                    <button type="button" class="chatbot-settings-back" data-back-to-chat aria-expanded="false">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-                        Back to Chat
-                    </button>
-                    <div class="chatbot-settings-title-row">
-                        <div class="chatbot-settings-avatar" aria-hidden="true">
-                            <span class="admin-chat-avatar-ring"></span>
-                            <span class="admin-chat-avatar-core">E</span>
-                        </div>
-                        <div>
-                            <h2 class="chatbot-settings-title">Chatbot Settings</h2>
-                            <p class="chatbot-settings-sub">Configure how the {{ $chatName }} responds to users.</p>
-                        </div>
+                    <div class="chatbot-settings-head-top">
+                        <span class="chatbot-settings-eyebrow">Chatbot</span>
+                        <button type="button" class="chatbot-settings-back" data-back-to-chat aria-expanded="false">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+                            Back to Chat
+                        </button>
                     </div>
+                    <h1 class="chatbot-settings-title">Chatbot Settings</h1>
+                    <p class="chatbot-settings-sub">Customize how the {{ $chatName }} responds to visitors.</p>
                 </header>
+
+                <nav class="chatbot-settings-nav" aria-label="Settings sections">
+                    <button type="button" class="chatbot-settings-nav-item active" data-settings-nav="section-general" data-settings-nav-label="General" aria-current="true">General</button>
+                    <button type="button" class="chatbot-settings-nav-item" data-settings-nav="section-rules" data-settings-nav-label="Response Rules" aria-current="false">Response Rules</button>
+                </nav>
 
                 <form method="POST" action="{{ route('admin.chatbot.update') }}" id="chatbotSettingsForm">
                     @csrf
                     <div class="chatbot-settings-body">
 
-                        <section class="chatbot-settings-section">
+                        <section class="chatbot-settings-section" id="section-general">
                             <header class="chatbot-settings-section-head">
-                                <h3>General / Identity</h3>
-                                <p>What messages the assistant uses when talking to people.</p>
+                                <div class="chatbot-settings-section-title">
+                                    <span class="chatbot-settings-section-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                                    </span>
+                                    <h3>General</h3>
+                                </div>
+                                <p>Control the assistant&rsquo;s main messages.</p>
                             </header>
                             <div class="chatbot-settings-fields">
                                 <div class="form-group">
@@ -103,54 +108,68 @@
                                         <div class="chatbot-identity-avatar" aria-hidden="true">{{ \Illuminate\Support\Str::substr($chatName, 0, 1) }}</div>
                                         <div>
                                             <div class="chatbot-identity-name">{{ $chatName }}</div>
-                                            <div class="form-hint" style="margin-top:2px">Managed by Egliane. The name and brand are set automatically.</div>
+                                            <div class="form-hint chatbot-identity-hint">Managed by Egliane. The name and brand are set automatically.</div>
                                         </div>
                                     </div>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="chatbot_welcome">Welcome message</label>
-                                    <textarea class="form-control" id="chatbot_welcome" name="chatbot_welcome" rows="2" maxlength="500">{{ old('chatbot_welcome', $chatWelcome) }}</textarea>
-                                    <p class="form-hint">The first message shown when a visitor opens a chat.</p>
+                                    <textarea class="form-control" id="chatbot_welcome" name="chatbot_welcome" rows="3" maxlength="500">{{ old('chatbot_welcome', $chatWelcome) }}</textarea>
+                                    <p class="form-hint">Shown when someone opens the assistant.</p>
                                     @error('chatbot_welcome')<div class="form-error">{{ $message }}</div>@enderror
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="chatbot_fallback">Fallback message</label>
-                                    <textarea class="form-control" id="chatbot_fallback" name="chatbot_fallback" rows="2" maxlength="500">{{ old('chatbot_fallback', $chatFallback) }}</textarea>
-                                    <p class="form-hint">Shown when the assistant cannot match a question to a rule.</p>
+                                    <textarea class="form-control" id="chatbot_fallback" name="chatbot_fallback" rows="3" maxlength="500">{{ old('chatbot_fallback', $chatFallback) }}</textarea>
+                                    <p class="form-hint">Shown when the assistant cannot match a question.</p>
                                     @error('chatbot_fallback')<div class="form-error">{{ $message }}</div>@enderror
                                 </div>
                             </div>
                         </section>
 
-                        <section class="chatbot-settings-section">
+                        <section class="chatbot-settings-section" id="section-rules">
                             <header class="chatbot-settings-section-head">
-                                <h3>Response rules</h3>
-                                <p>Keywords (comma separated) that trigger a canned response. A message matches if it contains any keyword.</p>
+                                <div class="chatbot-settings-section-title">
+                                    <span class="chatbot-settings-section-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2a2.8 2.8 0 1 1 5 2L7 19l-5 1 1-5L17 2z"/></svg>
+                                    </span>
+                                    <h3>Response rules</h3>
+                                </div>
+                                <p>Create keyword-based answers for common questions.</p>
+                                <p class="chatbot-settings-hint">Keywords are comma separated. A visitor&rsquo;s message matches when it contains any keyword.</p>
                             </header>
                             <div id="ruleRows" class="chatbot-rule-list">
                                 @foreach ($chatRules as $rule)
                                     <div class="chatbot-rule">
+                                        <div class="chatbot-rule-head">
+                                            <span class="chatbot-rule-index">Rule {{ $loop->iteration }}</span>
+                                            <button type="button" class="chatbot-rule-remove" data-remove-rule aria-label="Remove rule {{ $loop->iteration }}">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                            </button>
+                                        </div>
                                         <div class="chatbot-rule-fields">
                                             <label class="chatbot-rule-label" for="rule-keywords-{{ $loop->index }}">Keywords</label>
-                                            <input class="form-control" id="rule-keywords-{{ $loop->index }}" name="rules[][keywords]" placeholder="e.g. price, rates, cost" value="{{ is_array($rule['keywords'] ?? null) ? implode(', ', $rule['keywords']) : ($rule['keywords'] ?? '') }}">
+                                            <input class="form-control" id="rule-keywords-{{ $loop->index }}" name="rules[{{ $loop->index }}][keywords]" placeholder="e.g. price, rates, cost" value="{{ is_array($rule['keywords'] ?? null) ? implode(', ', $rule['keywords']) : ($rule['keywords'] ?? '') }}">
                                             <label class="chatbot-rule-label" for="rule-response-{{ $loop->index }}">Response</label>
-                                            <textarea class="form-control" id="rule-response-{{ $loop->index }}" name="rules[][response]" rows="2" placeholder="The assistant&rsquo;s reply">{{ $rule['response'] ?? '' }}</textarea>
+                                            <textarea class="form-control" id="rule-response-{{ $loop->index }}" name="rules[{{ $loop->index }}][response]" rows="3" placeholder="The assistant&rsquo;s reply">{{ $rule['response'] ?? '' }}</textarea>
                                         </div>
-                                        <button type="button" class="chatbot-rule-remove" data-remove-rule aria-label="Remove response rule">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                        </button>
                                     </div>
                                 @endforeach
                             </div>
                             <button type="button" class="chatbot-rule-add" id="addRule">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                                Add Response Rule
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                                <span>Add response rule</span>
                             </button>
                         </section>
 
-                        <section class="chatbot-settings-section">
+                        <section class="chatbot-settings-section" id="section-availability">
                             <header class="chatbot-settings-section-head">
-                                <h3>Availability</h3>
+                                <div class="chatbot-settings-section-title">
+                                    <span class="chatbot-settings-section-icon" aria-hidden="true">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                                    </span>
+                                    <h3>Availability</h3>
+                                </div>
                                 <p>Turn the assistant on or off across Egliane&rsquo;s chat points.</p>
                             </header>
                             <label class="checkbox-row">
@@ -161,10 +180,13 @@
                     </div>
 
                     <footer class="chatbot-settings-actions">
-                        <button type="button" class="btn btn-outline" data-back-to-chat>Cancel</button>
-                        <button type="submit" class="btn btn-primary chatbot-settings-save" id="chatbotSettingsSave">
-                            Save Changes
-                        </button>
+                        <p class="chatbot-settings-actions-note">Changes are saved to the chatbot configuration.</p>
+                        <div class="chatbot-settings-actions-btns">
+                            <button type="button" class="btn btn-outline" data-back-to-chat>Back to Chat</button>
+                            <button type="submit" class="btn btn-primary chatbot-settings-save" id="chatbotSettingsSave">
+                                Save settings
+                            </button>
+                        </div>
                     </footer>
                 </form>
             </div>
@@ -176,29 +198,90 @@
 @push('scripts')
 <script src="/js/admin-chat.js?v=2" defer></script>
 <script>
-document.addEventListener('click', function (e) {
-    var addBtn = e.target.closest('#addRule');
-    if (addBtn) {
-        var n = document.querySelectorAll('.chatbot-rule').length;
-        var row = document.createElement('div');
-        row.className = 'chatbot-rule';
-        row.innerHTML = '<div class="chatbot-rule-fields">' +
-            '<label class="chatbot-rule-label" for="rule-keywords-new-' + n + '">Keywords</label>' +
-            '<input class="form-control" id="rule-keywords-new-' + n + '" name="rules[][keywords]" placeholder="e.g. price, rates, cost">' +
-            '<label class="chatbot-rule-label" for="rule-response-new-' + n + '">Response</label>' +
-            '<textarea class="form-control" id="rule-response-new-' + n + '" name="rules[][response]" rows="2" placeholder="The assistant\u2019s reply"></textarea>' +
-            '</div>' +
-            '<button type="button" class="chatbot-rule-remove" data-remove-rule aria-label="Remove response rule">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-            '</button>';
-        document.getElementById('ruleRows').appendChild(row);
-        var first = row.querySelector('.form-control');
-        if (first) first.focus();
+(function () {
+    function renumberRules() {
+        var rows = document.querySelectorAll('#ruleRows .chatbot-rule');
+        Array.prototype.forEach.call(rows, function (row, i) {
+            var idx = row.querySelector('.chatbot-rule-index');
+            if (idx) idx.textContent = 'Rule ' + (i + 1);
+            var rm = row.querySelector('[data-remove-rule]');
+            if (rm) rm.setAttribute('aria-label', 'Remove rule ' + (i + 1));
+        });
     }
-    if (e.target.closest('[data-remove-rule]')) {
-        var rule = e.target.closest('.chatbot-rule');
-        if (rule) rule.remove();
+
+    var addRuleBtn = document.getElementById('addRule');
+    if (addRuleBtn) {
+        var addSeq = 0;
+        addRuleBtn.addEventListener('click', function () {
+            var n = 1000 + (addSeq++);
+            var row = document.createElement('div');
+            row.className = 'chatbot-rule';
+            row.innerHTML = '<div class="chatbot-rule-head">' +
+                '<span class="chatbot-rule-index"></span>' +
+                '<button type="button" class="chatbot-rule-remove" data-remove-rule aria-label="Remove rule">' +
+                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+                '</button>' +
+                '</div>' +
+                '<div class="chatbot-rule-fields">' +
+                '<label class="chatbot-rule-label" for="rule-keywords-new-' + n + '">Keywords</label>' +
+                '<input class="form-control" id="rule-keywords-new-' + n + '" name="rules[' + n + '][keywords]" placeholder="e.g. price, rates, cost">' +
+                '<label class="chatbot-rule-label" for="rule-response-new-' + n + '">Response</label>' +
+                '<textarea class="form-control" id="rule-response-new-' + n + '" name="rules[' + n + '][response]" rows="3" placeholder="The assistant\u2019s reply"></textarea>' +
+                '</div>';
+            document.getElementById('ruleRows').appendChild(row);
+            renumberRules();
+            var first = row.querySelector('.form-control');
+            if (first) {
+                first.focus();
+                if (first.scrollIntoView) first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+        });
     }
-});
+
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('[data-remove-rule]')) {
+            var rule = e.target.closest('.chatbot-rule');
+            if (rule) {
+                rule.remove();
+                renumberRules();
+            }
+        }
+    });
+
+    var navItems = Array.prototype.slice.call(document.querySelectorAll('.chatbot-settings-nav-item'));
+    function setActive(label) {
+        navItems.forEach(function (it) {
+            var on = it.getAttribute('data-settings-nav-label') === label;
+            it.classList.toggle('active', on);
+            it.setAttribute('aria-current', on ? 'true' : 'false');
+        });
+    }
+    navItems.forEach(function (it) {
+        it.addEventListener('click', function () {
+            var sec = document.getElementById(it.getAttribute('data-settings-nav'));
+            if (sec && sec.scrollIntoView) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setActive(it.getAttribute('data-settings-nav-label'));
+        });
+    });
+    var spyTimer = null;
+    function spy() {
+        spyTimer = null;
+        var wrap = document.getElementById('chatbotSettingsWrap');
+        if (!wrap || wrap.hasAttribute('hidden')) return;
+        var top = wrap.getBoundingClientRect().top;
+        var current = null;
+        navItems.forEach(function (it) {
+            var sec = document.getElementById(it.getAttribute('data-settings-nav'));
+            if (!sec) return;
+            var r = sec.getBoundingClientRect();
+            if (r.top - top <= 140) current = it.getAttribute('data-settings-nav-label');
+        });
+        if (current) setActive(current);
+    }
+    window.addEventListener('scroll', function () { if (!spyTimer) spyTimer = setTimeout(spy, 80); }, { passive: true });
+    var spyWrap = document.getElementById('chatbotSettingsWrap');
+    if (spyWrap) spyWrap.addEventListener('scroll', function () { if (!spyTimer) spyTimer = setTimeout(spy, 80); }, { passive: true });
+    setTimeout(spy, 350);
+})();
 </script>
 @endpush

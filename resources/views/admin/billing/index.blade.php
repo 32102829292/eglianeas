@@ -105,6 +105,7 @@
                 <colgroup>
                     <col class="col-business">
                     <col class="col-contact">
+                    <col class="col-bir">
                     <col class="col-bills">
                     <col class="col-total">
                     <col class="col-outstanding">
@@ -115,6 +116,7 @@
                     <tr>
                         <th>Business</th>
                         <th>Contact</th>
+                        <th class="text-center">BIR Forms</th>
                         <th class="text-center">Bills</th>
                         <th class="text-end">Total billed</th>
                         <th class="text-end">Outstanding</th>
@@ -133,6 +135,13 @@
                             <td data-col="Contact">
                                 <div class="fw-semibold">{{ $client->name }}</div>
                                 <small class="muted"><a href="mailto:{{ $client->email }}" class="contact-link contact-email">{{ $client->email }}</a></small>
+                            </td>
+                            <td class="text-center td-bir" data-col="BIR Forms">
+                                @if ($entry['bir_ready'])
+                                    <span class="badge badge-success">BIR Forms Ready</span>
+                                @else
+                                    <a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>
+                                @endif
                             </td>
                             <td class="text-center td-bills" data-col="Bills">{{ $entry['billing_count'] }}</td>
                             <td class="text-end fw-semibold td-money" data-col="Total billed">{{ '₱'.number_format($entry['total_billed'], 2) }}</td>
@@ -156,7 +165,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty-cell">No clients found.</td></tr>
+                        <tr><td colspan="8" class="empty-cell">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -178,11 +187,15 @@
                         </div>
                         <div class="cv-card-body">
                             <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link contact-email">{{ $client->email }}</a></span></div>
+                            <div class="cv-pair"><span class="cv-label">BIR forms</span><span class="cv-value">@if ($entry['bir_ready'])<span class="badge badge-success">BIR Forms Ready</span>@else<a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
                         </div>
                         <div class="cv-card-actions">
+                            @if (! $entry['bir_ready'])
+                                <a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>
+                            @endif
                             <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-primary btn-sm row-action">Open billing statement</a>
                         </div>
                     </div>

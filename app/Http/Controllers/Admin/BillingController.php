@@ -72,6 +72,9 @@ class BillingController extends Controller
                         ->where('quarter', $activeQuarter->quarter);
                 }
             }])
+            ->withCount(['birFormStatuses as applicable_forms_count' => function ($query) {
+                $query->where('applicable', true);
+            }])
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -97,6 +100,7 @@ class BillingController extends Controller
                 'total_paid' => $client->billings->where('status', Billing::STATUS_PAID)->sum('total'),
                 'outstanding' => $client->billings->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
                 'status' => $this->clientStatus($client->billings),
+                'bir_ready' => ((int) $client->applicable_forms_count) > 0,
             ]);
 
         return view('admin.billing.index', [
@@ -297,7 +301,7 @@ class BillingController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $this->validated($request);
+        $data = $this->validated($request, create: true);
         $data['created_by'] = auth()->id();
         $data['updated_by'] = auth()->id();
         $data['status'] = Billing::STATUS_UNPAID;
@@ -318,6 +322,29 @@ class BillingController extends Controller
                     'client_id' => "A billing statement for {$periodName} already exists for this client. Please edit the existing statement instead.",
                 ]);
             }
+        }
+
+        // Feasibility gate: a statement can only be created once the client has
+        // at least one applicable BIR form selected on the BIR Forms page.
+        $applicableForms = BirFormStatus::where('client_id', $data['client_id'])
+            ->where('applicable', true)
+            ->count();
+
+        if ($applicableForms === 0) {
+            return back()->withInput()->withErrors([
+                'client_id' => 'This client has no applicable BIR forms. Add at least one BIR form before creating a billing statement.',
+            ]);
+        }
+
+        // A billing statement must have at least one line item with an amount.
+        $hasAmountItems = collect($request->input('line_items', []))->contains(
+            fn ($item) => (float) ($item['amount'] ?? 0) > 0
+        );
+
+        if (! $hasAmountItems) {
+            return back()->withInput()->withErrors([
+                'line_items' => 'Add at least one line item with an amount greater than zero.',
+            ]);
         }
 
         $billing = DB::transaction(function () use ($data, $request) {
@@ -563,15 +590,33 @@ class BillingController extends Controller
         ]);
     }
 
-    private function validated(Request $request): array
+    private function validated(Request $request, bool $create = false): array
     {
-        $validated = $request->validate([
+        $rules = [
             'client_id' => ['required', 'exists:users,id'],
             'quarter' => ['nullable', 'integer', 'between:1,4'],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
             'period_label' => ['nullable', 'string', 'max:80'],
             'due_date' => ['nullable', 'date'],
             'cash_in' => ['nullable', 'numeric', 'min:0'],
+        ];
+
+        // A new billing statement must always identify its period before it can
+        // be saved. Quarter and year are left lenient on edits (legacy draft
+        // records may lack them) but are required the first time a statement
+        // is created.
+        if ($create) {
+            $rules['quarter'] = ['required', 'integer', 'between:1,4'];
+            $rules['year'] = ['required', 'integer', 'between:2000,2100'];
+        }
+
+        $validated = $request->validate($rules, [], [
+            'client_id' => 'client',
+            'quarter' => 'billing quarter',
+            'year' => 'billing year',
+            'period_label' => 'billing period label',
+            'due_date' => 'due date',
+            'cash_in' => 'cash-in amount',
         ]);
 
         $quarter = (int) ($validated['quarter'] ?? 0);

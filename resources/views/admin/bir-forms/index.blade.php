@@ -9,6 +9,9 @@
             <p>Select which BIR forms apply to each client. Only checked forms appear on the Document Distribution page.</p>
         </div>
         <div class="page-head-actions">
+            @if ($highlightClientId)
+                <a href="{{ route('admin.billing.create', ['client_id' => $highlightClientId]) }}" class="btn btn-primary">Continue to Billing</a>
+            @endif
             <div class="dropdown-wrap">
                 <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-dropdown="bir-download-menu">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -57,7 +60,7 @@
                     @forelse ($clients as $entry)
                         @php($client = $entry['user'])
                         @php($statuses = $entry['statuses'])
-                        <tr>
+                        <tr id="client-{{ $client->id }}" @if($highlightClientId === $client->id) class="bir-flash" @endif>
                             <td>
                                 <span class="badge badge-navy">{{ $client->client_code ?? '—' }}</span>
                             </td>
@@ -95,7 +98,7 @@
                 @forelse ($clients as $entry)
                     @php($client = $entry['user'])
                     @php($statuses = $entry['statuses'])
-                    <div class="cv-card">
+                    <div class="cv-card" id="client-{{ $client->id }}" @if($highlightClientId === $client->id) data-bir-flash="1" @endif>
                         <div class="cv-card-head">
                             <div class="cv-head-main">
                                 <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
@@ -130,3 +133,19 @@
         {{ $clients->links('pagination.simple') }}
     </div>
 @endsection
+
+@if ($highlightClientId)
+@push('scripts')
+<script>
+(function () {
+    var el = document.getElementById('client-{{ $highlightClientId }}');
+    if (!el) return;
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    window.setTimeout(function () {
+        el.classList.remove('bir-flash');
+        el.removeAttribute('data-bir-flash');
+    }, 3400);
+})();
+</script>
+@endpush
+@endif

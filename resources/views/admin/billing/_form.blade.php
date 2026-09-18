@@ -31,7 +31,7 @@
         <h2 class="card-title">{{ $isEdit ? 'Edit billing statement' : 'New billing statement' }}</h2>
     </div>
 
-    <form method="POST" action="{{ $isEdit ? route('admin.billing.update', $billing) : route('admin.billing.store') }}" id="billingForm">
+    <form method="POST" action="{{ $isEdit ? route('admin.billing.update', $billing) : route('admin.billing.store') }}" id="billingForm" @if(!$isEdit) onsubmit="return egliane.billingCreateGuard(this);" @endif>
         @csrf
         @if ($isEdit)
             @method('PUT')
@@ -39,7 +39,7 @@
 
         <div class="form-grid two">
             <div class="form-group">
-                <label class="form-label" for="client_id">Client</label>
+                <label class="form-label" for="client_id">Client <span class="text-danger" aria-hidden="true">*</span></label>
                 <select class="form-control" id="client_id" name="client_id" required>
                     <option value="">Select client&hellip;</option>
                     @foreach ($clients as $client)
@@ -57,8 +57,8 @@
                 @error('period_label')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="quarter">Quarter</label>
-                <select class="form-control" id="quarter" name="quarter">
+                <label class="form-label" for="quarter">Quarter @if(!$isEdit)<span class="text-danger" aria-hidden="true">*</span>@endif</label>
+                <select class="form-control" id="quarter" name="quarter" @if(!$isEdit) required @endif>
                     <option value="">—</option>
                     @foreach (App\Models\Billing::QUARTERS as $q => $label)
                         <option value="{{ $q }}" @selected((int) old('quarter', $defaultQuarter) === $q)>{{ $label }} Quarter</option>
@@ -67,8 +67,8 @@
                 @error('quarter')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
-                <label class="form-label" for="year">Year</label>
-                <input class="form-control" id="year" name="year" type="number" min="2000" max="2100" value="{{ old('year', $billing->year ?? now()->format('Y')) }}">
+                <label class="form-label" for="year">Year @if(!$isEdit)<span class="text-danger" aria-hidden="true">*</span>@endif</label>
+                <input class="form-control" id="year" name="year" type="number" min="2000" max="2100" value="{{ old('year', $billing->year ?? now()->format('Y')) }}" @if(!$isEdit) required @endif>
                 @error('year')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
@@ -94,6 +94,9 @@
         <div class="form-group mt-4">
             <label class="form-label">Computed total payment</label>
             <div class="form-control amount-display" id="totalDisplay" readonly>₱0.00</div>
+            <small class="form-hint">Add amounts on the line items above — the total is calculated automatically.</small>
+            <div class="form-error" id="lineItemsError" role="alert" hidden></div>
+            @error('line_items')<div class="form-error">{{ $message }}</div>@enderror
         </div>
 
         <div class="btn-group-row">
@@ -121,6 +124,11 @@
     var form = document.getElementById('billingForm');
     var isEdit = {{ $isEdit ? 'true' : 'false' }};
 
+    // Track the last-known applicable BIR forms + computed total for the
+    // create-guard (feasibility + amount checks) in billingCreateGuard().
+    var currentForms = [];
+    var currentTotal = 0;
+
     var monthlyForms = @json($monthlyForms);
     var profFeeRates = {!! $profFeeRatesJson !!};
     var bookFeeRates = {!! $bookFeeRatesJson !!};
@@ -139,6 +147,7 @@
         // Sum every amount field — preset rows are <select data-line-amount>,
         // free-form rows (BIR remittances, cash in) are <input data-line-amount>.
         container.querySelectorAll('[data-line-amount]').forEach(function (el) { total += round2(el.value); });
+        currentTotal = total;
         totalDisplay.textContent = money(total);
     }
 
@@ -474,7 +483,10 @@
     function loadApplicableForms() {
         var clientId = clientSelect.value;
         if (!clientId) {
+            currentForms = [];
+            currentTotal = 0;
             container.innerHTML = '<p class="muted" id="lineItemsPlaceholder">Select a client to load their applicable BIR forms.</p>';
+            if (totalDisplay) totalDisplay.textContent = money(0);
             return;
         }
 
@@ -484,6 +496,7 @@
         @if ($isEdit)
             formsPromise.then(function (data) {
                 var forms = data.forms || [];
+                currentForms = forms;
                 var existingItems = {!! $existingItemsJson !!};
                 buildLineItems(forms, existingItems);
             });
@@ -493,6 +506,7 @@
 
             Promise.all([formsPromise, lastPromise]).then(function (results) {
                 var forms = results[0].forms || [];
+                currentForms = forms;
                 var lastData = results[1];
 
                 var existingItems = null;
@@ -508,6 +522,16 @@
                 }
 
                 buildLineItems(forms, existingItems);
+
+                // Immediate pre-check: the moment a client with no applicable
+                // BIR forms is chosen, surface the "Add BIR Forms First" modal
+                // instead of letting the user fill the form first.
+                if (!isEdit) {
+                    var resolvedClientId = clientSelect ? clientSelect.value : '';
+                    if (resolvedClientId && resolvedClientId === clientId && currentForms.length === 0) {
+                        showMissingBirFormsModal(resolvedClientId);
+                    }
+                }
 
                 if (lastData.period_title) {
                     var hint = document.getElementById('carryForwardHint');
@@ -553,6 +577,71 @@
                 }
             @endif
             loadApplicableForms();
+        });
+    }
+
+    // ---- Create-guard: feasibility + amounts + confirmation (replaces the old
+    // simple confirm). Wired via `onsubmit="return egliane.billingCreateGuard(this)"`
+    // so it composes with the shared Egliane.confirm helper (which handles the
+    // post-approval re-entry by returning true). Only present in create mode. ----
+    function showMissingBirFormsModal(clientId) {
+        var e = window.egliane || {};
+        if (!e.confirm) return;
+        e.confirm.action({
+            title: 'Add BIR Forms First',
+            message: 'This client does not have any BIR Forms selected yet. Add at least one BIR Form before creating a billing statement.',
+            confirmLabel: 'Add BIR Forms'
+        }, function () {
+            window.location.href = '{{ route("admin.bir-forms.index") }}?client_id=' + encodeURIComponent(clientId || '');
+        });
+    }
+
+    if (!isEdit) {
+        if (!window.egliane) window.egliane = {};
+
+        window.egliane.billingCreateGuard = function (f) {
+            var e = window.egliane || {};
+            if (!e.confirm) return true;
+
+            // 1) Amounts: at least one line item must carry an amount.
+            if (currentTotal <= 0) {
+                var errBox = document.getElementById('lineItemsError');
+                if (errBox) {
+                    errBox.textContent = 'Add at least one line item with an amount greater than zero.';
+                    errBox.hidden = false;
+                }
+                var totalEl = document.getElementById('totalDisplay');
+                if (totalEl) totalEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+
+            // 2) Feasibility: the selected client must have applicable BIR forms.
+            if (currentForms.length === 0) {
+                var clientId = clientSelect ? clientSelect.value : '';
+                showMissingBirFormsModal(clientId);
+                return false;
+            }
+
+            // 3) Confirmation: exact wording per spec, then submit on approve.
+            return e.confirm.form(f, {
+                title: 'Save billing statement?',
+                message: 'The billing statement will be saved and the client will be notified.',
+                confirmLabel: 'Save Billing Statement'
+            });
+        };
+    }
+
+    // ---- Double-submit guard: once the browser actually submits (approved) or a
+    // native validation pass begins, freeze the submit button so a second click
+    // can never fire another request. ----
+    if (form) {
+        form.addEventListener('submit', function () {
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn && !btn.disabled) {
+                btn.disabled = true;
+                if (btn.dataset.originalLabel == null) btn.dataset.originalLabel = btn.textContent;
+                btn.textContent = 'Saving…';
+            }
         });
     }
 })();

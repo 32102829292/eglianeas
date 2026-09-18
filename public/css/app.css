@@ -1333,17 +1333,18 @@ table.data tr:hover td { background: var(--surface-raised); }
 .finance-table th, .finance-table td { overflow-wrap: break-word; }
 .finance-table td { padding: 13px 12px; }
 .finance-table th { white-space: nowrap; }
-.finance-table .td-bills, .finance-table .td-money, .finance-table .td-status { white-space: nowrap; }
-.finance-table .td-bills, .finance-table .td-money { font-variant-numeric: tabular-nums; }
+.finance-table .td-bills, .finance-table .td-money, .finance-table .td-status, .finance-table .td-bir { white-space: nowrap; }
+.finance-table .td-bills, .finance-table .td-money, .finance-table .td-bir { font-variant-numeric: tabular-nums; }
 .finance-table .contact-email { overflow-wrap: anywhere; }
 .finance-table .row-action { width: 100%; min-width: 0; padding: 6px 10px; white-space: nowrap; }
-.finance-table .col-business { width: 19%; }
-.finance-table .col-contact { width: 20%; }
-.finance-table .col-bills { width: 8%; }
-.finance-table .col-total { width: 13%; }
-.finance-table .col-outstanding { width: 13%; }
-.finance-table .col-status { width: 9%; }
-.finance-table .col-actions { width: 18%; }
+.finance-table .col-business { width: 18%; }
+.finance-table .col-contact { width: 18%; }
+.finance-table .col-bir { width: 10%; }
+.finance-table .col-bills { width: 7%; }
+.finance-table .col-total { width: 11%; }
+.finance-table .col-outstanding { width: 11%; }
+.finance-table .col-status { width: 8%; }
+.finance-table .col-actions { width: 17%; }
 
 /* Collections table (admin list) */
 .collections-table th, .collections-table td { overflow-wrap: break-word; }
@@ -2617,11 +2618,11 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   min-width: 0;
 }
 #adminChatMessages .msg-bot .msg-bubble {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 4px 2px;
-  box-shadow: none;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px 14px 14px 4px;
+  padding: 11px 15px;
+  box-shadow: 0 2px 10px rgba(20, 40, 80, .08);
 }
 #adminChatMessages .msg-user { display: flex; justify-content: flex-end; }
 #adminChatMessages .msg-user-inner { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: min(84%, 520px); min-width: 0; }

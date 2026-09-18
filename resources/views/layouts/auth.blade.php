@@ -19,7 +19,7 @@
     @endif
 
     <script src="/js/app.js?v=11" defer></script>
-    <script src="/js/auth.js?v=3" defer></script>
+    <script src="/js/auth.js?v=4" defer></script>
     @stack('scripts')
 </body>
 </html>

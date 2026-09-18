@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Mail\VerificationCodeMail;
 use App\Models\Billing;
+use App\Models\BillingLineItem;
+use App\Models\BirFormStatus;
 use App\Models\ClientProfile;
 use App\Models\ClientSurveyResponse;
 use App\Models\Document;
@@ -353,6 +355,12 @@ class StaffAccessTest extends TestCase
     {
         $client = $this->client();
 
+        BirFormStatus::create([
+            'client_id' => $client->id,
+            'form_type' => BirFormStatus::FORM_TYPES[0],
+            'applicable' => true,
+        ]);
+
         $this->actingAs($this->staff())
             ->post(route('admin.billing.store'), [
                 'client_id' => $client->id,
@@ -360,6 +368,16 @@ class StaffAccessTest extends TestCase
                 'year' => 2026,
                 'due_date' => now()->addDays(10)->toDateString(),
                 'cash_in' => 0,
+                'line_items' => [
+                    [
+                        'category' => BillingLineItem::CATEGORY_BOOKKEEPING_FEE,
+                        'form_type' => '',
+                        'month' => '',
+                        'label' => 'Bookkeeping',
+                        'amount' => 2500,
+                        'fee_rate_id' => null,
+                    ],
+                ],
             ])
             ->assertRedirect();
 
