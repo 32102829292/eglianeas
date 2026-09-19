@@ -3541,8 +3541,8 @@ button.staff-chip:active { transform: translateY(1px); }
    =================================================================== */
 .chatbot-settings {
   width: 100%;
-  max-width: 800px;
-  align-self: center;
+  max-width: none;
+  margin: 0;
   flex: 1 1 auto;
   min-height: 0;
   height: 100%;

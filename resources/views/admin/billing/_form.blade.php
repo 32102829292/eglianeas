@@ -121,6 +121,7 @@
     var container = document.getElementById('lineItemsContainer');
     var placeholder = document.getElementById('lineItemsPlaceholder');
     var totalDisplay = document.getElementById('totalDisplay');
+    var lineItemsError = document.getElementById('lineItemsError');
     var form = document.getElementById('billingForm');
     var isEdit = {{ $isEdit ? 'true' : 'false' }};
 
@@ -144,11 +145,23 @@
 
     function computeTotal() {
         var total = 0;
-        // Sum every amount field — preset rows are <select data-line-amount>,
-        // free-form rows (BIR remittances, cash in) are <input data-line-amount>.
-        container.querySelectorAll('[data-line-amount]').forEach(function (el) { total += round2(el.value); });
+        // Sum every amount field that will actually be submitted — preset rows are
+        // <select data-line-amount>, free-form rows are <input data-line-amount>.
+        // Source of truth is the same: the guard and the displayed total both read
+        // the live form instead of keeping a separate copy of the values.
+        form.querySelectorAll('[data-line-amount]').forEach(function (el) {
+            var v = parseFloat(el.value);
+            if (!isNaN(v) && v > 0) total += Math.round(v * 100) / 100;
+        });
         currentTotal = total;
         totalDisplay.textContent = money(total);
+
+        // A stale "no amount" error must disappear as soon as any amount exists,
+        // otherwise it lingers next to a valid computed total (Render bug).
+        if (total > 0 && lineItemsError && !lineItemsError.hidden) {
+            lineItemsError.textContent = '';
+            lineItemsError.hidden = true;
+        }
     }
 
     function buildFeeSelect(name, rates, selectedAmount, selectedFeeRateId) {
@@ -323,6 +336,7 @@
         var ptbRow = null;
         var invRow = null;
         var oaRow = null;
+        var deRow = null;
         var hasCashIn = false;
 
         // Detect existing items for new categories
@@ -596,6 +610,15 @@
         });
     }
 
+    function freezeSubmitButton() {
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn && !btn.disabled) {
+            btn.disabled = true;
+            if (btn.dataset.originalLabel == null) btn.dataset.originalLabel = btn.textContent;
+            btn.textContent = 'Saving…';
+        }
+    }
+
     if (!isEdit) {
         if (!window.egliane) window.egliane = {};
 
@@ -603,15 +626,18 @@
             var e = window.egliane || {};
             if (!e.confirm) return true;
 
+            // Recompute the total from the live form at submit time so this check
+            // always reflects the exact line-item values that would be submitted
+            // (the same source of truth used to render #totalDisplay).
+            computeTotal();
+
             // 1) Amounts: at least one line item must carry an amount.
             if (currentTotal <= 0) {
-                var errBox = document.getElementById('lineItemsError');
-                if (errBox) {
-                    errBox.textContent = 'Add at least one line item with an amount greater than zero.';
-                    errBox.hidden = false;
+                if (lineItemsError) {
+                    lineItemsError.textContent = 'Add at least one line item with an amount greater than zero.';
+                    lineItemsError.hidden = false;
                 }
-                var totalEl = document.getElementById('totalDisplay');
-                if (totalEl) totalEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (totalDisplay) totalDisplay.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return false;
             }
 
@@ -623,25 +649,28 @@
             }
 
             // 3) Confirmation: exact wording per spec, then submit on approve.
-            return e.confirm.form(f, {
+            var approved = e.confirm.form(f, {
                 title: 'Save billing statement?',
                 message: 'The billing statement will be saved and the client will be notified.',
                 confirmLabel: 'Save Billing Statement'
             });
+
+            // Only after ALL client-side validation passes AND the user confirms
+            // does the real submission begin — that is the single moment the
+            // button switches to "Saving…", so failed validation can never leave
+            // it stuck on that label.
+            if (approved) freezeSubmitButton();
+
+            return approved;
         };
     }
 
-    // ---- Double-submit guard: once the browser actually submits (approved) or a
-    // native validation pass begins, freeze the submit button so a second click
-    // can never fire another request. ----
-    if (form) {
+    // ---- Double-submit guard (edit mode only): once the browser actually
+    // submits, freeze the submit button so a second click can never fire another
+    // request. In create mode the guard above performs this freeze at approval. ----
+    if (isEdit && form) {
         form.addEventListener('submit', function () {
-            var btn = form.querySelector('button[type="submit"]');
-            if (btn && !btn.disabled) {
-                btn.disabled = true;
-                if (btn.dataset.originalLabel == null) btn.dataset.originalLabel = btn.textContent;
-                btn.textContent = 'Saving…';
-            }
+            freezeSubmitButton();
         });
     }
 })();

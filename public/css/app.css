@@ -91,7 +91,7 @@
 
 * { box-sizing: border-box; }
 
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
 body {
   margin: 0;
@@ -100,6 +100,7 @@ body {
   background: var(--bg);
   line-height: 1.6;
   font-size: 16px;
+  overflow-x: clip;
 }
 
 img { max-width: 100%; display: block; }
@@ -2768,7 +2769,7 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 }
 
 /* ---- Settings view ---- */
-.chatbot-settings { max-width: 920px; margin: 0 auto; flex: 0 0 auto; animation: admin-chat-settings-in .22s ease both; }
+.chatbot-settings { max-width: none; margin: 0; flex: 0 0 auto; animation: admin-chat-settings-in .22s ease both; }
 @keyframes admin-chat-settings-in {
   from { opacity: 0; transform: translateY(9px); }
   to { opacity: 1; transform: none; }
