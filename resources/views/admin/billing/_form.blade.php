@@ -31,7 +31,7 @@
         <h2 class="card-title">{{ $isEdit ? 'Edit billing statement' : 'New billing statement' }}</h2>
     </div>
 
-    <form method="POST" action="{{ $isEdit ? route('admin.billing.update', $billing) : route('admin.billing.store') }}" id="billingForm" @if(!$isEdit) onsubmit="return egliane.billingCreateGuard(this);" @endif>
+    <form method="POST" action="{{ $isEdit ? route('admin.billing.update', $billing) : route('admin.billing.store') }}" id="billingForm" onsubmit="return {{ $isEdit ? 'egliane.billingUpdateGuard' : 'egliane.billingCreateGuard' }}(this);">
         @csrf
         @if ($isEdit)
             @method('PUT')
@@ -665,13 +665,51 @@
         };
     }
 
-    // ---- Double-submit guard (edit mode only): once the browser actually
-    // submits, freeze the submit button so a second click can never fire another
-    // request. In create mode the guard above performs this freeze at approval. ----
-    if (isEdit && form) {
-        form.addEventListener('submit', function () {
-            freezeSubmitButton();
-        });
+    // ---- Update-guard (edit mode only): validates then asks for confirmation
+    // before an existing statement is updated. Wired via the inline onsubmit on
+    // the edit form so it composes with the shared Egliane.confirm helper the
+    // same way the create-guard does. Native HTML5 validation (required fields)
+    // runs before onsubmit, so only the line-item amount check remains here.
+    // The submit button is NOT frozen until the user confirms — failed
+    // validation or a cancelled modal can never leave it stuck on "Saving…",
+    // and (because the guard returns false) no empty/duplicate request can
+    // fire while the confirmation is still pending. ----
+    if (isEdit) {
+        if (!window.egliane) window.egliane = {};
+
+        window.egliane.billingUpdateGuard = function (f) {
+            var e = window.egliane || {};
+            if (!e.confirm) return true;
+
+            // Recompute the live total so the amount check always reflects
+            // exactly what would be submitted (the same source of truth used to
+            // render #totalDisplay).
+            computeTotal();
+
+            // Amounts: at least one line item must carry an amount.
+            if (currentTotal <= 0) {
+                if (lineItemsError) {
+                    lineItemsError.textContent = 'Add at least one line item with an amount greater than zero.';
+                    lineItemsError.hidden = false;
+                }
+                if (totalDisplay) totalDisplay.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return false;
+            }
+
+            // Confirmation: exact wording per spec, then submit on approve.
+            var approved = e.confirm.form(f, {
+                title: 'Update billing statement?',
+                message: 'Your changes will be saved to this billing statement.',
+                confirmLabel: 'Update Billing Statement'
+            });
+
+            // Only after validation passes AND the user confirms does the real
+            // submission begin — that is the single moment the button switches
+            // to "Saving…", preventing any duplicate update request.
+            if (approved) freezeSubmitButton();
+
+            return approved;
+        };
     }
 })();
 </script>
