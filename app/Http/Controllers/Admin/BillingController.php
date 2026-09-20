@@ -103,18 +103,66 @@ class BillingController extends Controller
                 'bir_ready' => ((int) $client->applicable_forms_count) > 0,
             ]);
 
+        [$downloadYears, $defaultDownloadYear] = $this->downloadYearOptions($activeQuarter);
+
         return view('admin.billing.index', [
             'entries' => $clients,
             'q' => $q,
             'activeQuarter' => $activeQuarter,
             'availableQuarters' => Billing::filterQuarters(),
-            'stats' => [
-                'billed' => (float) Billing::query()->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
-                'collected' => (float) Billing::query()->where('status', Billing::STATUS_PAID)->sum('total'),
-                'outstanding' => (float) Billing::query()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
-                'overdue' => Billing::query()->where('status', Billing::STATUS_OVERDUE)->count(),
-            ],
+            'stats' => $this->summaryStats($activeQuarter),
+            'downloadYears' => $downloadYears,
+            'defaultDownloadYear' => $defaultDownloadYear,
         ]);
+    }
+
+    /**
+     * Summary-card figures. When a summary period is active they are scoped to
+     * that exact quarter/year (same definition the client table below uses), so
+     * the cards always reflect the selected period; with no period selected they
+     * span the full ledger. Old behavior ignored the quarter entirely.
+     */
+    private function summaryStats(?Quarter $activeQuarter): array
+    {
+        $base = Billing::query();
+        if ($activeQuarter) {
+            $base->where('year', $activeQuarter->year)
+                ->where('quarter', $activeQuarter->quarter);
+        }
+
+        return [
+            'billed' => (float) (clone $base)->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
+            'collected' => (float) (clone $base)->where('status', Billing::STATUS_PAID)->sum('total'),
+            'outstanding' => (float) (clone $base)->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
+            'overdue' => (clone $base)->where('status', Billing::STATUS_OVERDUE)->count(),
+        ];
+    }
+
+    /**
+     * Years offered in the "Download Billing Summary" panel, newest first, and
+     * the default year preselected from the active summary period (otherwise the
+     * current year, falling back to the newest available year).
+     *
+     * @return array{0: array<int, int>, 1: int}
+     */
+    private function downloadYearOptions(?Quarter $activeQuarter): array
+    {
+        $years = Billing::query()
+            ->whereNotNull('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($year): int => (int) $year)
+            ->push((int) now()->format('Y'))
+            ->unique()
+            ->sortByDesc(fn (int $year): int => $year)
+            ->values()
+            ->all();
+
+        $default = $activeQuarter?->year
+            ?? (in_array((int) now()->format('Y'), $years, true) ? (int) now()->format('Y') : ($years[0] ?? (int) now()->format('Y')));
+
+        return [$years, $default];
     }
 
     /**

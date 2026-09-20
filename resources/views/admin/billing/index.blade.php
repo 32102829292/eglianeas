@@ -44,6 +44,10 @@
         </div>
     </div>
 
+    <p class="summary-scope">
+        Showing billing summary for <strong>{{ $activeQuarter ? $activeQuarter->label() : 'all quarters' }}</strong>
+    </p>
+
     <div class="page-toolbar">
         <form id="billing-search" class="toolbar-form" method="GET" action="{{ route('admin.billing.index') }}" role="search">
             <div class="search-combo">
@@ -51,8 +55,8 @@
                 <input type="search" name="q" value="{{ $q }}" placeholder="Search business or contact&hellip;" aria-label="Search billing statements">
             </div>
             <label class="toolbar-field">
-                <span class="toolbar-label">Quarter</span>
-                <select name="quarter" class="toolbar-select" aria-label="Filter by quarter">
+                <span class="toolbar-label">Summary period</span>
+                <select name="quarter" class="toolbar-select" aria-label="Filter billing summary by period">
                     <option value="">All quarters</option>
                     @foreach ($availableQuarters as $quarter)
                         <option value="{{ $quarter->key() }}" @selected($activeQuarter?->equals($quarter))>{{ $quarter->label() }}</option>
@@ -68,28 +72,33 @@
                     Download Billing Summary
                 </button>
                 <div class="dropdown-menu billing-download-panel" id="billing-download-menu">
+                    <p class="dl-hint">Download the billing summary for <strong>{{ $activeQuarter ? $activeQuarter->label() : 'all quarters' }}</strong>:</p>
                     <div class="billing-download-row">
                         <label class="form-label" for="dl-quarter">Quarter</label>
                         <select class="form-control form-control-sm" id="dl-quarter">
                             <option value="">All Quarters</option>
-                            <option value="1">1st Quarter</option>
-                            <option value="2">2nd Quarter</option>
-                            <option value="3">3rd Quarter</option>
-                            <option value="4">4th Quarter</option>
+                            <option value="1" @selected($activeQuarter !== null && $activeQuarter->quarter === 1)>1st Quarter</option>
+                            <option value="2" @selected($activeQuarter !== null && $activeQuarter->quarter === 2)>2nd Quarter</option>
+                            <option value="3" @selected($activeQuarter !== null && $activeQuarter->quarter === 3)>3rd Quarter</option>
+                            <option value="4" @selected($activeQuarter !== null && $activeQuarter->quarter === 4)>4th Quarter</option>
                         </select>
                     </div>
                     <div class="billing-download-row">
                         <label class="form-label" for="dl-year">Year</label>
-                        <select class="form-control form-control-sm" id="dl-year"></select>
+                        <select class="form-control form-control-sm" id="dl-year">
+                            @foreach ($downloadYears as $y)
+                                <option value="{{ $y }}" @selected($y === $defaultDownloadYear)>{{ $y }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="billing-download-btns">
                         <a href="#" id="dl-xlsx" class="btn btn-outline btn-sm">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                            XLSX
+                            XLSX — Summary
                         </a>
                         <a href="#" id="dl-pdf" class="btn btn-outline danger btn-sm">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                            PDF
+                            PDF — Summary
                         </a>
                     </div>
                 </div>
@@ -228,44 +237,39 @@
         var xlsxBase = '{{ route("admin.billing.exportSummaryXlsx") }}';
         var pdfBase = '{{ route("admin.billing.exportSummaryPdf") }}';
 
-    function buildUrl(base) {
-        var params = new URLSearchParams();
-        if (quarterSelect.value) params.set('quarter', quarterSelect.value);
-        if (yearSelect.value) params.set('year', yearSelect.value);
-        var qs = params.toString();
-        return qs ? base + '?' + qs : base;
-    }
+        function buildUrl(base) {
+            var params = new URLSearchParams();
+            if (quarterSelect.value) params.set('quarter', quarterSelect.value);
+            if (yearSelect.value) params.set('year', yearSelect.value);
+            var qs = params.toString();
+            return qs ? base + '?' + qs : base;
+        }
 
-    function refreshLinks() {
-        xlsxLink.href = buildUrl(xlsxBase);
-        pdfLink.href = buildUrl(pdfBase);
-    }
+        function refreshLinks() {
+            xlsxLink.href = buildUrl(xlsxBase);
+            pdfLink.href = buildUrl(pdfBase);
+        }
 
-    fetch('{{ route("admin.billing.years") }}')
-        .then(function (r) { return r.json(); })
-        .then(function (years) {
-            var currentYear = new Date().getFullYear();
-            years.forEach(function (y) {
-                var opt = document.createElement('option');
-                opt.value = y;
-                opt.textContent = y;
-                if (y === currentYear) opt.selected = true;
-                yearSelect.appendChild(opt);
-            });
-            if (!years.includes(currentYear) && years.length) {
-                yearSelect.value = years[0];
-            }
-            refreshLinks();
-        });
-
-    quarterSelect.addEventListener('change', refreshLinks);
-    yearSelect.addEventListener('change', refreshLinks);
-})();
-    document.getElementById('billing-search').addEventListener('submit', function (e) {
+        quarterSelect.addEventListener('change', refreshLinks);
+        yearSelect.addEventListener('change', refreshLinks);
+        refreshLinks();
+    })();
+    var billingSearch = document.getElementById('billing-search');
+    billingSearch.addEventListener('submit', function (e) {
         var q = this.elements.namedItem('q');
         if (q && !q.value.trim()) q.disabled = true;
         var quarter = this.elements.namedItem('quarter');
         if (quarter && !quarter.value) quarter.disabled = true;
+    });
+    // Changing the summary period applies the GET filter immediately so the
+    // summary cards and the client table both update. The Filter button still
+    // re-applies the search text (and any selected period).
+    var summaryPeriod = billingSearch.elements.namedItem('quarter');
+    summaryPeriod.addEventListener('change', function () {
+        var q = billingSearch.elements.namedItem('q');
+        if (q && !q.value.trim()) q.disabled = true;
+        if (!this.value) this.disabled = true;
+        billingSearch.submit();
     });
 </script>
 @endpush
