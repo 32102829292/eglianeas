@@ -50,10 +50,13 @@ class BillingStatementMail extends Mailable
 
     private function statementPdf()
     {
+        $payments = \App\Support\BillingPaymentDetails::forPdf();
+
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.billing.statement-pdf', [
             'billing' => $this->billing->loadMissing(['client.profile', 'lineItems']),
-            'gcashNumber' => \App\Models\Setting::get('gcash_number', ''),
+            'gcashNumber' => $payments['gcash_number'],
             'bankAccounts' => \App\Models\Setting::get('bank_accounts', []),
+            'payments' => $payments,
         ])->setPaper('a4', 'portrait');
 
         return \Illuminate\Mail\Mailables\Attachment::fromData(

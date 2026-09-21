@@ -9,20 +9,10 @@
         \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY => 'DATA ENTRY',
     ];
 
-    $paymentBits = [];
-    if ($gcashNumber) {
-        $paymentBits[] = 'GCash: '.$gcashNumber;
-    }
-    foreach (($bankAccounts ?? []) as $bank) {
-        $bits = array_filter([
-            $bank['bank_name'] ?? '',
-            ($bank['account_name'] ?? '') ? '('.$bank['account_name'].')' : '',
-            $bank['account_number'] ?? '',
-        ]);
-        if ($bits) {
-            $paymentBits[] = implode(' ', $bits);
-        }
-    }
+    $payments = $payments ?? \App\Support\BillingPaymentDetails::forPdf();
+    $gcashNumber = (string) ($payments['gcash_number'] ?? '');
+    $gcashQr = $payments['gcash_qr'] ?? null;
+    $bankAccounts = $payments['banks'] ?? [];
 
     // DomPDF core fonts cannot render the peso glyph; use Php notation.
     $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
@@ -150,6 +140,21 @@
         }
         .batch-footer b { color: #1B1B3A; letter-spacing: .5pt; }
         .batch-footer .oversize-note { color: #c0392b; font-weight: bold; }
+
+        .batch-footer-title {
+            font-weight: bold;
+            color: #1B1B3A;
+            letter-spacing: .5pt;
+            text-transform: uppercase;
+            font-size: 6.8pt;
+        }
+        .batch-footer-body { margin-top: 1.2mm; }
+        .batch-footer-copy { float: left; }
+        .bf-line { font-size: 6.4pt; color: #444; padding: .6pt 0; }
+        .bf-line b { color: #1B1B3A; letter-spacing: .4pt; }
+        .batch-footer-qrs { float: right; }
+        .bf-qr { width: 9mm; height: 9mm; margin-left: 2mm; }
+        .batch-footer-oversize { clear: both; padding-top: 1mm; }
     </style>
 </head>
 <body>
@@ -175,11 +180,33 @@
         <p>No statements selected.</p>
     @endforelse
 
-    @if (! empty($paymentBits))
+    @if ($payments['has'])
         <div class="batch-footer">
-            <b>PAYMENT DETAILS</b> &nbsp;&mdash;&nbsp; {{ implode(' &nbsp;&middot;&nbsp; ', $paymentBits) }}
+            <div class="batch-footer-title">PAYMENT DETAILS</div>
+            <div class="batch-footer-body">
+                <div class="batch-footer-copy">
+                    @if ($gcashNumber !== '')
+                        <div class="bf-line"><b>GCash</b> · {{ $gcashNumber }}</div>
+                    @endif
+                    @foreach ($bankAccounts as $bank)
+                        <div class="bf-line">{{ $bank['label'] }}</div>
+                    @endforeach
+                </div>
+                <div class="batch-footer-qrs">
+                    @if ($gcashQr !== null)
+                        <img src="{{ $gcashQr }}" class="bf-qr" alt="GCash QR Code">
+                    @endif
+                    @foreach ($bankAccounts as $bank)
+                        @if (! empty($bank['qr']))
+                            <img src="{{ $bank['qr'] }}" class="bf-qr" alt="{{ $bank['bank_name'] ?: 'Bank' }} QR Code">
+                        @endif
+                    @endforeach
+                </div>
+            </div>
             @if (! empty($overflowIds))
-                <br><span class="oversize-note">OVERSIZE WARNING:</span> statements {{ implode(', ', $overflowIds) }} exceed the fixed cell size even at minimum scale &mdash; content truncated. Reduce line items or print fewer statements per page.
+                <div class="batch-footer-oversize">
+                    <span class="oversize-note">OVERSIZE WARNING:</span> statements {{ implode(', ', $overflowIds) }} exceed the fixed cell size even at minimum scale — content truncated. Reduce line items or print fewer statements per page.
+                </div>
             @endif
         </div>
     @endif

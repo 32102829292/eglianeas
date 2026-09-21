@@ -1198,6 +1198,7 @@ class BillingController extends Controller
             'billings' => $billings,
             'gcashNumber' => Setting::get('gcash_number', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
+            'payments' => \App\Support\BillingPaymentDetails::forPdf(),
             'paperSize' => $paperSize,
             'rowSlotMm' => $rowSlotMm,
             'density' => $density,

@@ -10,23 +10,10 @@
         \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY => 'DATA ENTRY',
     ];
 
-    $gcashNumber = $gcashNumber ?? '';
-    $bankAccounts = $bankAccounts ?? [];
-
-    $paymentBits = [];
-    if ($gcashNumber) {
-        $paymentBits[] = 'GCash: '.$gcashNumber;
-    }
-    foreach ($bankAccounts as $bank) {
-        $bits = array_filter([
-            $bank['bank_name'] ?? '',
-            ($bank['account_name'] ?? '') ? '('.$bank['account_name'].')' : '',
-            $bank['account_number'] ?? '',
-        ]);
-        if ($bits) {
-            $paymentBits[] = implode(' ', $bits);
-        }
-    }
+    $payments = $payments ?? \App\Support\BillingPaymentDetails::forPdf();
+    $gcashNumber = (string) ($payments['gcash_number'] ?? '');
+    $gcashQr = $payments['gcash_qr'] ?? null;
+    $bankAccounts = $payments['banks'] ?? [];
 
     // DomPDF core fonts cannot render the peso glyph; use Php notation.
     $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
@@ -70,14 +57,21 @@
 
         .payments { border-top: 1pt solid #d5dade; margin-top: 20pt; padding-top: 8pt; }
         .payments .section-title { padding-top: 0; }
-        .pay-line { font-size: 9.5pt; color: #333; padding: 2pt 0; }
+        .pay-method { width: 100%; border-collapse: collapse; margin-top: 4pt; }
+        .pay-method td { padding: 4pt 0 6pt; border-bottom: .5pt dotted #d5dade; vertical-align: middle; }
+        .pay-info { padding-right: 8pt; text-align: left; }
+        .pay-label { font-size: 9.5pt; font-weight: bold; color: #1B1B3A; }
+        .pay-detail { font-size: 9pt; color: #444; padding-top: 1pt; }
+        .pay-number { font-size: 9pt; color: #333; padding-top: 1pt; }
+        .pay-qr-cell { width: 62pt; text-align: right; }
+        .pay-qr { width: 58pt; height: 58pt; }
     </style>
 </head>
 <body>
 
     <div class="head">
         <div class="brand">EGLIANE ACCOUNTING SERVICES</div>
-        <div class="period">BILLING STATEMENT &middot; {{ mb_strtoupper($billing->period_label) }}</div>
+        <div class="period">BILLING STATEMENT · {{ mb_strtoupper($billing->period_label) }}</div>
     </div>
 
     @if ($billing->isPaid())
@@ -108,16 +102,54 @@
 
     <div class="signer">HARRIS EGLIANE, CPA</div>
     @if ($billing->isPaid())
-        <div class="note">Date paid: {{ $billing->paid_at?->format('F j, Y') ?? '—' }} &nbsp;&middot;&nbsp; Ref #{{ str_pad((string) $billing->id, 5, '0', STR_PAD_LEFT) }}</div>
+        <div class="note">Date paid: {{ $billing->paid_at?->format('F j, Y') ?? '—' }} · Ref #{{ str_pad((string) $billing->id, 5, '0', STR_PAD_LEFT) }}</div>
     @elseif ($billing->due_date)
-        <div class="note">Due date: {{ $billing->due_date->format('F j, Y') }} &nbsp;&middot;&nbsp; Ref #{{ str_pad((string) $billing->id, 5, '0', STR_PAD_LEFT) }}</div>
+        <div class="note">Due date: {{ $billing->due_date->format('F j, Y') }} · Ref #{{ str_pad((string) $billing->id, 5, '0', STR_PAD_LEFT) }}</div>
     @endif
 
-    @if (! empty($paymentBits))
+    @if ($payments['has'])
         <div class="payments">
             <div class="section-title">PAYMENT DETAILS</div>
-            @foreach ($paymentBits as $bit)
-                <div class="pay-line">{{ $bit }}</div>
+
+            @if ($gcashNumber !== '' || $gcashQr !== null)
+                <table class="pay-method">
+                    <tr>
+                        <td class="pay-info">
+                            <div class="pay-label">GCash</div>
+                            @if ($gcashNumber !== '')
+                                <div class="pay-number">{{ $gcashNumber }}</div>
+                            @endif
+                        </td>
+                        <td class="pay-qr-cell">
+                            @if ($gcashQr !== null)
+                                <img src="{{ $gcashQr }}" class="pay-qr" alt="GCash QR Code">
+                            @endif
+                        </td>
+                    </tr>
+                </table>
+            @endif
+
+            @foreach ($bankAccounts as $bank)
+                <table class="pay-method">
+                    <tr>
+                        <td class="pay-info">
+                            @if (! empty($bank['bank_name']))
+                                <div class="pay-label">{{ $bank['bank_name'] }}</div>
+                            @endif
+                            @if (! empty($bank['account_name']))
+                                <div class="pay-detail">{{ $bank['account_name'] }}</div>
+                            @endif
+                            @if (! empty($bank['account_number']))
+                                <div class="pay-number">{{ $bank['account_number'] }}</div>
+                            @endif
+                        </td>
+                        <td class="pay-qr-cell">
+                            @if (! empty($bank['qr']))
+                                <img src="{{ $bank['qr'] }}" class="pay-qr" alt="{{ $bank['bank_name'] ?: 'Bank' }} QR Code">
+                            @endif
+                        </td>
+                    </tr>
+                </table>
             @endforeach
         </div>
     @endif
