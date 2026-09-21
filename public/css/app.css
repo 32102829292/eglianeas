@@ -653,14 +653,14 @@ main { padding-bottom: max(96px, calc(76px + env(safe-area-inset-bottom))); }
 .chat-head .sub { font-size: 11px; color: rgba(255,255,255,.7); }
 .chat-head .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; margin-right: 4px; }
 .chat-head .close-chat { margin-left: auto; background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px; }
-.chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg-alt); display: flex; flex-direction: column; gap: 10px; max-height: 340px; }
-.msg { max-width: 82%; padding: 10px 13px; border-radius: 14px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
-.msg-bot { background: #fff; color: var(--text); border: 1px solid var(--border); border-top-left-radius: 4px; align-self: flex-start; }
-.msg-user { background: var(--navy); color: #fff; border-top-right-radius: 4px; align-self: flex-end; }
-.msg a { color: var(--sky-deep); }
-.msg .meta { display: block; font-size: 10px; margin-top: 5px; opacity: .6; }
-.msg-user .meta { color: rgba(255,255,255,.7); }
-.msg.pending .meta { color: var(--sky-deep); font-weight: 600; }
+.chat-widget .chat-messages { flex: 1; overflow-y: auto; padding: 16px; background: var(--bg-alt); display: flex; flex-direction: column; gap: 10px; max-height: 340px; }
+.chat-widget .msg { max-width: 82%; padding: 10px 13px; border-radius: 14px; font-size: 14px; line-height: 1.45; white-space: pre-wrap; word-wrap: break-word; }
+.chat-widget .msg-bot { background: #fff; color: var(--text); border: 1px solid var(--border); border-top-left-radius: 4px; align-self: flex-start; }
+.chat-widget .msg-user { background: var(--navy); color: #fff; border-top-right-radius: 4px; align-self: flex-end; }
+.chat-widget .msg a { color: var(--sky-deep); }
+.chat-widget .msg .meta { display: block; font-size: 10px; margin-top: 5px; opacity: .6; }
+.chat-widget .msg-user .meta { color: rgba(255,255,255,.7); }
+.chat-widget .msg.pending .meta { color: var(--sky-deep); font-weight: 600; }
 .chat-quick { padding: 0 12px 8px; display: flex; flex-wrap: wrap; gap: 6px; background: var(--bg-alt); }
 .chat-quick button { background: #fff; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; padding: 5px 11px; cursor: pointer; color: var(--text); }
 .chat-quick button:hover { border-color: var(--sky); color: var(--sky-deep); }

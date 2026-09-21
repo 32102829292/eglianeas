@@ -1185,11 +1185,12 @@ class BillingController extends Controller
         );
 
         // Label-sheet grid: fixed equal-height cells (4 rows x 2 copies = 8
-        // receipts/page). Slot height = page height minus @page margins minus
-        // the payment-details footer reserve, split per row.
+        // receipts/page). Slot height = page height minus @page margins, split
+        // per row. Payment details now render inside every cell (not in a
+        // shared footer), so the whole page height feeds the slots.
         $rowsPerPage = 4;
         $pageHeightMm = ['a4' => 297.0, 'letter' => 279.4][$paperSize];
-        $rowSlotMm = round(($pageHeightMm - 20 - 10) / $rowsPerPage, 2);
+        $rowSlotMm = round(($pageHeightMm - 20) / $rowsPerPage, 2);
         $slotPt = $rowSlotMm * 72 / 25.4;
 
         [$density, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);

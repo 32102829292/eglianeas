@@ -20,9 +20,9 @@
     $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
     $rowsPerPage = 4;
     // Fixed equal-height slots (label-sheet grid). Computed by the controller
-    // from the selected paper size: page height minus @page margins minus the
-    // payment-details footer reserve, divided by rows per page.
-    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20 - 10) / $rowsPerPage, 2);
+    // from the selected paper size: page height minus @page margins, divided
+    // by rows per page. Payment details render inside each cell.
+    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20) / $rowsPerPage, 2);
     $density = $density ?? 'normal';
 @endphp
 <!DOCTYPE html>
@@ -133,28 +133,26 @@
         .tiny .sign-row td { padding-top: 1.5pt; }
         .tiny .note { font-size: 5pt; }
 
-        .batch-footer {
-            font-size: 6.4pt;
-            color: #444;
-            padding-top: 2mm;
-        }
-        .batch-footer b { color: #1B1B3A; letter-spacing: .5pt; }
-        .batch-footer .oversize-note { color: #c0392b; font-weight: bold; }
-
-        .batch-footer-title {
+        /* Payment details rendered INSIDE each receipt cell (once per copy),
+           compact so it fits the fixed slot. QRs sit on the right edge of the
+           cell, text lines on the left, so nothing crosses the centre divider. */
+        .cell-payments { border-top: .6pt solid #d5dade; margin-top: 1.6mm; padding-top: 1.2mm; }
+        .cell-payments-title {
             font-weight: bold;
             color: #1B1B3A;
             letter-spacing: .5pt;
             text-transform: uppercase;
-            font-size: 6.8pt;
+            font-size: 6pt;
+            padding-bottom: .8pt;
         }
-        .batch-footer-body { margin-top: 1.2mm; }
-        .batch-footer-copy { float: left; }
-        .bf-line { font-size: 6.4pt; color: #444; padding: .6pt 0; }
-        .bf-line b { color: #1B1B3A; letter-spacing: .4pt; }
-        .batch-footer-qrs { float: right; }
-        .bf-qr { width: 9mm; height: 9mm; margin-left: 2mm; }
-        .batch-footer-oversize { clear: both; padding-top: 1mm; }
+        .cell-pmethod { width: 100%; border-collapse: collapse; }
+        .cell-pmethod td { vertical-align: middle; }
+        .cell-pinfo { text-align: left; padding-right: 2mm; }
+        .cell-pline { font-size: 6.2pt; color: #444; padding: .6pt 0; }
+        .cell-pline b { color: #1B1B3A; letter-spacing: .4pt; }
+        .cell-pqr { text-align: right; white-space: nowrap; }
+        .cell-pqr img { width: 8mm; height: 8mm; margin-left: 1.6mm; }
+        .cell-oversize { font-size: 5.6pt; color: #c0392b; font-weight: bold; padding-top: .8mm; }
     </style>
 </head>
 <body>
@@ -165,12 +163,26 @@
             <tr>
                 <td class="cell">
                     <div class="slot">
-                        @include('admin.billing.partials.statement-cell', ['copyLabel' => "Taxpayer's Copy"])
+                        @include('admin.billing.partials.statement-cell', [
+                            'copyLabel' => "Taxpayer's Copy",
+                            'payments' => $payments,
+                            'gcashNumber' => $gcashNumber,
+                            'gcashQr' => $gcashQr,
+                            'bankAccounts' => $bankAccounts,
+                            'overflowIds' => $overflowIds ?? [],
+                        ])
                     </div>
                 </td>
                 <td class="cell">
                     <div class="slot">
-                        @include('admin.billing.partials.statement-cell', ['copyLabel' => "Egliane Accounting Services' Copy"])
+                        @include('admin.billing.partials.statement-cell', [
+                            'copyLabel' => "Egliane Accounting Services' Copy",
+                            'payments' => $payments,
+                            'gcashNumber' => $gcashNumber,
+                            'gcashQr' => $gcashQr,
+                            'bankAccounts' => $bankAccounts,
+                            'overflowIds' => $overflowIds ?? [],
+                        ])
                     </div>
                 </td>
             </tr>
@@ -179,37 +191,6 @@
     @empty
         <p>No statements selected.</p>
     @endforelse
-
-    @if ($payments['has'])
-        <div class="batch-footer">
-            <div class="batch-footer-title">PAYMENT DETAILS</div>
-            <div class="batch-footer-body">
-                <div class="batch-footer-copy">
-                    @if ($gcashNumber !== '')
-                        <div class="bf-line"><b>GCash</b> · {{ $gcashNumber }}</div>
-                    @endif
-                    @foreach ($bankAccounts as $bank)
-                        <div class="bf-line">{{ $bank['label'] }}</div>
-                    @endforeach
-                </div>
-                <div class="batch-footer-qrs">
-                    @if ($gcashQr !== null)
-                        <img src="{{ $gcashQr }}" class="bf-qr" alt="GCash QR Code">
-                    @endif
-                    @foreach ($bankAccounts as $bank)
-                        @if (! empty($bank['qr']))
-                            <img src="{{ $bank['qr'] }}" class="bf-qr" alt="{{ $bank['bank_name'] ?: 'Bank' }} QR Code">
-                        @endif
-                    @endforeach
-                </div>
-            </div>
-            @if (! empty($overflowIds))
-                <div class="batch-footer-oversize">
-                    <span class="oversize-note">OVERSIZE WARNING:</span> statements {{ implode(', ', $overflowIds) }} exceed the fixed cell size even at minimum scale — content truncated. Reduce line items or print fewer statements per page.
-                </div>
-            @endif
-        </div>
-    @endif
 
 </body>
 </html>
