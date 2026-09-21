@@ -164,6 +164,17 @@
                                                 <button type="submit" class="btn btn-sm btn-success">Complete</button>
                                             </form>
                                         @endif
+                                        @if (auth()->user()->isAdmin())
+                                            <button type="button" class="btn btn-sm btn-outline"
+                                                    data-reassign-open="{{ $instance->id }}"
+                                                    data-service="{{ $instance->service?->name }}"
+                                                    data-client="{{ $instance->client?->business_name ?: $instance->client?->name }}"
+                                                    data-current="{{ $instance->assignments->first()?->displayName() }}"
+                                                    data-current-id="{{ $instance->assignments->first()?->staff_id }}"
+                                                    data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}">
+                                                Change Staff
+                                            </button>
+                                        @endif
                                         <a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-sm btn-link">History</a>
                                     </div>
                                 </div>
@@ -206,6 +217,17 @@
                             @if ($instance->status === 'in_progress')
                                 <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}">@csrf<button type="submit" class="btn btn-success btn-sm">Complete</button></form>
                             @endif
+                            @if (auth()->user()->isAdmin())
+                                <button type="button" class="btn btn-outline btn-sm"
+                                        data-reassign-open="{{ $instance->id }}"
+                                        data-service="{{ $instance->service?->name }}"
+                                        data-client="{{ $instance->client?->business_name ?: $instance->client?->name }}"
+                                        data-current="{{ $instance->assignments->first()?->displayName() }}"
+                                        data-current-id="{{ $instance->assignments->first()?->staff_id }}"
+                                        data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}">
+                                    Change Staff
+                                </button>
+                            @endif
                             <a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-outline btn-sm">History</a>
                         </div>
                     </div>
@@ -216,4 +238,138 @@
         </div>
         {{ $instances->links('pagination.simple') }}
     </div>
+
+    @if (auth()->user()->isAdmin())
+        <div id="reassignModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="reassignModalTitle">
+            <div class="modal-card reassign-card">
+                <h3 id="reassignModalTitle">Change assigned staff</h3>
+                <p>Choose the new staff member for this service. Service status, dates, progress, notes and history are preserved.</p>
+                <form id="reassignForm" method="POST"
+                      onsubmit="return (window.egliane && egliane.confirm.form(this, { title: 'Change assigned staff?', message: 'The assigned staff member will be updated for this service.', confirmLabel: 'Change Staff' })) !== false;">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="instance_id" id="reassignInstanceId">
+                    <div class="form-group">
+                        <span class="form-label">Service</span>
+                        <div class="reassign-static" id="reassignService"></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">Client</span>
+                        <div class="reassign-static" id="reassignClient"></div>
+                    </div>
+                    <div class="form-group">
+                        <span class="form-label">Current assigned staff</span>
+                        <div class="reassign-static" id="reassignCurrent"></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="reassignStaff">New assigned staff</label>
+                        <select class="form-control" name="staff_id" id="reassignStaff" required>
+                            <option value="">&hellip;select staff&hellip;</option>
+                        </select>
+                        <div class="form-error hidden" id="reassignError"></div>
+                    </div>
+                    <div class="btn-group-row">
+                        <button type="button" class="btn btn-outline" data-reassign-cancel>Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="reassignSubmitBtn">Change Staff</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 @endsection
+
+@if (auth()->user()->isAdmin())
+@push('styles')
+<style>
+    .reassign-card { max-width: 440px; }
+    .reassign-card p { margin-bottom: 14px; }
+    .reassign-static { font-size: 14px; font-weight: 600; color: var(--navy, #1B1B3A); padding-top: 6px; word-break: break-word; }
+    .reassign-card .form-group { margin-bottom: 14px; }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    var STAFF_ACCOUNTS = @json($staffAccounts->map(fn ($a) => ['id' => $a->id, 'name' => $a->name])->values());
+
+    var modal = document.getElementById('reassignModal');
+    if (!modal) return;
+
+    var form = document.getElementById('reassignForm');
+    var serviceEl = document.getElementById('reassignService');
+    var clientEl = document.getElementById('reassignClient');
+    var currentEl = document.getElementById('reassignCurrent');
+    var staffSelect = document.getElementById('reassignStaff');
+    var errorEl = document.getElementById('reassignError');
+    var submitBtn = document.getElementById('reassignSubmitBtn');
+
+    function renderStaffOptions(excludeId) {
+        staffSelect.innerHTML = '';
+        var placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = '\u2026select staff\u2026';
+        staffSelect.appendChild(placeholder);
+        STAFF_ACCOUNTS.forEach(function (s) {
+            if (excludeId !== null && String(s.id) === String(excludeId)) return;
+            var o = document.createElement('option');
+            o.value = s.id;
+            o.textContent = s.name;
+            staffSelect.appendChild(o);
+        });
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        form.dataset.submitting = '0';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Change Staff';
+        errorEl.classList.add('hidden');
+    }
+
+    document.addEventListener('click', function (e) {
+        var openBtn = e.target.closest('[data-reassign-open]');
+        if (openBtn) {
+            document.getElementById('reassignInstanceId').value = openBtn.dataset.reassignOpen;
+            serviceEl.textContent = openBtn.dataset.service || '\u2014';
+            clientEl.textContent = openBtn.dataset.client || '\u2014';
+            currentEl.textContent = openBtn.dataset.current || '\u2014';
+            form.action = openBtn.dataset.action;
+            renderStaffOptions(openBtn.dataset.currentId ? openBtn.dataset.currentId : null);
+            staffSelect.value = '';
+            form.dataset.submitting = '0';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Change Staff';
+            errorEl.classList.add('hidden');
+            modal.classList.remove('hidden');
+            staffSelect.focus();
+            return;
+        }
+        if (e.target.closest('[data-reassign-cancel]') || e.target.id === 'reassignModal') {
+            closeModal();
+        }
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+    });
+
+    form.addEventListener('submit', function () {
+        if (form.dataset.submitting === '1') return false;
+        if (!staffSelect.value) {
+            errorEl.textContent = 'Please select a new staff member.';
+            errorEl.classList.remove('hidden');
+            staffSelect.focus();
+            return false;
+        }
+        form.dataset.submitting = '1';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving\u2026';
+        return true;
+    });
+})();
+</script>
+@endpush
+@endif

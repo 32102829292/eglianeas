@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\ClientConcern;
+use App\Models\Notification;
 use App\Models\TeamMember;
 use App\Models\TrackerAssignment;
 use App\Models\TrackerInstance;
 use App\Models\TrackerService;
 use App\Models\User;
+use App\Services\PushNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,10 +76,17 @@ class ServiceTrackerController extends Controller
             ->sort()
             ->values();
 
+        $staffAccounts = User::query()
+            ->where('role', User::ROLE_STAFF)
+            ->whereNull('deleted_at')
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return view('admin.service-tracker.index', [
             'instances' => $instances,
             'services' => TrackerService::ordered()->get(),
             'allStaff' => $allStaff,
+            'staffAccounts' => $staffAccounts,
             'q' => $q,
             'activeStatus' => $status,
             'activeServiceId' => $serviceId,
@@ -174,6 +183,82 @@ class ServiceTrackerController extends Controller
         );
 
         return back()->with('status', 'Assignment status updated.');
+    }
+
+    /**
+     * Change the assigned staff on an existing tracker instance at any point
+     * in its lifecycle. The instance's own status, dates, progress and notes
+     * are left untouched — only the assignment row is repointed, and the newly
+     * assigned staff is notified exactly once. A no-op request (same staff) is
+     * tolerated so double-submits never create duplicate notifications.
+     */
+    public function updateAssignment(Request $request, TrackerInstance $instance): RedirectResponse
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can change staff assignments.');
+
+        $validated = $request->validate([
+            'staff_id' => ['required', 'integer'],
+        ]);
+
+        $newStaff = User::query()
+            ->whereKey($validated['staff_id'])
+            ->where('role', User::ROLE_STAFF)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if (! $newStaff) {
+            return back()->withErrors(['staff_id' => 'The selected staff member is not an active staff account.']);
+        }
+
+        $instance->load('assignments', 'service', 'client');
+
+        $current = $instance->assignments->sortBy('id')->first();
+
+        if ($current && $current->staff_id === $newStaff->id) {
+            return back()->with('status', "{$newStaff->name} is already assigned to this service.");
+        }
+
+        $previousName = $current?->displayName() ?? 'Unassigned';
+        $clientName = $instance->client?->business_name ?: (string) ($instance->client?->name ?? 'the client');
+
+        if ($current) {
+            $current->update([
+                'staff_id' => $newStaff->id,
+                'staff_name' => $newStaff->name,
+            ]);
+        } else {
+            $instance->assignments()->create([
+                'staff_id' => $newStaff->id,
+                'staff_name' => $newStaff->name,
+                'completed' => false,
+            ]);
+        }
+
+        Notification::create([
+            'user_id' => $newStaff->id,
+            'title' => 'New staff assignment',
+            'body' => "You have been assigned to {$instance->service?->name} for {$clientName}.",
+            'type' => 'staff_assignment',
+            'group_key' => "staff-assignment:{$instance->id}",
+            'link' => route('admin.service-tracker.show', $instance),
+            'reminder_count' => 1,
+        ]);
+
+        PushNotificationService::send(
+            $newStaff,
+            'New staff assignment',
+            "You have been assigned to {$instance->service?->name} for {$clientName}.",
+            route('admin.service-tracker.show', $instance)
+        );
+
+        ActivityLog::record(
+            auth()->user(),
+            'service.staff_assigned',
+            "Reassigned \"{$instance->service?->name}\" for {$instance->client?->name} from {$previousName} to {$newStaff->name}.",
+            $instance
+        );
+
+        return back()->with('status', 'Assigned staff changed.');
     }
 
     private function authorizeManage(TrackerInstance $instance): void

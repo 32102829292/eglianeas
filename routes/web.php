@@ -254,6 +254,7 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::get('/service-tracker/create', [AdminServiceTrackerController::class, 'create'])->name('service-tracker.create');
     Route::post('/service-tracker', [AdminServiceTrackerController::class, 'store'])->name('service-tracker.store');
     Route::post('/service-tracker/assignment/{assignment}/toggle', [AdminServiceTrackerController::class, 'toggleAssignment'])->name('service-tracker.toggle-assignment');
+    Route::put('/service-tracker/{instance}/assignment', [AdminServiceTrackerController::class, 'updateAssignment'])->name('service-tracker.update-assignment');
     Route::post('/service-tracker/{instance}/start', [AdminServiceTrackerController::class, 'start'])->name('service-tracker.start');
     Route::post('/service-tracker/{instance}/hold', [AdminServiceTrackerController::class, 'hold'])->name('service-tracker.hold');
     Route::post('/service-tracker/{instance}/resume', [AdminServiceTrackerController::class, 'resume'])->name('service-tracker.resume');
