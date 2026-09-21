@@ -78,14 +78,14 @@
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0 tracker-table">
                 <colgroup>
+                    <col style="width:13%">
+                    <col style="width:12%">
+                    <col style="width:9%">
                     <col style="width:15%">
-                    <col style="width:12%">
-                    <col style="width:7%">
-                    <col style="width:12%">
-                    <col style="width:8%">
-                    <col style="width:8%">
-                    <col style="width:8%">
-                    <col style="width:30%">
+                    <col style="width:9%">
+                    <col style="width:9%">
+                    <col style="width:9%">
+                    <col style="width:24%">
                 </colgroup>
                 <thead class="thead-muted">
                     <tr>
