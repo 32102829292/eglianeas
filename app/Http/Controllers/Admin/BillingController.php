@@ -305,18 +305,21 @@ class BillingController extends Controller
             ->get();
 
         $rows = [];
-        $rows[] = ['Business', $client->business_name ?: $client->name];
-        $rows[] = ['Contact', $client->name.' <'.$client->email.'>'];
-        $rows[] = [];
-        $rows[] = ['Period', 'Due date', 'Cash-in', 'Total', 'Status', 'Paid at'];
+        $rows[] = ['Client', 'Billing Period', 'Cash In', 'Total', 'Status', 'Due Date', 'Paid At'];
         foreach ($billings as $billing) {
             $rows[] = [
+                $client->business_name ?: $client->name,
                 $billing->periodTitle(),
-                $billing->due_date?->format('Y-m-d'),
-                $billing->cash_in,
-                $billing->total,
+                $this->csvMoney(
+                    $billing->lineItems
+                        ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+                        ->whereNull('form_type')
+                        ->sum('amount')
+                ),
+                $this->csvMoney($billing->total),
                 $billing->statusLabel(),
-                $billing->paid_at?->format('Y-m-d H:i'),
+                $this->csvDate($billing->due_date),
+                $this->csvDate($billing->paid_at),
             ];
         }
 
@@ -779,35 +782,105 @@ class BillingController extends Controller
     private function statementCsvRows(Billing $billing): array
     {
         $client = $billing->client;
+        $items = $billing->lineItems;
 
-        $rows = [
-            ['Business', $client?->business_name ?: $client?->name],
-            ['Contact', $client ? "{$client->name} <{$client->email}>" : ''],
-            [],
-            [strtoupper($billing->periodTitle())],
-            [],
+        // One column per BIR form type actually present in this statement
+        // (e.g. "1701 Remittance", "2550Q Remittance"), each summed across the
+        // statement's filing months. Cash In is its own item (BIR remittance
+        // lines with no form type), matching the summary XLSX/PDF exports.
+        $formTypes = $items
+            ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+            ->whereNotNull('form_type')
+            ->pluck('form_type')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $categories = [
+            BillingLineItem::CATEGORY_PROFESSIONAL_FEE => 'Professional Fee',
+            BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'Bookkeeping Fee',
+            BillingLineItem::CATEGORY_POST_CLOSING_TB => 'Post-Closing Trial Balance',
+            BillingLineItem::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
+            BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
+            BillingLineItem::CATEGORY_DATA_ENTRY => 'Data Entry',
         ];
 
-        $grouped = $billing->lineItems->groupBy('category');
+        $statuses = [
+            BillingLineItem::CATEGORY_BIR_REMITTANCE,
+            BillingLineItem::CATEGORY_PROFESSIONAL_FEE,
+            BillingLineItem::CATEGORY_BOOKKEEPING_FEE,
+            BillingLineItem::CATEGORY_POST_CLOSING_TB,
+            BillingLineItem::CATEGORY_INVENTORY_LIST,
+            BillingLineItem::CATEGORY_OTHER_ATTACHMENT,
+            BillingLineItem::CATEGORY_DATA_ENTRY,
+        ];
 
-        foreach ($grouped as $category => $items) {
-            $rows[] = [BillingLineItem::CATEGORIES[$category] ?? strtoupper($category)];
-            foreach ($items as $item) {
-                $rows[] = [$item->label, number_format($item->amount, 2)];
-            }
+        $headers = ['Client', 'Billing Period'];
+        $values = [$client?->business_name ?: $client?->name, $billing->periodTitle()];
+
+        foreach ($formTypes as $formType) {
+            $headers[] = "{$formType} Remittance";
+            $values[] = $this->csvMoney(
+                $items->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+                    ->where('form_type', $formType)
+                    ->sum('amount')
+            );
         }
 
-        if ((float) ($billing->cash_in ?? 0) > 0) {
-            $rows[] = ['CASH IN', number_format($billing->cash_in, 2)];
+        $values[] = $this->csvMoney(
+            $items->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
+                ->whereNull('form_type')
+                ->sum('amount')
+        );
+        $headers[] = 'Cash In';
+
+        foreach ($categories as $category => $label) {
+            $headers[] = $label;
+            $values[] = $this->csvMoney($items->where('category', $category)->sum('amount'));
         }
 
-        $rows[] = [];
-        $rows[] = ['TOTAL', number_format($billing->total ?? 0, 2)];
-        $rows[] = ['STATUS', $billing->statusLabel()];
-        $rows[] = ['DUE DATE', $billing->due_date?->format('Y-m-d') ?? ''];
-        $rows[] = ['PAID AT', $billing->paid_at?->format('Y-m-d H:i') ?? ''];
+        // Free-text "custom" items don't belong to a named category; surface
+        // them as a single column so the Total still reconciles.
+        $customItems = $items->whereNotIn('category', $statuses);
+        if ($customItems->isNotEmpty()) {
+            $headers[] = 'Custom Items';
+            $values[] = $this->csvMoney($customItems->sum('amount'));
+        }
 
-        return $rows;
+        $headers[] = 'Total';
+        $values[] = $this->csvMoney($billing->total);
+
+        $headers[] = 'Status';
+        $values[] = $billing->statusLabel();
+
+        $headers[] = 'Due Date';
+        $values[] = $this->csvDate($billing->due_date);
+
+        $headers[] = 'Paid At';
+        $values[] = $this->csvDate($billing->paid_at);
+
+        return [$headers, $values];
+    }
+
+    /**
+     * Money as a bare decimal ("1500.00") so Excel treats it as a number, not
+     * a formatted string. Empty for genuinely absent values.
+     */
+    private function csvMoney(mixed $value): string
+    {
+        $amount = (float) $value;
+
+        return $amount > 0 ? number_format($amount, 2, '.', '') : '';
+    }
+
+    /**
+     * ISO date with a trailing space so Excel keeps it as text and never
+     * collapses a date column into "########".
+     */
+    private function csvDate(?\Carbon\CarbonInterface $date): string
+    {
+        return $date ? $date->format('Y-m-d').' ' : '';
     }
 
     private function csvName(Billing $billing): string
@@ -1107,10 +1180,7 @@ class BillingController extends Controller
 
             foreach ($colHeaders as $col => $header) {
                 $colLetter = Coordinate::stringFromColumnIndex($col + 1);
-                $cell = $sheet->getCell("{$colLetter}1");
-                $cell->setValue($header);
-                $cell->getStyle()->getFont()->setBold(true);
-                $sheet->getColumnDimension($colLetter)->setWidth($colWidths[$col]);
+                $sheet->getCell("{$colLetter}1")->setValue($header);
             }
 
             $row = 2;
@@ -1168,12 +1238,57 @@ class BillingController extends Controller
                 $row++;
             }
 
-            $sheet->freezePane('A2');
+            $this->polishSummarySheet($sheet, $colHeaders, $row - 1);
 
             $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $writer->setIncludeCharts(false);
             $writer->save('php://output');
         }, 200, $headers);
+    }
+
+    /**
+     * Formats a generated summary spreadsheet for readability in Excel:
+     * auto-sized column widths, wrapped text, bold centered header row,
+     * frozen header, and money columns as plain two-decimal numbers.
+     */
+    private function polishSummarySheet($sheet, array $headers, int $lastRow): void
+    {
+        $headerRange = Coordinate::stringFromColumnIndex(1).'1:'.Coordinate::stringFromColumnIndex(count($headers)).'1';
+        $sheet->getStyle($headerRange)
+            ->getFont()
+            ->setBold(true);
+        $sheet->getStyle($headerRange)
+            ->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+            ->setWrapText(true);
+
+        foreach ($headers as $col => $header) {
+            $colLetter = Coordinate::stringFromColumnIndex($col + 1);
+
+            // Money columns: everything after the Client column.
+            if ($col >= 1 && $lastRow >= 2) {
+                $sheet->getStyle("{$colLetter}2:{$colLetter}{$lastRow}")
+                    ->getNumberFormat()
+                    ->setFormatCode('#,##0.00');
+            }
+
+            // Auto-size to the widest cell (header or data), capped.
+            $width = mb_strlen((string) $header) + 2;
+            for ($r = 2; $r <= $lastRow; $r++) {
+                $width = max($width, mb_strlen((string) $sheet->getCell("{$colLetter}{$r}")->getValue()) + 2);
+            }
+            $sheet->getColumnDimension($colLetter)->setWidth(min($width, 42));
+
+            if ($col === 0) {
+                $sheet->getStyle("{$colLetter}2:{$colLetter}{$lastRow}")
+                    ->getAlignment()
+                    ->setWrapText(true)
+                    ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP);
+            }
+        }
+
+        $sheet->freezePane('A2');
     }
 
     public function exportSummaryPdf(Request $request): Response
