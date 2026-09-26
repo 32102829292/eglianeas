@@ -7,6 +7,36 @@
 
         {{-- Left: branding panel (desktop) --}}
         <aside class="login-brand" aria-hidden="false">
+            <span class="login-brand__decor" aria-hidden="true">
+                <i class="lp-blob lp-blob--a"></i>
+                <i class="lp-blob lp-blob--b"></i>
+
+                <svg class="lp-obj lp-obj--pie" viewBox="0 0 84 84" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="42" cy="42" r="30" stroke="rgba(90,179,240,0.30)" stroke-width="7"/>
+                    <path d="M42 12a30 30 0 0 1 26 15" stroke="rgba(46,155,222,0.70)" stroke-width="7" stroke-linecap="round"/>
+                    <path d="M68 42a30 30 0 0 1-9 21" stroke="rgba(46,155,222,0.35)" stroke-width="7" stroke-linecap="round"/>
+                    <circle cx="42" cy="42" r="4" fill="rgba(46,155,222,0.60)"/>
+                </svg>
+
+                <svg class="lp-obj lp-obj--doc" viewBox="0 0 96 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 6h44l20 20v78H16z" fill="rgba(255,255,255,0.95)" stroke="rgba(46,155,222,0.45)" stroke-width="2" stroke-linejoin="round"/>
+                    <path d="M60 6v20h20" fill="rgba(255,255,255,0.95)" stroke="rgba(46,155,222,0.45)" stroke-width="2" stroke-linejoin="round"/>
+                    <path d="M28 44h40M28 54h40M28 64h40" stroke="rgba(46,155,222,0.30)" stroke-width="2" stroke-linecap="round"/>
+                    <rect x="28" y="74" width="9" height="22" rx="2" fill="rgba(90,179,240,0.35)"/>
+                    <rect x="41" y="68" width="9" height="28" rx="2" fill="rgba(46,155,222,0.55)"/>
+                    <rect x="54" y="80" width="9" height="16" rx="2" fill="rgba(90,179,240,0.30)"/>
+                </svg>
+
+                <svg class="lp-obj lp-obj--book" viewBox="0 0 120 84" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M60 20C46 10 28 8 10 10v52c18-2 36 0 50 12 14-12 32-14 50-12V10C92 8 74 10 60 20z" fill="rgba(255,255,255,0.95)" stroke="rgba(46,155,222,0.45)" stroke-width="2"/>
+                    <path d="M60 20v54" stroke="rgba(46,155,222,0.50)" stroke-width="2"/>
+                    <path d="M20 30h24M20 40h20M20 50h12" stroke="rgba(46,155,222,0.30)" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M76 30h24M76 40h20" stroke="rgba(46,155,222,0.30)" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M70 52h26" stroke="rgba(46,155,222,0.25)" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+
+                <i class="lp-dot lp-dot--1"></i>
+            </span>
             <a href="{{ route('home') }}" class="login-brand__logo">
                 <img src="/images/logo-icon.png" alt="Egliane Accounting Services logo">
                 <span class="login-brand__name">Egliane <small>Accounting Services</small></span>

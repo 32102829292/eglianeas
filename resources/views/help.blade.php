@@ -51,18 +51,60 @@
 .help-quick-card em { margin-top: auto; font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--sky-deep); }
 
 .help-tasks { margin: 0 0 30px; }
-.help-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(225px, 1fr)); gap: 14px; }
+.help-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 16px; }
 .help-task-card {
-  display: flex; flex-direction: column; gap: 8px; padding: 16px;
+  position: relative;
+  display: flex; flex-direction: column; gap: 7px; padding: 19px 19px 17px;
   border: 1px solid var(--border-subtle); border-radius: var(--radius-card); background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card); text-decoration: none; color: inherit;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease;
 }
-.ht-ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--sky-soft); color: var(--sky-deep); }
-.ht-ico svg { width: 16px; height: 16px; }
-.help-task-card b { font-size: 13.5px; color: var(--navy); }
-.help-task-card > span { font-size: 12px; line-height: 1.5; color: var(--muted-text); }
-.ht-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.help-task-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-card-hover); border-color: rgba(46, 155, 222, .45); background-color: #F9FCFE; text-decoration: none; }
+.ht-ico { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--sky-soft); color: var(--sky-deep); transition: transform .18s ease, box-shadow .18s ease; }
+.ht-ico svg { width: 19px; height: 19px; }
+.help-task-card:hover .ht-ico { transform: translateY(-1px) scale(1.05); box-shadow: 0 10px 22px -12px rgba(46, 155, 222, .55); }
+.help-task-card b { font-family: var(--font-head); font-size: 14.5px; color: var(--navy); margin-top: 2px; }
+.help-task-card .ht-desc { font-size: 12.5px; line-height: 1.55; color: var(--muted-text); }
+a.help-task-card { cursor: pointer; }
+.ht-go {
+  position: absolute; top: 15px; right: 15px;
+  width: 27px; height: 27px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--surface-sunken); color: var(--sky-deep);
+  transition: transform .18s ease, background-color .18s ease, color .18s ease;
+}
+.ht-go svg { width: 15px; height: 15px; }
+.help-task-card:hover .ht-go { transform: translateX(3px); background: var(--sky-deep); color: #fff; }
+.help-task-card--actions .ht-go { display: none; }
+.ht-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 10px; }
 .ht-actions .btn { white-space: nowrap; }
+
+/* ---------- Help polish: section eyebrows, visual motifs ---------- */
+.help-section-head { align-items: center; margin-bottom: 16px; }
+.help-section-head h2 { font-family: var(--font-head); font-size: 21px; color: var(--navy); letter-spacing: -0.01em; }
+.help-section-head::before {
+  content: ""; width: 26px; height: 3px; border-radius: 99px;
+  background: linear-gradient(90deg, var(--sky), var(--sky-deep));
+}
+.help-quick-card { position: relative; overflow: hidden; }
+.help-quick-card::after {
+  content: ""; position: absolute; top: -34px; right: -34px; width: 110px; height: 110px;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(90, 179, 240, .20), transparent 70%);
+}
+.help-quick-card .hq-ico { box-shadow: 0 8px 18px -12px rgba(27, 27, 58, .4); }
+.help-more { position: relative; overflow: hidden; border-radius: 20px; box-shadow: var(--shadow-card-hover); }
+.help-more::before {
+  content: ""; position: absolute; top: -50px; right: -24px; width: 190px; height: 190px;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(90, 179, 240, .40), transparent 72%);
+}
+.help-more::after {
+  content: ""; position: absolute; bottom: -60px; left: -30px; width: 150px; height: 150px;
+  border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(255, 255, 255, .14), transparent 70%);
+}
+.help-more > * { position: relative; }
 
 .help-guides { margin: 0 0 34px; }
 .help-guides-head { align-items: center; margin-bottom: 14px; }
@@ -135,6 +177,10 @@
   .help-quickstart-grid { grid-template-columns: 1fr; }
   .help-guide-body { padding-left: 18px; }
   .help-guide-toggle { grid-template-columns: auto 1fr auto; column-gap: 10px; }
+}
+@media (max-width: 480px) {
+  .help-task-card { padding: 16px 16px 14px; }
+  .help-more { padding: 20px 18px; }
 }
 </style>
 @endpush
@@ -445,190 +491,222 @@
             <div class="help-tasks-grid">
 
                 @if ($isClient)
-                <div class="help-task-card">
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
                     </span>
                     <b>Interactive tour</b>
-                    <span>Get a quick walkthrough of the main tools in your portal.</span>
+                    <span class="ht-desc">Get a quick walkthrough of the main tools in your portal.</span>
                     <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-onboarding-replay data-onboarding-role="{{ $user->role }}" data-onboarding-dash="{{ route('client.dashboard') }}">Take a tour</button></div>
                 </div>
-                <div class="help-task-card">
+                <a class="help-task-card" href="{{ route('client.dashboard') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/><path d="M12 12l3-2"/></svg>
                     </span>
                     <b>Income &amp; expenses</b>
-                    <span>See this year&rsquo;s income, expenses, and transactions at a glance.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('client.dashboard') }}">Open Dashboard</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">See this year&rsquo;s income, expenses, and transactions at a glance.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('client.billing.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
                     </span>
                     <b>Billing Statements</b>
-                    <span>View statements, quarters, and paid receipts.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('client.billing.index') }}">View Billing</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">View statements, quarters, and paid receipts.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('client.documents.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
                     </span>
                     <b>Documents</b>
-                    <span>Open the files Egliane has shared with you.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('client.documents.index') }}">Open Documents</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Open the files Egliane has shared with you.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('client.collections.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
                     </span>
                     <b>Collections &amp; Follow-ups</b>
-                    <span>Track the payments you have made.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('client.collections.index') }}">View Collections</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Track the payments you have made.</span>
+                </a>
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </span>
                     <b>Profile &amp; Security</b>
-                    <span>Update contacts, PIN, and biometric login.</span>
+                    <span class="ht-desc">Update contacts, PIN, and biometric login.</span>
                     <div class="ht-actions">
                         <a class="btn btn-primary btn-sm" href="{{ route('client.profile.edit') }}">Open Profile</a>
                         <a class="btn btn-outline btn-sm" href="{{ route('security.index') }}">Security</a>
                     </div>
                 </div>
-                <div class="help-task-card">
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     </span>
                     <b>Contact support</b>
-                    <span>Ask the built-in assistant, available on every page.</span>
+                    <span class="ht-desc">Ask the built-in assistant, available on every page.</span>
                     <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-help-assistant>Open assistant</button></div>
                 </div>
 
                 @elseif ($isStaffOrAdmin)
-                <div class="help-task-card">
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
                     </span>
                     <b>Interactive tour</b>
-                    <span>Get a quick walkthrough of the main tools in your portal.</span>
+                    <span class="ht-desc">Get a quick walkthrough of the main tools in your portal.</span>
                     <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-onboarding-replay data-onboarding-role="{{ $user->role }}" data-onboarding-dash="{{ route('admin.dashboard') }}">Take a tour</button></div>
                 </div>
-                <div class="help-task-card">
+                <a class="help-task-card" href="{{ route('admin.clients.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </span>
                     <b>Manage Clients</b>
-                    <span>Add, edit, and manage client accounts.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.clients.index') }}">Client List</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Add, edit, and manage client accounts.</span>
+                </a>
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
                     </span>
                     <b>Billing Statements</b>
-                    <span>Create and finalize statements for clients.</span>
+                    <span class="ht-desc">Create and finalize statements for clients.</span>
                     <div class="ht-actions">
                         <a class="btn btn-primary btn-sm" href="{{ route('admin.billing.index') }}">Open Billing</a>
                         <a class="btn btn-outline btn-sm" href="{{ route('admin.billing.create') }}">Create</a>
                     </div>
                 </div>
-                <div class="help-task-card">
+                <a class="help-task-card" href="{{ route('admin.collections.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
                     </span>
                     <b>Collections &amp; Follow-ups</b>
-                    <span>Track unpaid statements and send reminders.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.collections.index') }}">Open Collections</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Track unpaid statements and send reminders.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('admin.announcements.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11v2a1 1 0 0 0 1 1h2l4 4V6l-4 4H4a1 1 0 0 0-1 1z"/><path d="M14 8a5 5 0 0 1 0 8"/><path d="M17 5a9 9 0 0 1 0 14"/></svg>
                     </span>
                     <b>Announcements</b>
-                    <span>Post notices that appear on the website and to clients.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.announcements.index') }}">Manage</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Post notices that appear on the website and to clients.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('admin.distribution.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
                     </span>
                     <b>Document Distribution</b>
-                    <span>Deliver BIR forms and other documents.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.distribution.index') }}">Open</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Deliver BIR forms and other documents.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('admin.bir-forms.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                     </span>
                     <b>BIR Forms</b>
-                    <span>See which forms each client needs.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.bir-forms.index') }}">Open</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">See which forms each client needs.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('admin.surveys.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                     </span>
                     <b>Client Feedback</b>
-                    <span>Review the monthly client surveys.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.surveys.index') }}">Review</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Review the monthly client surveys.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('admin.users.index') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><path d="M17 11l2 2 4-4"/></svg>
                     </span>
                     <b>Team Accounts</b>
-                    <span>Manage admin and staff portal accounts.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('admin.users.index') }}">Manage</a></div>
-                </div>
+                    <span class="ht-desc">Manage admin and staff portal accounts.</span>
+                </a>
 
                 @else
-                <div class="help-task-card">
+                <a class="help-task-card" href="{{ route('login') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20a8 8 0 1 1 0-16 8 8 0 0 1 0 16z"/><path d="M12 12l3-2"/></svg>
                     </span>
                     <b>Income &amp; expenses</b>
-                    <span>See this year&rsquo;s income, expenses, and transactions.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('login') }}">Sign in</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">See this year&rsquo;s income, expenses, and transactions.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('login') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2h12a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M9 6h6M9 10h6M9 14h6"/></svg>
                     </span>
                     <b>Billing Statements</b>
-                    <span>Read how statements and receipts are organized.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('login') }}">Sign in</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Read how statements and receipts are organized.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('login') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16v-2"/><path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/></svg>
                     </span>
                     <b>Documents</b>
-                    <span>Files shared by Egliane appear here.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('login') }}">Sign in</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Files shared by Egliane appear here.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('login') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M6 12h4l2 3 4-6h2"/></svg>
                     </span>
                     <b>Collections &amp; Follow-ups</b>
-                    <span>Track the payments you have made.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('login') }}">Sign in</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Track the payments you have made.</span>
+                </a>
+                <a class="help-task-card" href="{{ route('login') }}">
+                    <span class="ht-go" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                    </span>
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     </span>
                     <b>Profile &amp; Security</b>
-                    <span>Update contacts, PIN, and biometric login.</span>
-                    <div class="ht-actions"><a class="btn btn-primary btn-sm" href="{{ route('login') }}">Sign in</a></div>
-                </div>
-                <div class="help-task-card">
+                    <span class="ht-desc">Update contacts, PIN, and biometric login.</span>
+                </a>
+                <div class="help-task-card help-task-card--actions">
                     <span class="ht-ico" aria-hidden="true">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     </span>
                     <b>Contact support</b>
-                    <span>Ask the built-in assistant, available on every page.</span>
+                    <span class="ht-desc">Ask the built-in assistant, available on every page.</span>
                     <div class="ht-actions"><button type="button" class="btn btn-sky btn-sm" data-help-assistant>Open assistant</button></div>
                 </div>
                 @endif

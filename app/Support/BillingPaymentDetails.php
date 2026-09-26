@@ -84,6 +84,45 @@ class BillingPaymentDetails
         return 'data:'.$mime.';base64,'.base64_encode($bytes);
     }
 
+    /**
+     * Height (mm) the in-cell payment block occupies in the batch label-sheet
+     * grid. The batch template reserves this space at the bottom of every fixed
+     * slot so the statement body is clipped to the space above, while the
+     * payment details (and QR) always stay visible. Mirrors payment-details
+     * metrics: .cell-payments margin/padding, 6pt title line, 8mm QR cells and
+     * the per-line text rows, plus a small safety margin.
+     */
+    public static function blockHeightMm(?array $payments = null): float
+    {
+        $p = $payments ?? static::forPdf();
+
+        if (empty($p['has'])) {
+            return 0.0;
+        }
+
+        $padMm = 2.8;   // .cell-payments margin-top 1.6mm + padding-top 1.2mm
+        $titleMm = 2.6; // 6pt title + .8pt bottom padding
+        $lineMm = 2.5;  // 6.2pt line + .6pt vertical padding each side
+
+        $lines = ($p['gcash_number'] !== '' ? 1 : 0) + count($p['banks']);
+
+        $qrMm = 0.0;
+        if ($p['gcash_qr'] !== null) {
+            $qrMm = 8.0; // .cell-pqr img 8mm x 8mm
+        } else {
+            foreach ($p['banks'] as $bank) {
+                if (! empty($bank['qr'])) {
+                    $qrMm = 8.0;
+                    break;
+                }
+            }
+        }
+
+        $safetyMm = 0.8;
+
+        return round($padMm + $titleMm + max($lines * $lineMm, $qrMm) + $safetyMm, 2);
+    }
+
     private static function mimeFromExtension(string $path): string
     {
         return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {

@@ -18,12 +18,10 @@
     $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
 
     $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
-    $rowsPerPage = 4;
-    // Fixed equal-height slots (label-sheet grid). Computed by the controller
-    // from the selected paper size: page height minus @page margins, divided
-    // by rows per page. Payment details render inside each cell.
-    $rowSlotMm = $rowSlotMm ?? round(([297.0, 279.4][$paperSize === 'letter' ? 1 : 0] - 20) / $rowsPerPage, 2);
     $density = $density ?? 'normal';
+    // Usable content height of one page: @page margins (10mm each) plus a small
+    // safety. The controller picks `$density` so the whole batch fits this much.
+    $pageContentMm = $pageContentMm ?? round(((($paperSize === 'letter') ? 279.4 : 297.0) - 22.0), 2);
 @endphp
 <!DOCTYPE html>
 <html>
@@ -39,21 +37,20 @@
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         /* DomPDF starts stacked block content ~6.5mm above the declared @page
-           margin; pad the body so the grid begins at the full 10mm margin. */
+           margin; pad the body so the content begins at the full 10mm margin. */
         body { font-family: Helvetica, Arial, sans-serif; font-size: 7pt; color: #111; padding-top: 10.2mm; }
         table { width: 100%; border-collapse: collapse; }
 
-        /* Label-sheet grid: each statement renders as one row of two bordered,
-           exactly equal cells (Taxpayer's Copy + Egliane's Copy). Four rows per
-           page = 8 receipts. Cells are fixed-height slots; borders on the tds
-           form the grid lines (border-collapse merges the centre divider).
-           Spacing must live INSIDE cells — DomPDF carries bottom margins across
-           forced page breaks, which pushed following content off-page. */
+        /* Each statement is one pair of bordered cells (Taxpayer's Copy +
+           Egliane's Copy) rendered at its NATURAL height — nothing is clipped.
+           Pairs flow down the page; density is chosen so a whole batch fits
+           one page. A pair never splits across pages. */
         .pair-wrap {
             width: 100%;
             page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 3.5mm;
         }
-        .pair-wrap.new-page { page-break-before: always; }
         .pair {
             width: 100%;
         }
@@ -63,15 +60,6 @@
             border: 1pt solid #333;
             padding: 1.5mm 2mm;
             vertical-align: top;
-        }
-
-        /* Fixed-height content window. The height lives here, NOT on the td:
-           DomPDF treats td height as a minimum, so oversized statements grew
-           the row (+~3.5mm per row, cascading) and spilled past the borders.
-           A block div with overflow:hidden cannot exceed its box. */
-        .slot {
-            height: {{ round($rowSlotMm - 3.7, 2) }}mm;
-            overflow: hidden;
         }
 
         .copy-tag {
@@ -109,8 +97,8 @@
         .signer { font-weight: bold; color: #1B1B3A; }
         .note { font-size: 6.2pt; color: #666; }
 
-        /* Density tiers applied uniformly to the whole sheet when statements
-           would not fit their fixed slots at full size. */
+        /* Density tiers applied uniformly to the whole sheet to fit a batch on
+           one page. */
         .compact { font-size: 6.4pt; }
         .compact .brand { font-size: 6.9pt; }
         .compact .client { font-size: 7pt; }
@@ -134,7 +122,7 @@
         .tiny .note { font-size: 5pt; }
 
         /* Payment details rendered INSIDE each receipt cell (once per copy),
-           compact so it fits the fixed slot. QRs sit on the right edge of the
+           compact so it fits comfortably. QRs sit on the right edge of the
            cell, text lines on the left, so nothing crosses the centre divider. */
         .cell-payments { border-top: .6pt solid #d5dade; margin-top: 1.6mm; padding-top: 1.2mm; }
         .cell-payments-title {
@@ -158,32 +146,34 @@
 <body>
 
     @forelse ($billings as $billing)
-        <div class="pair-wrap {{ ! $loop->first && ($loop->iteration - 1) % $rowsPerPage === 0 ? 'new-page' : '' }}">
+        <div class="pair-wrap">
         <table class="pair">
             <tr>
                 <td class="cell">
-                    <div class="slot">
-                        @include('admin.billing.partials.statement-cell', [
-                            'copyLabel' => "Taxpayer's Copy",
-                            'payments' => $payments,
-                            'gcashNumber' => $gcashNumber,
-                            'gcashQr' => $gcashQr,
-                            'bankAccounts' => $bankAccounts,
-                            'overflowIds' => $overflowIds ?? [],
-                        ])
-                    </div>
+                    @include('admin.billing.partials.statement-cell', [
+                        'copyLabel' => "Taxpayer's Copy",
+                    ])
+                    @include('admin.billing.partials.payment-details', [
+                        'payments' => $payments,
+                        'gcashNumber' => $gcashNumber,
+                        'gcashQr' => $gcashQr,
+                        'bankAccounts' => $bankAccounts,
+                        'overflowIds' => $overflowIds ?? [],
+                        'billing' => $billing,
+                    ])
                 </td>
                 <td class="cell">
-                    <div class="slot">
-                        @include('admin.billing.partials.statement-cell', [
-                            'copyLabel' => "Egliane Accounting Services' Copy",
-                            'payments' => $payments,
-                            'gcashNumber' => $gcashNumber,
-                            'gcashQr' => $gcashQr,
-                            'bankAccounts' => $bankAccounts,
-                            'overflowIds' => $overflowIds ?? [],
-                        ])
-                    </div>
+                    @include('admin.billing.partials.statement-cell', [
+                        'copyLabel' => "Egliane Accounting Services' Copy",
+                    ])
+                    @include('admin.billing.partials.payment-details', [
+                        'payments' => $payments,
+                        'gcashNumber' => $gcashNumber,
+                        'gcashQr' => $gcashQr,
+                        'bankAccounts' => $bankAccounts,
+                        'overflowIds' => $overflowIds ?? [],
+                        'billing' => $billing,
+                    ])
                 </td>
             </tr>
         </table>

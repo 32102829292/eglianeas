@@ -7,6 +7,8 @@
      LATEST ANNOUNCEMENTS — first content block, right below navbar
      ============================================================ --}}
 <section class="section section--announcements-top" id="announcements">
+    <span class="lp-ann-bgblob lp-ann-bgblob--1" aria-hidden="true"></span>
+    <span class="lp-ann-bgblob lp-ann-bgblob--2" aria-hidden="true"></span>
     <div class="container">
         <div class="section-head lp-reveal">
             <span class="eyebrow">Updates</span>
@@ -28,6 +30,9 @@
                     ->map(fn ($w) => strtoupper(mb_substr($w, 0, 1)))->implode('');
             @endphp
             <article class="lp-ann-featured lp-reveal">
+                <span class="lp-ann-deco" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+                </span>
                 <div class="lp-ann-featured-inner">
                     <div class="lp-ann-featured-main">
                         <span class="lp-ann-badge">
@@ -48,6 +53,12 @@
                         @endif
                         @if ($featured->body)
                             <p class="lp-ann-body">{{ $featured->body }}</p>
+                        @endif
+                        @if ($featured->posted_at)
+                            <div class="lp-ann-meta">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                <time datetime="{{ $featured->posted_at->toIso8601String() }}">Posted {{ $featured->posted_at->format('M j, Y') }}</time>
+                            </div>
                         @endif
                     </div>
                     @if ($featured->hasImage())
@@ -263,17 +274,44 @@
         </div>
         <div class="services-grid">
             @foreach ([
-                ['b', 'Bookkeeping', 'Accurate recording of your income, expenses, and receipts — updated regularly and easy to review anytime, anywhere.', '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'],
-                ['c', 'Tax Filing & BIR Compliance', 'Income tax, VAT, percentage tax and more — filed accurately and before every deadline.', '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>'],
-                ['d', 'Financial Statements', 'Clear, audit-ready financial statements and reports that show exactly where your business stands.', '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>'],
-                ['e', 'Payroll', 'Payroll computation, deductions, and remittances (SSS, PhilHealth, Pag-IBIG) handled on schedule.', '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'],
-                ['f', 'Business Registration', 'Assistance with DTI, SEC, BIR, and permit requirements when you are starting or growing your business.', '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>'],
-                ['g', 'Consulting', 'Practical advice on cash flow, pricing, and tax strategy — straight from experienced accountants.', '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>'],
-            ] as [$iconId, $title, $desc, $iconPath])
+                ['b',
+                 'Bookkeeping',
+                 'Accurate recording of your income, expenses, and receipts — updated regularly and easy to review anytime, anywhere.',
+                 '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+                 '<rect x="14" y="14" width="34" height="44" rx="4" fill="#EAF4FD" stroke="#2E9BDE" stroke-width="1.6"/><path d="M22 24h18M22 30h18M22 36h10" stroke="#5AB3F0" stroke-width="1.6" stroke-linecap="round"/><path d="m25 46 3 3 5-6" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="66" y="34" width="8" height="20" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.6"/><rect x="78" y="26" width="8" height="28" rx="2" fill="#FFF" stroke="#2E9BDE" stroke-width="1.6"/><rect x="90" y="18" width="8" height="36" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.6"/><path d="M64 56c7-9 11-11 16-16 4-5 8-9 14-14" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round"/>'],
+                ['c',
+                 'Tax Filing & BIR Compliance',
+                 'Income tax, VAT, percentage tax and more — filed accurately and before every deadline.',
+                 '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/>',
+                 '<rect x="14" y="16" width="28" height="40" rx="3" fill="#EAF4FD" stroke="#2E9BDE" stroke-width="1.6"/><path d="M14 24h28" stroke="#5AB3F0" stroke-width="1.6"/><path d="M21 30h12M21 35h12M21 40h12" stroke="#2E9BDE" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><rect x="57" y="16" width="27" height="22" rx="4" fill="none" stroke="#5AB3F0" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="70.5" cy="27" r="6.5" fill="#FFF" stroke="#2E9BDE" stroke-width="1.6"/><path d="m67 27 2 2 4-5" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="57" y="45" width="27" height="14" rx="3" fill="#FFF" stroke="#2E9BDE" stroke-width="1.6"/><path d="M57 51h27M61 45v-3h19v3" stroke="#5AB3F0" stroke-width="1.5"/><path d="m64 52 2 2 4-5" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'],
+                ['d',
+                 'Financial Statements',
+                 'Clear, audit-ready financial statements and reports that show exactly where your business stands.',
+                 '<path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>',
+                 '<path d="M14 58h92" stroke="#C6CDD7" stroke-width="1.6" stroke-linecap="round"/><path d="M14 52C34 46 44 30 60 30s24-8 44-14v28H14z" fill="#EAF4FD"/><path d="M14 52C34 46 44 30 60 30s24-8 44-14" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round" fill="none"/><circle cx="104" cy="16" r="2.5" fill="#2E9BDE"/><path d="M60 30v-8" stroke="#5AB3F0" stroke-width="1.4" stroke-dasharray="2 3"/><rect x="24" y="34" width="9" height="24" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.6"/><rect x="37" y="26" width="9" height="32" rx="2" fill="#FFF" stroke="#2E9BDE" stroke-width="1.6"/><rect x="50" y="38" width="9" height="20" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.6"/>'],
+                ['e',
+                 'Payroll',
+                 'Payroll computation, deductions, and remittances (SSS, PhilHealth, Pag-IBIG) handled on schedule.',
+                 '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+                 '<rect x="14" y="16" width="36" height="18" rx="3" fill="#EAF4FD" stroke="#2E9BDE" stroke-width="1.6"/><rect x="21" y="21" width="22" height="8" rx="2" fill="none" stroke="#5AB3F0" stroke-width="1.4"/><circle cx="32" cy="25" r="2" fill="#2E9BDE"/><circle cx="72" cy="22" r="5" fill="#FFF" stroke="#1B1B3A" stroke-width="1.6"/><path d="M72 30c-9 0-12 6-13 12h26c-1-6-4-12-13-12z" fill="#E3F2FD" stroke="#1B1B3A" stroke-width="1.6"/><path d="M56 46h14M56 52h14" stroke="#C6CDD7" stroke-width="1.6" stroke-linecap="round"/><circle cx="91" cy="47" r="8" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.6"/><circle cx="91" cy="47" r="2" fill="#2E9BDE"/>'],
+                ['f',
+                 'Business Registration',
+                 'Assistance with DTI, SEC, BIR, and permit requirements when you are starting or growing your business.',
+                 '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+                 '<rect x="14" y="26" width="46" height="32" rx="4" fill="#EAF4FD" stroke="#2E9BDE" stroke-width="1.6"/><rect x="14" y="24" width="46" height="6" rx="2" fill="#5AB3F0" opacity=".32"/><rect x="19" y="36" width="13" height="11" rx="2" fill="#FFF" stroke="#2E9BDE" stroke-width="1.4"/><rect x="38" y="36" width="13" height="22" rx="1.5" fill="#FFF" stroke="#2E9BDE" stroke-width="1.5"/><circle cx="48" cy="47" r="1" fill="#2E9BDE"/><circle cx="87" cy="34" r="14" fill="#FFF" stroke="#2E9BDE" stroke-width="1.6"/><path d="m80 34 4 4 9-9" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M80 54h16M80 59h11" stroke="#C6CDD7" stroke-width="1.6" stroke-linecap="round"/>'],
+                ['g',
+                 'Consulting',
+                 'Practical advice on cash flow, pricing, and tax strategy — straight from experienced accountants.',
+                 '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+                 '<path d="M18 14h28a8 8 0 0 1 8 8v4a8 8 0 0 1-8 8h-11l-6 6v-6h-11a8 8 0 0 1-8-8v-4a8 8 0 0 1 8-8z" fill="#EAF4FD" stroke="#2E9BDE" stroke-width="1.6"/><path d="M25 24h12M27 30h8" stroke="#2E9BDE" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><rect x="14" y="56" width="7" height="10" rx="2" fill="#FFF" stroke="#2E9BDE" stroke-width="1.4"/><rect x="24" y="50" width="7" height="16" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.4"/><rect x="34" y="44" width="7" height="22" rx="2" fill="#E3F2FD" stroke="#2E9BDE" stroke-width="1.4"/><path d="M58 50c9-5 13-11 20-16s13-7 20-12v30H58z" fill="#E3F2FD"/><path d="M58 50c9-5 13-11 20-16s13-7 20-12" stroke="#1B1B3A" stroke-width="1.8" stroke-linecap="round"/><circle cx="98" cy="22" r="2.5" fill="#2E9BDE"/>'],
+            ] as [$iconId, $title, $desc, $iconPath, $art])
             <div class="service-card lp-reveal">
-                <span class="service-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{!! $iconPath !!}</svg>
-                </span>
+                <div class="service-art" aria-hidden="true">
+                    <svg class="service-art-svg" viewBox="0 0 120 72" fill="none" stroke-linecap="round" stroke-linejoin="round">{!! $art !!}</svg>
+                    <span class="service-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{!! $iconPath !!}</svg>
+                    </span>
+                </div>
                 <h3>{{ $title }}</h3>
                 <p>{{ $desc }}</p>
             </div>

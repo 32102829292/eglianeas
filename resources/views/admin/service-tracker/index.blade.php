@@ -137,45 +137,58 @@
                             <td data-col="Due" class="td-date">{{ $instance->otherService?->due_date?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Completed" class="td-date">{{ $instance->date_completed?->format('M j, Y') ?? '—' }}</td>
                             <td data-col="Actions" class="text-end">
-                                <div class="tracker-actions">
-                                    <div class="ta-row">
+                                <div class="dropdown-wrap tracker-more">
+                                    <button type="button" class="more-btn"
+                                            id="tmore-{{ $instance->id }}-btn"
+                                            data-dropdown="tmore-{{ $instance->id }}"
+                                            aria-haspopup="true"
+                                            aria-expanded="false"
+                                            aria-controls="tmore-{{ $instance->id }}"
+                                            aria-label="More actions"
+                                            title="More actions">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>
+                                    </button>
+                                    <div class="dropdown-menu more-menu tracker-more-menu" id="tmore-{{ $instance->id }}" role="menu" aria-labelledby="tmore-{{ $instance->id }}-btn">
                                         @if ($instance->status === 'todo')
-                                            <form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}" class="d-inline">
+                                            <form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}" role="none">
                                                 @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline">Start</button>
+                                                <button type="submit" class="dropdown-item btn-item" role="menuitem">Start</button>
                                             </form>
                                         @elseif ($instance->status === 'in_progress')
-                                            <form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="hold-form">
+                                            <div class="tracker-hold">
+                                                <button type="button" class="dropdown-item btn-item" data-tracker-hold-open role="menuitem">Hold</button>
+                                                <form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="tracker-hold-form" data-tracker-hold-form hidden role="none">
+                                                    @csrf
+                                                    <input type="text" name="reason" class="form-control form-control-sm hold-input" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason">
+                                                    <div class="tracker-hold-actions">
+                                                        <button type="button" class="btn btn-link btn-sm" data-tracker-hold-cancel>Cancel</button>
+                                                        <button type="submit" class="btn btn-primary btn-sm">Hold</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                            <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}" role="none">
                                                 @csrf
-                                                <input type="text" name="reason" class="form-control form-control-sm hold-input" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason">
-                                                <button type="submit" class="btn btn-sm btn-outline">Hold</button>
+                                                <button type="submit" class="dropdown-item btn-item" role="menuitem">Complete</button>
                                             </form>
                                         @elseif ($instance->status === 'on_hold')
-                                            <form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}" class="d-inline">
+                                            <form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}" role="none">
                                                 @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline">Resume</button>
-                                            </form>
-                                        @endif
-                                    </div>
-                                    <div class="ta-row">
-                                        @if ($instance->status === 'in_progress')
-                                            <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-success">Complete</button>
+                                                <button type="submit" class="dropdown-item btn-item" role="menuitem">Resume</button>
                                             </form>
                                         @endif
                                         @if (auth()->user()->isAdmin())
-                                            <button type="button" class="btn btn-sm btn-outline"
+                                            <div class="dropdown-divider"></div>
+                                            <button type="button" class="dropdown-item btn-item"
                                                     data-reassign-open="{{ $instance->id }}"
                                                     data-service="{{ $instance->service?->name }}"
                                                     data-client="{{ $instance->client?->business_name ?: $instance->client?->name }}"
                                                     data-current="{{ $instance->assignments->first()?->displayName() }}"
                                                     data-current-id="{{ $instance->assignments->first()?->staff_id }}"
-                                                    data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}">
-                                                Change Staff
-                                            </button>
+                                                    data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}"
+                                                    role="menuitem">Change Staff</button>
                                         @endif
-                                        <a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-sm btn-link">History</a>
+                                        <div class="dropdown-divider"></div>
+                                        <a href="{{ route('admin.service-tracker.show', $instance) }}" class="dropdown-item" role="menuitem">History</a>
                                     </div>
                                 </div>
                             </td>
@@ -207,29 +220,45 @@
                             @endif
                         </div>
                         <div class="cv-card-actions">
-                            @if ($instance->status === 'todo')
-                                <form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}">@csrf<button type="submit" class="btn btn-outline btn-sm">Start</button></form>
-                            @elseif ($instance->status === 'in_progress')
-                                <form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="hold-form">@csrf<input type="text" name="reason" class="form-control form-control-sm hold-input" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason"><button type="submit" class="btn btn-outline btn-sm">Hold</button></form>
-                            @elseif ($instance->status === 'on_hold')
-                                <form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}">@csrf<button type="submit" class="btn btn-outline btn-sm">Resume</button></form>
-                            @endif
-                            @if ($instance->status === 'in_progress')
-                                <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}">@csrf<button type="submit" class="btn btn-success btn-sm">Complete</button></form>
-                            @endif
-                            @if (auth()->user()->isAdmin())
-                                <button type="button" class="btn btn-outline btn-sm"
-                                        data-reassign-open="{{ $instance->id }}"
-                                        data-service="{{ $instance->service?->name }}"
-                                        data-client="{{ $instance->client?->business_name ?: $instance->client?->name }}"
-                                        data-current="{{ $instance->assignments->first()?->displayName() }}"
-                                        data-current-id="{{ $instance->assignments->first()?->staff_id }}"
-                                        data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}">
-                                    Change Staff
-                                </button>
-                            @endif
-                            <a href="{{ route('admin.service-tracker.show', $instance) }}" class="btn btn-outline btn-sm">History</a>
-                        </div>
+                                <div class="dropdown-wrap tracker-more">
+                                    <button type="button" class="more-btn"
+                                            id="cmore-{{ $instance->id }}-btn"
+                                            data-dropdown="cmore-{{ $instance->id }}"
+                                            aria-haspopup="true"
+                                            aria-expanded="false"
+                                            aria-controls="cmore-{{ $instance->id }}"
+                                            aria-label="More actions"
+                                            title="More actions">
+                                        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>
+                                    </button>
+                                    <div class="dropdown-menu more-menu tracker-more-menu" id="cmore-{{ $instance->id }}" role="menu" aria-labelledby="cmore-{{ $instance->id }}-btn">
+                                        @if ($instance->status === 'todo')
+                                            <form method="POST" action="{{ route('admin.service-tracker.start', $instance) }}" role="none">@csrf<button type="submit" class="dropdown-item btn-item" role="menuitem">Start</button></form>
+                                        @elseif ($instance->status === 'in_progress')
+                                            <div class="tracker-hold">
+                                                <button type="button" class="dropdown-item btn-item" data-tracker-hold-open role="menuitem">Hold</button>
+                                                <form method="POST" action="{{ route('admin.service-tracker.hold', $instance) }}" class="tracker-hold-form" data-tracker-hold-form hidden role="none">@csrf<input type="text" name="reason" class="form-control form-control-sm hold-input" placeholder="Hold reason&hellip;" required maxlength="500" aria-label="Hold reason"><div class="tracker-hold-actions"><button type="button" class="btn btn-link btn-sm" data-tracker-hold-cancel>Cancel</button><button type="submit" class="btn btn-primary btn-sm">Hold</button></div></form>
+                                            </div>
+                                            <form method="POST" action="{{ route('admin.service-tracker.complete', $instance) }}" role="none">@csrf<button type="submit" class="dropdown-item btn-item" role="menuitem">Complete</button></form>
+                                        @elseif ($instance->status === 'on_hold')
+                                            <form method="POST" action="{{ route('admin.service-tracker.resume', $instance) }}" role="none">@csrf<button type="submit" class="dropdown-item btn-item" role="menuitem">Resume</button></form>
+                                        @endif
+                                        @if (auth()->user()->isAdmin())
+                                            <div class="dropdown-divider"></div>
+                                            <button type="button" class="dropdown-item btn-item"
+                                                    data-reassign-open="{{ $instance->id }}"
+                                                    data-service="{{ $instance->service?->name }}"
+                                                    data-client="{{ $instance->client?->business_name ?: $instance->client?->name }}"
+                                                    data-current="{{ $instance->assignments->first()?->displayName() }}"
+                                                    data-current-id="{{ $instance->assignments->first()?->staff_id }}"
+                                                    data-action="{{ route('admin.service-tracker.update-assignment', $instance) }}"
+                                                    role="menuitem">Change Staff</button>
+                                        @endif
+                                        <div class="dropdown-divider"></div>
+                                        <a href="{{ route('admin.service-tracker.show', $instance) }}" class="dropdown-item" role="menuitem">History</a>
+                                    </div>
+                                </div>
+                            </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No service instances yet.</p>
@@ -277,6 +306,78 @@
         </div>
     @endif
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    var menus = Array.prototype.slice.call(document.querySelectorAll('.tracker-more .dropdown-menu'));
+
+    function closeAll(except) {
+        menus.forEach(function (menu) {
+            if (menu === except) return;
+            menu.style.display = 'none';
+            var btn = document.querySelector('[data-dropdown="' + menu.id + '"]');
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function setPos(menu) {
+        var rect = menu.getBoundingClientRect();
+        menu.classList.toggle('dropdown-menu--up', rect.bottom > window.innerHeight - 8);
+    }
+
+    document.addEventListener('click', function (e) {
+        var toggle = e.target.closest('[data-dropdown]');
+        if (toggle) {
+            var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+            if (!menu) return;
+            var willOpen = menu.style.display !== 'block';
+            closeAll(menu);
+            if (willOpen) {
+                menu.style.display = 'block';
+                toggle.setAttribute('aria-expanded', 'true');
+                setPos(menu);
+            } else {
+                menu.style.display = 'none';
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+            return;
+        }
+        if (e.target.closest('.dropdown-menu')) return;
+        closeAll();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeAll();
+    });
+
+    window.addEventListener('resize', function () {
+        closeAll();
+    });
+
+    document.addEventListener('click', function (e) {
+        var open = e.target.closest('[data-tracker-hold-open]');
+        var cancel = e.target.closest('[data-tracker-hold-cancel]');
+        if (open) {
+            var panel = open.closest('.tracker-hold');
+            open.hidden = true;
+            var form = panel.querySelector('[data-tracker-hold-form]');
+            form.hidden = false;
+            setTimeout(function () { form.querySelector('input').focus(); }, 0);
+            return;
+        }
+        if (cancel) {
+            var f = cancel.closest('[data-tracker-hold-form]');
+            f.hidden = true;
+            var p = f.closest('.tracker-hold');
+            p.querySelector('[data-tracker-hold-open]').hidden = false;
+        }
+    });
+})();
+</script>
+@endpush
 
 @if (auth()->user()->isAdmin())
 @push('styles')
@@ -345,6 +446,8 @@
             errorEl.classList.add('hidden');
             modal.classList.remove('hidden');
             staffSelect.focus();
+            var rowMenu = openBtn.closest('.dropdown-menu');
+            if (rowMenu) rowMenu.style.display = 'none';
             return;
         }
         if (e.target.closest('[data-reassign-cancel]') || e.target.id === 'reassignModal') {

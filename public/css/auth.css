@@ -616,3 +616,346 @@
   #useFaceLink.use-face-btn { margin-top: 6px; height: 42px; }
   .login-submit { height: 44px; }
 }
+
+/* ============================================================
+   ORIGINAL LOGIN RESTORED (v4) — restrained refinements only.
+   Structure, sizing, balance and rhythm of the pre-polish page
+   are kept. These are micro-touches; blue stays an accent, not
+   the dominant color. No layout or behavior changes.
+   ============================================================ */
+.login-shell { gap: clamp(34px, 4vw, 56px); }
+.login-card {
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.08), 0 4px 14px rgba(16, 24, 40, 0.04);
+}
+.login-card__sub { line-height: 1.5; }
+.login-card__title { letter-spacing: -0.01em; }
+.login-brand__logo img {
+  box-shadow: 0 8px 20px -8px rgba(16, 24, 40, 0.14);
+}
+.key:hover { border-color: rgba(90, 179, 240, 0.45); }
+
+/* ============================================================
+   LOGIN PREMIUM POLISH (v6) — modern, professional, structure-preserving.
+   Same two-column layout, same classes, ids, content and behavior.
+   Visual upgrades: subtle accounting line-art decor on the left,
+   polished client-snapshot, refined login card, modern PIN keypad.
+   Blue is an accent only; background stays white / very light.
+   ============================================================ */
+
+/* ---------- Page: keep clean; one faint top-right tint ---------- */
+.auth-body:has(.login-shell) {
+  background:
+    radial-gradient(80% 60% at 100% 0%, rgba(90, 179, 240, 0.08), transparent 55%),
+    var(--bg-alt);
+}
+
+/* ---------- Left brand panel: position + small accounting illustrations ---------- */
+.login-brand { position: relative; }
+.login-brand__decor {
+  position: absolute; inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  user-select: none;
+}
+.lp-blob, .lp-dot { display: block; position: absolute; border-radius: 50%; }
+.lp-blob--a {
+  width: 190px; height: 190px; top: -64px; right: -52px;
+  background: radial-gradient(circle, rgba(90, 179, 240, 0.13), transparent 66%);
+}
+.lp-blob--b {
+  width: 160px; height: 160px; bottom: -48px; left: -52px;
+  background: radial-gradient(circle, rgba(90, 179, 240, 0.11), transparent 66%);
+}
+.lp-obj {
+  position: absolute;
+  display: block;
+  filter: drop-shadow(0 6px 12px rgba(16, 24, 40, 0.06));
+}
+.lp-obj--pie { top: 2px; right: 0; width: 72px; height: auto; }
+.lp-obj--doc { top: 2px; right: 78px; width: 62px; height: auto; }
+.lp-obj--book { bottom: 0; right: 0; width: 118px; height: auto; }
+.lp-dot--1 { width: 6px; height: 6px; top: 426px; left: 212px; background: rgba(90, 179, 240, 0.35); }
+.login-brand__logo { position: relative; }
+.login-brand__logo::after {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 6px;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(90, 179, 240, 0.16), transparent 66%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ---------- Client snapshot: modern, cleaner, subtle blue accent ---------- */
+.login-brand__viz {
+  position: relative;
+  overflow: hidden;
+  max-width: 400px;
+  border-radius: 18px;
+  padding: 16px 18px 14px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FBFDFF 100%);
+  border-color: rgba(46, 155, 222, 0.18);
+  box-shadow: 0 16px 34px -18px rgba(16, 24, 40, 0.20), inset 0 1px 0 #ffffff;
+}
+.login-brand__viz::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, rgba(90, 179, 240, 0.55), rgba(46, 155, 222, 0.9));
+}
+.login-brand__viz::after {
+  content: "";
+  position: absolute; top: -42px; right: -42px; width: 150px; height: 150px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(90, 179, 240, 0.14), transparent 65%);
+  pointer-events: none;
+}
+.login-brand__viz-head { margin-bottom: 8px; }
+.login-brand__viz-title { letter-spacing: 0.01em; }
+.login-brand__viz-badge { box-shadow: inset 0 0 0 1px rgba(46, 155, 222, 0.14); }
+.login-brand__viz-row { padding: 10px 0; border-top: 1px solid #EDF2F8; font-size: 12.5px; }
+.login-brand__viz-row strong {
+  font-size: 16px; font-weight: 800; letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.login-brand__viz-row span { color: var(--text-muted); }
+.login-brand__viz-chart { height: 40px; margin-top: 12px; gap: 7px; }
+.login-brand__viz-chart i {
+  border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(180deg, #DFEEFA, #F1F8FD);
+}
+.login-brand__viz-chart i:nth-child(6) {
+  background: linear-gradient(180deg, #2FA3EC, var(--sky-deep));
+}
+
+/* ---------- Login card: cleaner premium surface ---------- */
+.login-card {
+  border-radius: 22px;
+  border-color: #E6EDF4;
+  box-shadow:
+    0 24px 54px -20px rgba(16, 24, 40, 0.16),
+    0 8px 20px -12px rgba(46, 155, 222, 0.14),
+    0 2px 6px rgba(16, 24, 40, 0.03);
+}
+.login-card__brand img {
+  border-radius: 11px;
+  box-shadow: 0 8px 16px -6px rgba(16, 24, 40, 0.18);
+}
+.login-card__brand span { letter-spacing: -0.01em; }
+.login-card__title { font-weight: 800; letter-spacing: -0.015em; }
+.login-card__sub { line-height: 1.5; }
+
+/* ---------- Refined form fields + remember row ---------- */
+.login-field-group .form-label {
+  font-size: 12.5px; font-weight: 700; color: var(--navy);
+}
+.login-field-group .form-control {
+  height: 46px;
+  border: 1px solid #D9E2EC;
+  border-radius: 12px;
+  background: #FBFDFE;
+  font-size: 15px;
+  color: var(--navy);
+  box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.03);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.login-field-group .form-control::placeholder { color: #9FAEC2; }
+.login-field-group .form-control:focus {
+  border-color: var(--sky);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(90, 179, 240, 0.16);
+  outline: none;
+}
+.login-field-group .remember-row { margin: 3px 0 8px; }
+.checkbox-row { font-size: 13px; color: #5B6B84; }
+.checkbox-row input { accent-color: var(--sky-deep); cursor: pointer; }
+
+/* ---------- Segmented tabs: cleaner track and thumb ---------- */
+.auth-tabs { background: #EDF2F8; padding: 3px; border-radius: 12px; }
+.auth-tab { border-radius: 10px; }
+.auth-tab:hover { background: rgba(90, 179, 240, 0.10); }
+.auth-tab.active {
+  background: #E2F1FD; color: #0B5991;
+  box-shadow: inset 0 0 0 1px rgba(18, 132, 201, 0.20), 0 2px 6px rgba(46, 155, 222, 0.12);
+}
+
+/* ---------- PIN panel: modern secure surface ---------- */
+.pin-panel {
+  background: #ffffff;
+  border: 1px solid #E4EBF3;
+  border-radius: 16px;
+  box-shadow: 0 8px 20px -12px rgba(16, 24, 40, 0.12), inset 0 1px 0 #ffffff;
+  padding: 10px 16px 12px;
+  margin-bottom: 8px;
+}
+.pin-display { gap: 9px; margin-bottom: 8px; }
+.pin-dot {
+  width: 28px; height: 34px;
+  border: 1.5px solid #D8E1EC;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+.pin-dot.filled {
+  background: linear-gradient(180deg, #2E9BDE, var(--navy));
+  border-color: var(--navy);
+  box-shadow: 0 4px 10px -4px rgba(27, 27, 58, 0.5);
+}
+.pin-dot.filled::after { width: 8px; height: 8px; }
+.keypad { gap: 6px; }
+.key {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #E3EAF2;
+  background: #fff;
+  font-size: 17px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+.key:hover {
+  background: #F2F8FE; border-color: rgba(46, 155, 222, 0.45);
+  color: var(--sky-deep); box-shadow: 0 3px 10px -4px rgba(46, 155, 222, 0.4);
+}
+.key:active { background: #EAF4FD; transform: scale(0.96); }
+.key.backspace { background: #F4F8FC; }
+.key.ok-key {
+  background: linear-gradient(135deg, #2A9BE0, var(--navy));
+  border-color: transparent;
+  box-shadow: 0 6px 14px -6px rgba(27, 27, 58, 0.5);
+}
+.key.ok-key:hover { background: linear-gradient(135deg, #3AA8E8, var(--navy-light)); color: #fff; }
+.key.ok-key:active { background: var(--navy-light); }
+
+/* ---------- Face panel: subtle freshen ---------- */
+.face-box {
+  border-radius: 16px;
+  border-color: #DCE6F2;
+  background: linear-gradient(180deg, #FFFFFF, #F8FBFD);
+}
+
+/* ---------- Responsive re-assertions for v6 ---------- */
+@media (max-width: 767px) {
+  .login-card {
+    border-radius: 0; border: none; box-shadow: none; background: transparent;
+  }
+  .key { height: 50px; font-size: 19px; }
+  .pin-dot { width: 30px; height: 36px; }
+  .pin-panel { padding: 12px 10px 10px; }
+}
+@media (max-height: 800px) and (min-width: 768px) {
+  .key { height: 38px; }
+  .pin-dot { width: 26px; height: 32px; }
+  .pin-display { margin-bottom: 4px; }
+  .pin-panel { padding: 8px 14px 8px; margin-bottom: 4px; }
+}
+
+/* ============================================================
+   PIN KEYPAD RESTYLING (v8) — soft, clean, Egliane-matching.
+   Visual only. PIN behavior untouched: same 4 dots, same 12-key
+   3-column keypad, same backspace / OK actions.
+   Delicate light-blue/white indicators, minimal flat keys, soft
+   blue OK key, and a light unobtrusive container — no navy dots,
+   no gradients, no gloss, no glow. Matches the illustrated login.
+   ============================================================ */
+
+/* PIN container — light, quiet, not a heavy panel */
+.pin-panel {
+  background: #ffffff;
+  border: 1px solid #EDF3FA;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
+  padding: 8px 12px 10px;
+  margin-bottom: 8px;
+}
+
+/* PIN indicators — small delicate circles */
+.pin-display { gap: 10px; margin-bottom: 6px; }
+.pin-dot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #C8DEF4;
+  background: #ffffff;
+  box-shadow: none;
+}
+.pin-dot.filled {
+  background: #7FBDEA;
+  border-color: #6FB3E4;
+  box-shadow: none;
+}
+.pin-dot.filled::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2E9BDE;
+  transform: translate(-50%, -50%);
+}
+
+/* Number / backspace keys — clean, soft professional buttons */
+.keypad { gap: 7px; }
+.key {
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid #E5ECF4;
+  background: #ffffff;
+  color: var(--navy);
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.045);
+}
+.key:hover {
+  background: #F6FAFE;
+  border-color: #D5E6F5;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+}
+.key:active { background: #EDF5FC; transform: scale(0.96); }
+.key.backspace {
+  background: #ffffff;
+  color: #8CA0B8;
+}
+.key.backspace:hover { background: #F4F8FC; color: #6F87A3; }
+
+/* Check/confirm key — soft Egliane blue, natural keypad continuation */
+.key.ok-key {
+  background: #8FC6F0;
+  border-color: #7FBDEA;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(90, 179, 240, 0.28);
+}
+.key.ok-key:hover {
+  background: #76B7EB;
+  border-color: #6FAFE6;
+  box-shadow: 0 2px 7px rgba(90, 179, 240, 0.32);
+  transform: translateY(-1px);
+}
+.key.ok-key:active {
+  background: #63ABE5;
+  transform: scale(0.96);
+}
+.key.ok-key:disabled {
+  background: #F0F5FB;
+  border-color: #E5ECF4;
+  color: #B4C6DA;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Responsive re-assertions for v8 */
+@media (max-width: 767px) {
+  .key { height: 46px; font-size: 17px; }
+  .pin-dot { width: 18px; height: 18px; }
+  .pin-panel { padding: 10px 12px 12px; }
+}
+@media (max-height: 800px) and (min-width: 768px) {
+  .key { height: 38px; }
+  .pin-dot { width: 14px; height: 14px; }
+  .pin-dot.filled::after { width: 5px; height: 5px; }
+  .pin-display { margin-bottom: 4px; }
+  .pin-panel { padding: 6px 12px 8px; margin-bottom: 4px; }
+}

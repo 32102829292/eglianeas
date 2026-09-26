@@ -14,6 +14,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\PushNotificationService;
 use App\Support\Quarter;
+use App\Support\SupportedBanks;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -33,6 +35,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BillingController extends Controller
 {
+    // Vertical padding (top + bottom) of a receipt cell in the batch sheet.
+    public const CELL_VERTICAL_PAD_MM = 3.0;
+
+    // Calibrated safety multiplier: rendered pairs measure ~1.06x the estimate,
+    // so budgeting the page with this factor prevents a page spill.
+    public const PAIR_HEIGHT_SAFETY = 1.06;
+
     public function index(Request $request): View|RedirectResponse
     {
         $q = trim((string) $request->get('q'));
@@ -848,21 +857,67 @@ class BillingController extends Controller
             'gcashNumber' => Setting::get('gcash_number', ''),
             'gcashQrCode' => Setting::get('gcash_qr_code', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
+            'supportedBanks' => SupportedBanks::all(),
         ]);
     }
 
     public function updatePaymentSettings(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
+        $request->validate([
             'gcash_number' => ['nullable', 'string', 'max:30'],
             'gcash_qr_code' => ['nullable', 'file', 'image', 'max:2048'],
             'bank_accounts' => ['nullable', 'array'],
-            'bank_accounts.*.bank_name' => ['nullable', 'string', 'max:100'],
-            'bank_accounts.*.account_number' => ['nullable', 'string', 'max:50'],
-            'bank_accounts.*.account_name' => ['nullable', 'string', 'max:100'],
             'bank_accounts.*.bank_qr_code' => ['nullable', 'file', 'image', 'max:2048'],
             'bank_accounts.*.existing_bank_qr_code' => ['nullable', 'string'],
         ]);
+
+        $bankAccounts = $request->input('bank_accounts', []);
+
+        // Every bank row must be complete and its account number must match the
+        // selected bank's format. A blank row left in the form blocks the save.
+        $validator = Validator::make([], []);
+        $validator->after(function ($validator) use ($bankAccounts) {
+            foreach ($bankAccounts as $index => $account) {
+                $prefix = 'bank_accounts.'.$index;
+
+                $bankName = trim($account['bank_name'] ?? '');
+                $accountNumber = trim($account['account_number'] ?? '');
+                $accountName = trim($account['account_name'] ?? '');
+
+                if ($bankName === '') {
+                    $validator->errors()->add($prefix.'.bank_name', 'Bank name is required.');
+                }
+
+                if ($accountName === '') {
+                    $validator->errors()->add($prefix.'.account_name', 'Account name is required.');
+                }
+
+                $bank = $bankName === '' ? null : SupportedBanks::bankFor($bankName);
+                if ($bankName !== '' && $bank === null) {
+                    $validator->errors()->add($prefix.'.bank_name', 'This bank is not supported. Choose one from the list.');
+                }
+
+                if ($accountNumber === '') {
+                    $validator->errors()->add($prefix.'.account_number', 'Account number is required.');
+                } else {
+                    if (preg_match('/[^0-9\s\-]/', $accountNumber)) {
+                        $validator->errors()->add($prefix.'.account_number', 'Account number must contain numbers only.');
+                    } elseif ($bank !== null && ! SupportedBanks::isValidAccountNumber($accountNumber, $bank['slug'])) {
+                        $validator->errors()->add($prefix.'.account_number', 'Enter a valid account number for this bank.');
+                    }
+                }
+            }
+        });
+
+        if ($validator->fails()) {
+            // Nothing is saved and no existing payment settings are touched.
+            // Old input is re-presented so the user can correct their values.
+            return back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $validated = $request->only(['gcash_number']);
 
         Setting::set('gcash_number', $validated['gcash_number'] ?? '');
 
@@ -875,16 +930,12 @@ class BillingController extends Controller
             Setting::set('gcash_qr_code', $path);
         }
 
-        $bankAccounts = $validated['bank_accounts'] ?? [];
-        $bankAccounts = array_filter($bankAccounts, function ($account) {
-            return ! empty(trim($account['bank_name'] ?? '')) || ! empty(trim($account['account_number'] ?? ''));
-        });
         $bankAccounts = array_values($bankAccounts);
 
         foreach ($bankAccounts as $i => &$account) {
             $account['bank_name'] = trim($account['bank_name'] ?? '');
-            $account['account_number'] = trim($account['account_number'] ?? '');
             $account['account_name'] = trim($account['account_name'] ?? '');
+            $account['account_number'] = SupportedBanks::normalizeAccountNumber($account['account_number'] ?? '');
 
             if ($request->hasFile("bank_accounts.{$i}.bank_qr_code")) {
                 if (! empty($account['existing_bank_qr_code'])) {
@@ -1184,24 +1235,24 @@ class BillingController extends Controller
             self::batchPrintLogMessage($billings, $paperSize)
         );
 
-        // Label-sheet grid: fixed equal-height cells (4 rows x 2 copies = 8
-        // receipts/page). Slot height = page height minus @page margins, split
-        // per row. Payment details now render inside every cell (not in a
-        // shared footer), so the whole page height feeds the slots.
-        $rowsPerPage = 4;
+        // Two receipts sit side by side in one pair (Taxpayer's Copy +
+        // Egliane's Copy). Pairs flow down the page at their NATURAL height —
+        // nothing is clipped — so density is chosen to fit the ENTIRE batch on
+        // one page. The reserved payment-details height feeds pairHeightMm()
+        // through the estimator, and the block itself renders in-flow.
         $pageHeightMm = ['a4' => 297.0, 'letter' => 279.4][$paperSize];
-        $rowSlotMm = round(($pageHeightMm - 20) / $rowsPerPage, 2);
-        $slotPt = $rowSlotMm * 72 / 25.4;
+        $pageContentMm = round($pageHeightMm - 20.0 - 2.0, 2); // 10mm @page margins + safety
 
-        [$density, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);
+        [$density, $overflowIds] = self::chooseBatchDensity($billings, $pageContentMm);
+
+        $payments = \App\Support\BillingPaymentDetails::forPdf();
 
         $pdf = Pdf::loadView('admin.billing.statements-pdf', [
             'billings' => $billings,
             'gcashNumber' => Setting::get('gcash_number', ''),
             'bankAccounts' => Setting::get('bank_accounts', []),
-            'payments' => \App\Support\BillingPaymentDetails::forPdf(),
+            'payments' => $payments,
             'paperSize' => $paperSize,
-            'rowSlotMm' => $rowSlotMm,
             'density' => $density,
             'overflowIds' => $overflowIds,
         ])->setPaper($paperSize, 'portrait');
@@ -1224,24 +1275,47 @@ class BillingController extends Controller
     }
 
     /**
-     * Pick the largest type tier at which EVERY statement fits its fixed cell;
-     * statements that exceed the slot even at "tiny" are flagged for the
-     * printed oversize warning instead of being silently truncated.
+     * Natural height (mm) of one full receipt pair: the statement body plus the
+     * in-cell payment-details block plus the cell's vertical padding. The batch
+     * template renders pairs at their natural height (no clipping), so this is
+     * the figure used to decide whether a batch fits a single page.
+     */
+    public static function pairHeightMm(Billing $billing, string $density, ?array $payments = null): float
+    {
+        $payments ??= \App\Support\BillingPaymentDetails::forPdf();
+        $statementMm = self::estimateStatementHeightPt($billing, $density) * 25.4 / 72;
+        $payMm = \App\Support\BillingPaymentDetails::blockHeightMm($payments);
+
+        return round(($statementMm + $payMm + self::CELL_VERTICAL_PAD_MM) * self::PAIR_HEIGHT_SAFETY, 2);
+    }
+
+    /**
+     * Pick the largest type tier at which the WHOLE batch fits on one page.
+     * Pairs render at natural height (nothing is ever clipped), so this is a
+     * page-fit decision based on the summed pair heights plus the inter-pair
+     * gap. Statements whose smallest pair still exceeds a full page are flagged
+     * so the template can note that they continue onto a second page.
      *
      * @return array{0: string, 1: array<int>} density + offending billing ids
      */
-    public static function chooseBatchDensity($billings, float $slotPt): array
+    public static function chooseBatchDensity($billings, float $pageContentMm, float $pairGapMm = 3.5): array
     {
         $billings = collect($billings)->values();
 
         foreach (['normal', 'compact', 'tiny'] as $density) {
-            if ($billings->every(fn (Billing $b) => self::estimateStatementHeightPt($b, $density) <= $slotPt)) {
+            $total = 0.0;
+            foreach ($billings as $billing) {
+                $total += self::pairHeightMm($billing, $density);
+            }
+            $total += max($billings->count() - 1, 0) * $pairGapMm;
+
+            if ($total <= $pageContentMm) {
                 return [$density, []];
             }
         }
 
         $overflowIds = $billings
-            ->filter(fn (Billing $b) => self::estimateStatementHeightPt($b, 'tiny') > $slotPt)
+            ->filter(fn (Billing $b) => self::pairHeightMm($b, 'tiny') > $pageContentMm)
             ->pluck('id')
             ->all();
 
@@ -1252,11 +1326,11 @@ class BillingController extends Controller
     {
         $msg = 'Printed a batch of '.$billings->count().' billing statement(s) on '.strtoupper($paperSize).' paper.';
 
-        $slotPt = round((['a4' => 297.0, 'letter' => 279.4][$paperSize] - 30) / 4 * 72 / 25.4, 2);
-        [, $overflowIds] = self::chooseBatchDensity($billings, $slotPt);
+        $pageContentMm = round(['a4' => 297.0, 'letter' => 279.4][$paperSize] - 22.0, 2);
+        [, $overflowIds] = self::chooseBatchDensity($billings, $pageContentMm);
 
         if ($overflowIds) {
-            $msg .= ' Oversized (truncated in print): #'.implode(', #', $overflowIds).'.';
+            $msg .= ' Statements taller than one page: #'.implode(', #', $overflowIds).'.';
         }
 
         return $msg;
