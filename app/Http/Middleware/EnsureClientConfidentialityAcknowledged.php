@@ -6,17 +6,15 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class EnsureAdminConfidentialityAcknowledged
+class EnsureClientConfidentialityAcknowledged
 {
-    const CURRENT_VERSION = '2.0';
-
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
-        if ($user && $user->isOperational()) {
+        if ($user && $user->isClient()) {
             if (
-                $user->confidentiality_ack_version !== self::CURRENT_VERSION
+                $user->confidentiality_ack_version !== EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION
                 || $user->confidentiality_acknowledged_at === null
             ) {
                 return redirect()->route('terms');

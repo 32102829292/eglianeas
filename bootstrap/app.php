@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Http\Middleware\EnsureClientConfidentialityAcknowledged;
 use App\Http\Middleware\EnsureClientSurveyCompleted;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\ImpersonationBanner;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
             'admin.confidentiality' => EnsureAdminConfidentialityAcknowledged::class,
+            'client.confidentiality' => EnsureClientConfidentialityAcknowledged::class,
             'client.survey' => EnsureClientSurveyCompleted::class,
         ]);
     })

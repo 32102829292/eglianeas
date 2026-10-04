@@ -259,6 +259,11 @@ class User extends Authenticatable
         return $this->hasMany(ClientConcern::class, 'client_id');
     }
 
+    public function signatures(): HasMany
+    {
+        return $this->hasMany(Signature::class);
+    }
+
     public static function isRole(string $role): bool
     {
         return in_array($role, self::ROLES, true);

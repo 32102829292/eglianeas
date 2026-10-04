@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
+use App\Http\Controllers\Admin\ConfidentialityController as AdminConfidentialityController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
@@ -36,9 +37,8 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PushSubscriptionController;
-use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Http\Controllers\TermsController;
 use App\Models\AboutContent;
-use App\Models\ActivityLog;
 use App\Models\Announcement;
 use App\Models\CompanyCertificate;
 use App\Models\CoreValue;
@@ -56,7 +56,10 @@ Route::get('/chatbot/config', [ChatbotController::class, 'config'])->name('chatb
 
 require __DIR__.'/auth.php';
 
-Route::view('/terms', 'terms')->name('terms');
+Route::get('/terms', [TermsController::class, 'show'])->name('terms');
+
+Route::middleware('auth')->post('/terms/acknowledge', [AdminConfidentialityController::class, 'acknowledge'])
+    ->name('terms.acknowledge.store');
 
 Route::view('/help', 'help')->name('help');
 
@@ -149,25 +152,11 @@ Route::middleware(['auth', 'client.survey'])->group(function () {
     })->name('documents.file');
 });
 
-Route::middleware(['auth', 'role:admin,staff'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/confidentiality/acknowledge', function () {
-        return view('admin.confidentiality-ack');
-    })->name('confidentiality.acknowledge');
-
-    Route::post('/confidentiality/acknowledge', function (Request $request) {
-        $request->validate(['agree' => 'accepted']);
-        $user = $request->user();
-        $user->update([
-            'confidentiality_acknowledged_at' => now(),
-            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
-        ]);
-        ActivityLog::record($user, 'admin.confidentiality_acknowledged', 'Acknowledged the confidentiality policy.');
-
-        return redirect()->route('admin.dashboard');
-    })->name('confidentiality.acknowledge.store');
-});
-
 Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+    Route::middleware('role:admin,supervisor')->group(function () {
+        Route::get('/confidentiality/policy', [AdminConfidentialityController::class, 'policy'])->name('confidentiality.policy');
+    });
+
     Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
 
     Route::get('/surveys', [AdminSurveyController::class, 'index'])->name('surveys.index');
@@ -347,12 +336,16 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 // original admin session before switching back.
 Route::middleware('auth')->post('/admin/impersonate/stop', [ImpersonateController::class, 'stop'])->name('admin.impersonate.stop');
 
+// Each authenticated user may review only their own signature image.
+Route::middleware('auth')->get('/confidentiality/signatures/{signature}/image', [AdminConfidentialityController::class, 'signatureImage'])
+    ->name('confidentiality.signature.image');
+
 Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->group(function () {
     Route::get('/survey', [ClientSurveyController::class, 'show'])->name('survey.show');
     Route::post('/survey', [ClientSurveyController::class, 'store'])->name('survey.store');
 });
 
-Route::middleware(['auth', 'role:client', 'client.survey'])->prefix('client')->name('client.')->group(function () {
+Route::middleware(['auth', 'role:client', 'client.survey', 'client.confidentiality'])->prefix('client')->name('client.')->group(function () {
     Route::get('/dashboard', ClientDashboardController::class)->name('dashboard');
 
     Route::get('/profile', [ClientProfileController::class, 'edit'])->name('profile.edit');
