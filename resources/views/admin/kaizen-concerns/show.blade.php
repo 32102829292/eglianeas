@@ -219,7 +219,7 @@
     <div class="card" style="margin-top: 20px;">
         <div class="card-head d-flex align-items-center justify-content-between">
             <h2 class="card-title mb-0">Evidence of Implementation</h2>
-            @if ($concern->canManageEvidence(auth()->user()))
+            @if ($concern->canUploadEvidence(auth()->user()))
                 <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addEvidenceModal">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                     Add Evidence
@@ -263,7 +263,7 @@
                 </table>
             </div>
         @else
-            @if ($concern->canManageEvidence(auth()->user()))
+            @if ($concern->canUploadEvidence(auth()->user()))
                 <div class="text-center py-4 muted">No implementation evidence yet. Click "Add Evidence" to upload a file.</div>
             @else
                 <div class="text-center py-4 muted">No implementation evidence has been uploaded yet.</div>
@@ -272,7 +272,7 @@
     </div>
 
     {{-- Add Evidence Modal --}}
-    @if ($concern->canManageEvidence(auth()->user()))
+    @if ($concern->canUploadEvidence(auth()->user()))
     <div class="modal fade" id="addEvidenceModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">

@@ -733,16 +733,17 @@ class KaizenPriorityPageTest extends TestCase
         $this->assertSame($staff->id, $item->completed_by);
     }
 
-    public function test_only_authorized_managers_see_the_kaizen_evidence_upload_ui(): void
+    public function test_authorized_staff_see_kaizen_evidence_upload_ui(): void
     {
         $admin = $this->user(User::ROLE_ADMIN);
         $supervisor = $this->user(User::ROLE_SUPERVISOR);
         $staff = $this->user(User::ROLE_STAFF);
+        $otherStaff = $this->user(User::ROLE_STAFF);
 
-        $concern = $this->concern(null); // unassigned -> visible to staff + supervisors
-        $show = route('admin.kaizen-concerns.show', $concern);
+        // Test 1: Unassigned concern - visible to operational staff
+        $unassignedConcern = $this->concern(null);
+        $show = route('admin.kaizen-concerns.show', $unassignedConcern);
 
-        // Managers keep the upload affordance.
         $this->actingAs($admin)->get($show)
             ->assertOk()
             ->assertSee('Add Evidence')
@@ -753,42 +754,27 @@ class KaizenPriorityPageTest extends TestCase
             ->assertSee('Add Evidence')
             ->assertSee('addEvidenceModal', false);
 
-        // A staff viewer must not be offered the evidence-management UI at all,
-        // including the empty-state text that points at the hidden button.
-        $staffResponse = $this->actingAs($staff)->get($show)->assertOk();
+        // Staff CAN see upload UI for unassigned concerns (operational staff can work on them)
+        $this->actingAs($staff)->get($show)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
 
-        $staffResponse->assertDontSee('Add Evidence');
-        $staffResponse->assertDontSee('addEvidenceModal', false);
-        $staffResponse->assertDontSee(route('admin.kaizen-concerns.evidence.add', $concern));
-    }
+        // Test 2: Concern assigned to THIS staff member
+        $assignedConcern = $this->concern($staff);
+        $assignedShow = route('admin.kaizen-concerns.show', $assignedConcern);
 
-    public function test_staff_cannot_upload_kaizen_evidence_by_posting_directly(): void
-    {
-        $staff = $this->user(User::ROLE_STAFF);
-        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $this->actingAs($staff)->get($assignedShow)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
 
-        $concern = $this->concern(null); // unassigned -> visible to staff + supervisors
+        // Test 3: Concern assigned to ANOTHER staff member - staff cannot even VIEW it (403)
+        $otherConcern = $this->concern($otherStaff);
+        $otherShow = route('admin.kaizen-concerns.show', $otherConcern);
 
-        Storage::fake('local');
-
-        $file = UploadedFile::fake()->create('proof.pdf', 10, 'application/pdf');
-
-        // The staff member may view the concern but must not manage its evidence.
-        $this->actingAs($staff)
-            ->from(route('admin.kaizen-concerns.show', $concern))
-            ->post(route('admin.kaizen-concerns.evidence.add', $concern), ['evidence' => $file])
+        $this->actingAs($staff)->get($otherShow)
             ->assertForbidden();
-
-        $this->assertSame(0, $concern->evidences()->count());
-
-        // Managers keep the ability to upload.
-        $this->actingAs($supervisor)
-            ->post(route('admin.kaizen-concerns.evidence.add', $concern), [
-                'evidence' => UploadedFile::fake()->create('proof.pdf', 10, 'application/pdf'),
-            ])
-            ->assertRedirect();
-
-        $this->assertSame(1, $concern->evidences()->count());
     }
 
     public function test_admin_and_supervisor_can_edit_kaizen_checklist_items_but_staff_cannot(): void
@@ -864,6 +850,162 @@ class KaizenPriorityPageTest extends TestCase
         $staffResponse->assertSee('1 of 2 complete');
         $staffResponse->assertDontSee('editChecklistModal', false);
         $staffResponse->assertDontSee('addChecklistModal', false);
+    }
+
+    /* ---------------------------------------------------------------
+     | Evidence authorization (Kaizen + Priority)
+     * -------------------------------------------------------------- */
+
+    public function test_authorized_staff_can_upload_kaizen_evidence(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $otherStaff = $this->user(User::ROLE_STAFF);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $client = $this->user(User::ROLE_CLIENT);
+
+        Storage::fake('local');
+
+        // Test 1: Staff can upload to unassigned concern (operational staff can work on it)
+        $unassignedConcern = $this->concern(null);
+        $file = UploadedFile::fake()->create('proof.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.evidence.add', $unassignedConcern), ['evidence' => $file])
+            ->assertRedirect();
+
+        $this->assertSame(1, $unassignedConcern->evidences()->count());
+
+        // Test 2: Staff can upload to their own assigned concern
+        $myConcern = $this->concern($staff);
+        $file2 = UploadedFile::fake()->create('proof2.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.evidence.add', $myConcern), ['evidence' => $file2])
+            ->assertRedirect();
+
+        $this->assertSame(1, $myConcern->evidences()->count());
+
+        // Test 3: Staff CANNOT upload to another staff's assigned concern
+        $otherConcern = $this->concern($otherStaff);
+        $file3 = UploadedFile::fake()->create('proof3.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.evidence.add', $otherConcern), ['evidence' => $file3])
+            ->assertForbidden();
+
+        $this->assertSame(0, $otherConcern->evidences()->count());
+
+        // Test 4: Client CANNOT upload
+        $file4 = UploadedFile::fake()->create('client.pdf', 10, 'application/pdf');
+        $this->actingAs($client)
+            ->post(route('admin.kaizen-concerns.evidence.add', $unassignedConcern), ['evidence' => $file4])
+            ->assertForbidden();
+
+        // Test 5: Supervisor CAN upload to unassigned concern
+        $file5 = UploadedFile::fake()->create('supervisor.pdf', 10, 'application/pdf');
+        $this->actingAs($supervisor)
+            ->post(route('admin.kaizen-concerns.evidence.add', $unassignedConcern), ['evidence' => $file5])
+            ->assertRedirect();
+
+        $this->assertSame(2, $unassignedConcern->evidences()->count());
+    }
+
+    public function test_authorized_staff_can_upload_priority_evidence(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $otherStaff = $this->user(User::ROLE_STAFF);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $client = $this->user(User::ROLE_CLIENT);
+
+        Storage::fake('local');
+
+        // Test 1: Staff can upload to unassigned priority item (operational staff can work on it)
+        $unassignedItem = $this->item(null);
+        $file = UploadedFile::fake()->create('proof.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.evidence.add', $unassignedItem), ['evidence' => $file])
+            ->assertRedirect();
+
+        $this->assertSame(1, $unassignedItem->evidences()->count());
+
+        // Test 2: Staff can upload to their own assigned priority item
+        $myItem = $this->item($staff);
+        $file2 = UploadedFile::fake()->create('proof2.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.evidence.add', $myItem), ['evidence' => $file2])
+            ->assertRedirect();
+
+        $this->assertSame(1, $myItem->evidences()->count());
+
+        // Test 3: Staff CANNOT upload to another staff's assigned priority item
+        $otherItem = $this->item($otherStaff);
+        $file3 = UploadedFile::fake()->create('proof3.pdf', 10, 'application/pdf');
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.evidence.add', $otherItem), ['evidence' => $file3])
+            ->assertForbidden();
+
+        $this->assertSame(0, $otherItem->evidences()->count());
+
+        // Test 4: Client CANNOT upload
+        $file4 = UploadedFile::fake()->create('client.pdf', 10, 'application/pdf');
+        $this->actingAs($client)
+            ->post(route('admin.priority-items.evidence.add', $unassignedItem), ['evidence' => $file4])
+            ->assertForbidden();
+
+        // Test 5: Supervisor CAN upload to unassigned item
+        $file5 = UploadedFile::fake()->create('supervisor.pdf', 10, 'application/pdf');
+        $this->actingAs($supervisor)
+            ->post(route('admin.priority-items.evidence.add', $unassignedItem), ['evidence' => $file5])
+            ->assertRedirect();
+
+        $this->assertSame(2, $unassignedItem->evidences()->count());
+    }
+
+    public function test_authorized_staff_see_priority_evidence_upload_ui(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $staff = $this->user(User::ROLE_STAFF);
+        $otherStaff = $this->user(User::ROLE_STAFF);
+
+        // Test 1: Unassigned item - visible to operational staff
+        $unassignedItem = $this->item(null);
+        $show = route('admin.priority-items.show', $unassignedItem);
+
+        $this->actingAs($admin)->get($show)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
+
+        $this->actingAs($supervisor)->get($show)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
+
+        // Staff CAN see upload UI for unassigned items
+        $this->actingAs($staff)->get($show)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
+
+        // Test 2: Item assigned to THIS staff member
+        $assignedItem = $this->item($staff);
+        $assignedShow = route('admin.priority-items.show', $assignedItem);
+
+        $this->actingAs($staff)->get($assignedShow)
+            ->assertOk()
+            ->assertSee('Add Evidence')
+            ->assertSee('addEvidenceModal', false);
+
+        // Test 3: Item assigned to ANOTHER staff member - staff cannot even VIEW it (403)
+        $otherItem = $this->item($otherStaff);
+        $otherShow = route('admin.priority-items.show', $otherItem);
+
+        $this->actingAs($staff)->get($otherShow)
+            ->assertForbidden();
     }
 
     /* ---------------------------------------------------------------

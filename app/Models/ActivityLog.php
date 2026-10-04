@@ -14,6 +14,8 @@ class ActivityLog extends Model
         'user_id',
         'tracker_instance_id',
         'weekly_bookkeeping_id',
+        'monthly_bookkeeping_id',
+        'quarterly_bookkeeping_id',
         'action',
         'description',
         'ip_address',
@@ -35,12 +37,35 @@ class ActivityLog extends Model
         return $this->belongsTo(WeeklyBookkeeping::class, 'weekly_bookkeeping_id');
     }
 
-    public static function record(?User $user, string $action, ?string $description = null, ?TrackerInstance $instance = null, ?WeeklyBookkeeping $bookkeeping = null): void
+    public function monthlyBookkeeping(): BelongsTo
     {
+        return $this->belongsTo(MonthlyBookkeeping::class, 'monthly_bookkeeping_id');
+    }
+
+    public function quarterlyBookkeeping(): BelongsTo
+    {
+        return $this->belongsTo(QuarterlyBookkeeping::class, 'quarterly_bookkeeping_id');
+    }
+
+    /**
+     * Exactly one of the bookkeeping links is ever populated, so the bookkeeping
+     * modules pass their own as a named argument.
+     */
+    public static function record(
+        ?User $user,
+        string $action,
+        ?string $description = null,
+        ?TrackerInstance $instance = null,
+        ?WeeklyBookkeeping $bookkeeping = null,
+        ?MonthlyBookkeeping $monthlyBookkeeping = null,
+        ?QuarterlyBookkeeping $quarterlyBookkeeping = null,
+    ): void {
         static::create([
             'user_id' => $user?->id,
             'tracker_instance_id' => $instance?->id,
             'weekly_bookkeeping_id' => $bookkeeping?->id,
+            'monthly_bookkeeping_id' => $monthlyBookkeeping?->id,
+            'quarterly_bookkeeping_id' => $quarterlyBookkeeping?->id,
             'action' => $action,
             'description' => $description,
             'ip_address' => request()->ip(),

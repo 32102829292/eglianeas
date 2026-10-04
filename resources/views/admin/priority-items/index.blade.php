@@ -3,10 +3,17 @@
 @section('title', 'Priority List / To-Do List — Egliane Accounting Services')
 
 @section('content')
+    @php
+        $isStaffView = auth()->user()->isStaff();
+    @endphp
     <div class="page-head page-head-row">
         <div>
             <h1>Priority List / To-Do List</h1>
-            <p>Manage priority tasks, to-dos, and lessons learned.</p>
+            @if ($isStaffView)
+                <p>Your assigned tasks and lessons learned, plus unassigned work available to pick up.</p>
+            @else
+                <p>Manage priority tasks, to-dos, and lessons learned.</p>
+            @endif
         </div>
     </div>
 
@@ -171,6 +178,7 @@
                         @endforeach
                     </select>
                 </div>
+                @unless ($isStaffView)
                 <div class="form-group">
                     <label class="form-label" for="filter_assigned_staff_id">Assigned Staff</label>
                     <select class="form-control" id="filter_assigned_staff_id" name="assigned_staff_id">
@@ -181,6 +189,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endunless
                 <div class="form-group d-flex gap-2 align-items-end">
                     <button type="submit" class="btn btn-primary">Filter</button>
                     @if ($hasFilters)
@@ -266,7 +275,15 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="empty-cell">{{ $hasFilters ? 'No priority items match your current filters.' : 'No priority items found.' }}</td></tr>
+                        <tr><td colspan="9" class="empty-cell">
+                            @if ($hasFilters)
+                                No priority items match your current filters.
+                            @elseif ($isStaffView)
+                                Nothing has been assigned to you yet. Unassigned work will appear here as soon as it is created.
+                            @else
+                                No priority items found.
+                            @endif
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>

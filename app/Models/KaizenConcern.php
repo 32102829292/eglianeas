@@ -141,12 +141,14 @@ class KaizenConcern extends Model
     }
 
     /**
-     * Admin and Supervisor roles may add and remove implementation evidence,
-     * but only for concerns they are allowed to see. Staff keep read access to
-     * the evidence of a concern they can view, without the management UI.
+     * Anyone who is allowed to work on a concern may attach evidence of their
+     * own implementation. This mirrors how Priority items already authorise
+     * uploads, so Staff can document the concerns they are assigned (and
+     * operational Staff can document unassigned concerns) without widening
+     * access to anyone else's records.
      */
-    public function canManageEvidence(User $user): bool
+    public function canUploadEvidence(User $user): bool
     {
-        return ($user->isAdmin() || $user->isSupervisor()) && $this->isVisibleTo($user);
+        return $this->isVisibleTo($user);
     }
 }

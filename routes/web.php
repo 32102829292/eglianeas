@@ -15,9 +15,11 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
 use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\KaizenConcernController;
+use App\Http\Controllers\Admin\MonthlyBookkeepingController as AdminMonthlyBookkeepingController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\PriorityItemController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
+use App\Http\Controllers\Admin\QuarterlyBookkeepingController as AdminQuarterlyBookkeepingController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
 use App\Http\Controllers\Admin\UserController;
@@ -290,6 +292,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/weekly-bookkeeping/create', [AdminWeeklyBookkeepingController::class, 'create'])->name('weekly-bookkeeping.create');
     Route::get('/weekly-bookkeeping-report', [AdminWeeklyBookkeepingController::class, 'report'])->name('weekly-bookkeeping.report');
     Route::post('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'store'])->name('weekly-bookkeeping.store');
+    Route::post('/weekly-bookkeeping/assign', [AdminWeeklyBookkeepingController::class, 'bulkAssign'])->name('weekly-bookkeeping.bulk-assign');
     Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
     Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
     Route::post('/weekly-bookkeeping/{bookkeeping}/owner', [AdminWeeklyBookkeepingController::class, 'updateOwner'])->name('weekly-bookkeeping.update-owner');
@@ -303,6 +306,35 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::patch('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'updateTarget'])->name('weekly-bookkeeping.update-target');
     Route::delete('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'destroyTarget'])->name('weekly-bookkeeping.destroy-target');
     Route::delete('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'destroy'])->name('weekly-bookkeeping.destroy');
+
+    // Monthly and Quarterly Bookkeeping run the same workflow as the weekly one,
+    // with a calendar month or quarter as the planning unit instead of a week.
+    // Registered from one loop so the two stay identical in shape, middleware
+    // and naming. Static routes come first so they are not swallowed by the
+    // "/{slug}/{bookkeeping}" pattern.
+    foreach ([
+        'monthly-bookkeeping' => AdminMonthlyBookkeepingController::class,
+        'quarterly-bookkeeping' => AdminQuarterlyBookkeepingController::class,
+    ] as $bookkeepingSlug => $bookkeepingController) {
+        Route::get("/{$bookkeepingSlug}", [$bookkeepingController, 'index'])->name("{$bookkeepingSlug}.index");
+        Route::get("/{$bookkeepingSlug}/create", [$bookkeepingController, 'create'])->name("{$bookkeepingSlug}.create");
+        Route::get("/{$bookkeepingSlug}-report", [$bookkeepingController, 'report'])->name("{$bookkeepingSlug}.report");
+        Route::post("/{$bookkeepingSlug}", [$bookkeepingController, 'store'])->name("{$bookkeepingSlug}.store");
+        Route::post("/{$bookkeepingSlug}/assign", [$bookkeepingController, 'bulkAssign'])->name("{$bookkeepingSlug}.bulk-assign");
+        Route::get("/{$bookkeepingSlug}/{bookkeeping}", [$bookkeepingController, 'show'])->name("{$bookkeepingSlug}.show");
+        Route::get("/{$bookkeepingSlug}/{bookkeeping}/history", [$bookkeepingController, 'history'])->name("{$bookkeepingSlug}.history");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/owner", [$bookkeepingController, 'updateOwner'])->name("{$bookkeepingSlug}.update-owner");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/start", [$bookkeepingController, 'startTarget'])->name("{$bookkeepingSlug}.start-target");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/complete", [$bookkeepingController, 'completeTarget'])->name("{$bookkeepingSlug}.complete-target");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/reassign", [$bookkeepingController, 'reassignTarget'])->name("{$bookkeepingSlug}.reassign-target");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/upload", [$bookkeepingController, 'uploadAttachment'])->name("{$bookkeepingSlug}.upload-attachment");
+        Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/replace-attachment", [$bookkeepingController, 'replaceAttachment'])->name("{$bookkeepingSlug}.replace-attachment");
+        Route::get("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/view", [$bookkeepingController, 'viewAttachment'])->name("{$bookkeepingSlug}.view-attachment");
+        Route::get("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/download", [$bookkeepingController, 'downloadAttachment'])->name("{$bookkeepingSlug}.download-attachment");
+        Route::patch("/{$bookkeepingSlug}/{bookkeeping}/target/{target}", [$bookkeepingController, 'updateTarget'])->name("{$bookkeepingSlug}.update-target");
+        Route::delete("/{$bookkeepingSlug}/{bookkeeping}/target/{target}", [$bookkeepingController, 'destroyTarget'])->name("{$bookkeepingSlug}.destroy-target");
+        Route::delete("/{$bookkeepingSlug}/{bookkeeping}", [$bookkeepingController, 'destroy'])->name("{$bookkeepingSlug}.destroy");
+    }
 
     Route::get('/bir-forms', [AdminBirFormsController::class, 'index'])->name('bir-forms.index');
 

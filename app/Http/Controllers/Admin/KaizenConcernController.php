@@ -265,7 +265,7 @@ class KaizenConcernController extends Controller
 
     public function addEvidence(Request $request, KaizenConcern $concern): RedirectResponse
     {
-        abort_unless($concern->canManageEvidence(auth()->user()), 403);
+        abort_unless($concern->canUploadEvidence(auth()->user()), 403);
 
         $validated = $request->validate([
             'evidence' => ['required', 'file', 'max:20480', 'mimes:jpg,jpeg,png,webp,pdf,doc,docx,xls,xlsx'],

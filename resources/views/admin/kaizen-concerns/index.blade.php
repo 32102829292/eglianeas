@@ -3,10 +3,17 @@
 @section('title', 'Admin Concerns / Kaizen Strategy — Egliane Accounting Services')
 
 @section('content')
+    @php
+        $isStaffView = auth()->user()->isStaff();
+    @endphp
     <div class="page-head page-head-row">
         <div>
             <h1>Admin Concerns / Kaizen Strategy</h1>
-            <p>Track workplace challenges, recommended solutions, and implementation progress.</p>
+            @if ($isStaffView)
+                <p>Your assigned concerns and unassigned work available to pick up.</p>
+            @else
+                <p>Track workplace challenges, recommended solutions, and implementation progress.</p>
+            @endif
         </div>
     </div>
 
@@ -89,6 +96,7 @@
                         @endforeach
                     </select>
                 </div>
+                @unless ($isStaffView)
                 <div class="form-group">
                     <label class="form-label" for="filter_assigned_staff_id">Assigned Staff</label>
                     <select class="form-control" id="filter_assigned_staff_id" name="assigned_staff_id">
@@ -99,6 +107,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endunless
                 <div class="form-group d-flex gap-2 align-items-end">
                     <button type="submit" class="btn btn-primary">Filter</button>
                     @if ($q || $activeStatus || $activeAssignedStaffId)
@@ -159,10 +168,13 @@
                                 <span class="badge {{ $concern->statusBadgeClass() }}">{{ $concern->statusLabel() }}</span>
                             </td>
                             <td data-col="Evidence">
-                                @if ($concern->hasEvidence())
-                                    <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-link btn-sm">View Evidence</a>
+                                @php
+                                    $evidenceCount = $concern->evidences_count > 0 ? $concern->evidences_count : 0;
+                                @endphp
+                                @if ($evidenceCount > 0)
+                                    <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence" class="badge badge-success" title="View implementation evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>
                                 @else
-                                    <span class="muted">No evidence</span>
+                                    <span class="text-muted">No evidence</span>
                                 @endif
                             </td>
                             <td data-col="Actions" class="text-end">
@@ -178,7 +190,15 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="empty-cell">No Kaizen concerns found.</td></tr>
+                        <tr><td colspan="9" class="empty-cell">
+                            @if ($q || $activeStatus || $activeAssignedStaffId)
+                                No Kaizen concerns match your current filters.
+                            @elseif ($isStaffView)
+                                Nothing has been assigned to you yet. Unassigned concerns will appear here as soon as they are created.
+                            @else
+                                No Kaizen concerns found.
+                            @endif
+                        </td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -198,7 +218,7 @@
                             <div class="cv-pair"><span class="cv-label">Target Date</span><span class="cv-value">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Implementation Date</span><span class="cv-value">{{ $concern->implementation_date?->format('M j, Y') ?? '—' }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">@if ($concern->assignedStaff){{ $concern->assignedStaff->name }}@else<span class="badge badge-info">Unassigned</span>@endif</span></div>
-                            <div class="cv-pair"><span class="cv-label">Evidence</span><span class="cv-value">@if ($concern->hasEvidence())<a href="{{ route('admin.kaizen-concerns.show', $concern) }}">View Evidence</a>@else<span class="muted">No evidence</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Evidence</span><span class="cv-value">@php $evidenceCount = $concern->evidences_count > 0 ? $concern->evidences_count : 0; @endphp @if ($evidenceCount > 0)<a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>@else<span class="muted">No evidence</span>@endif</span></div>
                             @if ($concern->notes)
                                 <div class="cv-pair cv-full"><span class="cv-label">Notes</span><span class="cv-value">{{ $concern->notes }}</span></div>
                             @endif
@@ -212,7 +232,15 @@
                         </div>
                     </div>
                 @empty
-                    <p class="cv-card cv-empty">No Kaizen concerns found.</p>
+                    <p class="cv-card cv-empty">
+                        @if ($q || $activeStatus || $activeAssignedStaffId)
+                            No Kaizen concerns match your current filters.
+                        @elseif ($isStaffView)
+                            Nothing has been assigned to you yet. Unassigned concerns will appear here as soon as they are created.
+                        @else
+                            No Kaizen concerns found.
+                        @endif
+                    </p>
                 @endforelse
             </div>
         </div>

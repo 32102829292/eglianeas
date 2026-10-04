@@ -104,6 +104,15 @@ body {
 }
 
 img { max-width: 100%; display: block; }
+
+/* ---------- Icon integrity ----------
+   An icon is a fixed-size object, never a flexible one. Flex and grid parents
+   default to align-items: stretch, and a plain `flex: 1` on a wrapper hands the
+   icon the leftover space. Either one silently turns a small circular icon chip
+   into a tall oval. Pinning every inline icon here keeps its own proportions
+   wherever a page drops it, so no individual screen has to defend itself. */
+svg { flex: none; }
+
 a { color: var(--sky-deep); text-decoration: none; }
 a:hover { text-decoration: underline; }
 h1, h2, h3, h4 { font-family: var(--font-head); font-weight: 700; color: var(--navy); line-height: 1.2; margin: 0 0 .5em; }
@@ -886,10 +895,31 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   border: 1px dashed var(--border);
   border-radius: var(--radius-sm);
 }
-.empty-state svg { width: 40px; height: 40px; margin: 0 auto; color: var(--border); }
+.empty-state svg { width: 40px; height: 40px; margin: 0 auto; color: var(--border); flex: none; }
 .empty-state h3 { margin: 0; font-size: 15px; color: var(--text); }
 .empty-state p { margin: 0; font-size: 13.5px; max-width: 380px; }
 .empty-state .btn { margin-top: 10px; }
+
+/* Circular icon chip for an empty state. The width, height, min-* and flex
+   basis are all pinned to the same value and align-self stops the parent
+   stretching it, so the chip stays a circle at any card size. The card around
+   it may stay as large as it likes; only this box is fixed. */
+.empty-state-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 56px;
+  align-self: center;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 50%;
+  color: var(--border);
+  background: var(--surface-sunken);
+}
+.empty-state-icon svg { width: 24px; height: 24px; flex: none; }
+.empty-state-icon--ok { color: var(--success); background: var(--success-soft); }
 .empty-state.compact { padding: 22px 14px; }
 
 /* ---------- Badges (unified, WCAG AA) ----------
@@ -1238,7 +1268,7 @@ table.data tr:hover td { background: var(--surface-raised); }
    ============================================================ */
 
 /* Button internal icons 窶・replaces inline svg sizing seen across views */
-.btn svg, .btn-link svg { width: 16px; height: 16px; vertical-align: -2px; margin-right: 4px; }
+.btn svg, .btn-link svg { width: 16px; height: 16px; flex: none; vertical-align: -2px; margin-right: 4px; }
 .btn-block { display: block; width: 100%; }
 .btn-block + .btn-block { margin-top: 8px; }
 .link-ico svg { vertical-align: -2px; margin-right: 4px; }

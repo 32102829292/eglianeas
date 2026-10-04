@@ -129,6 +129,14 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 14h2M9 18h2"/></svg>
             Weekly Bookkeeping
         </a>
+        <a href="{{ route('admin.monthly-bookkeeping.index') }}" class="{{ $active('admin.monthly-bookkeeping') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 14h2M9 18h2M15 14h2M15 18h2"/></svg>
+            Monthly Bookkeeping
+        </a>
+        <a href="{{ route('admin.quarterly-bookkeeping.index') }}" class="{{ $active('admin.quarterly-bookkeeping') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+            Quarterly Bookkeeping
+        </a>
     @endif
 
     <div class="dash-nav-head">System</div>

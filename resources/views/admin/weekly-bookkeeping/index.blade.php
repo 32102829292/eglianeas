@@ -42,6 +42,55 @@
             'unfinished' => 'Uncollected / Unfinished',
             'unpaid' => 'Unpaid',
         ];
+
+        /*
+         * Presentation-only rollups for the plan strip and the actual-progress
+         * tiles. Every figure is read from the counts the controller already put
+         * in $stats / $summary; no status is re-derived from the targets here and
+         * nothing is persisted.
+         */
+        $plan = $plans->first();
+
+        // The plan's staff is resolved from $owners, which the controller already
+        // loaded for the filter dropdown, so showing the owner costs no extra
+        // query. A staff id that is no longer assignable simply shows as unknown.
+        $planStaff = $plan && $plan->staff_id ? $owners->firstWhere('id', $plan->staff_id) : null;
+        $planOwnerName = $planStaff?->name ?? '';
+        $planOwnerRole = $planStaff ? match ($planStaff->role) {
+            'supervisor' => 'Supervisor',
+            'staff' => 'Staff',
+            'admin' => 'Admin',
+            default => ucfirst((string) $planStaff->role),
+        } : '';
+
+        // Role shown under an assigned name on a task row, from the same
+        // already-loaded staff list. Items carry the staff *name* only, so the
+        // lookup is by name; a name that is no longer assignable just has no
+        // role line. No extra query.
+        $staffRoleByName = $owners->mapWithKeys(fn ($u) => [$u->name => match ($u->role) {
+            'supervisor' => 'Supervisor',
+            'staff' => 'Staff',
+            'admin' => 'Admin',
+            default => ucfirst((string) $u->role),
+        }]);
+
+        $planStatus = match (true) {
+            $weekTotal === 0 => ['Not started', 'idle'],
+            $summary['attention'] > 0 => ['Needs attention', 'bad'],
+            $weekPercent >= 100 => ['Completed', 'ok'],
+            $weekDone > 0 => ['In progress', 'info'],
+            default => ['Scheduled', 'idle'],
+        };
+
+        // Actual progress, straight from the controller's per-status counts.
+        $progressTiles = [
+            ['label' => 'Completed', 'value' => $stats['completed'], 'tone' => 'ok'],
+            ['label' => 'On time', 'value' => $stats['onTime'], 'tone' => 'ok'],
+            ['label' => 'In progress / pending', 'value' => $stats['pending'], 'tone' => 'info'],
+            ['label' => 'Missed / past due', 'value' => $stats['unfinished'], 'tone' => 'bad'],
+            ['label' => 'Late', 'value' => $stats['late'], 'tone' => 'warn'],
+            ['label' => 'Unpaid', 'value' => $stats['unpaid'], 'tone' => 'warn'],
+        ];
     @endphp
 
     {{-- ============ PAGE HEADER ============ --}}
@@ -103,6 +152,35 @@
             <a href="{{ route('admin.weekly-bookkeeping.report', ['week_start' => $activeWeekStart]) }}">Print Report</a>
         </nav>
     </div>
+
+    {{-- ============ WEEKLY TARGET / PLAN ============ --}}
+    <section class="wk-plan" aria-label="Weekly target">
+        <span class="wk-plan-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </span>
+
+        <div class="wk-plan-main">
+            <b>Weekly Target</b>
+            <span>{{ $weekLabel }}</span>
+        </div>
+
+        <div class="wk-plan-facts">
+            <div class="wk-fact">
+                <span class="wk-fact-label">Status</span>
+                <span class="wk-fact-value">{{ $planStatus[0] }}</span>
+                @if ($plans->isNotEmpty())
+                    <span class="wk-fact-sub">{{ $plans->count() }} {{ $plans->count() === 1 ? 'plan' : 'plans' }} saved</span>
+                @else
+                    <span class="wk-fact-sub">No plan yet</span>
+                @endif
+            </div>
+            <div class="wk-fact">
+                <span class="wk-fact-label">Owner</span>
+                <span class="wk-fact-value">{{ $planOwnerName !== '' ? $planOwnerName : 'Not assigned' }}</span>
+                <span class="wk-fact-sub">{{ $planOwnerRole !== '' ? $planOwnerRole : 'No owner set' }}</span>
+            </div>
+        </div>
+    </section>
 
     {{-- ============ FILTERS (collapsible) ============ --}}
     <details class="wk-filters"{!! $hasActiveFilters ? ' open' : '' !!}>
@@ -183,7 +261,10 @@
 
     {{-- ============ THIS WEEK ============ --}}
     <section class="wk-section-block" aria-labelledby="wk-summary-h">
-        <h2 id="wk-summary-h" class="wk-section-title">This Week</h2>
+        <div class="wk-section-head">
+            <h2 id="wk-summary-h" class="wk-section-title">This Week</h2>
+            <span class="wk-section-note">{{ $weekDone }} of {{ $weekTotal }} complete</span>
+        </div>
 
         <div class="stat-grid wk-summary">
             <div class="stat-card">
@@ -211,6 +292,31 @@
                 <b class="stat-value">{{ $summary['attention'] }}</b>
                 <span class="stat-meta">Overdue, unpaid or unassigned</span>
             </div>
+        </div>
+
+        {{-- Completion read-out: the headline percentage, stated in text as well as bar length. --}}
+        <div class="card wk-done">
+            <div class="wk-done-figure">
+                <b>{{ $weekPercent }}%</b>
+                <span>complete</span>
+            </div>
+            <div class="wk-bar wk-done-track" role="img" aria-label="{{ $weekPercent }} percent of this week's tasks completed">
+                <span class="wk-bar-fill {{ $summary['attention'] > 0 ? 'is-warn' : 'is-ok' }}" style="width: {{ $weekPercent }}%"></span>
+            </div>
+        </div>
+
+        {{-- Actual progress: the per-status counts the controller already computed.
+             Labelled in text so the breakdown never relies on colour alone. --}}
+        <div class="wk-tiles">
+            @foreach ($progressTiles as $tile)
+                <div class="wk-tile is-{{ $tile['tone'] }}">
+                    <span class="wk-tile-dot" aria-hidden="true"></span>
+                    <span class="wk-tile-text">
+                        <b>{{ $tile['value'] }}</b>
+                        <span>{{ $tile['label'] }}</span>
+                    </span>
+                </div>
+            @endforeach
         </div>
     </section>
 
@@ -301,10 +407,40 @@
                                         <b>{{ $item['task_label'] }}</b>
                                         <span class="wk-task-meta">
                                             <span class="{{ $item['is_overdue'] ? 'is-overdue' : '' }}">{{ $item['due_label'] }}</span>
-                                            <span aria-hidden="true">&middot;</span>
-                                            <span>{{ $item['staff_name'] !== '' ? $item['staff_name'] : 'Not Assigned' }}</span>
+                                        </span>
+
+                                        {{-- Balance and remarks stay inline so the tracker keeps its
+                                             column count; the detail lives on the plan page. --}}
+                                        @if (! empty($item['balance_summary']))
+                                            <span class="wk-badge wk-badge-balance" title="{{ $item['balance_note'] ?? 'Payment balance' }}">
+                                                {{ $item['balance_summary'] }}
+                                            </span>
+                                        @endif
+
+                                        @if (! empty($item['has_remarks']))
+                                            <span class="wk-badge wk-badge-remark" title="Remarks left on this task">Remarks</span>
+                                        @endif
+                                    </div>
+
+                                    <div class="wk-task-staff">
+                                        <span class="wk-person-name">{{ $item['staff_name'] !== '' ? $item['staff_name'] : 'Not Assigned' }}</span>
+                                        <span class="wk-person-sub {{ $item['staff_name'] === '' ? 'is-empty' : '' }}">
+                                            {{ $item['staff_name'] === ''
+                                                ? 'No staff assigned'
+                                                : ($staffRoleByName[$item['staff_name']] ?? 'Assigned') }}
                                         </span>
                                     </div>
+
+                                    {{-- Evidence: presence only, taken from the item's existing
+                                         has_attachment flag. Opening it stays on the show page. --}}
+                                    <span class="wk-evi">
+                                        @if ($item['has_attachment'])
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                            <span class="wk-evi-has">Evidence</span>
+                                        @else
+                                            <span class="wk-evi-none">No evidence</span>
+                                        @endif
+                                    </span>
 
                                     <span class="wk-pill wk-pill-{{ $item['status'] }}">{{ $item['status_label'] }}</span>
 
@@ -412,7 +548,14 @@
                                     <td class="wk-task">{{ $t->taskLabel() }}</td>
                                     <td class="wk-client">{{ $t->displayClientName() }}</td>
                                     <td class="wk-staff">
-                                        {{ $t->assignedStaffDisplayName() !== '' ? $t->assignedStaffDisplayName() : '—' }}
+                                        <span class="wk-person">
+                                            <span class="wk-person-name">{{ $t->assignedStaffDisplayName() !== '' ? $t->assignedStaffDisplayName() : 'Unassigned' }}</span>
+                                            <span class="wk-person-sub {{ $t->assignedStaffDisplayName() === '' ? 'is-empty' : '' }}">
+                                                {{ $t->assignedStaffDisplayName() === ''
+                                                    ? 'No staff assigned'
+                                                    : ($staffRoleByName[$t->assignedStaffDisplayName()] ?? 'Assigned') }}
+                                            </span>
+                                        </span>
                                     </td>
                                     <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['pickup']])</td>
                                     <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['record']])</td>
@@ -472,299 +615,5 @@
 @endsection
 
 @push('styles')
-    <style>
-        /* ---------- Header + week navigator ---------- */
-        .wk-head { margin-bottom: 14px; }
-        .wk-head-main h1 { text-transform: uppercase; letter-spacing: .01em; }
-        .wk-head-main p { font-size: var(--text-md); }
-
-        .wk-weekbar {
-            display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-            padding: 10px 12px; margin-bottom: 14px;
-            background: var(--surface); border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-sm);
-        }
-        .wk-weeknav {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 34px; height: 34px; flex: 0 0 auto;
-            color: var(--navy); background: var(--surface-sunken);
-            border: 1px solid var(--border-subtle); border-radius: 9px; text-decoration: none;
-        }
-        .wk-weeknav:hover { background: var(--sky-soft); border-color: #BFDBFE; }
-        .wk-weeklabel { display: flex; flex-direction: column; line-height: 1.25; padding: 0 4px; }
-        .wk-weeklabel b { font-family: var(--font-head); font-size: var(--text-base); color: var(--navy); white-space: nowrap; }
-        .wk-weeklabel span { font-size: var(--text-xs); color: var(--muted-text); }
-        .wk-week-today {
-            padding: 5px 10px; font-size: var(--text-xs); font-weight: 700;
-            color: var(--navy); background: var(--sky-soft);
-            border: 1px solid #BFDBFE; border-radius: 999px; text-decoration: none;
-        }
-        .wk-weekbar-spacer { flex: 1 1 auto; }
-
-        .wk-quick { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-        .wk-quick a {
-            padding: 5px 10px; font-size: var(--text-xs); font-weight: 600;
-            color: var(--muted-text); text-decoration: none; border-radius: 999px;
-        }
-        .wk-quick a:hover { color: var(--navy); background: var(--sky-light); }
-
-        /* ---------- Collapsible filters ---------- */
-        .wk-filters {
-            margin-bottom: 16px; background: var(--surface);
-            border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
-        }
-        .wk-filters-summary {
-            display: flex; align-items: center; gap: 8px; cursor: pointer;
-            padding: 10px 14px; font-size: var(--text-sm); font-weight: 700; color: var(--navy);
-            list-style: none; min-height: 44px;
-        }
-        .wk-filters-summary::-webkit-details-marker { display: none; }
-        .wk-filters-summary::marker { content: ''; }
-        .wk-filters-count {
-            display: inline-flex; align-items: center; justify-content: center;
-            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
-            font-size: 10.5px; font-weight: 800; color: #fff; background: var(--sky-deep);
-        }
-        .wk-filters-active { margin-left: auto; font-size: var(--text-xs); font-weight: 600; color: var(--sky-deep); }
-
-        .wk-filters-form {
-            display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;
-            padding: 4px 14px 14px; border-top: 1px solid var(--border-subtle); padding-top: 14px;
-        }
-        .wk-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-        .wk-field > span { font-size: var(--text-xs); color: var(--muted-text); font-weight: 600; }
-        .wk-field-grow { flex: 1 1 190px; }
-        .wk-field select, .wk-field input {
-            min-height: 36px; padding: 0 10px; font-size: var(--text-sm);
-            color: var(--text); background: var(--surface);
-            border: 1px solid var(--border-subtle); border-radius: 8px;
-        }
-        .wk-filters-actions { display: flex; align-items: center; gap: 8px; }
-
-        /* ---------- Section blocks ---------- */
-        .wk-section-block { margin-bottom: 20px; }
-        .wk-section-title {
-            font-family: var(--font-head); font-size: var(--text-sm); font-weight: 700;
-            text-transform: uppercase; letter-spacing: .06em; color: var(--navy); margin: 0;
-        }
-        .wk-section-head {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
-        }
-        .wk-section-block > .wk-section-title { display: block; margin-bottom: 10px; }
-        .wk-section-note { font-size: var(--text-xs); color: var(--muted-text); }
-
-        /* ---------- Summary ---------- */
-        .stat-grid.wk-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 0; }
-        .stat-grid.wk-summary .stat-card { padding: 14px; }
-        .stat-grid.wk-summary .stat-value { font-size: 28px; }
-
-        /* ---------- Clear / empty state ---------- */
-        .wk-clear { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; }
-        .wk-clear-icon {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 38px; height: 38px; flex: 0 0 auto;
-            border-radius: 50%; color: var(--success); background: var(--success-soft);
-        }
-        .wk-clear > div { flex: 1 1 200px; min-width: 0; }
-        .wk-clear b { display: block; font-size: var(--text-base); color: var(--navy); }
-        .wk-clear span { font-size: var(--text-sm); color: var(--muted-text); }
-
-        /* ---------- Today's priorities ---------- */
-        .wk-today-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-        .wk-today-item {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 10px 14px; background: var(--surface);
-            border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
-        }
-        .wk-today-main { flex: 1 1 220px; min-width: 0; }
-        .wk-today-main b { display: block; font-size: var(--text-base); color: var(--navy); }
-        .wk-today-main span { font-size: var(--text-xs); color: var(--muted-text); }
-        .wk-today-open { font-size: var(--text-xs); font-weight: 700; color: var(--sky-deep); text-decoration: none; }
-        .wk-today-open:hover { text-decoration: underline; }
-        .wk-more { margin: 8px 0 0; font-size: var(--text-xs); color: var(--muted-text); }
-
-        /* ---------- Status dots / pills / badges ---------- */
-        .wk-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--border-subtle); }
-        .wk-dot-completed { background: var(--success); }
-        .wk-dot-in_progress, .wk-dot-active { background: var(--sky-deep); }
-        .wk-dot-attention { background: var(--danger); }
-        .wk-dot-pending { background: #C8CEDA; }
-
-        .wk-pill {
-            display: inline-flex; align-items: center; padding: 3px 9px;
-            border-radius: 999px; font-size: 10.5px; font-weight: 800;
-            letter-spacing: .02em; white-space: nowrap;
-        }
-        .wk-pill-completed { background: #DCFCE7; color: #166534; }
-        .wk-pill-in_progress, .wk-pill-active { background: #DBEAFE; color: #1E40AF; }
-        .wk-pill-attention { background: #FEE2E2; color: #991B1B; }
-        .wk-pill-pending { background: var(--surface-sunken); color: var(--muted-text); }
-
-        .wk-badge {
-            display: inline-flex; align-items: center; padding: 3px 9px;
-            border-radius: 999px; font-size: 10.5px; font-weight: 800; white-space: nowrap;
-        }
-        .wk-badge-attention { background: var(--danger-soft); color: #991B1B; }
-        .wk-badge-ok { background: var(--success-soft); color: #166534; }
-
-        /* ---------- Client cards ---------- */
-        .wk-clients { display: flex; flex-direction: column; gap: 10px; }
-        .wk-client {
-            background: var(--surface); border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-sm); overflow: hidden;
-        }
-        .wk-client[open] { box-shadow: var(--shadow-sm); }
-        .wk-client-head {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 12px 14px; cursor: pointer; list-style: none; min-height: 48px;
-        }
-        .wk-client-head::-webkit-details-marker { display: none; }
-        .wk-client-head::marker { content: ''; }
-        .wk-client-caret {
-            width: 0; height: 0; flex: 0 0 auto;
-            border-left: 6px solid var(--muted-text);
-            border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-            transition: transform var(--transition-fast);
-        }
-        .wk-client[open] .wk-client-caret { transform: rotate(90deg); }
-        .wk-client-name { font-family: var(--font-head); font-size: var(--text-base); color: var(--navy); }
-        .wk-client-count { margin-left: auto; font-size: var(--text-xs); color: var(--muted-text); white-space: nowrap; }
-
-        .wk-mini {
-            display: block; width: 84px; height: 6px; flex: 0 0 auto;
-            background: var(--surface-sunken); border-radius: 999px; overflow: hidden;
-        }
-        .wk-mini-bar { display: block; height: 100%; background: var(--success); border-radius: 999px; }
-
-        .wk-tasks { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border-subtle); }
-        .wk-task {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 10px 14px; border-bottom: 1px solid var(--border-subtle);
-        }
-        .wk-task:last-child { border-bottom: 0; }
-        .wk-task-attention { background: rgba(231, 76, 60, .035); }
-        .wk-task-main { flex: 1 1 240px; min-width: 0; }
-        .wk-task-main b { display: block; font-size: var(--text-sm); font-weight: 700; color: var(--text-strong); }
-        .wk-task-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: var(--text-xs); color: var(--muted-text); }
-        .wk-task-meta .is-overdue { color: #991B1B; font-weight: 700; }
-        .wk-task-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-        .wk-task-actions .btn { min-height: 32px; }
-
-        /* ---------- Progress ---------- */
-        .wk-progress-card { padding: 16px; }
-        .wk-progress-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-        .wk-progress-head b { font-family: var(--font-head); font-size: 24px; font-weight: 800; color: var(--navy); }
-        .wk-progress-head span { margin-left: 6px; font-size: var(--text-sm); color: var(--muted-text); }
-        .wk-bar { height: 9px; background: var(--surface-sunken); border-radius: 999px; overflow: hidden; }
-        .wk-bar-sm { height: 6px; }
-        .wk-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width var(--transition); }
-        .wk-bar-fill.is-ok { background: var(--success); }
-        .wk-bar-fill.is-warn { background: var(--warning); }
-
-        .wk-types {
-            list-style: none; margin: 14px 0 0; padding: 0;
-            display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;
-        }
-        .wk-type-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
-        .wk-type-head span { font-size: var(--text-xs); color: var(--muted-text); }
-        .wk-type-head b { font-size: var(--text-xs); color: var(--navy); }
-
-        /* ---------- Detailed report ---------- */
-        .wk-report { padding: 0; }
-        .wk-report-summary {
-            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-            padding: 14px 16px; cursor: pointer; list-style: none; min-height: 52px;
-        }
-        .wk-report-summary::-webkit-details-marker { display: none; }
-        .wk-report-summary::marker { content: ''; }
-        .wk-report-toggle {
-            margin-left: auto; width: 0; height: 0; flex: 0 0 auto;
-            border-top: 6px solid var(--muted-text);
-            border-left: 5px solid transparent; border-right: 5px solid transparent;
-            transition: transform var(--transition-fast);
-        }
-        .wk-report[open] .wk-report-toggle { transform: rotate(180deg); }
-        .wk-report > *:not(.wk-report-summary) { margin-left: 16px; margin-right: 16px; }
-        .wk-report > .table-scroll { margin-left: 0; margin-right: 0; }
-        .wk-report-hint { margin-top: 0; padding-top: 4px; font-size: var(--text-xs); color: var(--muted-text); }
-        .wk-report .empty-state { padding: 18px 16px; }
-
-        /* ---------- Comparison grid (unchanged semantics) ---------- */
-        .wk-grid { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
-        .wk-grid th, .wk-grid td { padding: 7px 10px; border-bottom: 1px solid var(--border-subtle); text-align: left; vertical-align: middle; }
-        .wk-grid thead th {
-            font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .03em;
-            color: var(--muted-text); background: var(--surface-raised); white-space: nowrap;
-        }
-        .wk-row:hover { background: var(--sky-light); }
-        .wk-day { display: block; font-weight: 700; }
-        .wk-datefull { display: block; font-size: 10.5px; color: var(--muted-text); }
-        .wk-task { font-weight: 600; white-space: nowrap; }
-        .wk-client { white-space: nowrap; }
-        .wk-staff { color: var(--muted-text); white-space: nowrap; }
-
-        .cmp-none { color: #94A3B8; }
-        .cmp-cell {
-            display: inline-flex; flex-direction: column; gap: 1px; padding: 2px 7px;
-            border-radius: 5px; text-decoration: none; line-height: 1.2; min-width: 62px;
-        }
-        .cmp-cell-text { font-size: var(--text-xs); font-weight: 700; }
-        .cmp-cell-sub { font-size: 10px; opacity: .85; }
-        .cmp-done   { background: #DCFCE7; color: #166534; }
-        .cmp-late   { background: #FEF3C7; color: #92400E; }
-        .cmp-active { background: #DBEAFE; color: #1E40AF; }
-        .cmp-overdue{ background: #FEE2E2; color: #991B1B; }
-        .cmp-todo   { background: var(--surface-raised); color: var(--muted-text); }
-
-        .wk-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; padding: 16px 0; }
-        .wk-side-card h3 { font-size: var(--text-sm); margin: 0 0 8px; color: var(--navy); }
-        .wk-side-empty { font-size: var(--text-xs); color: var(--muted-text); margin: 0; }
-        .wk-side-list { list-style: none; margin: 0; padding: 0; }
-        .wk-side-list li { border-bottom: 1px solid var(--border-subtle); }
-        .wk-side-list a { display: flex; align-items: center; gap: 6px; padding: 6px 0; text-decoration: none; color: inherit; font-size: var(--text-xs); }
-        .wk-side-list a b { flex: 0 0 auto; }
-        .wk-side-list a span { color: var(--muted-text); }
-        .wk-side-status { margin-left: auto; font-style: normal; font-weight: 700; }
-        .wk-side-status.is-bad  { color: #991B1B; }
-        .wk-side-status.is-warn { color: #92400E; }
-
-        /* ---------- Responsive ---------- */
-        @media (max-width: 1100px) {
-            .stat-grid.wk-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-            .wk-types { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-
-        @media (max-width: 640px) {
-            .stat-grid.wk-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-            .stat-grid.wk-summary .stat-value { font-size: 24px; }
-
-            .wk-weekbar { gap: 6px; padding: 10px; }
-            .wk-weeklabel { order: -1; width: 100%; padding: 0; }
-            .wk-weekbar-spacer { display: none; }
-            .wk-quick { width: 100%; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
-            .wk-quick a { white-space: nowrap; min-height: 34px; display: inline-flex; align-items: center; }
-
-            .wk-filters-form { flex-direction: column; align-items: stretch; gap: 12px; }
-            .wk-field, .wk-field-grow { flex: 1 1 auto; width: 100%; }
-            .wk-filters-actions { width: 100%; }
-            .wk-filters-actions .btn { flex: 1 1 auto; min-height: 44px; }
-
-            .wk-client-head { gap: 8px; }
-            .wk-client-count { margin-left: 0; width: 100%; }
-            .wk-mini { width: 100%; }
-
-            .wk-task { align-items: flex-start; padding: 12px 14px; }
-            .wk-task .wk-dot { margin-top: 6px; }
-            .wk-task-actions { width: 100%; padding-left: 19px; }
-            .wk-task-actions .btn { flex: 1 1 auto; min-height: 44px; }
-
-            .wk-today-item { padding: 12px 14px; }
-            .wk-today-open { width: 100%; padding: 10px 0 0; min-height: 40px; display: flex; align-items: center; }
-
-            .wk-types { grid-template-columns: 1fr; }
-            .wk-report > *:not(.wk-report-summary) { margin-left: 12px; margin-right: 12px; }
-            .wk-report-summary { padding: 14px 12px; }
-        }
-    </style>
+    @include('admin.bookkeeping.partials.styles')
 @endpush

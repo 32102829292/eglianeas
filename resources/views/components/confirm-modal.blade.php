@@ -50,6 +50,10 @@
     .confirm-modal .confirm-modal-icon {
         width: 56px;
         height: 56px;
+        min-width: 56px;
+        min-height: 56px;
+        flex: 0 0 56px;
+        align-self: center;
         margin: 0 auto 18px;
         border-radius: 50%;
         display: flex;
@@ -57,6 +61,12 @@
         justify-content: center;
         background: rgba(90, 179, 240, 0.12);
         color: #1B1B3A;
+    }
+
+    .confirm-modal .confirm-modal-icon svg {
+        width: 26px;
+        height: 26px;
+        flex: none;
     }
 
     .confirm-modal.confirm-modal-danger .confirm-modal-icon {

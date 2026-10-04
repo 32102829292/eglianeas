@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\Bookkeeping\Concerns\HasBookkeepingTargetWorkflow;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WeeklyBookkeepingTarget extends Model
 {
+    use HasBookkeepingTargetWorkflow;
     use HasFactory;
 
     protected $table = 'weekly_bookkeeping_targets';
@@ -93,6 +95,7 @@ class WeeklyBookkeepingTarget extends Model
         'assigned_staff_id',
         'assigned_staff_name',
         'target_date',
+        'target_date_auto',
         'actual_status',
         'timing',
         'performed_by_id',
@@ -102,6 +105,9 @@ class WeeklyBookkeepingTarget extends Model
         'ended_at',
         'payment_method',
         'payment_at',
+        'payment_status',
+        'balance_amount',
+        'balance_note',
         'attachment_path',
         'attachment_name',
         'attachment_mime',
@@ -112,9 +118,11 @@ class WeeklyBookkeepingTarget extends Model
     {
         return [
             'target_date' => 'date',
+            'target_date_auto' => 'boolean',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
             'payment_at' => 'datetime',
+            'balance_amount' => 'decimal:2',
         ];
     }
 
