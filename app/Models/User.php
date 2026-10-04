@@ -22,7 +22,9 @@ class User extends Authenticatable
 
     public const ROLE_CLIENT = 'client';
 
-    public const ROLES = [self::ROLE_ADMIN, self::ROLE_STAFF, self::ROLE_CLIENT];
+    public const ROLE_SUPERVISOR = 'supervisor';
+
+    public const ROLES = [self::ROLE_ADMIN, self::ROLE_STAFF, self::ROLE_SUPERVISOR, self::ROLE_CLIENT];
 
     /**
      * @var list<string>
@@ -101,6 +103,16 @@ class User extends Authenticatable
     public function isStaffOrAdmin(): bool
     {
         return $this->isAdmin() || $this->isStaff();
+    }
+
+    public function isSupervisor(): bool
+    {
+        return $this->role === self::ROLE_SUPERVISOR;
+    }
+
+    public function isOperational(): bool
+    {
+        return $this->isAdmin() || $this->isStaff() || $this->isSupervisor();
     }
 
     public function isClient(): bool

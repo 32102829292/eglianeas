@@ -12,7 +12,9 @@ use App\Http\Controllers\Admin\CollectionController as AdminCollectionController
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
 use App\Http\Controllers\Admin\ImpersonateController;
+use App\Http\Controllers\Admin\KaizenConcernController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
+use App\Http\Controllers\Admin\PriorityItemController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
@@ -297,6 +299,46 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::delete('/distribution/{client}/softcopy/{document}', [AdminDistributionController::class, 'destroySoftcopy'])->name('distribution.destroy-softcopy');
     Route::post('/distribution/{client}/location', [AdminDistributionController::class, 'updateLocation'])->name('distribution.update-location');
     Route::post('/distribution/geocode', [AdminDistributionController::class, 'geocode'])->name('distribution.geocode');
+});
+
+// Kaizen Concerns and the Priority List are also used by supervisors, so they
+// live in their own group instead of widening the admin role list for every
+// other module. The fine-grained checks (admin-only create/edit/delete, and
+// admin + supervisor for checklist and evidence) stay in the controllers.
+Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+    // Kaizen Concerns / Admin Concerns
+    Route::get('/kaizen-concerns', [KaizenConcernController::class, 'index'])->name('kaizen-concerns.index');
+    Route::get('/kaizen-concerns/create', [KaizenConcernController::class, 'create'])->name('kaizen-concerns.create');
+    Route::post('/kaizen-concerns', [KaizenConcernController::class, 'store'])->name('kaizen-concerns.store');
+    Route::get('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'show'])->name('kaizen-concerns.show');
+    Route::get('/kaizen-concerns/{concern}/edit', [KaizenConcernController::class, 'edit'])->name('kaizen-concerns.edit');
+    Route::put('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'update'])->name('kaizen-concerns.update');
+    Route::delete('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'destroy'])->name('kaizen-concerns.destroy');
+    Route::post('/kaizen-concerns/{concern}/checklist/toggle', [KaizenConcernController::class, 'toggleChecklistItem'])->name('kaizen-concerns.checklist.toggle');
+    Route::post('/kaizen-concerns/{concern}/checklist/add', [KaizenConcernController::class, 'addChecklistItem'])->name('kaizen-concerns.checklist.add');
+    Route::post('/kaizen-concerns/{concern}/checklist/update', [KaizenConcernController::class, 'updateChecklistItem'])->name('kaizen-concerns.checklist.update');
+    Route::post('/kaizen-concerns/{concern}/checklist/destroy', [KaizenConcernController::class, 'destroyChecklistItem'])->name('kaizen-concerns.checklist.destroy');
+    Route::post('/kaizen-concerns/{concern}/evidence', [KaizenConcernController::class, 'addEvidence'])->name('kaizen-concerns.evidence.add');
+    Route::get('/kaizen-concerns/{concern}/evidence/{evidence}', [KaizenConcernController::class, 'viewEvidence'])->name('kaizen-concerns.evidence.view')->middleware('signed');
+    Route::get('/kaizen-concerns/{concern}/evidence/{evidence}/download', [KaizenConcernController::class, 'downloadEvidence'])->name('kaizen-concerns.evidence.download')->middleware('signed');
+    Route::delete('/kaizen-concerns/{concern}/evidence/{evidence}', [KaizenConcernController::class, 'deleteEvidence'])->name('kaizen-concerns.evidence.delete');
+
+    // Priority List / To-Do List
+    Route::get('/priority-items', [PriorityItemController::class, 'index'])->name('priority-items.index');
+    Route::get('/priority-items/create', [PriorityItemController::class, 'create'])->name('priority-items.create');
+    Route::post('/priority-items', [PriorityItemController::class, 'store'])->name('priority-items.store');
+    Route::get('/priority-items/{item}', [PriorityItemController::class, 'show'])->name('priority-items.show');
+    Route::get('/priority-items/{item}/edit', [PriorityItemController::class, 'edit'])->name('priority-items.edit');
+    Route::put('/priority-items/{item}', [PriorityItemController::class, 'update'])->name('priority-items.update');
+    Route::delete('/priority-items/{item}', [PriorityItemController::class, 'destroy'])->name('priority-items.destroy');
+    Route::post('/priority-items/{item}/checklist/toggle', [PriorityItemController::class, 'toggleChecklistItem'])->name('priority-items.checklist.toggle');
+    Route::post('/priority-items/{item}/checklist/add', [PriorityItemController::class, 'addChecklistItem'])->name('priority-items.checklist.add');
+    Route::post('/priority-items/{item}/checklist/update', [PriorityItemController::class, 'updateChecklistItem'])->name('priority-items.checklist.update');
+    Route::post('/priority-items/{item}/checklist/destroy', [PriorityItemController::class, 'destroyChecklistItem'])->name('priority-items.checklist.destroy');
+    Route::post('/priority-items/{item}/evidence', [PriorityItemController::class, 'addEvidence'])->name('priority-items.evidence.add');
+    Route::get('/priority-items/{item}/evidence/{evidence}', [PriorityItemController::class, 'viewEvidence'])->name('priority-items.evidence.view')->middleware('signed');
+    Route::get('/priority-items/{item}/evidence/{evidence}/download', [PriorityItemController::class, 'downloadEvidence'])->name('priority-items.evidence.download')->middleware('signed');
+    Route::delete('/priority-items/{item}/evidence/{evidence}', [PriorityItemController::class, 'deleteEvidence'])->name('priority-items.evidence.delete');
 });
 
 // Impersonation exit must stay reachable while the admin is logged in as a

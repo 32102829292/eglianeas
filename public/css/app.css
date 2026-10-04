@@ -839,6 +839,25 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   justify-content: center;
   padding: 20px;
 }
+/* app.css is loaded after bootstrap.min.css, so the `.modal` rule above -
+   written for the custom `.modal` + `.modal-card` dialogs - also overrode
+   the Bootstrap `.modal { display: none }` default. Scoping the exemption
+   to `.fade` restores the Bootstrap contract: hidden and non-interactive
+   until Bootstrap adds `.show`, and back above `.modal-backdrop` (1050) once
+   it does. */
+.modal.fade {
+    display: none;
+    z-index: var(--bs-modal-zindex, 1055);
+}
+
+.modal.fade.show {
+    display: block;
+    pointer-events: auto;
+}
+
+.modal.fade:not(.show) {
+    pointer-events: none;
+}
 .modal-card {
   width: 100%;
   max-width: 420px;
@@ -3930,4 +3949,83 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   .lp-ann-deco { width: 64px; height: 64px; right: 16px; top: 20px; opacity: 0.7; }
   .lp-ann-bgblob--1 { width: 200px; height: 200px; }
   .lp-ann-bgblob--2 { width: 170px; height: 170px; }
+}
+
+/* Priority List / To-Do List — urgency and deadline indicators */
+.urgency-note {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, #6b7280);
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+.urgency-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 0 0 20px;
+  border-radius: 10px;
+  border-left: 4px solid var(--border, #e5e7eb);
+  background: var(--surface-2, #f8fafc);
+  font-size: 14px;
+}
+.urgency-banner-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted, #6b7280);
+}
+.urgency-banner.urgency-urgent { border-left-color: #dc2626; background: #fef2f2; }
+.urgency-banner.urgency-high { border-left-color: #ea580c; background: #fff7ed; }
+.urgency-banner.urgency-medium { border-left-color: #d97706; background: #fffbeb; }
+.urgency-banner.urgency-low { border-left-color: #2563eb; background: #eff6ff; }
+
+/* Priority List / To-Do List — checklist progress */
+.checklist-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.checklist-progress-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2, #eef2f7);
+  overflow: hidden;
+}
+.checklist-progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success, #16a34a);
+  transition: width 0.25s ease;
+}
+.checklist-progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+}
+
+/* Priority List / To-Do List — separate urgency indicator */
+.badge-urgent {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+.stat-grid.priority-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+  .stat-grid.priority-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .stat-grid.priority-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .stat-grid.priority-summary { grid-template-columns: 1fr; }
 }
