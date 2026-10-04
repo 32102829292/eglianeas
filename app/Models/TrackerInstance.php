@@ -88,12 +88,21 @@ class TrackerInstance extends Model
 
     public function completionPercent(): int
     {
-        $total = $this->assignments()->count();
+        /* Reuse the already-eager-loaded collection when there is one. Calling
+           $this->assignments()->count() twice per row issued two COUNT queries
+           for every rendered row and ignored the eager load entirely, which is
+           why the tracker list grew to ~36 queries per page. The write paths
+           (syncOverallStatus, toggling an assignment) still get a fresh read. */
+        $assignments = $this->relationLoaded('assignments')
+            ? $this->assignments
+            : $this->assignments()->get();
+
+        $total = $assignments->count();
         if ($total === 0) {
             return $this->isDone() ? 100 : 0;
         }
 
-        $done = $this->assignments()->where('completed', true)->count();
+        $done = $assignments->where('completed', true)->count();
 
         return (int) round(($done / $total) * 100);
     }

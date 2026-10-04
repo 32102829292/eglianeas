@@ -12,7 +12,7 @@ class EnsureClientSurveyCompleted
     {
         $user = $request->user();
 
-        if ($user && $user->isClient() && $user->monthlySurveyDue()) {
+        if ($user && $user->isClient() && $user->isAccountApproved() && $user->monthlySurveyDue()) {
             if (
                 $request->routeIs('client.survey.show', 'client.survey.store')
                 || $request->routeIs('logout')

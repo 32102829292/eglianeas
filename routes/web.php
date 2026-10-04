@@ -6,10 +6,11 @@ use App\Http\Controllers\Admin\AnnouncementController;
 use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
+use App\Http\Controllers\Admin\BirFormTypeController;
 use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
-use App\Http\Controllers\Admin\ConfidentialityController as AdminConfidentialityController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
+use App\Http\Controllers\Admin\ConfidentialityController as AdminConfidentialityController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
 use App\Http\Controllers\Admin\ImpersonateController;
@@ -20,9 +21,11 @@ use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\WeeklyBookkeepingController as AdminWeeklyBookkeepingController;
 use App\Http\Controllers\Auth\SecurityController;
 use App\Http\Controllers\Auth\WebauthnController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\Client\ApprovalController as ClientApprovalController;
 use App\Http\Controllers\Client\BillingController as ClientBillingController;
 use App\Http\Controllers\Client\CollectionController as ClientCollectionController;
 use App\Http\Controllers\Client\DashboardController as ClientDashboardController;
@@ -32,6 +35,7 @@ use App\Http\Controllers\Client\OtherServiceController as ClientOtherServiceCont
 use App\Http\Controllers\Client\ProfileController as ClientProfileController;
 use App\Http\Controllers\Client\ServiceTrackerController as ClientServiceTrackerController;
 use App\Http\Controllers\Client\SurveyController as ClientSurveyController;
+use App\Http\Controllers\DailyJournalController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\NotificationController;
@@ -86,9 +90,11 @@ Route::get('/announcements/{announcement}/image', function (Announcement $announ
     return redirect($temporaryUrl)->header('Cache-Control', 'public, max-age=86400');
 })->name('announcements.image');
 
-Route::middleware(['auth', 'client.survey'])->group(function () {
+Route::middleware(['auth', 'client.approved', 'client.survey'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
+});
 
+Route::middleware(['auth', 'client.survey'])->group(function () {
     Route::get('/security', [SecurityController::class, 'index'])->name('security.index');
     Route::post('/security/pin', [SecurityController::class, 'setPin'])->name('security.pin');
 
@@ -152,11 +158,16 @@ Route::middleware(['auth', 'client.survey'])->group(function () {
     })->name('documents.file');
 });
 
-Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
-    Route::middleware('role:admin,supervisor')->group(function () {
-        Route::get('/confidentiality/policy', [AdminConfidentialityController::class, 'policy'])->name('confidentiality.policy');
-    });
+Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/users/{user}/photo', [UserController::class, 'photo'])
+        ->name('users.photo');
+});
 
+// Each authenticated user may review only their own signature image.
+Route::middleware('auth')->get('/confidentiality/signatures/{signature}/image', [AdminConfidentialityController::class, 'signatureImage'])
+    ->name('confidentiality.signature.image');
+
+Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', AdminDashboardController::class)->name('dashboard');
 
     Route::get('/surveys', [AdminSurveyController::class, 'index'])->name('surveys.index');
@@ -176,14 +187,21 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::post('/about/certificate', [AboutController::class, 'uploadCertificate'])->name('about.certificate.upload');
     Route::delete('/about/certificate/{certificate}', [AboutController::class, 'destroyCertificate'])->name('about.certificate.destroy');
 
+    Route::middleware('role:admin,supervisor')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
+        Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
     Route::middleware('role:admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
-    });
 
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('/users', [UserController::class, 'store'])->name('users.store');
-    Route::middleware('role:admin')->group(function () {
-        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        Route::get('/confidentiality/policy', [AdminConfidentialityController::class, 'policy'])->name('confidentiality.policy');
+
+        Route::get('/clients/pending', [AdminClientController::class, 'pending'])->name('clients.pending');
+        Route::post('/clients/{client}/approve', [AdminClientController::class, 'approve'])->name('clients.approve');
+        Route::post('/clients/{client}/reject', [AdminClientController::class, 'reject'])->name('clients.reject');
     });
 
     Route::get('/billings', [AdminBillingController::class, 'index'])->name('billing.index');
@@ -213,18 +231,27 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::delete('/billings/{billing}', [AdminBillingController::class, 'destroy'])->name('billing.destroy');
 
     Route::get('/clients', [AdminClientController::class, 'index'])->name('clients.index');
-    Route::get('/clients/create', [AdminClientController::class, 'create'])->name('clients.create');
-    Route::post('/clients', [AdminClientController::class, 'store'])->name('clients.store');
     Route::get('/clients/export/xlsx', [AdminClientController::class, 'exportXlsx'])->name('clients.exportXlsx');
     Route::get('/clients/export/pdf', [AdminClientController::class, 'exportPdf'])->name('clients.exportPdf');
-    Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');
-    Route::put('/clients/{client}', [AdminClientController::class, 'update'])->name('clients.update');
-    Route::delete('/clients/{client}', [AdminClientController::class, 'destroy'])->name('clients.destroy');
-    Route::post('/clients/{client}/info-entries', [AdminClientController::class, 'storeInfoEntry'])->name('clients.storeInfoEntry');
-    Route::put('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'updateInfoEntry'])->name('clients.updateInfoEntry');
-    Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
+    Route::get('/clients/{client}/requirements/{document}', [AdminClientController::class, 'requirementDocument'])
+        ->middleware('signed')
+        ->name('clients.requirements.show');
+
+    Route::middleware('role:admin,staff')->group(function () {
+        Route::get('/clients/create', [AdminClientController::class, 'create'])->name('clients.create');
+        Route::post('/clients', [AdminClientController::class, 'store'])->name('clients.store');
+        Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');
+        Route::put('/clients/{client}', [AdminClientController::class, 'update'])->name('clients.update');
+        Route::post('/clients/{client}/companies', [AdminClientController::class, 'storeCompany'])->name('clients.companies.store');
+        Route::put('/clients/{client}/companies/{company}', [AdminClientController::class, 'updateCompany'])->name('clients.companies.update');
+        Route::delete('/clients/{client}', [AdminClientController::class, 'destroy'])->name('clients.destroy');
+        Route::post('/clients/{client}/info-entries', [AdminClientController::class, 'storeInfoEntry'])->name('clients.storeInfoEntry');
+        Route::put('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'updateInfoEntry'])->name('clients.updateInfoEntry');
+        Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
+        Route::post('/clients/{client}/impersonate', [ImpersonateController::class, 'start'])->name('clients.impersonate');
+    });
+
     Route::get('/clients/{client}', [AdminClientController::class, 'show'])->name('clients.show');
-    Route::post('/clients/{client}/impersonate', [ImpersonateController::class, 'start'])->name('clients.impersonate');
 
     Route::get('/collections', [AdminCollectionController::class, 'index'])->name('collections.index');
     Route::post('/collections/{billing}/remind', [AdminCollectionController::class, 'remind'])->name('collections.remind');
@@ -259,6 +286,24 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::post('/service-tracker/concerns/{concern}/review', [AdminServiceTrackerController::class, 'markReviewed'])->name('service-tracker.concerns.review');
     Route::get('/service-tracker/clients-json', [AdminServiceTrackerController::class, 'clientsJson'])->name('service-tracker.clientsJson');
 
+    Route::get('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'index'])->name('weekly-bookkeeping.index');
+    Route::get('/weekly-bookkeeping/create', [AdminWeeklyBookkeepingController::class, 'create'])->name('weekly-bookkeeping.create');
+    Route::get('/weekly-bookkeeping-report', [AdminWeeklyBookkeepingController::class, 'report'])->name('weekly-bookkeeping.report');
+    Route::post('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'store'])->name('weekly-bookkeeping.store');
+    Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
+    Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/owner', [AdminWeeklyBookkeepingController::class, 'updateOwner'])->name('weekly-bookkeeping.update-owner');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/start', [AdminWeeklyBookkeepingController::class, 'startTarget'])->name('weekly-bookkeeping.start-target');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/complete', [AdminWeeklyBookkeepingController::class, 'completeTarget'])->name('weekly-bookkeeping.complete-target');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/reassign', [AdminWeeklyBookkeepingController::class, 'reassignTarget'])->name('weekly-bookkeeping.reassign-target');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/upload', [AdminWeeklyBookkeepingController::class, 'uploadAttachment'])->name('weekly-bookkeeping.upload-attachment');
+    Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/replace-attachment', [AdminWeeklyBookkeepingController::class, 'replaceAttachment'])->name('weekly-bookkeeping.replace-attachment');
+    Route::get('/weekly-bookkeeping/{bookkeeping}/target/{target}/view', [AdminWeeklyBookkeepingController::class, 'viewAttachment'])->name('weekly-bookkeeping.view-attachment');
+    Route::get('/weekly-bookkeeping/{bookkeeping}/target/{target}/download', [AdminWeeklyBookkeepingController::class, 'downloadAttachment'])->name('weekly-bookkeeping.download-attachment');
+    Route::patch('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'updateTarget'])->name('weekly-bookkeeping.update-target');
+    Route::delete('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'destroyTarget'])->name('weekly-bookkeeping.destroy-target');
+    Route::delete('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'destroy'])->name('weekly-bookkeeping.destroy');
+
     Route::get('/bir-forms', [AdminBirFormsController::class, 'index'])->name('bir-forms.index');
 
     Route::post('/bir-forms/{client}/toggle', [AdminBirFormsController::class, 'toggleApplicable'])->name('bir-forms.toggle');
@@ -266,6 +311,9 @@ Route::middleware(['auth', 'role:admin,staff', 'admin.confidentiality'])->prefix
     Route::get('/bir-forms/export/xlsx', [AdminBirFormsController::class, 'exportXlsx'])->name('bir-forms.exportXlsx');
 
     Route::get('/bir-forms/export/pdf', [AdminBirFormsController::class, 'exportPdf'])->name('bir-forms.exportPdf');
+
+    // BIR Form Types (master list management)
+    Route::post('/bir-form-types', [BirFormTypeController::class, 'store'])->name('bir-form-types.store');
 
     Route::get('/distribution', [AdminDistributionController::class, 'index'])->name('distribution.index');
     Route::get('/distribution/{client}', [AdminDistributionController::class, 'show'])->name('distribution.show');
@@ -330,22 +378,40 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::delete('/priority-items/{item}/evidence/{evidence}', [PriorityItemController::class, 'deleteEvidence'])->name('priority-items.evidence.delete');
 });
 
+// Daily Accomplishment Journal routes - Employee facing (no admin prefix)
+Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
+    Route::get('/daily-journal', [DailyJournalController::class, 'create'])->name('daily-journal.create');
+    Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
+    Route::get('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'show'])->name('daily-journal.show');
+});
+
+// Admin monitoring routes
+Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/daily-journal-monitor', [DailyJournalController::class, 'adminMonitor'])->name('daily-journal.admin-monitor');
+    Route::delete('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
+});
+
+// Supervisor monitoring routes
+Route::middleware(['auth', 'role:supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/daily-journal-supervisor', [DailyJournalController::class, 'supervisorMonitor'])->name('daily-journal.supervisor-monitor');
+});
+
 // Impersonation exit must stay reachable while the admin is logged in as a
 // client (role:client) — otherwise the "Exit" button would 403 and lock the
 // admin in the impersonation session. The controller itself validates the
 // original admin session before switching back.
 Route::middleware('auth')->post('/admin/impersonate/stop', [ImpersonateController::class, 'stop'])->name('admin.impersonate.stop');
 
-// Each authenticated user may review only their own signature image.
-Route::middleware('auth')->get('/confidentiality/signatures/{signature}/image', [AdminConfidentialityController::class, 'signatureImage'])
-    ->name('confidentiality.signature.image');
-
 Route::middleware(['auth', 'role:client'])->prefix('client')->name('client.')->group(function () {
+    Route::get('/pending-approval', [ClientApprovalController::class, 'status'])->name('pending-approval');
+});
+
+Route::middleware(['auth', 'role:client', 'client.approved'])->prefix('client')->name('client.')->group(function () {
     Route::get('/survey', [ClientSurveyController::class, 'show'])->name('survey.show');
     Route::post('/survey', [ClientSurveyController::class, 'store'])->name('survey.store');
 });
 
-Route::middleware(['auth', 'role:client', 'client.survey', 'client.confidentiality'])->prefix('client')->name('client.')->group(function () {
+Route::middleware(['auth', 'role:client', 'client.approved', 'client.survey', 'client.confidentiality'])->prefix('client')->name('client.')->group(function () {
     Route::get('/dashboard', ClientDashboardController::class)->name('dashboard');
 
     Route::get('/profile', [ClientProfileController::class, 'edit'])->name('profile.edit');

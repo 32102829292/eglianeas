@@ -13,6 +13,7 @@ class ActivityLog extends Model
     protected $fillable = [
         'user_id',
         'tracker_instance_id',
+        'weekly_bookkeeping_id',
         'action',
         'description',
         'ip_address',
@@ -29,11 +30,17 @@ class ActivityLog extends Model
         return $this->belongsTo(TrackerInstance::class, 'tracker_instance_id');
     }
 
-    public static function record(?User $user, string $action, ?string $description = null, ?TrackerInstance $instance = null): void
+    public function weeklyBookkeeping(): BelongsTo
+    {
+        return $this->belongsTo(WeeklyBookkeeping::class, 'weekly_bookkeeping_id');
+    }
+
+    public static function record(?User $user, string $action, ?string $description = null, ?TrackerInstance $instance = null, ?WeeklyBookkeeping $bookkeeping = null): void
     {
         static::create([
             'user_id' => $user?->id,
             'tracker_instance_id' => $instance?->id,
+            'weekly_bookkeeping_id' => $bookkeeping?->id,
             'action' => $action,
             'description' => $description,
             'ip_address' => request()->ip(),

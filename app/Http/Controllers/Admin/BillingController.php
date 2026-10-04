@@ -7,12 +7,14 @@ use App\Mail\BillingStatementMail;
 use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
+use App\Models\ClientCompany;
 use App\Models\BirFormStatus;
 use App\Models\FeeRate;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use App\Support\BillingSummaryMatrix;
 use App\Support\Quarter;
 use App\Support\SupportedBanks;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -23,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -46,6 +49,8 @@ class BillingController extends Controller
     {
         $q = trim((string) $request->get('q'));
         $activeQuarter = Quarter::fromKey((string) $request->get('quarter'));
+        $amountOrder = $request->get('amount_order');
+        $amountOrder = in_array($amountOrder, ['asc', 'desc'], true) ? $amountOrder : null;
 
         // Native GET forms serialize every non-disabled control, so an empty
         // search field produces "?q=" even when nothing was searched. The
@@ -73,6 +78,13 @@ class BillingController extends Controller
 
         $priority .= ')';
 
+        $amountTotal = '(SELECT COALESCE(SUM(b_amount.total), 0) FROM billings b_amount WHERE b_amount.client_id = users.id'
+            ." AND b_amount.status IN ('".Billing::STATUS_PENDING."', '".Billing::STATUS_UNPAID."', '".Billing::STATUS_OVERDUE."', '".Billing::STATUS_PAID."')";
+        if ($activeQuarter) {
+            $amountTotal .= ' AND b_amount.year = '.$activeQuarter->year.' AND b_amount.quarter = '.$activeQuarter->quarter;
+        }
+        $amountTotal .= ')';
+
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with(['profile', 'billings' => function ($query) use ($activeQuarter) {
@@ -84,6 +96,9 @@ class BillingController extends Controller
             ->withCount(['birFormStatuses as applicable_forms_count' => function ($query) {
                 $query->where('applicable', true);
             }])
+            // Loads each client's BIR form codes, statuses and names for the
+            // summary column. Display only: no filtering, totals or writes.
+            ->with('birFormStatuses.formType')
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
                     $query->where('name', 'like', "%{$q}%")
@@ -97,7 +112,7 @@ class BillingController extends Controller
                         ->where('quarter', $activeQuarter->quarter);
                 });
             })
-            ->orderByRaw("{$priority} DESC NULLS LAST")
+            ->when($amountOrder, fn ($query, $direction) => $query->orderByRaw("{$amountTotal} {$direction} NULLS LAST"), fn ($query) => $query->orderByRaw("{$priority} DESC NULLS LAST"))
             ->orderByRaw("COALESCE(NULLIF(business_name, ''), name) asc")
             ->paginate(50)
             ->withQueryString()
@@ -118,6 +133,7 @@ class BillingController extends Controller
             'entries' => $clients,
             'q' => $q,
             'activeQuarter' => $activeQuarter,
+            'amountOrder' => $amountOrder,
             'availableQuarters' => Billing::filterQuarters(),
             'stats' => $this->summaryStats($activeQuarter),
             'downloadYears' => $downloadYears,
@@ -216,12 +232,20 @@ class BillingController extends Controller
         return redirect()->route('admin.billing.index', $params ?: null);
     }
 
-    public function show(User $client): View
+    public function show(Request $request, User $client): View
     {
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
+        // The branch schema is deliberately deployed in a later migration.
+        // Keep the existing parent-client statement available until then; once
+        // the table exists, this uses the real company/branch records only.
+        $companies = Schema::hasTable('client_companies') ? $client->companies()->get() : collect();
+        $selectedCompany = $companies->firstWhere('id', $request->integer('client_company_id'))
+            ?? $companies->first();
+
         $billings = $client->billings()
             ->with(['creator', 'lineItems'])
+            ->when($selectedCompany, fn ($query) => $query->where('client_company_id', $selectedCompany->id))
             ->orderByDesc('year')
             ->orderByDesc('quarter')
             ->orderByDesc('id')
@@ -231,12 +255,14 @@ class BillingController extends Controller
 
         return view('admin.billing.show', [
             'client' => $client,
+            'companies' => $companies,
+            'selectedCompany' => $selectedCompany,
             'billingsByYear' => $billings,
             'stats' => [
-                'billed' => $client->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
-                'paid' => $client->billings()->where('status', Billing::STATUS_PAID)->sum('total'),
-                'outstanding' => $client->billings()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
-                'count' => $client->billings()->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
+                'billed' => $client->billings()->when($selectedCompany, fn ($query) => $query->where('client_company_id', $selectedCompany->id))->whereIn('status', Billing::ACTIVE_STATUSES)->sum('total'),
+                'paid' => $client->billings()->when($selectedCompany, fn ($query) => $query->where('client_company_id', $selectedCompany->id))->where('status', Billing::STATUS_PAID)->sum('total'),
+                'outstanding' => $client->billings()->when($selectedCompany, fn ($query) => $query->where('client_company_id', $selectedCompany->id))->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
+                'count' => $client->billings()->when($selectedCompany, fn ($query) => $query->where('client_company_id', $selectedCompany->id))->whereIn('status', Billing::ACTIVE_STATUSES)->count(),
             ],
         ]);
     }
@@ -330,6 +356,7 @@ class BillingController extends Controller
     {
         // Pre-select a client when arriving from that client's billing page.
         $selectedClientId = null;
+        $selectedCompanyId = null;
         $requestedClient = $request->query('client') ?: $request->query('client_id');
         if ($requestedClient) {
             $selectedClientId = (int) $requestedClient;
@@ -343,6 +370,10 @@ class BillingController extends Controller
         // (Q1 if none, otherwise the first unbilled quarter in sequence).
         $defaultQuarter = null;
         if ($selectedClientId) {
+            $requestedCompanyId = (int) $request->query('client_company_id');
+            if ($requestedCompanyId && ClientCompany::whereKey($requestedCompanyId)->where('client_id', $selectedClientId)->exists()) {
+                $selectedCompanyId = $requestedCompanyId;
+            }
             $year = (int) now()->format('Y');
             $quarter = Billing::nextQuarterFor($selectedClientId, $year);
             if ($quarter > 0) {
@@ -351,10 +382,11 @@ class BillingController extends Controller
         }
 
         return view('admin.billing.create', [
-            'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
+            'clients' => User::query()->where('role', User::ROLE_CLIENT)->with('companies')->orderBy('name')->get(),
             'feeRates' => FeeRate::active()->ordered()->get(),
             'billing' => new Billing,
             'selectedClientId' => $selectedClientId,
+            'selectedCompanyId' => $selectedCompanyId,
             'defaultQuarter' => $defaultQuarter,
         ]);
     }
@@ -371,6 +403,7 @@ class BillingController extends Controller
 
         if ($quarter !== null && $year !== null) {
             $duplicate = Billing::where('client_id', $data['client_id'])
+                ->when($data['client_company_id'] ?? null, fn ($query, $companyId) => $query->where('client_company_id', $companyId))
                 ->where('quarter', $quarter)
                 ->where('year', $year)
                 ->exists();
@@ -387,6 +420,7 @@ class BillingController extends Controller
         // Feasibility gate: a statement can only be created once the client has
         // at least one applicable BIR form selected on the BIR Forms page.
         $applicableForms = BirFormStatus::where('client_id', $data['client_id'])
+            ->when($data['client_company_id'] ?? null, fn ($query, $companyId) => $query->where('client_company_id', $companyId))
             ->where('applicable', true)
             ->count();
 
@@ -443,7 +477,7 @@ class BillingController extends Controller
         $billing->load('lineItems');
 
         return view('admin.billing.edit', [
-            'clients' => User::query()->where('role', User::ROLE_CLIENT)->orderBy('name')->get(),
+            'clients' => User::query()->where('role', User::ROLE_CLIENT)->with('companies')->orderBy('name')->get(),
             'feeRates' => FeeRate::active()->ordered()->get(),
             'billing' => $billing,
             'statuses' => Billing::STATUSES,
@@ -610,9 +644,12 @@ class BillingController extends Controller
 
     public function applicableForms(Request $request): JsonResponse
     {
-        $request->validate(['client_id' => 'required|exists:users,id']);
+        $request->validate(['client_id' => 'required|exists:users,id', 'client_company_id' => 'nullable|exists:client_companies,id']);
+
+        $this->assertCompanyBelongsToClient($request->integer('client_company_id'), $request->integer('client_id'));
 
         $forms = BirFormStatus::where('client_id', $request->client_id)
+            ->when($request->client_company_id, fn ($query, $companyId) => $query->where('client_company_id', $companyId))
             ->where('applicable', true)
             ->pluck('form_type')
             ->values();
@@ -622,10 +659,13 @@ class BillingController extends Controller
 
     public function lastBilling(Request $request): JsonResponse
     {
-        $request->validate(['client_id' => 'required|exists:users,id']);
+        $request->validate(['client_id' => 'required|exists:users,id', 'client_company_id' => 'nullable|exists:client_companies,id']);
+
+        $this->assertCompanyBelongsToClient($request->integer('client_company_id'), $request->integer('client_id'));
 
         $lastBilling = Billing::with('lineItems')
             ->where('client_id', $request->client_id)
+            ->when($request->client_company_id, fn ($query, $companyId) => $query->where('client_company_id', $companyId))
             ->orderByDesc('year')
             ->orderByDesc('quarter')
             ->orderByDesc('id')
@@ -654,6 +694,7 @@ class BillingController extends Controller
     {
         $rules = [
             'client_id' => ['required', 'exists:users,id'],
+            'client_company_id' => ['nullable', 'exists:client_companies,id'],
             'quarter' => ['nullable', 'integer', 'between:1,4'],
             'year' => ['nullable', 'integer', 'between:2000,2100'],
             'period_label' => ['nullable', 'string', 'max:80'],
@@ -679,6 +720,8 @@ class BillingController extends Controller
             'cash_in' => 'cash-in amount',
         ]);
 
+        $this->assertCompanyBelongsToClient($validated['client_company_id'] ?? null, (int) $validated['client_id']);
+
         $quarter = (int) ($validated['quarter'] ?? 0);
         $year = (int) ($validated['year'] ?? (int) now()->format('Y'));
 
@@ -694,6 +737,13 @@ class BillingController extends Controller
         }
 
         return $validated;
+    }
+
+    private function assertCompanyBelongsToClient(?int $companyId, int $clientId): void
+    {
+        if ($companyId && ! ClientCompany::whereKey($companyId)->where('client_id', $clientId)->exists()) {
+            abort(422, 'The selected company does not belong to this client.');
+        }
     }
 
     private function resolvedDueDate(Billing $billing, ?string $dueDate): ?string
@@ -1130,120 +1180,217 @@ class BillingController extends Controller
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
         ];
 
-        return response()->stream(function () use ($billings) {
+        return response()->stream(function () use ($billings, $quarter, $year) {
             $spreadsheet = new Spreadsheet;
             $sheet = $spreadsheet->getActiveSheet();
 
-            // Build dynamic columns from applicable forms
-            $allFormTypes = $billings->flatMap(fn (Billing $b) => $b->lineItems->pluck('form_type')->filter())->unique()->values()->toArray();
-            sort($allFormTypes);
-
-            $colHeaders = ['Client'];
-            $colWidths = [24];
-
-            // BIR Remittances columns
-            foreach ($allFormTypes as $ft) {
-                $colHeaders[] = "{$ft} (BIR)";
-                $colWidths[] = 14;
-            }
-            $colHeaders[] = 'Cash In';
-            $colWidths[] = 14;
-
-            // Professional Fee columns
-            foreach ($allFormTypes as $ft) {
-                $colHeaders[] = "Fee — {$ft}";
-                $colWidths[] = 14;
-            }
-
-            // Bookkeeping
-            $colHeaders[] = 'Bookkeeping Fee';
-            $colWidths[] = 14;
-
-            // Post-Closing TB
-            $colHeaders[] = 'Post-Closing TB';
-            $colWidths[] = 16;
-
-            // Inventory List
-            $colHeaders[] = 'Inventory List';
-            $colWidths[] = 16;
-
-            // Other Attachment
-            $colHeaders[] = 'Other Attachment';
-            $colWidths[] = 16;
-
-            // Data Entry
-            $colHeaders[] = 'Data Entry';
-            $colWidths[] = 14;
-
-            $colHeaders[] = 'Total';
-            $colWidths[] = 14;
-
-            foreach ($colHeaders as $col => $header) {
-                $colLetter = Coordinate::stringFromColumnIndex($col + 1);
-                $sheet->getCell("{$colLetter}1")->setValue($header);
-            }
-
-            $row = 2;
-            foreach ($billings as $billing) {
-                $client = $billing->client;
-                $lineItems = $billing->lineItems;
-                $values = [$client?->business_name ?: $client?->name ?? ''];
-
-                // BIR Remittances (sum across filing months within the period)
-                foreach ($allFormTypes as $ft) {
-                    $values[] = (float) $lineItems
-                        ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
-                        ->where('form_type', $ft)->sum('amount');
-                }
-
-                // Cash In
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_BIR_REMITTANCE)
-                    ->whereNull('form_type')->sum('amount');
-
-                // Professional Fees (sum across filing months within the period)
-                foreach ($allFormTypes as $ft) {
-                    $values[] = (float) $lineItems
-                        ->where('category', BillingLineItem::CATEGORY_PROFESSIONAL_FEE)
-                        ->where('form_type', $ft)->sum('amount');
-                }
-
-                // Bookkeeping
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_BOOKKEEPING_FEE)->sum('amount');
-
-                // Post-Closing TB
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_POST_CLOSING_TB)->sum('amount');
-
-                // Inventory List
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_INVENTORY_LIST)->sum('amount');
-
-                // Other Attachment
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_OTHER_ATTACHMENT)->sum('amount');
-
-                // Data Entry
-                $values[] = (float) $lineItems
-                    ->where('category', BillingLineItem::CATEGORY_DATA_ENTRY)->sum('amount');
-
-                // Total
-                $values[] = (float) $billing->total;
-
-                foreach ($values as $col => $value) {
-                    $colLetter = Coordinate::stringFromColumnIndex($col + 1);
-                    $sheet->getCell("{$colLetter}{$row}")->setValue($value);
-                }
-                $row++;
-            }
-
-            $this->polishSummarySheet($sheet, $colHeaders, $row - 1);
+            // Grouped layout is driven by the shared matrix so the workbook
+            // mirrors the approved summary design and cannot drift from the PDF.
+            $this->writeSummaryWorkbook($sheet, $this->summaryMatrix($quarter, $year));
 
             $writer = IOFactory::createWriter($spreadsheet, 'Xlsx');
             $writer->setIncludeCharts(false);
             $writer->save('php://output');
         }, 200, $headers);
+    }
+
+    /**
+     * Writes the grouped Billing Summary workbook:
+     *
+     *   row 1  CLIENT | FOR REMITTANCE (merged) | FOR FEE (merged) | TOTAL | GRAND TOTAL
+     *   row 2  the individual BIR, Cash In, fee, subtotal and total columns
+     *   rows 3+ one row per statement
+     *   last   GRAND TOTAL row of column sums
+     *
+     * All column order, grouping and arithmetic come from BillingSummaryMatrix.
+     */
+    private function writeSummaryWorkbook($sheet, BillingSummaryMatrix $matrix): void
+    {
+        $navy = '111827';
+        $remit = '1E4E8C';
+        $fee = '0F766E';
+        $remitWash = 'EAF1FB';
+        $feeWash = 'E7F3F2';
+        $grandWash = 'F1F3F7';
+        $border = 'D8DEE7';
+
+        $columns = $matrix->columns();
+        $spans = $matrix->groupSpans();
+        $rows = $matrix->rows();
+        $totals = $matrix->columnTotals();
+
+        $dataStart = 3;
+        $dataEnd = $dataStart + count($rows) - 1;
+        $totalRow = $dataEnd + 1;
+        $lastCol = count($columns);
+
+        // --- Row 1: group header -------------------------------------------
+        $letter = fn (int $i): string => Coordinate::stringFromColumnIndex($i);
+
+        $sheet->setCellValue('A1', 'Client');
+        $sheet->mergeCells('A1:A2');
+
+        $remitStart = 2;
+        $remitEnd = $remitStart + $spans['remittance'] - 1;
+        $sheet->setCellValue($letter($remitStart).'1', 'For Remittance');
+        $sheet->mergeCells($letter($remitStart).'1:'.$letter($remitEnd).'1');
+
+        $feeStart = $remitEnd + 1;
+        $feeEnd = $feeStart + $spans['fee'] - 1;
+        $sheet->setCellValue($letter($feeStart).'1', 'For Fee');
+        $sheet->mergeCells($letter($feeStart).'1:'.$letter($feeEnd).'1');
+
+        foreach (['total' => $lastCol - 1, 'grand_total' => $lastCol] as $key => $index) {
+            $sheet->setCellValue($letter($index).'1', $columns[$index - 1]['label']);
+            $sheet->mergeCells($letter($index).'1:'.$letter($index).'2');
+        }
+
+        // --- Row 2: individual column headers -------------------------------
+        foreach ($columns as $i => $column) {
+            if ($column['key'] === 'client') {
+                continue;
+            }
+
+            $sheet->setCellValue($letter($i + 1).'2', $column['label']);
+        }
+
+        // --- Data rows ------------------------------------------------------
+        foreach ($rows as $r => $row) {
+            $rowNumber = $dataStart + $r;
+
+            $sheet->setCellValue('A'.$rowNumber, $row['client'] !== '' ? $row['client'] : 'Client removed');
+
+            foreach ($columns as $i => $column) {
+                if ($column['key'] === 'client') {
+                    continue;
+                }
+
+                $sheet->setCellValue(
+                    $letter($i + 1).$rowNumber,
+                    (float) ($row[$column['key']] ?? 0)
+                );
+            }
+        }
+
+        // --- Final GRAND TOTAL row -----------------------------------------
+        $sheet->setCellValue('A'.$totalRow, 'GRAND TOTAL');
+
+        foreach ($columns as $i => $column) {
+            if ($column['key'] === 'client') {
+                continue;
+            }
+
+            $sheet->setCellValue(
+                $letter($i + 1).$totalRow,
+                (float) ($totals[$column['key']] ?? 0)
+            );
+        }
+
+        // --- Header styling -------------------------------------------------
+        $headerRange = 'A1:'.$letter($lastCol).'2';
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setRGB('FFFFFF');
+        $sheet->getStyle($headerRange)->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER)
+            ->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER)
+            ->setWrapText(true);
+
+        $sheet->getStyle('A1:'.$letter($lastCol).'1')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($navy);
+
+        $sheet->getStyle($letter($remitStart).'1:'.$letter($remitEnd).'2')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($remit);
+
+        $sheet->getStyle($letter($feeStart).'1:'.$letter($feeEnd).'2')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($fee);
+
+        $sheet->getStyle('A1:A2')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($navy);
+
+        foreach ([$lastCol - 1, $lastCol] as $index) {
+            $sheet->getStyle($letter($index).'1:'.$letter($index).'2')->getFill()
+                ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                ->getStartColor()->setRGB($navy);
+        }
+
+        $sheet->getStyle('A1:A2')->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT);
+
+        // --- Column widths ---------------------------------------------------
+        $sheet->getColumnDimension('A')->setWidth(26);
+
+        foreach ($columns as $i => $column) {
+            if ($column['key'] === 'client') {
+                continue;
+            }
+
+            $columnLetter = $letter($i + 1);
+            $sheet->getColumnDimension($columnLetter)->setWidth($column['subtotal'] ? 15 : 13);
+        }
+
+        if (! $rows) {
+            $sheet->setCellValue('A3', 'No billing statements found for this period.');
+            $sheet->getStyle('A3:'.$letter($lastCol).'3')->getAlignment()
+                ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        }
+
+        // --- Number formats and body styling ---------------------------------
+        $bodyRange = $letter(2).$dataStart.':'.$letter($lastCol).$totalRow;
+        $sheet->getStyle($bodyRange)->getNumberFormat()->setFormatCode('#,##0.00');
+        $sheet->getStyle($bodyRange)->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_RIGHT);
+
+        $allBorders = $sheet->getStyle('A1:'.$letter($lastCol).$totalRow)->getBorders();
+        $allBorders->getOutline()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN)
+            ->getColor()->setRGB($border);
+        $allBorders->getInside()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_HAIR)
+            ->getColor()->setRGB($border);
+
+        $sheet->getStyle('A'.$dataStart.':A'.$totalRow)->getAlignment()
+            ->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT)
+            ->setWrapText(true);
+
+        $this->tintSummaryColumn($sheet, $letter($remitEnd), $dataStart, $totalRow, $remitWash);
+        $this->tintSummaryColumn($sheet, $letter($feeEnd), $dataStart, $totalRow, $feeWash);
+        $this->tintSummaryColumn($sheet, $letter($lastCol), $dataStart, $totalRow, $grandWash);
+
+        // --- Final total row -------------------------------------------------
+        $sheet->getStyle('A'.$totalRow.':'.$letter($lastCol).$totalRow)->getFont()->setBold(true);
+
+        $totalColors = [
+            $remitEnd => $remit,
+            $feeEnd => $fee,
+            $lastCol => $navy,
+            $lastCol - 1 => $navy,
+        ];
+
+        foreach ($totalColors as $index => $color) {
+            $sheet->getStyle($letter($index).$totalRow)->getFont()->getColor()->setRGB($color);
+        }
+
+        $sheet->getStyle('A'.$totalRow.':'.$letter($lastCol).$totalRow)->getBorders()
+            ->getTop()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_MEDIUM)
+            ->getColor()->setRGB($navy);
+
+        $sheet->getRowDimension(1)->setRowHeight(20);
+        $sheet->getRowDimension(2)->setRowHeight(30);
+
+        // Lock both header rows and the client column.
+        $sheet->freezePane('B3');
+    }
+
+    /**
+     * Applies the soft category wash to one money column, leaving the value
+     * readable while still separating remittance, fee and grand-total bands.
+     */
+    private function tintSummaryColumn($sheet, string $letter, int $dataStart, int $totalRow, string $color): void
+    {
+        $sheet->getStyle($letter.$dataStart.':'.$letter.$totalRow)->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setRGB($color);
     }
 
     /**
@@ -1318,6 +1465,7 @@ class BillingController extends Controller
             'billings' => $billings,
             'periodLabel' => $periodLabel,
             'allFormTypes' => $allFormTypes,
+            'matrix' => $this->summaryMatrix($quarter, $year),
         ])->setPaper('a4', 'landscape');
 
         $filename = 'Egliane-Billing-Summary-'.Str::slug($periodLabel).'-'.now()->format('Y-m-d').'.pdf';
@@ -1328,17 +1476,26 @@ class BillingController extends Controller
     public function printBatch(Request $request): Response
     {
         $validated = $request->validate([
-            'ids' => ['required', 'array', 'min:1', 'max:60'],
+            'ids' => ['nullable', 'array', 'min:1', 'max:60'],
             'ids.*' => ['integer'],
             'paper' => ['nullable', 'string', 'in:a4,letter'],
+            'quarter' => ['nullable', 'integer', 'between:1,4'],
+            'year' => ['nullable', 'integer'],
         ]);
 
         $paperSize = strtolower($validated['paper'] ?? 'a4');
 
-        $billings = collect($validated['ids'])
-            ->map(fn ($id) => Billing::with(['client.profile', 'lineItems'])->find($id))
-            ->filter()
-            ->values();
+        if (! empty($validated['ids'])) {
+            $billings = collect($validated['ids'])
+                ->map(fn ($id) => Billing::with(['client.profile', 'lineItems'])->find($id))
+                ->filter()
+                ->values();
+        } else {
+            $billings = $this->getFilteredBillings(
+                $validated['quarter'] ?? null,
+                (int) ($validated['year'] ?? now()->year)
+            )->take(60);
+        }
 
         if ($billings->isEmpty()) {
             abort(404, 'No billing statements found.');
@@ -1449,6 +1606,16 @@ class BillingController extends Controller
         }
 
         return $msg;
+    }
+
+    /**
+     * Grouped Billing Summary matrix for a period. The matrix only arranges
+     * existing line items into the workbook's row/column layout; it performs no
+     * database writes and does not change how any amount is derived.
+     */
+    private function summaryMatrix(?int $quarter, int $year): BillingSummaryMatrix
+    {
+        return BillingSummaryMatrix::make($this->getFilteredBillings($quarter, $year));
     }
 
     private function getFilteredBillings(?int $quarter, int $year): Collection

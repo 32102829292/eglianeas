@@ -839,25 +839,27 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   justify-content: center;
   padding: 20px;
 }
-/* app.css is loaded after bootstrap.min.css, so the `.modal` rule above -
-   written for the custom `.modal` + `.modal-card` dialogs - also overrode
-   the Bootstrap `.modal { display: none }` default. Scoping the exemption
-   to `.fade` restores the Bootstrap contract: hidden and non-interactive
-   until Bootstrap adds `.show`, and back above `.modal-backdrop` (1050) once
-   it does. */
-.modal.fade {
-    display: none;
-    z-index: var(--bs-modal-zindex, 1055);
-}
+/* The rule above is written for the custom `.modal` + `.modal-card` dialogs
+   (surveys, service tracker, register, profile). app.css is loaded *after*
+   bootstrap.min.css, so its `display: flex` used to win over Bootstrap's
+   `.modal { display: none }` for every Bootstrap modal too. That left a closed
+   Bootstrap modal painted as a full-screen fixed overlay covering the sidebar,
+   which swallowed all clicks while the page still scrolled behind it.
 
-.modal.fade.show {
-    display: block;
-    pointer-events: auto;
-}
+   Scoping the exemption to `.fade` restores Bootstrap's contract for its own
+   modals: hidden (and therefore out of hit-testing entirely) until Bootstrap
+   shows one, at which point it sets inline `display: block` plus the `.show`
+   class — both of which beat this rule. Custom modals never carry `.fade`, so
+   they keep the overlay behaviour they were designed for.
 
-.modal.fade:not(.show) {
-    pointer-events: none;
-}
+   The same override broke the stacking order: `z-index: 80` sits below
+   `.modal-backdrop` (1050), so the backdrop painted on top of the open dialog
+   and swallowed every click inside it — opening a Bootstrap modal and pressing
+   its submit button just closed it again. Restoring Bootstrap's own z-index for
+   `.fade` modals puts the dialog back above its backdrop. */
+.modal.fade { display: none; z-index: var(--bs-modal-zindex, 1055); }
+.modal.fade.show { display: block; pointer-events: auto; }
+.modal.fade:not(.show) { pointer-events: none; }
 .modal-card {
   width: 100%;
   max-width: 420px;
@@ -1574,6 +1576,35 @@ table.data tr:hover td { background: var(--surface-raised); }
 .finance-table .col-outstanding { width: 11%; }
 .finance-table .col-status { width: 8%; }
 .finance-table .col-actions { width: 17%; }
+
+/* Billing receipts selection bar (admin billing index) */
+.billing-select-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    background: var(--sky-light, #EAF4FD);
+    border: 1px solid var(--border-light, #EEF2F7);
+    border-radius: var(--radius-btn, 9px);
+    padding: 10px 14px;
+    margin-bottom: 16px;
+}
+.billing-select-summary { display: flex; align-items: center; gap: 10px; }
+.billing-select-summary strong { color: var(--navy, #1B1B3A); font-size: 14px; }
+.billing-select-all-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    color: var(--navy, #1B1B3A);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.billing-select-all-label input { cursor: pointer; }
+.billing-select-helper { flex: 1 1 240px; margin: 0; font-size: 12.5px; color: var(--muted-text, #6B7280); }
+.billing-select-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.billing-select-actions .btn { white-space: nowrap; }
+.finance-table .print-check-cell { width: 34px; text-align: center; vertical-align: middle; }
 
 /* Collections table (admin list) */
 .collections-table th, .collections-table td { overflow-wrap: break-word; }

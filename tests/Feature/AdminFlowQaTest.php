@@ -53,6 +53,9 @@ class AdminFlowQaTest extends TestCase
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
+            'approved_at' => now(),
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
 
         ClientSurveyResponse::create([
@@ -96,7 +99,7 @@ class AdminFlowQaTest extends TestCase
         ]);
 
         $this->actingAs($admin)->get('/admin/dashboard')
-            ->assertRedirect(route('admin.confidentiality.acknowledge'));
+            ->assertRedirect(route('terms'));
     }
 
     public function test_activity_logs_denied_for_staff_and_allowed_for_admin(): void
@@ -193,7 +196,7 @@ class AdminFlowQaTest extends TestCase
         $this->assertStringContainsString('pdf', $pdf->headers->get('content-type') ?? '');
     }
 
-    public function test_admin_users_page_hides_delete_for_staff(): void
+    public function test_admin_users_page_is_admin_only(): void
     {
         $this->client('Delete Me');
         $admin = $this->admin();
@@ -204,8 +207,7 @@ class AdminFlowQaTest extends TestCase
             ->assertSee('can be restored by support.');
 
         $this->actingAs($staff)->get('/admin/users')
-            ->assertOk()
-            ->assertDontSee('restored by support');
+            ->assertForbidden();
     }
 
     public function test_impersonate_flow_starts_and_stops(): void

@@ -69,16 +69,17 @@
         <tbody>
             @forelse ($entries as $entry)
                 @php
-                    $client = $entry['user'];
+                    $company = $entry['company'];
+                    $client = $company->client;
                     $p = $entry['profile'];
                     $statuses = $entry['statuses'];
                 @endphp
                 <tr>
-                    <td>{{ $client->client_code ?? '' }}</td>
+                    <td>{{ $company->company_code ?? '' }}</td>
                     <td>{{ $client->name }}</td>
-                    <td>{{ $client->business_name ?? '' }}</td>
-                    <td>{{ $p?->business_type ?? '' }}</td>
-                    <td>{{ $p?->line_of_business ?? '' }}</td>
+                    <td>{{ $company->company_name ?? '' }}</td>
+                    <td>{{ $company->business_type ?? '' }}</td>
+                    <td>{{ $company->line_of_business ?? '' }}</td>
                     @foreach ($formTypes as $ft)
                         <td class="text-center">
                             @if ($statuses[$ft] ?? false)

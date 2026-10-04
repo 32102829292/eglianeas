@@ -17,6 +17,27 @@ use Illuminate\Support\Facades\Storage;
 class BillingPaymentDetails
 {
     /**
+     * Batches share the same payment settings, so every resolved QR data URI is
+     * cached per path within the process. This prevents repeated S3/Supabase
+     * round trips when a batch is inspected multiple times by the page-fit
+     * estimator (the density loop calls pairHeightMm() per billing), which was
+     * the source of the batch-print timeout for multi-client batches.
+     *
+     * @var array<string, string|null>
+     */
+    private static array $qrCache = [];
+
+    /**
+     * Reset the per-path QR cache so the next forPdf() call re-resolves assets.
+     * The assembled payload itself is never cached: the batch path computes it
+     * once and passes it down, so settings always reflect the latest values.
+     */
+    public static function flushCache(): void
+    {
+        static::$qrCache = [];
+    }
+
+    /**
      * @return array{gcash_number: string, gcash_qr: string|null, banks: array<int, array{bank_name: string, account_name: string, account_number: string, label: string, qr: string|null}>, has: bool}
      */
     public static function forPdf(): array
@@ -64,24 +85,45 @@ class BillingPaymentDetails
 
     /**
      * Resolve a stored QR-code path (supabase disk) to a base64 data URI, or
-     * null when the setting is empty or the object cannot be read.
+     * null when the setting is empty or the object cannot be read. Results are
+     * cached per path so repeated renders of the same batch never download the
+     * same QR asset more than once, and an unavailable object degrades to a
+     * missing QR instead of failing the whole batch.
      */
     private static function qrDataUri(string $path): ?string
     {
         $path = trim($path);
 
-        if ($path === '' || ! Storage::disk('supabase')->exists($path)) {
+        if ($path === '') {
             return null;
         }
 
-        $bytes = Storage::disk('supabase')->get($path);
-        if ($bytes === null || strlen($bytes) === 0) {
-            return null;
+        if (array_key_exists($path, static::$qrCache)) {
+            return static::$qrCache[$path];
         }
 
-        $mime = Storage::disk('supabase')->mimeType($path) ?: static::mimeFromExtension($path);
+        try {
+            // get() doubles as the existence check: a missing/unreadable
+            // object throws and is caught below (one round trip saved vs an
+            // explicit exists() + get()).
+            $bytes = Storage::disk('supabase')->get($path);
+            if ($bytes === null || strlen($bytes) === 0) {
+                return static::$qrCache[$path] = null;
+            }
 
-        return 'data:'.$mime.';base64,'.base64_encode($bytes);
+            try {
+                $mime = Storage::disk('supabase')->mimeType($path);
+            } catch (\Throwable $e) {
+                $mime = null;
+            }
+            $mime = $mime ?: static::mimeFromExtension($path);
+
+            return static::$qrCache[$path] = 'data:'.$mime.';base64,'.base64_encode($bytes);
+        } catch (\Throwable $e) {
+            // A missing/unreadable QR must not take the whole batch down:
+            // omit the QR and let the template render without it.
+            return static::$qrCache[$path] = null;
+        }
     }
 
     /**

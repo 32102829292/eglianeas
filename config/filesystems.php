@@ -70,6 +70,13 @@ return [
             'use_path_style_endpoint' => true,
             'throw' => true,
             'report' => false,
+            // Per-request S3 timeouts (seconds) so one slow storage call can
+            // never hold up a batch render indefinitely.
+            'http' => [
+                'connect_timeout' => 5,
+                'timeout' => 15,
+                'read_timeout' => 15,
+            ],
         ],
 
     ],

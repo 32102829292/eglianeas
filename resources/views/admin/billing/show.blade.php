@@ -10,8 +10,18 @@
 
     <div class="page-head page-head-row">
         <div>
-            <h1>{{ $client->business_name ?: $client->name }}</h1>
-            <p>{{ $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a> &middot; {{ $client->profile?->line_of_business ?? '—' }}</p>
+            <h1>{{ $client->name }}</h1>
+            <p>{{ $selectedCompany?->company_name ?: $client->business_name }} &middot; <a href="mailto:{{ $selectedCompany?->business_email ?: $client->email }}" class="contact-link">{{ $selectedCompany?->business_email ?: $client->email }}</a> &middot; {{ $selectedCompany?->business_type ?: $client->profile?->business_type ?? '—' }}</p>
+            @if ($companies->count() > 1)
+                <form method="GET" action="{{ route('admin.billing.show', $client) }}" class="inline-form">
+                    <label class="visually-hidden" for="billing-company-select">Company / branch</label>
+                    <select id="billing-company-select" name="client_company_id" class="form-control form-control-sm" onchange="this.form.submit()">
+                        @foreach ($companies as $company)
+                            <option value="{{ $company->id }}" @selected($selectedCompany?->id === $company->id)>{{ $company->company_code }} — {{ $company->company_name }}</option>
+                        @endforeach
+                    </select>
+                </form>
+            @endif
         </div>
         <div class="btn-row">
             <select id="batchPaperSize" class="form-control form-control-sm batch-paper-select" aria-label="Paper size" hidden>
@@ -23,7 +33,7 @@
                 Print selected (<span id="printBatchCount">0</span>)
             </button>
             <a href="{{ route('admin.billing.clientCsv', $client) }}" class="btn btn-outline">Export CSV</a>
-            <a href="{{ route('admin.billing.create', ['client' => $client->id]) }}" class="btn btn-primary">New billing</a>
+            <a href="{{ route('admin.billing.create', ['client' => $client->id, 'client_company_id' => $selectedCompany?->id]) }}" class="btn btn-primary">New billing</a>
         </div>
     </div>
 
@@ -137,7 +147,7 @@
     @empty
         <div class="empty-state">
             <p>No billing statements for this client yet.</p>
-            <a href="{{ route('admin.billing.create', ['client' => $client->id]) }}" class="btn btn-primary">Create the first billing</a>
+            <a href="{{ route('admin.billing.create', ['client' => $client->id, 'client_company_id' => $selectedCompany?->id]) }}" class="btn btn-primary">Create the first billing</a>
         </div>
     @endforelse
 @endsection

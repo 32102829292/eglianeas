@@ -55,6 +55,9 @@ class StaffAccessTest extends TestCase
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
+            'approved_at' => now(),
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
 
         ClientSurveyResponse::create([
@@ -179,25 +182,28 @@ class StaffAccessTest extends TestCase
             ->assertSee('Mark paid');
     }
 
-    public function test_staff_can_access_user_management(): void
+    public function test_staff_cannot_access_user_management(): void
     {
-        $this->actingAs($this->staff())
-            ->get(route('admin.users.index'))
-            ->assertOk();
-
         $staff = $this->staff();
-        $this->actingAs($staff)
-            ->post(route('admin.users.store'), [
-                'name' => 'Another Staff',
-                'email' => 'another'.uniqid().'@example.com',
-                'role' => User::ROLE_STAFF,
-            ])
-            ->assertRedirect(route('admin.users.index'));
+        $target = $this->internal(User::ROLE_STAFF, 'Managed Staff');
+        $email = 'blocked'.uniqid().'@example.com';
 
-        $this->assertDatabaseHas('activity_logs', [
-            'action' => 'admin.user_created',
-            'user_id' => $staff->id,
-        ]);
+        $this->actingAs($staff)->get(route('admin.users.index'))->assertForbidden();
+        $this->actingAs($staff)->get(route('admin.users.edit', $target))->assertForbidden();
+        $this->actingAs($staff)->post(route('admin.users.store'), [
+            'name' => 'Blocked Staff',
+            'email' => $email,
+            'role' => User::ROLE_STAFF,
+        ])->assertForbidden();
+        $this->actingAs($staff)->put(route('admin.users.update', $target), [
+            'name' => 'Renamed Staff',
+            'email' => 'renamed'.uniqid().'@example.com',
+            'role' => User::ROLE_ADMIN,
+        ])->assertForbidden();
+
+        $this->assertDatabaseMissing('users', ['email' => $email]);
+        $this->assertSame('Managed Staff', $target->refresh()->name);
+        $this->assertSame(User::ROLE_STAFF, $target->role);
     }
 
     public function test_admin_can_create_staff_account(): void
@@ -702,6 +708,8 @@ class StaffAccessTest extends TestCase
 
     public function test_staff_must_acknowledge_confidentiality_before_admin_area(): void
     {
+        Storage::fake('supabase');
+
         $staff = User::create([
             'name' => 'Fresh Staff',
             'email' => 'fresh.staff'.uniqid().'@example.com',
@@ -710,17 +718,33 @@ class StaffAccessTest extends TestCase
             'email_verified_at' => now(),
         ]);
 
-        $this->actingAs($staff)
-            ->get(route('admin.dashboard'))
-            ->assertRedirect(route('admin.confidentiality.acknowledge'));
+        $signature = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
         $this->actingAs($staff)
-            ->post(route('admin.confidentiality.acknowledge.store'), ['agree' => '1'])
-            ->assertRedirect(route('admin.dashboard'));
+            ->get(route('admin.dashboard'))
+            ->assertRedirect(route('terms'));
+
+        $this->actingAs($staff)
+            ->post(route('terms.acknowledge.store'), [
+                'agree' => '1',
+                'signature_data' => $signature,
+            ])
+            ->assertRedirect(route('terms'));
 
         $this->actingAs($staff)
             ->get(route('admin.dashboard'))
             ->assertOk();
+
+        $this->assertDatabaseHas('signatures', [
+            'user_id' => $staff->id,
+            'policy_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
+        ]);
+
+        $this->actingAs($staff)
+            ->get(route('terms'))
+            ->assertOk()
+            ->assertSee('Signed')
+            ->assertSee('Staff Signature');
     }
 
     public function test_staff_cannot_access_activity_logs(): void
@@ -734,7 +758,7 @@ class StaffAccessTest extends TestCase
             ->assertOk();
     }
 
-    public function test_staff_nav_hides_only_activity_logs(): void
+    public function test_staff_nav_hides_activity_logs_and_team_accounts(): void
     {
         $this->unpaidBilling($this->client());
 
@@ -742,7 +766,7 @@ class StaffAccessTest extends TestCase
             ->get(route('admin.dashboard'))
             ->assertOk()
             ->assertSee('Announcements')
-            ->assertSee('Team Accounts')
+            ->assertDontSee('Team Accounts')
             ->assertDontSee('Activity Logs');
 
         $this->actingAs($this->admin())

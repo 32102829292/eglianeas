@@ -2,6 +2,7 @@
     $isEdit = $formMode === 'edit';
     // Bug 1: pre-selected client when arriving from a client's billing page.
     $defaultClientId = $isEdit ? $billing->client_id : ($selectedClientId ?? null);
+    $defaultCompanyId = $isEdit ? $billing->client_company_id : ($selectedCompanyId ?? null);
     // Bug 2: default quarter computed from the selected client's history.
     $defaultQuarter = $isEdit ? $billing->quarter : ($defaultQuarter ?? null);
     $existingItems = $isEdit ? $billing->lineItems->keyBy(fn ($item) => $item->category.'_'.$item->form_type.'_'.$item->month) : collect();
@@ -49,6 +50,20 @@
                     @endforeach
                 </select>
                 @error('client_id')<div class="form-error">{{ $message }}</div>@enderror
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="client_company_id">Company / branch</label>
+                <select class="form-control" id="client_company_id" name="client_company_id">
+                    <option value="">Primary company</option>
+                    @foreach ($clients as $client)
+                        @foreach ($client->companies as $company)
+                            <option value="{{ $company->id }}" data-client-id="{{ $client->id }}" @selected((int) old('client_company_id', $defaultCompanyId) === $company->id)>
+                                {{ $company->company_code }} — {{ $company->company_name ?: 'Unnamed company' }}
+                            </option>
+                        @endforeach
+                    @endforeach
+                </select>
+                @error('client_company_id')<div class="form-error">{{ $message }}</div>@enderror
             </div>
             <div class="form-group">
                 <label class="form-label" for="period_label">Billing period label</label>
@@ -116,6 +131,7 @@
     'use strict';
 
     var clientSelect = document.getElementById('client_id');
+    var companySelect = document.getElementById('client_company_id');
     var quarterSelect = document.getElementById('quarter');
     var yearInput = document.getElementById('year');
     var container = document.getElementById('lineItemsContainer');
@@ -496,6 +512,7 @@
 
     function loadApplicableForms() {
         var clientId = clientSelect.value;
+        var companyId = companySelect ? companySelect.value : '';
         if (!clientId) {
             currentForms = [];
             currentTotal = 0;
@@ -504,7 +521,8 @@
             return;
         }
 
-        var formsPromise = fetch('{{ route("admin.billing.applicableForms") }}?client_id=' + encodeURIComponent(clientId), { credentials: 'same-origin' })
+        var query = 'client_id=' + encodeURIComponent(clientId) + '&client_company_id=' + encodeURIComponent(companyId);
+        var formsPromise = fetch('{{ route("admin.billing.applicableForms") }}?' + query, { credentials: 'same-origin' })
             .then(function (r) { return r.json(); });
 
         @if ($isEdit)
@@ -515,7 +533,7 @@
                 buildLineItems(forms, existingItems);
             });
         @else
-            var lastPromise = fetch('{{ route("admin.billing.lastBilling") }}?client_id=' + encodeURIComponent(clientId), { credentials: 'same-origin' })
+            var lastPromise = fetch('{{ route("admin.billing.lastBilling") }}?' + query, { credentials: 'same-origin' })
                 .then(function (r) { return r.json(); });
 
             Promise.all([formsPromise, lastPromise]).then(function (results) {
@@ -561,16 +579,30 @@
         @endif
     }
 
-    if (clientSelect) {
-        clientSelect.addEventListener('change', loadApplicableForms);
+    function syncCompanyOptions() {
+        if (!companySelect || !clientSelect) return;
+        var clientId = clientSelect.value;
+        for (var i = 0; i < companySelect.options.length; i++) {
+            var option = companySelect.options[i];
+            if (!option.dataset.clientId) continue;
+            option.hidden = !!clientId && option.dataset.clientId !== clientId;
+            option.disabled = !!clientId && option.dataset.clientId !== clientId;
+        }
+        var selected = companySelect.options[companySelect.selectedIndex];
+        if (selected && selected.dataset.clientId && selected.dataset.clientId !== clientId) companySelect.value = '';
     }
+
+    if (clientSelect) clientSelect.addEventListener('change', syncCompanyOptions);
+    if (companySelect) companySelect.addEventListener('change', loadApplicableForms);
 
     // Load on page load for edit mode; for create when a client is pre-selected
     @if ($isEdit)
+        syncCompanyOptions();
         if (clientSelect.value) {
             loadApplicableForms();
         }
     @else
+        syncCompanyOptions();
         if (clientSelect && clientSelect.value) {
             loadApplicableForms();
         }

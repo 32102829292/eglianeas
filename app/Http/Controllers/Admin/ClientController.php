@@ -7,15 +7,20 @@ use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\BirFormStatus;
 use App\Models\ClientInfoEntry;
+use App\Models\ClientCompany;
 use App\Models\ClientProfile;
 use App\Models\MasterlistExportLog;
+use App\Models\Notification;
 use App\Models\User;
 use App\Services\GeocodingService;
+use App\Services\PushNotificationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
@@ -29,6 +34,25 @@ class ClientController extends Controller
     public function index(Request $request): View
     {
         $q = trim((string) $request->get('q'));
+        $sort = $request->get('sort', 'business_name');
+        $direction = strtolower($request->get('direction', 'asc'));
+
+        $allowedSorts = [
+            'business_name' => 'business_name',
+            'name' => 'name',
+            'email' => 'email',
+            'client_code' => 'client_code',
+            'created_at' => 'created_at',
+            'date_started' => 'profile.date_started',
+            'contact_no' => 'profile.contact_no',
+            'business_type' => 'profile.business_type',
+            'line_of_business' => 'profile.line_of_business',
+            'town' => 'profile.town',
+            'barangay' => 'profile.barangay',
+        ];
+
+        $sortColumn = $allowedSorts[$sort] ?? 'business_name';
+        $sortDirection = $direction === 'desc' ? 'desc' : 'asc';
 
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
@@ -36,7 +60,12 @@ class ClientController extends Controller
             ->withCount(['billings', 'documents'])
             ->withSum(['billings' => fn ($q) => $q->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])], 'total')
             ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
-            ->orderByRaw("COALESCE(NULLIF(business_name, ''), name) asc")
+            ->when(str_contains($sortColumn, 'profile.'), function ($query) use ($sortColumn, $sortDirection) {
+                $query->join('client_profiles', 'users.id', '=', 'client_profiles.user_id')
+                      ->orderBy($sortColumn, $sortDirection);
+            }, function ($query) use ($sortColumn, $sortDirection) {
+                $query->orderBy($sortColumn, $sortDirection);
+            })
             ->paginate(50)
             ->withQueryString()
             ->through(function (User $client): array {
@@ -54,6 +83,9 @@ class ClientController extends Controller
         return view('admin.clients.index', [
             'clients' => $clients,
             'q' => $q,
+            'sort' => $sort,
+            'direction' => $direction,
+            'allowedSorts' => array_keys($allowedSorts),
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
         ]);
@@ -80,9 +112,19 @@ class ClientController extends Controller
             'role' => User::ROLE_CLIENT,
             'business_name' => $validated['business_name'] ?? null,
             'email_verified_at' => now(),
+            'approved_at' => now(),
+            'approved_by' => auth()->id(),
         ]);
 
         $user->getClientProfile();
+        $user->companies()->firstOrCreate(
+            ['branch_number' => 1],
+            [
+                'company_code' => $user->client_code.'-01',
+                'company_name' => $user->business_name,
+                'business_email' => $user->email,
+            ]
+        );
 
         ActivityLog::record(auth()->user(), 'admin.client_created', "Created client account for {$user->name} ({$user->email}).");
 
@@ -99,6 +141,87 @@ class ClientController extends Controller
         ActivityLog::record(auth()->user(), 'admin.client_deleted', "Deleted client account for {$displayName}.");
 
         return redirect()->route('admin.clients.index')->with('status', 'Client account deleted.');
+    }
+
+    public function pending(): View
+    {
+        $clients = User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->whereNull('approved_at')
+            ->whereNull('declined_at')
+            ->with('profile')
+            ->orderByDesc('created_at')
+            ->paginate(50);
+
+        return view('admin.clients.pending', [
+            'clients' => $clients,
+        ]);
+    }
+
+    public function approve(User $client): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $displayName = $client->business_name ?: $client->name;
+
+        if ($client->isAccountApproved()) {
+            return redirect()->route('admin.clients.pending')->with('error', "{$displayName} is already approved.");
+        }
+
+        $client->update([
+            'approved_at' => now(),
+            'approved_by' => auth()->id(),
+            'declined_at' => null,
+            'declined_by' => null,
+            'decline_reason' => null,
+        ]);
+
+        ActivityLog::record(auth()->user(), 'admin.client_approved', "Approved client account for {$displayName} ({$client->email}).");
+
+        Notification::create([
+            'user_id' => $client->id,
+            'title' => 'Your account is approved',
+            'body' => 'Welcome to Egliane! Your account has been approved by '.auth()->user()->name.'. You can now log in to the client portal.',
+            'type' => 'account',
+            'link' => route('client.dashboard'),
+        ]);
+
+        PushNotificationService::send($client, 'Your account is approved', 'Welcome to Egliane! You can now log in to the client portal.', route('client.dashboard'));
+
+        return redirect()->route('admin.clients.pending')->with('status', "Approved {$displayName}.");
+    }
+
+    public function reject(Request $request, User $client): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:500'],
+        ]);
+
+        $displayName = $client->business_name ?: $client->name;
+
+        $client->update([
+            'approved_at' => null,
+            'approved_by' => null,
+            'declined_at' => now(),
+            'declined_by' => auth()->id(),
+            'decline_reason' => $validated['reason'],
+        ]);
+
+        ActivityLog::record(auth()->user(), 'admin.client_rejected', "Rejected client account for {$displayName} ({$client->email}). Reason: {$validated['reason']}");
+
+        Notification::create([
+            'user_id' => $client->id,
+            'title' => 'Your account application was not approved',
+            'body' => 'Your account application was reviewed by '.auth()->user()->name.'. Reason: '.$validated['reason'],
+            'type' => 'account',
+            'link' => route('client.pending-approval'),
+        ]);
+
+        PushNotificationService::send($client, 'Your account application was not approved', 'Your account application was reviewed. Reason: '.$validated['reason'], route('client.pending-approval'));
+
+        return redirect()->route('admin.clients.pending')->with('status', "Rejected {$displayName}.");
     }
 
     public function exportXlsx(Request $request): StreamedResponse
@@ -272,6 +395,7 @@ class ClientController extends Controller
                 'outstanding' => $client->billings()->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])->sum('total'),
             ],
             'documentCount' => $client->documents()->count(),
+            'requirementUrls' => $this->requirementUrls($client, $profile),
         ]);
     }
 
@@ -284,6 +408,7 @@ class ClientController extends Controller
         return view('admin.clients.edit', [
             'client' => $client,
             'profile' => $client->getClientProfile(),
+            'companies' => $client->companies()->get(),
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
             'businessTypes' => ClientProfile::BUSINESS_TYPES,
@@ -292,6 +417,27 @@ class ClientController extends Controller
             'regTypes' => ClientProfile::BIR_REGISTRATION_TYPES,
             'formTypes' => $formTypes,
             'applicableForms' => $applicableForms,
+            'requirementUrls' => $this->requirementUrls($client, $client->getClientProfile()),
+        ]);
+    }
+
+    public function requirementDocument(Request $request, User $client, string $document): Response
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $column = match ($document) {
+            'tin' => 'tin_document_path',
+            'valid-id' => 'valid_id_document_path',
+            default => abort(404),
+        };
+        $path = $client->getClientProfile()->{$column};
+
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return Storage::disk('local')->response($path, basename($path), [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
@@ -326,6 +472,8 @@ class ClientController extends Controller
             'second_email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'tin_no' => ['nullable', 'string', 'max:40'],
+            'tin_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+            'valid_id_document' => ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
             'mother_maiden_name' => ['nullable', 'string', 'max:255'],
             'father_name' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'in:'.implode(',', array_keys(ClientProfile::STATUSES))],
@@ -333,7 +481,7 @@ class ClientController extends Controller
             'date_started' => ['nullable', 'date'],
             'remarks' => ['nullable', 'string', 'max:1000'],
             'bir_forms' => ['nullable', 'array'],
-            'bir_forms.*' => ['string', 'in:'.implode(',', BirFormStatus::FORM_TYPES)],
+            'bir_forms.*' => ['string', Rule::in(BirFormStatus::getFormTypeCodes())],
         ]);
 
         if (($validated['line_of_business'] ?? null) === 'Other') {
@@ -365,6 +513,15 @@ class ClientController extends Controller
         }
 
         $profile = $client->getClientProfile();
+
+        foreach (['tin_document' => 'tin_document_path', 'valid_id_document' => 'valid_id_document_path'] as $upload => $column) {
+            if ($request->hasFile($upload)) {
+                if ($profile->{$column}) {
+                    Storage::disk('local')->delete($profile->{$column});
+                }
+                $profile->{$column} = $request->file($upload)->store("client-requirements/{$client->id}", 'local');
+            }
+        }
 
         $currentAddress = $profile->getOriginal('business_address');
         $newAddress = $profileData['business_address'] ?? null;
@@ -398,14 +555,77 @@ class ClientController extends Controller
         return redirect()->route('admin.clients.show', $client)->with('status', 'Client record updated.');
     }
 
+    public function storeCompany(Request $request, User $client): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+
+        $data = $this->validatedCompany($request);
+        $nextBranch = ((int) $client->companies()->max('branch_number')) + 1;
+        $parentCode = $client->client_code ?: User::generateClientCode();
+        if (! $client->client_code) {
+            $client->forceFill(['client_code' => $parentCode])->save();
+        }
+
+        $company = $client->companies()->create(array_merge($data, [
+            'branch_number' => $nextBranch,
+            'company_code' => $parentCode.'-'.str_pad((string) $nextBranch, 2, '0', STR_PAD_LEFT),
+        ]));
+
+        ActivityLog::record(auth()->user(), 'admin.client_company_created', "Added {$company->company_code} for {$client->name}.");
+
+        return back()->with('status', 'Company/branch added.');
+    }
+
+    public function updateCompany(Request $request, User $client, ClientCompany $company): RedirectResponse
+    {
+        abort_unless($client->role === User::ROLE_CLIENT && $company->client_id === $client->id, 404);
+        $company->update($this->validatedCompany($request));
+
+        ActivityLog::record(auth()->user(), 'admin.client_company_updated', "Updated {$company->company_code} for {$client->name}.");
+
+        return back()->with('status', 'Company/branch updated.');
+    }
+
+    private function validatedCompany(Request $request): array
+    {
+        return $request->validate([
+            'company_name' => ['required', 'string', 'max:255'],
+            'business_type' => ['nullable', 'string', 'max:120'],
+            'line_of_business' => ['nullable', 'string', 'max:255'],
+            'bir_registration_type' => ['nullable', 'string', 'max:120'],
+            'business_address' => ['nullable', 'string', 'max:500'],
+            'business_email' => ['nullable', 'email', 'max:255'],
+            'business_contact_no' => ['nullable', 'string', 'max:40'],
+        ]);
+    }
+
+    private function requirementUrls(User $client, ClientProfile $profile): array
+    {
+        return collect([
+            'tin' => $profile->tin_document_path,
+            'valid-id' => $profile->valid_id_document_path,
+        ])->mapWithKeys(function (?string $path, string $document) use ($client): array {
+            return [$document => $path
+                ? URL::temporarySignedRoute('admin.clients.requirements.show', now()->addMinutes(10), [
+                    'client' => $client,
+                    'document' => $document,
+                ])
+                : null];
+        })->all();
+    }
+
     private function birFormData(User $client): array
     {
-        $formTypes = collect(BirFormStatus::FORM_TYPES)
-            ->merge($client->birFormStatuses->pluck('form_type'))
+        $primaryCompanyId = $client->companies()->where('branch_number', 1)->value('id');
+        $statuses = $client->birFormStatuses()
+            ->when($primaryCompanyId, fn ($query) => $query->where('client_company_id', $primaryCompanyId))
+            ->get();
+        $formTypes = collect(BirFormStatus::getFormTypeCodes())
+            ->merge($statuses->pluck('form_type'))
             ->unique()
             ->sort()
             ->values();
-        $applicableForms = $client->birFormStatuses
+        $applicableForms = $statuses
             ->where('applicable', true)
             ->pluck('form_type');
 
@@ -414,7 +634,12 @@ class ClientController extends Controller
 
     private function syncBirForms(Request $request, User $client): void
     {
-        $known = collect(BirFormStatus::FORM_TYPES);
+        $primaryCompany = $client->companies()->where('branch_number', 1)->first();
+        if (! $primaryCompany) {
+            return;
+        }
+
+        $known = collect(BirFormStatus::getFormTypeCodes());
 
         $selected = collect($request->input('bir_forms', []))
             ->map(fn ($type) => strtoupper(trim((string) $type)))
@@ -422,14 +647,14 @@ class ClientController extends Controller
             ->unique()
             ->values();
 
-        DB::transaction(function () use ($client, $selected) {
-            foreach ($client->birFormStatuses as $status) {
+        DB::transaction(function () use ($client, $primaryCompany, $selected) {
+            foreach ($client->birFormStatuses()->where('client_company_id', $primaryCompany->id)->get() as $status) {
                 $status->update(['applicable' => $selected->contains($status->form_type)]);
             }
 
             foreach ($selected as $formType) {
                 BirFormStatus::firstOrCreate(
-                    ['client_id' => $client->id, 'form_type' => $formType],
+                    ['client_id' => $client->id, 'client_company_id' => $primaryCompany->id, 'form_type' => $formType],
                     ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => true]
                 );
             }

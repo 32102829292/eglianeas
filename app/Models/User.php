@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -40,6 +41,14 @@ class User extends Authenticatable
         'email_verified_at',
         'confidentiality_acknowledged_at',
         'confidentiality_ack_version',
+        'profile_image_path',
+        'position',
+        'contact_no',
+        'approved_at',
+        'approved_by',
+        'declined_at',
+        'declined_by',
+        'decline_reason',
     ];
 
     /**
@@ -70,6 +79,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'pin' => 'hashed',
             'pin_set_at' => 'datetime',
+            'approved_at' => 'datetime',
+            'declined_at' => 'datetime',
         ];
     }
 
@@ -115,9 +126,54 @@ class User extends Authenticatable
         return $this->isAdmin() || $this->isStaff() || $this->isSupervisor();
     }
 
+    public function canManageClients(): bool
+    {
+        return $this->isAdmin() || $this->isStaff();
+    }
+
+    public function isAccountApproved(): bool
+    {
+        return $this->approved_at !== null && $this->declined_at === null;
+    }
+
+    public function isAccountPending(): bool
+    {
+        return $this->role === self::ROLE_CLIENT
+            && $this->approved_at === null
+            && $this->declined_at === null;
+    }
+
+    public function isAccountRejected(): bool
+    {
+        return $this->declined_at !== null;
+    }
+
+    public function approvalStatus(): string
+    {
+        if ($this->isAccountApproved()) {
+            return 'approved';
+        }
+
+        return $this->isAccountRejected() ? 'rejected' : 'pending';
+    }
+
     public function isClient(): bool
     {
         return $this->role === self::ROLE_CLIENT;
+    }
+
+    public function isApprovedClient(): bool
+    {
+        return $this->isClient() && $this->isAccountApproved();
+    }
+
+    public function photoUrl(): ?string
+    {
+        if (! $this->profile_image_path) {
+            return null;
+        }
+
+        return route('admin.users.photo', $this);
     }
 
     public function hasVerifiedEmail(): bool
@@ -138,7 +194,7 @@ class User extends Authenticatable
     public function getDashboardRoute(): string
     {
         return match ($this->role) {
-            self::ROLE_ADMIN, self::ROLE_STAFF => route('admin.dashboard'),
+            self::ROLE_ADMIN, self::ROLE_STAFF, self::ROLE_SUPERVISOR => route('admin.dashboard'),
             default => route('client.dashboard'),
         };
     }
@@ -199,9 +255,53 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
+    public function signatures(): HasMany
+    {
+        return $this->hasMany(Signature::class);
+    }
+
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function declinedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'declined_by');
+    }
+
     public function unreadNotificationsCount(): int
     {
         return $this->notifications()->unread()->count();
+    }
+
+    /**
+     * Data for the dashboard notification bell in a single query.
+     *
+     * The bell needs both the unread badge total and the most recent rows, and
+     * those were previously two separate round trips. Because every page load
+     * renders the dashboard layout, that was two extra queries per request. The
+     * unread total is now carried on the limited result set as a correlated
+     * subquery column, so one query returns both.
+     *
+     * @return array{unread: int, recent: \Illuminate\Database\Eloquent\Collection<int, Notification>}
+     */
+    public function notificationBellData(int $limit = 8): array
+    {
+        $recent = $this->notifications()
+            ->select($this->notifications()->getModel()->getTable().'.*')
+            ->selectSub(
+                $this->notifications()->unread()->selectRaw('COUNT(*)'),
+                'unread_total'
+            )
+            ->latest()
+            ->limit($limit)
+            ->get();
+
+        return [
+            'unread' => (int) ($recent->first()->unread_total ?? 0),
+            'recent' => $recent,
+        ];
     }
 
     public function corViewLogs(): HasMany
@@ -212,6 +312,15 @@ class User extends Authenticatable
     public function billings(): HasMany
     {
         return $this->hasMany(Billing::class, 'client_id');
+    }
+
+    /**
+     * Companies and branches owned by this client account. The account keeps
+     * personal/taxpayer data; each company carries its own operating details.
+     */
+    public function companies(): HasMany
+    {
+        return $this->hasMany(ClientCompany::class, 'client_id')->orderBy('branch_number');
     }
 
     public function activityLogs(): HasMany
@@ -232,6 +341,11 @@ class User extends Authenticatable
     public function birFormStatuses(): HasMany
     {
         return $this->hasMany(BirFormStatus::class, 'client_id');
+    }
+
+    public function birForms(): HasMany
+    {
+        return $this->hasMany(BirForm::class, 'client_id');
     }
 
     public function infoEntries(): HasMany
@@ -259,9 +373,14 @@ class User extends Authenticatable
         return $this->hasMany(ClientConcern::class, 'client_id');
     }
 
-    public function signatures(): HasMany
+    public function weeklyBookkeepingPlans(): HasMany
     {
-        return $this->hasMany(Signature::class);
+        return $this->hasMany(WeeklyBookkeeping::class, 'staff_id');
+    }
+
+    public function dailyJournals(): HasMany
+    {
+        return $this->hasMany(DailyJournal::class);
     }
 
     public static function isRole(string $role): bool

@@ -5,8 +5,16 @@
     $active = function (string $prefix) use ($routeName): string {
         return Str::startsWith($routeName, $prefix) ? 'active' : '';
     };
-    $unreadCount = $user->unreadNotificationsCount();
-    $recentNotifications = $user->notifications()->latest()->limit(8)->get();
+    $bell = $user->notificationBellData();
+    $unreadCount = $bell['unread'];
+    $recentNotifications = $bell['recent'];
+    $pendingClientCount = $user->isAdmin()
+        ? \App\Models\User::query()
+            ->where('role', \App\Models\User::ROLE_CLIENT)
+            ->whereNull('approved_at')
+            ->whereNull('declined_at')
+            ->count()
+        : 0;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -32,7 +40,9 @@
                 <div class="dash-bell" id="bellWrap">
                     <button type="button" class="bell-btn" id="bellBtn" aria-label="Notifications" aria-expanded="false">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                        @if ($unreadCount > 0)
+                        @if ($pendingClientCount > 0)
+                            <span class="bell-badge" title="{{ $pendingClientCount }} pending client approval{{ $pendingClientCount === 1 ? '' : 's' }}">{{ min($pendingClientCount, 99) }}</span>
+                        @elseif ($unreadCount > 0)
                             <span class="bell-badge">{{ min($unreadCount, 99) }}</span>
                         @endif
                     </button>
@@ -49,6 +59,13 @@
                             @endif
                         </div>
                         <div class="bell-list">
+                            @if ($pendingClientCount > 0)
+                                <a href="{{ route('admin.clients.pending') }}" class="bell-item bell-item--approval unread">
+                                    <div class="bell-item-title">Pending Client Approval</div>
+                                    <div class="bell-item-body">{{ $pendingClientCount }} client account{{ $pendingClientCount === 1 ? '' : 's' }} waiting for approval.</div>
+                                    <div class="bell-item-time">Review pending accounts</div>
+                                </a>
+                            @endif
                             @forelse ($recentNotifications as $notification)
                                 <a href="{{ route('notifications.open', $notification) }}" class="bell-item @if ($notification->isUnread()) unread @endif">
                                     <div class="bell-item-title">{{ $notification->title }}</div>
@@ -71,7 +88,11 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 </a>
                 <div class="dash-user-chip">
-                    <span class="avatar">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
+                    @if ($user->photoUrl())
+                        <span class="avatar avatar-photo"><img src="{{ $user->photoUrl() }}" alt="{{ $user->name }}" loading="lazy"></span>
+                    @else
+                        <span class="avatar">{{ mb_strtoupper(mb_substr($user->name, 0, 1)) }}</span>
+                    @endif
                     <span class="hidden-xs">{{ $user->name }}</span>
                     <span class="dash-role">{{ ucfirst($user->role) }}</span>
                 </div>
@@ -105,12 +126,12 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
         </div>
-        @include('partials.dashboard-nav')
+        @include('partials.dashboard-nav', ['pendingClientCount' => $pendingClientCount])
     </nav>
 
     <div class="dash-layout">
         <aside class="dash-nav">
-            @include('partials.dashboard-nav')
+            @include('partials.dashboard-nav', ['pendingClientCount' => $pendingClientCount])
         </aside>
 
         <script>
@@ -155,7 +176,8 @@
     @include('components.confirm-modal')
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
     <script src="/js/confirm.js?v=1" defer></script>
-    <script src="/js/app.js?v=11" defer></script>    <script src="/js/auth.js?v=4" defer></script>
+    <script src="/js/app.js?v=12" defer></script>
+    <script src="/js/auth.js?v=4" defer></script>
     <script src="/js/push.js?v=2" defer></script>
     @stack('scripts')
 </body>

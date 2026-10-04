@@ -1,10 +1,14 @@
-@php($clientName = $billing->client?->business_name ?: $billing->client?->name)
+@php($client = $billing->client)
+@php($company = $billing->company)
+@php($clientName = $company?->company_name ?: $client?->business_name ?: $client?->name)
 <div class="copy-tag">{{ $copyLabel }}</div>
 <table class="stmt {{ $density ?? 'normal' }}">
     <tr class="head-row">
         <td>
             <span class="brand">EGLIANE ACCOUNTING SERVICES</span><br>
-            <span class="client">{{ $clientName }}</span>
+            <span class="client">{{ $clientName }}</span><br>
+            @if ($client?->client_code)<span class="note">Client ID: {{ $client->client_code }}</span><br>@endif
+            @if ($company?->company_code)<span class="note">Company/Branch ID: {{ $company->company_code }}</span>@endif
         </td>
         <td class="amount">
             @if ($billing->isPaid())

@@ -34,6 +34,7 @@
         .period { font-size: 10.5pt; color: #555; margin-top: 2pt; }
 
         .client { font-weight: bold; font-size: 12.5pt; color: #1B1B3A; text-transform: uppercase; margin-bottom: 14pt; }
+        .client-details { margin: -5pt 0 12pt; font-size: 9pt; color: #444; line-height: 1.55; }
 
         .paid-stamp {
             float: right;
@@ -69,16 +70,24 @@
 </head>
 <body>
 
+    @php($statementCompany = $billing->company)
+    @php($statementClient = $billing->client)
+    <div class="client">{{ $statementCompany?->company_name ?: $billing->client?->business_name ?: $billing->client?->name }}</div>
     <div class="head">
         <div class="brand">EGLIANE ACCOUNTING SERVICES</div>
-        <div class="period">BILLING STATEMENT · {{ mb_strtoupper($billing->period_label) }}</div>
+        <div class="period">BILLING STATEMENT · {{ mb_strtoupper($billing->period_label) }}@if($statementClient?->client_code) · CLIENT ID {{ $statementClient->client_code }}@endif
+            @if($statementCompany?->company_code) · COMPANY/BRANCH ID {{ $statementCompany->company_code }}@endif</div>
+    </div>
+    <div class="client-details">
+        <div><strong>Surname, Name:</strong> {{ $statementClient?->name }}</div>
+        <div><strong>Company Name:</strong> {{ $statementCompany?->company_name ?: $statementClient?->business_name }}</div>
+        <div><strong>Email:</strong> {{ $statementCompany?->business_email ?: $statementClient?->email }}</div>
+        <div><strong>Type of Business:</strong> {{ $statementCompany?->business_type ?: $statementClient?->profile?->business_type }}</div>
     </div>
 
     @if ($billing->isPaid())
         <span class="paid-stamp">PAID</span>
     @endif
-
-    <div class="client">{{ $billing->client?->business_name ?: $billing->client?->name }}</div>
 
     <table>
         @foreach ($categories as $category => $title)

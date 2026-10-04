@@ -28,7 +28,11 @@ class ClientSurveyTest extends TestCase
 
     private function client(string $label = 'Survey Client'): User
     {
-        return $this->user(User::ROLE_CLIENT, $label);
+        $user = $this->user(User::ROLE_CLIENT, $label);
+        $user->approved_at = now();
+        $user->save();
+
+        return $user;
     }
 
     private function validPayload(): array

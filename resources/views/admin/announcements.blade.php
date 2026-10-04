@@ -142,9 +142,9 @@
                     @php
                         $posterName = $announcement->poster?->name ?? 'Egliane Admin';
                     @endphp
-                    <article class="ann-card @if ($announcement->hasImage()) has-cover @endif">
+                    <article class="ann-card @if ($announcement->hasImagePath()) has-cover @endif">
                         <div class="ann-thumb">
-                            @if ($announcement->hasImage())
+                            @if ($announcement->hasImagePath())
                                 <img src="{{ $announcement->imageUrl() }}" alt="" loading="lazy">
                             @else
                                 <span class="ann-thumb-placeholder" aria-hidden="true">

@@ -33,7 +33,7 @@ class EmailVerificationTest extends TestCase
 
         $response->assertSessionHasNoErrors();
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
-        $response->assertRedirect($user->getDashboardRoute());
+        $response->assertRedirect(route('client.pending-approval'));
     }
 
     public function test_email_is_not_verified_with_invalid_code(): void

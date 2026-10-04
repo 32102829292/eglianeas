@@ -34,6 +34,9 @@ class BillingShareTest extends TestCase
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
+            'approved_at' => now(),
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
     }
 

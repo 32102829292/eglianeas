@@ -3,23 +3,6 @@
 @section('title', 'Admin Dashboard — Egliane Accounting Services')
 
 @php
-    // ---------- Presentation-only derivations from existing controller data ----------
-    // Trend: second half of the 14-day window vs its first half (reads as "vs previous 14 days").
-    $revSeries = collect($snapshotRevenue ?? [])->values();
-    $bilSeries = collect($snapshotNewBillings ?? [])->values();
-    $firstHalfCount = max(1, (int) floor($revSeries->count() / 2));
-    $trendPct = function (string $which) use ($revSeries, $bilSeries, $firstHalfCount) {
-        $s = $which === 'rev' ? $revSeries : $bilSeries;
-        if ($s->count() < 2) return null;
-        $first = $s->take($firstHalfCount)->sum();
-        $second = $s->slice($firstHalfCount)->sum();
-        if ($first <= 0 && $second <= 0) return null;
-        if ($first <= 0) return 0.0;
-        return round(($second - $first) / $first * 100, 1);
-    };
-    $revTrend = $trendPct('rev');
-    $bilTrend = $trendPct('bil');
-
     $fmtPct = function (float $p): string {
         return number_format($p, (float) round($p) === $p ? 0 : 1);
     };
@@ -57,17 +40,28 @@
 @endphp
 
 @section('content')
+    @include('partials.daily-journal-alert')
     <div class="page-head page-head-row page-head-dash">
         <div>
             <h1>Admin dashboard</h1>
             <p>Overview of accounts, filings and activity.</p>
         </div>
-        <div class="date-filter">
-            <span class="date-pill">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="4"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Last 14 days
-            </span>
-        </div>
+        <form method="GET" class="date-filter" aria-label="Dashboard period">
+            <label class="toolbar-field"><span class="toolbar-label">Year:</span>
+                <select name="year" class="toolbar-select" onchange="this.form.submit()">
+                    @foreach ($availableYears as $year)<option value="{{ $year }}" @selected($selectedYear === $year)>{{ $year }}</option>@endforeach
+                </select>
+            </label>
+            <label class="toolbar-field"><span class="toolbar-label">Period:</span>
+                <select name="period" class="toolbar-select" onchange="this.form.submit()">
+                    <option value="q1" @selected($selectedPeriod === 'q1')>Q1</option>
+                    <option value="q2" @selected($selectedPeriod === 'q2')>Q2</option>
+                    <option value="q3" @selected($selectedPeriod === 'q3')>Q3</option>
+                    <option value="q4" @selected($selectedPeriod === 'q4')>Q4</option>
+                    <option value="full" @selected($selectedPeriod === 'full')>Full Year</option>
+                </select>
+            </label>
+        </form>
     </div>
 
     <div class="stat-grid cols-4 dash-kpi">
@@ -104,52 +98,24 @@
     <div class="dash-analytics">
         <div class="card analytics-card">
             <div class="analytics-head">
-                <span class="analytics-title">Revenue collected (14D)</span>
+                <span class="analytics-title">Revenue collected ({{ $periodLabel }})</span>
                 <span class="analytics-icon analytics-icon-green">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 </span>
             </div>
-            <div class="analytics-value">₱{{ number_format($snapshotRevenue->sum(), 0) }}</div>
-            @if ($revTrend !== null)
-                <span class="analytics-trend {{ $revTrend >= 0 ? 'is-up' : 'is-down' }}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        @if ($revTrend >= 0)
-                            <polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/>
-                        @else
-                            <polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/>
-                        @endif
-                    </svg>
-                    {{ $revTrend > 0 ? '+' : '' }}{{ number_format($revTrend, 1) }}% vs previous 14 days
-                </span>
-            @else
-                <span class="analytics-trend">Trend data unavailable</span>
-            @endif
-            <div class="mini-chart"><canvas id="revenueTrendChart"></canvas></div>
+            <div class="analytics-value">₱{{ number_format($periodRevenue, 0) }}</div>
+            <span class="analytics-trend">Paid billings in the selected period</span>
         </div>
 
         <div class="card analytics-card">
             <div class="analytics-head">
-                <span class="analytics-title">New billings (14D)</span>
+                <span class="analytics-title">New billings ({{ $periodLabel }})</span>
                 <span class="analytics-icon analytics-icon-blue">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 </span>
             </div>
-            <div class="analytics-value">{{ $snapshotNewBillings->sum() }}</div>
-            @if ($bilTrend !== null)
-                <span class="analytics-trend {{ $bilTrend >= 0 ? 'is-up' : 'is-down' }}">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        @if ($bilTrend >= 0)
-                            <polyline points="7 17 17 7"/><polyline points="7 7 17 7 17 17"/>
-                        @else
-                            <polyline points="7 7 17 17"/><polyline points="17 7 17 17 7 17"/>
-                        @endif
-                    </svg>
-                    {{ $bilTrend > 0 ? '+' : '' }}{{ number_format($bilTrend, 1) }}% vs previous 14 days
-                </span>
-            @else
-                <span class="analytics-trend">Trend data unavailable</span>
-            @endif
-            <div class="mini-chart"><canvas id="newBillingsTrendChart"></canvas></div>
+            <div class="analytics-value">{{ $periodNewBillings }}</div>
+            <span class="analytics-trend">Active billings created in the selected period</span>
         </div>
 
         <div class="card analytics-card">
@@ -319,6 +285,29 @@
 
     <div class="grid-2">
         <div class="card">
+            <div class="card-head"><h3 class="card-title">Fee &amp; remittance — {{ $periodLabel }}</h3></div>
+            @if (($quarterlySummary ?? collect())->isNotEmpty())
+                <div class="chart-canvas-wrap"><canvas id="quarterlyFeeRemittanceChart" height="220"></canvas></div>
+            @else
+                <p class="chart-empty">No billing data for {{ $periodLabel }}.</p>
+            @endif
+        </div>
+        <div class="card">
+            <div class="card-head"><h3 class="card-title">{{ $periodLabel }} summary</h3></div>
+            <div class="table-wrap">
+                <table class="table"><thead><tr><th>Period</th><th>Fee</th><th>Remittance</th></tr></thead><tbody>
+                    @forelse (($quarterlySummary ?? collect()) as $quarter)
+                        <tr><td>{{ $quarter['label'] }}</td><td>₱{{ number_format($quarter['fee'], 2) }}</td><td>₱{{ number_format($quarter['remittance'], 2) }}</td></tr>
+                    @empty
+                        <tr><td colspan="3" class="empty-cell">No billing data for {{ $periodLabel }}.</td></tr>
+                    @endforelse
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Recent accounts</h3>
                 <a href="{{ route('admin.clients.index') }}">View all</a>
@@ -441,67 +430,13 @@
 (function () {
     'use strict';
 
-    var snapLabels = {!! json_encode(collect($snapshotLabels ?? [])->values()->all()) !!};
-    var snapRevenue = {!! json_encode(collect($snapshotRevenue ?? [])->map(fn ($v) => (float) ($v ?? 0))->values()->all()) !!};
-    var snapNewBillings = {!! json_encode(collect($snapshotNewBillings ?? [])->map(fn ($v) => (float) ($v ?? 0))->values()->all()) !!};
     var catLabels = {!! json_encode($categoryChart['labels'] ?? []) !!};
     var catTotals = {!! json_encode($categoryChart['totals'] ?? []) !!};
+    var quarterlySummary = {!! json_encode(collect($quarterlySummary ?? [])->values()->all()) !!};
 
     var isMobile = window.innerWidth <= 640;
     var gridLine = 'rgba(27,27,58,0.06)';
     var tick = { font: { size: isMobile ? 9 : 11 }, color: '#8A93A2' };
-
-    // Compact area/line trend — one per metric (green revenue, blue billings).
-    function miniLine(id, data, color, fill, money) {
-        var el = document.getElementById(id);
-        if (!el || !data.length) return;
-        new Chart(el, {
-            type: 'line',
-            data: {
-                labels: snapLabels,
-                datasets: [{
-                    label: '',
-                    data: data,
-                    borderColor: color,
-                    backgroundColor: fill,
-                    fill: true,
-                    tension: 0.38,
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4,
-                    pointBackgroundColor: color,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) {
-                                return (money ? '₱' : '') + Number(ctx.raw).toLocaleString();
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { display: false }, border: { display: false }, ticks: tick },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: gridLine },
-                        border: { display: false },
-                        ticks: money
-                            ? { font: { size: isMobile ? 9 : 11 }, color: '#8A93A2', callback: function (v) { return '₱' + Number(v).toLocaleString(); } }
-                            : tick,
-                    },
-                },
-            },
-        });
-    }
-
-    miniLine('revenueTrendChart', snapRevenue, '#27AE60', 'rgba(39,174,96,0.10)', true);
-    miniLine('newBillingsTrendChart', snapNewBillings, '#2E9BDE', 'rgba(46,155,222,0.10)', false);
 
     /* Billing amounts by category — vertical bar of ₱ totals */
     if (document.getElementById('categoryChart')) {
@@ -554,6 +489,20 @@
                     },
                 },
             },
+        });
+    }
+
+    if (document.getElementById('quarterlyFeeRemittanceChart') && quarterlySummary.length) {
+        new Chart(document.getElementById('quarterlyFeeRemittanceChart'), {
+            type: 'bar',
+            data: {
+                labels: quarterlySummary.map(function (row) { return row.label; }),
+                datasets: [
+                    { label: 'Fee', data: quarterlySummary.map(function (row) { return row.fee; }), backgroundColor: 'rgba(46,155,222,.85)', borderRadius: 5 },
+                    { label: 'Remittance', data: quarterlySummary.map(function (row) { return row.remittance; }), backgroundColor: 'rgba(39,174,96,.85)', borderRadius: 5 }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: gridLine }, ticks: { callback: function (v) { return '₱' + Number(v).toLocaleString(); } } } } }
         });
     }
 })();

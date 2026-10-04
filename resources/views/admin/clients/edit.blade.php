@@ -29,7 +29,7 @@
         <p>{{ $client->business_name ?: $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
     </div>
 
-    <form method="POST" action="{{ route('admin.clients.update', $client) }}" id="clientEditForm">
+    <form method="POST" action="{{ route('admin.clients.update', $client) }}" id="clientEditForm" enctype="multipart/form-data">
         @csrf
         @method('PUT')
 
@@ -170,6 +170,21 @@
                     @error('contact_no')<div class="form-error">{{ $message }}</div>@enderror
                 </div>
                 <div class="form-group">
+                    <label class="form-label" for="facebook_url">Facebook URL</label>
+                    <input class="form-control" id="facebook_url" name="facebook_url" type="url" value="{{ old('facebook_url', $profile->facebook_url) }}" placeholder="https://facebook.com/username">
+                    @error('facebook_url')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="messenger_url">Messenger URL</label>
+                    <input class="form-control" id="messenger_url" name="messenger_url" type="url" value="{{ old('messenger_url', $profile->messenger_url) }}" placeholder="https://m.me/username">
+                    @error('messenger_url')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="website_url">Website URL</label>
+                    <input class="form-control" id="website_url" name="website_url" type="url" value="{{ old('website_url', $profile->website_url) }}" placeholder="https://example.com">
+                    @error('website_url')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
                     <label class="form-label" for="second_contact_name">2nd contact name</label>
                     <input class="form-control" id="second_contact_name" name="second_contact_name" type="text" value="{{ old('second_contact_name', $profile->second_contact_name) }}" placeholder="Name of 2nd contact person">
                     @error('second_contact_name')<div class="form-error">{{ $message }}</div>@enderror
@@ -233,6 +248,25 @@
             </div>
         </div>
 
+        <div class="card">
+            <div class="card-head"><h2 class="card-title">Identity documents</h2></div>
+            <div class="form-hint mb-2">PDF, JPG, or PNG; maximum 10 MB. Files are stored privately.</div>
+            <div class="form-grid two">
+                <div class="form-group">
+                    <label class="form-label" for="tin_document">TIN document</label>
+                    <input class="form-control" id="tin_document" name="tin_document" type="file" accept=".pdf,image/jpeg,image/png">
+                    @if ($profile->tin_document_path)<div class="form-hint">A TIN document is on file. <a href="{{ $requirementUrls['tin'] }}" target="_blank" rel="noopener">View securely</a></div>@endif
+                    @error('tin_document')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="valid_id_document">Valid ID</label>
+                    <input class="form-control" id="valid_id_document" name="valid_id_document" type="file" accept=".pdf,image/jpeg,image/png">
+                    @if ($profile->valid_id_document_path)<div class="form-hint">A valid ID is on file. <a href="{{ $requirementUrls['valid-id'] }}" target="_blank" rel="noopener">View securely</a></div>@endif
+                    @error('valid_id_document')<div class="form-error">{{ $message }}</div>@enderror
+                </div>
+            </div>
+        </div>
+
         <div class="card" id="bir-forms-card">
             <div class="card-head"><h2 class="card-title">BIR Forms</h2></div>
             <div class="form-hint mb-2">Choose which BIR forms apply to this client. Billing line items, filing checklists, and the BIR forms matrix are generated from this list.</div>
@@ -263,6 +297,38 @@
             <a href="{{ route('admin.clients.show', $client) }}" class="btn btn-outline">Cancel</a>
         </div>
     </form>
+
+    <div class="card">
+        <div class="card-head"><h2 class="card-title">Companies &amp; branches</h2></div>
+        <div class="form-hint mb-2">The taxpayer account uses {{ $client->client_code }}; each company has its own Client ID and BIR/billing records.</div>
+        @foreach ($companies as $company)
+            <form method="POST" action="{{ route('admin.clients.companies.update', [$client, $company]) }}" class="form-grid two mb-3">
+                @csrf @method('PUT')
+                <div class="form-group"><label class="form-label">Client ID</label><input class="form-control" value="{{ $company->company_code }}" readonly></div>
+                <div class="form-group"><label class="form-label">Company / branch name</label><input class="form-control" name="company_name" value="{{ $company->company_name }}" required></div>
+                <div class="form-group"><label class="form-label">Business type</label><input class="form-control" name="business_type" value="{{ $company->business_type }}"></div>
+                <div class="form-group"><label class="form-label">Line of business</label><input class="form-control" name="line_of_business" value="{{ $company->line_of_business }}"></div>
+                <div class="form-group"><label class="form-label">Business email</label><input class="form-control" type="email" name="business_email" value="{{ $company->business_email }}"></div>
+                <div class="form-group"><label class="form-label">Business contact</label><input class="form-control" name="business_contact_no" value="{{ $company->business_contact_no }}"></div>
+                <div class="form-group col-span-2"><label class="form-label">Business address</label><input class="form-control" name="business_address" value="{{ $company->business_address }}"></div>
+                <div><button class="btn btn-outline btn-sm" type="submit">Save company</button></div>
+            </form>
+        @endforeach
+        <details>
+            <summary class="btn btn-outline btn-sm">Add company / branch</summary>
+            <form method="POST" action="{{ route('admin.clients.companies.store', $client) }}" class="form-grid two mt-3">
+                @csrf
+                <div class="form-group"><label class="form-label">Company / branch name</label><input class="form-control" name="company_name" required></div>
+                <div class="form-group"><label class="form-label">Business type</label><input class="form-control" name="business_type"></div>
+                <div class="form-group"><label class="form-label">Line of business</label><input class="form-control" name="line_of_business"></div>
+                <div class="form-group"><label class="form-label">BIR registration type</label><input class="form-control" name="bir_registration_type"></div>
+                <div class="form-group"><label class="form-label">Business email</label><input class="form-control" type="email" name="business_email"></div>
+                <div class="form-group"><label class="form-label">Business contact</label><input class="form-control" name="business_contact_no"></div>
+                <div class="form-group col-span-2"><label class="form-label">Business address</label><input class="form-control" name="business_address"></div>
+                <div><button class="btn btn-primary btn-sm" type="submit">Add company</button></div>
+            </form>
+        </details>
+    </div>
 @endsection
 
 @push('scripts')

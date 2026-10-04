@@ -80,6 +80,7 @@ class Billing extends Model
 
     protected $fillable = [
         'client_id',
+        'client_company_id',
         'period_label',
         'quarter',
         'year',
@@ -109,6 +110,11 @@ class Billing extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(User::class, 'client_id');
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class, 'client_company_id');
     }
 
     public function creator(): BelongsTo

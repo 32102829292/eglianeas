@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
 use App\Models\ClientSurveyResponse;
 use App\Models\User;
@@ -36,6 +37,9 @@ class ClientBillingCollectionsQuarterTest extends TestCase
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
+            'approved_at' => now(),
+            'confidentiality_acknowledged_at' => now(),
+            'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
 
         ClientSurveyResponse::create([

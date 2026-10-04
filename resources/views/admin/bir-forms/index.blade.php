@@ -6,11 +6,11 @@
     <div class="page-head page-head-row">
         <div>
             <h1>BIR Forms</h1>
-            <p>Select which BIR forms apply to each client. Only checked forms appear on the Document Distribution page.</p>
+            <p>Select the company or branch whose BIR forms apply. Parent taxpayer details remain on the client account.</p>
         </div>
         <div class="page-head-actions">
             @if ($highlightClientId)
-                <a href="{{ route('admin.billing.create', ['client_id' => $highlightClientId]) }}" class="btn btn-primary">Continue to Billing</a>
+                <a href="{{ route('admin.billing.create', ['client_id' => $highlightClientId, 'client_company_id' => $selectedCompanyId]) }}" class="btn btn-primary">Continue to Billing</a>
             @endif
             <div class="dropdown-wrap">
                 <button type="button" class="btn btn-primary btn-sm dropdown-toggle" data-dropdown="bir-download-menu">
@@ -18,11 +18,11 @@
                     Download BIR Forms Summary
                 </button>
                 <div class="dropdown-menu" id="bir-download-menu">
-                    <a href="{{ route('admin.bir-forms.exportXlsx', ['q' => $q]) }}" class="dropdown-item">
+                    <a href="{{ route('admin.bir-forms.exportXlsx', array_filter(['q' => $q, 'client_company_id' => $selectedCompanyId])) }}" class="dropdown-item">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                         Export as XLSX
                     </a>
-                    <a href="{{ route('admin.bir-forms.exportPdf', ['q' => $q]) }}" class="dropdown-item">
+                    <a href="{{ route('admin.bir-forms.exportPdf', array_filter(['q' => $q, 'client_company_id' => $selectedCompanyId])) }}" class="dropdown-item">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                         Export as PDF
                     </a>
@@ -34,6 +34,13 @@
     <div class="filter-bar">
         <form method="GET" action="{{ route('admin.bir-forms.index') }}">
             <input type="search" name="q" value="{{ $q }}" placeholder="Search business, contact, or client code&hellip;">
+            @if ($highlightClientId)<input type="hidden" name="client_id" value="{{ $highlightClientId }}">@endif
+            <select name="client_company_id" class="form-control form-control-sm" aria-label="Company or branch">
+                <option value="">All companies / branches</option>
+                @foreach ($companyOptions as $option)
+                    <option value="{{ $option->id }}" @selected($selectedCompanyId === $option->id)>{{ $option->company_code }} — {{ $option->company_name ?: $option->client?->name }}</option>
+                @endforeach
+            </select>
             <button type="submit" class="btn btn-outline btn-sm">Filter</button>
         </form>
     </div>
@@ -47,8 +54,8 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="thead-muted">
                     <tr>
-                        <th>Client Code</th>
-                        <th>Business</th>
+                        <th>Client ID</th>
+                        <th>Company / branch</th>
                         <th>Contact</th>
                         @foreach ($formTypes as $ft)
                             <th class="text-center" style="font-size:11px;white-space:nowrap;">{{ $ft }}</th>
@@ -58,14 +65,15 @@
                 </thead>
                 <tbody>
                     @forelse ($clients as $entry)
-                        @php($client = $entry['user'])
+                        @php($company = $entry['company'])
+                        @php($client = $company->client)
                         @php($statuses = $entry['statuses'])
-                        <tr id="client-{{ $client->id }}" @if($highlightClientId === $client->id) class="bir-flash" @endif>
+                        <tr id="company-{{ $company->id }}" @if($selectedCompanyId === $company->id) class="bir-flash" @endif>
                             <td>
                                 <span class="badge badge-navy">{{ $client->client_code ?? '—' }}</span>
                             </td>
                             <td>
-                                <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
+                                <div class="fw-semibold">{{ $company->company_name ?: 'Unnamed company' }}</div>
                                 <small class="muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
                             </td>
                             <td>
@@ -78,6 +86,7 @@
                                     <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form bir-toggle-form">
                                         @csrf
                                         <input type="hidden" name="form_type" value="{{ $ft }}">
+                                        <input type="hidden" name="client_company_id" value="{{ $company->id }}">
                                         <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}" aria-pressed="{{ $isOn ? 'true' : 'false' }}">
                                             <svg class="bir-ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
                                             <svg class="bir-ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -96,9 +105,10 @@
             </table>
             <div class="card-view-list">
                 @forelse ($clients as $entry)
-                    @php($client = $entry['user'])
+                    @php($company = $entry['company'])
+                    @php($client = $company->client)
                     @php($statuses = $entry['statuses'])
-                    <div class="cv-card" id="client-{{ $client->id }}" @if($highlightClientId === $client->id) data-bir-flash="1" @endif>
+                    <div class="cv-card" id="company-{{ $company->id }}" @if($selectedCompanyId === $company->id) data-bir-flash="1" @endif>
                         <div class="cv-card-head">
                             <div class="cv-head-main">
                                 <div class="cv-head-title">{{ $client->business_name ?: $client->name }}</div>
@@ -115,6 +125,7 @@
                                         <form method="POST" action="{{ route('admin.bir-forms.toggle', $client) }}" class="inline-form bir-toggle-form">
                                             @csrf
                                             <input type="hidden" name="form_type" value="{{ $ft }}">
+                                            <input type="hidden" name="client_company_id" value="{{ $company->id }}">
                                             <button type="submit" class="bir-toggle {{ $isOn ? 'bir-toggle-on' : '' }}" title="{{ $ft }}: {{ $isOn ? 'Applicable' : 'Not applicable' }}" aria-pressed="{{ $isOn ? 'true' : 'false' }}">
                                                 <svg class="bir-ico-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><polyline points="20 6 9 17 4 12"/></svg>
                                                 <svg class="bir-ico-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -134,11 +145,11 @@
     </div>
 @endsection
 
-@if ($highlightClientId)
+@if ($selectedCompanyId)
 @push('scripts')
 <script>
 (function () {
-    var el = document.getElementById('client-{{ $highlightClientId }}');
+    var el = document.getElementById('company-{{ $selectedCompanyId }}');
     if (!el) return;
     el.scrollIntoView({ block: 'center', behavior: 'smooth' });
     window.setTimeout(function () {

@@ -61,7 +61,7 @@
                             </div>
                         @endif
                     </div>
-                    @if ($featured->hasImage())
+                    @if ($featured->hasImagePath())
                         <div class="lp-ann-featured-thumb" data-ann-thumb>
                             <img src="{{ route('announcements.image', [$featured], false) }}" alt="Image attached to this announcement" loading="lazy"
                                  onload="this.parentElement.classList.add('lp-ann-featured-thumb--loaded')"
@@ -94,7 +94,7 @@
                             @if ($announcement->title)
                                 <h3 class="lp-ann-title">{{ $announcement->title }}</h3>
                             @endif
-                            @if ($announcement->hasImage())
+                            @if ($announcement->hasImagePath())
                                 <div class="lp-ann-thumb" data-ann-thumb>
                                     <img src="{{ route('announcements.image', [$announcement], false) }}" alt="Image attached to this announcement" loading="lazy"
                                          onload="this.parentElement.classList.add('lp-ann-thumb--loaded')"

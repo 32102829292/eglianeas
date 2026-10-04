@@ -614,10 +614,13 @@ var toastEl = null;
     this.lastRuleHit = false;
     this.offline = !navigator.onLine;
     this.dragged = false;
+    this.welcomeShown = false;
     this.build();
-    this.loadConfig();
+    /* The config is NOT fetched here. /chatbot/config is a normal web route,
+       so opening it costs a full request (session read + write + settings
+       query). Doing that on every page view blocked a closed widget. It is now
+       loaded the first time the user actually opens the chat. */
     this.bindConnectivity();
-    this.showWelcome();
   }
 
   Chatbot.prototype.build = function () {
@@ -822,20 +825,33 @@ var toastEl = null;
     });
   };
 
+  /* Returns a promise for the config, fetching at most once per page view.
+     A cached copy is used immediately so the chat is usable offline; the
+     request is single-flight (no parallel/repeated fetches) and a failure is
+     swallowed so the rest of the app is unaffected. */
   Chatbot.prototype.loadConfig = function () {
     var self = this;
-    var cached = null;
-    try { cached = JSON.parse(localStorage.getItem('egliane:chatbot:cfg')); } catch (e) {}
+    if (this._configPromise) return this._configPromise;
 
-    if (cached) this.cfg = cached;
+    try { this.cfg = JSON.parse(localStorage.getItem('egliane:chatbot:cfg')); } catch (e) {}
 
-    fetch('/chatbot/config')
+    this._configPromise = fetch('/chatbot/config')
       .then(function (res) { return res.json(); })
       .then(function (cfg) {
         self.cfg = cfg;
         try { localStorage.setItem('egliane:chatbot:cfg', JSON.stringify(cfg)); } catch (e) {}
+        return cfg;
       })
-      .catch(function () { /* offline: keep cached cfg */ });
+      .catch(function () { return self.cfg; /* offline or failed: keep cached cfg */ });
+
+    return this._configPromise;
+  };
+
+  /* Called when the widget is opened for the first time. */
+  Chatbot.prototype.ensureReady = function () {
+    if (this.welcomeShown) return;
+    this.welcomeShown = true;
+    this.loadConfig().then(function () { this.showWelcome(); }.bind(this));
   };
 
   Chatbot.prototype.toggle = function (open) {
@@ -843,6 +859,7 @@ var toastEl = null;
     this.open = open;
     if (this.widgetEl) this.widgetEl.classList.toggle('open', open);
     if (open) {
+      this.ensureReady();
       // Move focus into the input when opened so screen-reader/keyboard users
       // can start typing immediately.
       if (this.inputEl) setTimeout(function () { this.inputEl.focus(); }.bind(this), 250);

@@ -7,17 +7,38 @@ use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
 use App\Models\ClientProfile;
-use App\Models\DailySnapshot;
 use App\Models\Filing;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
+        $availableYears = Billing::query()
+            ->whereNotNull('year')
+            ->distinct()
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($year): int => (int) $year)
+            ->push((int) now()->format('Y'))
+            ->unique()
+            ->sortDesc()
+            ->values();
+        $selectedYear = $request->integer('year');
+        $selectedYear = $availableYears->contains($selectedYear) ? $selectedYear : (int) now()->format('Y');
+        $selectedPeriod = strtolower((string) $request->query('period', 'q1'));
+        $selectedPeriod = in_array($selectedPeriod, ['q1', 'q2', 'q3', 'q4', 'full'], true) ? $selectedPeriod : 'q1';
+        $quarters = $selectedPeriod === 'full' ? [1, 2, 3, 4] : [(int) substr($selectedPeriod, 1)];
+        $periodStart = Carbon::create($selectedYear, $quarters[0] * 3 - 2, 1)->startOfDay();
+        $periodEnd = $selectedPeriod === 'full'
+            ? $periodStart->copy()->addYear()
+            : $periodStart->copy()->addMonths(3);
+        $periodLabel = $selectedPeriod === 'full' ? 'Full Year '.$selectedYear : strtoupper($selectedPeriod).' '.$selectedYear;
         $dueBills = Billing::query()
             ->with('client')
             ->whereIn('status', [Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
@@ -65,18 +86,44 @@ class DashboardController extends Controller
             'lineOfBusiness' => $this->barData($lobCounts->mapWithKeys(fn ($count, $bucket) => [$bucket => $bucket])->all(), fn ($key) => (int) ($lobCounts[$key] ?? 0)),
         ];
 
-        $snapshots = DailySnapshot::orderByDesc('date')
-            ->limit(14)
-            ->get()
-            ->reverse()
-            ->values();
+        $periodRevenue = Billing::query()
+            ->where('status', Billing::STATUS_PAID)
+            ->where('paid_at', '>=', $periodStart)
+            ->where('paid_at', '<', $periodEnd)
+            ->sum('total');
+        $periodNewBillings = Billing::query()
+            ->whereIn('status', Billing::ACTIVE_STATUSES)
+            ->where('created_at', '>=', $periodStart)
+            ->where('created_at', '<', $periodEnd)
+            ->count();
 
         $categoryTotals = BillingLineItem::query()
-            ->whereHas('billing', fn ($query) => $query->whereIn('status', Billing::ACTIVE_STATUSES))
+            ->whereHas('billing', fn ($query) => $query->whereIn('status', Billing::ACTIVE_STATUSES)->where('year', $selectedYear)->whereIn('quarter', $quarters))
             ->selectRaw('category, sum(amount) as total')
             ->groupBy('category')
             ->pluck('total', 'category')
             ->sortByDesc(fn ($total) => $total);
+
+        $quarterlyBilling = BillingLineItem::query()
+            ->join('billings', 'billings.id', '=', 'billing_line_items.billing_id')
+            ->whereIn('billings.status', Billing::ACTIVE_STATUSES)
+            ->where('billings.year', $selectedYear)
+            ->whereIn('billings.quarter', $quarters)
+            ->selectRaw("billings.year, billings.quarter, CASE WHEN billing_line_items.category = ? THEN 'remittance' ELSE 'fee' END as kind, sum(billing_line_items.amount) as total", [BillingLineItem::CATEGORY_BIR_REMITTANCE])
+            ->groupBy('billings.year', 'billings.quarter', 'kind')
+            ->orderByDesc('billings.year')
+            ->orderByDesc('billings.quarter')
+            ->get();
+        $quarterLabels = $quarterlyBilling->map(fn ($row) => "Q{$row->quarter} {$row->year}")->unique()->values();
+        $quarterlySummary = $quarterLabels->map(function (string $label) use ($quarterlyBilling): array {
+            [$quarter, $year] = sscanf($label, 'Q%d %d');
+            $rows = $quarterlyBilling->where('quarter', $quarter)->where('year', $year);
+            return [
+                'label' => $label,
+                'fee' => (float) ($rows->firstWhere('kind', 'fee')->total ?? 0),
+                'remittance' => (float) ($rows->firstWhere('kind', 'remittance')->total ?? 0),
+            ];
+        })->reverse()->values();
 
         $topOutstanding = Billing::query()
             ->join('users', 'users.id', '=', 'billings.client_id')
@@ -93,14 +140,17 @@ class DashboardController extends Controller
             'pendingCount' => (int) ($billingStatusCounts[Billing::STATUS_PENDING] ?? 0),
             'unpaidCount' => (int) ($billingStatusCounts[Billing::STATUS_UNPAID] ?? 0),
             'overdueCount' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
-            'snapshotRevenue' => $snapshots->pluck('revenue_collected')->values(),
-            'snapshotNewBillings' => $snapshots->pluck('new_billings')->values(),
-            'snapshotOverdue' => $snapshots->pluck('overdue_count')->values(),
-            'snapshotLabels' => $snapshots->pluck('date')->map(fn ($d) => $d->format('M j'))->values(),
+            'availableYears' => $availableYears,
+            'selectedYear' => $selectedYear,
+            'selectedPeriod' => $selectedPeriod,
+            'periodLabel' => $periodLabel,
+            'periodRevenue' => (float) $periodRevenue,
+            'periodNewBillings' => $periodNewBillings,
             'categoryChart' => [
                 'labels' => $categoryTotals->keys()->map(fn ($key) => BillingLineItem::CATEGORIES[$key] ?? ucfirst(str_replace('_', ' ', $key)))->values(),
                 'totals' => $categoryTotals->values(),
             ],
+            'quarterlySummary' => $quarterlySummary,
             'topOutstanding' => $topOutstanding,
             'stats' => [
                 'clients' => User::query()->where('role', User::ROLE_CLIENT)->count(),

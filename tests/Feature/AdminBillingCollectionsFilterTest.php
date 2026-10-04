@@ -86,7 +86,7 @@ class AdminBillingCollectionsFilterTest extends TestCase
             ->assertDontSee('Filter Q3 Co');
     }
 
-    public function test_billing_index_quarter_totals_reflect_only_selected_quarter_while_stats_stay_global(): void
+    public function test_billing_index_quarter_totals_and_summary_cards_reflect_only_selected_quarter(): void
     {
         $admin = $this->admin();
         $client = $this->client('Filter Both Co');
@@ -94,14 +94,16 @@ class AdminBillingCollectionsFilterTest extends TestCase
         $this->billing($client, 1, 2026, 1111.11, Billing::STATUS_UNPAID);
         $this->billing($client, 3, 2026, 500.00, Billing::STATUS_UNPAID);
 
-        // Quarter-scoped table row shows only the Q1 billing; the summary
-        // cards still total ALL billing periods (1111.11 + 500.00).
+        // The toolbar calls this control the "Summary period", so the cards
+        // report the selected period only, like the table row. Totalling across
+        // periods is the collections page's job, whose Outstanding card is
+        // deliberately global (see the collections stats test below).
         $this->actingAs($admin)
             ->get(route('admin.billing.index', ['quarter' => '2026-Q1']))
             ->assertOk()
             ->assertSee('₱1,111.11')
             ->assertDontSee('₱500.00')
-            ->assertSee('₱1,611.11');
+            ->assertDontSee('₱1,611.11');
     }
 
     public function test_billing_index_ignores_invalid_quarter_and_lists_everything(): void

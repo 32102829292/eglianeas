@@ -796,6 +796,83 @@
 .form-control-sm { width: auto; min-width: 170px; padding: 6px 10px; font-size: 12.5px; }
 .status-options { display: flex; flex-wrap: wrap; gap: 8px; }
 
+/* ---------- Sectioned form card ----------
+   Used by the Kaizen Concern and Priority Item edit screens: one card, split
+   into labelled sections so a long form stays scannable. Short fields sit in
+   the existing .form-grid.two / .three (single column below 700px), long
+   textareas stay full width. */
+.form-card { max-width: 900px; }
+.form-sections { display: grid; gap: 16px; }
+.form-section {
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  padding: 16px 18px 4px;
+}
+.form-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.form-section-title {
+  font-family: var(--font-head);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: -.01em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-section-num {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 50%;
+  background: rgba(90, 179, 240, 0.14);
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-body);
+}
+.form-section-note { font-size: 12.5px; color: var(--text-muted); }
+.form-section .form-group:last-child { margin-bottom: 12px; }
+textarea.form-control { line-height: 1.6; resize: vertical; min-height: 96px; }
+.form-note-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(90, 179, 240, 0.08);
+  border: 1px solid rgba(90, 179, 240, 0.22);
+  font-size: 12.5px;
+  color: var(--navy);
+  line-height: 1.5;
+}
+.form-note-box svg { flex: 0 0 auto; margin-top: 1px; color: #5AB3F0; }
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 1px solid var(--glass-border);
+}
+.form-actions .btn-primary { min-width: 132px; }
+@media (max-width: 700px) {
+  .form-card { max-width: none; }
+  .form-section { padding: 14px 14px 2px; }
+  .form-actions .btn { flex: 1 1 auto; }
+}
+
 /* ---------- Pagination (Laravel default markup) ---------- */
 .pagination { margin-top: 16px; }
 .pagination nav { display: flex; }
@@ -2315,7 +2392,7 @@ button.staff-chip:active { transform: translateY(1px); }
 .page-head-dash h1 { font-size: 26px; }
 .page-head-dash p { font-size: 14px; }
 
-.date-filter { display: flex; align-items: center; }
+.date-filter { display: flex; align-items: center; gap: 10px; }
 .date-pill {
   display: inline-flex;
   align-items: center;
@@ -3328,11 +3405,15 @@ button.staff-chip:active { transform: translateY(1px); }
    shared submit-guard pattern. All field IDs/names/behavior unchanged.
    ============================================================ */
 
-/* Desktop: keep the form at a comfortable reading width */
-.fill-form-card { max-width: 880px; }
+/* Desktop: keep the form at a comfortable reading width, slightly more
+   compact vertically while staying clean and spacious. */
+.fill-form-card { max-width: 880px; padding: 20px 24px 22px; }
 
-/* Page header hierarchy: small eyebrow above the H1 */
-.fill-form-page-head { margin-bottom: 20px; }
+/* Page header hierarchy: small eyebrow above the H1. Tighten the gap to
+   the card so the page opens onto the Client & Service section. */
+.fill-form-page-head { margin-bottom: 12px; }
+.fill-form-page-head h1 { font-size: 24px; letter-spacing: -.01em; }
+.fill-form-page-head p { font-size: 14px; line-height: 1.5; max-width: 560px; }
 .fill-form-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -3356,7 +3437,7 @@ button.staff-chip:active { transform: translateY(1px); }
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
 }
 .fill-form-section-icon {
   display: inline-flex;
@@ -3376,6 +3457,20 @@ button.staff-chip:active { transform: translateY(1px); }
   font-size: 12.5px;
   line-height: 1.5;
   color: var(--text-muted);
+}
+
+/* Form grid: even two-column field layout with tighter, aligned rows.
+   Keeps the two-column desktop layout while improving the rhythm
+   between Client, Other Service, Custom label and Amount. */
+.fill-form-card .form-grid { gap: 14px 18px; align-items: start; }
+.fill-form-card .form-grid .form-group { margin-bottom: 0; }
+
+/* SCHEDULE section: visually connected to the section above via the same
+   divider, with consistent spacing instead of extra breathing room. */
+.fill-form-card .form-section + .form-section {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 20px;
+  padding-top: 18px;
 }
 
 /* Search autocompletes with an inline search icon */
@@ -3413,10 +3508,12 @@ button.staff-chip:active { transform: translateY(1px); }
 /* Mobile / tablet: comfortable touch targets and clean stacking */
 @media (max-width: 767px) {
   .fill-form-card { padding: 18px 16px; }
-  .fill-form-section-head { gap: 10px; margin-bottom: 16px; }
+  .fill-form-page-head { margin-bottom: 10px; }
+  .fill-form-page-head h1 { font-size: 22px; }
+  .fill-form-section-head { gap: 10px; margin-bottom: 14px; }
   .fill-form-section-icon { width: 34px; height: 34px; flex-basis: 34px; }
   .fill-form-card input.form-control { min-height: 46px; }
-  .fill-form-actions .btn { min-height: 46px; }
+  .fill-form-card .fill-form-actions .btn { min-height: 46px; }
   .fill-form-actions .btn-primary { min-width: 0; }
   .fill-selected-client .client-info-grid { grid-template-columns: 1fr; }
 }
@@ -4001,3 +4098,411 @@ button.staff-chip:active { transform: translateY(1px); }
 tr.bir-flash > td,
 .cv-card[data-bir-flash] { animation: bir-flash-glow 3.4s ease-out; }
 tr.bir-flash > td { box-shadow: inset 3px 0 0 var(--sky, #2196f3); }
+
+/* ---------- Phase 1: Confidentiality v2 signature pad ---------- */
+.sig-pad-field { margin-top: 16px; }
+.sig-pad-field .form-label { display: block; margin-bottom: 4px; }
+.sig-pad-box {
+  position: relative;
+  margin-top: 8px;
+  border: 1.5px dashed var(--border, #cfd6e4);
+  border-radius: var(--radius-sm, 10px);
+  background: #fff;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sig-pad-box canvas { display: block; touch-action: none; cursor: crosshair; }
+.sig-pad-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #64748b);
+  font-size: 13.5px;
+  letter-spacing: .02em;
+  pointer-events: none;
+  font-style: italic;
+}
+.sig-pad-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+/* ---------- Phase 1: Member initials avatar becomes a photo ---------- */
+.avatar-photo { overflow: hidden; padding: 0; }
+.avatar-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
+}
+.badge-supervisor {
+  background: rgba(124, 93, 250, .12);
+  color: #5B3DA8;
+  border: 1px solid rgba(124, 93, 250, .22);
+}
+
+/* ---------- Phase 1: Member / client rows (photo + name stack) ---------- */
+.member-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.member-cell .avatar { flex: 0 0 auto; }
+.member-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.member-name {
+  font-weight: 600;
+  color: var(--text-strong, #1a1a2e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-email {
+  font-size: 12.5px;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-email .contact-link { color: inherit; }
+.member-email .contact-link:hover { color: var(--sky-deep, #0a6fb8); }
+
+/* ---------- Phase 1: Pending accounts reject inline form ---------- */
+.reject-form { display: inline-flex; align-items: center; gap: 8px; }
+.reject-form[hidden] { display: none; }
+@media (max-width: 640px) {
+  .reject-form { flex-wrap: wrap; }
+  .reject-form .form-control { min-width: 170px; }
+}
+
+/* ---------- Phase 1: Member photo preview in the edit form ---------- */
+.photo-preview {
+  margin-top: 10px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--border-light, #e2e8f0);
+  background: var(--sky-soft, #e8f4fd);
+  display: none;
+}
+.photo-preview.visible { display: block; }
+.photo-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---------- Confidentiality & Data Privacy acknowledgement redesign ---------- */
+.ack-wrap { max-width: 860px; margin: 0 auto; padding: 28px 8px 48px; }
+.ack-heading { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+.ack-heading > svg { width: 36px; height: 36px; flex: 0 0 auto; color: var(--navy, #1B1B3A); margin-top: 4px; }
+.ack-heading h1 { font-family: "Space Grotesk", var(--font-ui, sans-serif); font-size: 22px; font-weight: 700; color: var(--navy, #1B1B3A); margin: 0 0 4px; line-height: 1.3; }
+.ack-heading p { font-size: 13.5px; color: var(--text-muted, #64748b); margin: 0; line-height: 1.55; }
+.ack-print-btn {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 14px; border-radius: 9px;
+  background: var(--navy, #1B1B3A); color: #fff;
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  white-space: nowrap;
+}
+.ack-print-btn svg { width: 16px; height: 16px; }
+.ack-print-btn:hover { background: var(--navy-deep, #10101f); color: #fff; }
+
+.ack-card { padding: 26px 28px; }
+.ack-card-head { margin-bottom: 16px; }
+.ack-card-head h2 { font-family: "Space Grotesk", var(--font-ui, sans-serif); font-size: 16px; font-weight: 700; color: var(--navy, #1B1B3A); margin: 0 0 4px; }
+.ack-card-head p { font-size: 13px; color: var(--text-muted, #64748b); margin: 0; line-height: 1.55; }
+
+.ack-policy-body { background: #fafcff; border: 1px solid var(--border, #cfd6e4); border-radius: 10px; padding: 18px 20px; font-size: 13.5px; color: var(--text, #334155); line-height: 1.7; }
+.ack-policy-body h3 { font-family: "Space Grotesk", var(--font-ui, sans-serif); font-size: 13.5px; font-weight: 700; color: var(--navy, #1B1B3A); margin: 16px 0 6px; }
+.ack-policy-body h3:first-child { margin-top: 0; }
+.ack-policy-body p { margin: 0 0 8px; }
+.ack-policy-body ul { margin: 0 0 10px; padding-left: 20px; }
+.ack-policy-body li { margin-bottom: 4px; }
+
+.ack-checkbox { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; cursor: pointer; font-size: 13.5px; line-height: 1.6; color: var(--text, #334155); font-weight: 500; }
+.ack-checkbox input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--navy, #1B1B3A); }
+.ack-legal-note { font-size: 12px; color: var(--text-muted, #64748b); margin: 14px 0 0; line-height: 1.55; }
+
+.ack-signer { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: #fafcff; border: 1px solid var(--border, #cfd6e4); border-radius: 10px; padding: 16px 18px; }
+.ack-signer-avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--navy, #1B1B3A); color: #fff; display: flex; align-items: center; justify-content: center; font-family: "Space Grotesk", var(--font-ui, sans-serif); font-weight: 700; font-size: 20px; flex: 0 0 auto; }
+.ack-signer-lines { display: flex; flex-direction: column; min-width: 0; }
+.ack-signer-name { font-weight: 700; font-size: 14px; color: var(--navy, #1B1B3A); }
+.ack-signer-mail { font-size: 12.5px; color: var(--text-muted, #64748b); word-break: break-all; }
+.ack-signer-meta { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.ack-signer-role { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; background: var(--sky-soft, #e8f4fd); color: var(--sky-deep, #0a6fb8); font-size: 12px; font-weight: 700; }
+.ack-signer-id { font-size: 12px; color: var(--text-muted, #64748b); }
+
+.ack-sig-area { margin-top: 4px; }
+.ack-sig-label { font-size: 13px; }
+.ack-required { color: var(--danger, #dc2626); }
+.sig-pad-actions { gap: 8px; }
+.ack-sig-error { color: var(--danger, #dc2626); font-size: 13px; margin-top: 6px; }
+.sig-pad-box.ack-sig-invalid { border-color: var(--danger, #dc2626); border-style: solid; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+.ack-form-actions { margin-top: 20px; display: flex; justify-content: flex-end; }
+.ack-form-actions .btn-primary { min-width: 220px; }
+
+.ack-signed-card { padding: 26px 28px; }
+.ack-signed-banner { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #e7f6ef, #d3f0e2); border: 1px solid #b7e3cd; border-radius: 12px; padding: 16px 18px; }
+.ack-signed-check { width: 42px; height: 42px; flex: 0 0 auto; border-radius: 50%; background: #1f9d63; color: #fff; display: flex; align-items: center; justify-content: center; }
+.ack-signed-check svg { width: 24px; height: 24px; }
+.ack-signed-banner strong { display: block; font-family: "Space Grotesk", var(--font-ui, sans-serif); font-size: 17px; color: #14532d; }
+.ack-signed-banner span { font-size: 13px; color: #166534; display: block; }
+
+.ack-signed-rows { margin-top: 20px; border: 1px solid var(--border, #cfd6e4); border-radius: 10px; overflow: hidden; }
+.ack-signed-row { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; font-size: 13.5px; }
+.ack-signed-row + .ack-signed-row { border-top: 1px solid var(--border, #cfd6e4); }
+.ack-signed-row .ack-k { color: var(--text-muted, #64748b); font-weight: 500; }
+.ack-signed-row .ack-v { color: var(--navy, #1B1B3A); font-weight: 600; text-align: right; }
+
+.ack-signed-sig { margin-top: 20px; }
+.ack-sig-frame { display: inline-block; margin-top: 8px; border: 1px solid var(--border, #cfd6e4); border-radius: 10px; padding: 10px 14px; background: #fff; max-width: 280px; }
+.ack-sig-frame img { max-height: 90px; width: auto; display: block; }
+.ack-sig-empty { color: var(--text-muted, #64748b); font-size: 12.5px; font-style: italic; }
+.ack-signed-note { margin-top: 18px; font-size: 12.5px; color: var(--text-muted, #64748b); line-height: 1.55; }
+
+@media (max-width: 640px) {
+  .ack-wrap { padding: 20px 4px 36px; }
+  .ack-heading { flex-wrap: wrap; }
+  .ack-print-btn { margin-left: 50px; }
+  .ack-card { padding: 20px 16px; }
+  .ack-policy-body { padding: 14px 14px; }
+  .ack-signer-meta { margin-left: 0; align-items: flex-start; width: 100%; padding-left: 60px; }
+  .ack-form-actions .btn-primary { width: 100%; min-width: 0; }
+  .ack-signed-card { padding: 20px 16px; }
+  .ack-signed-row { flex-direction: column; gap: 2px; }
+  .ack-signed-row .ack-v { text-align: left; }
+}
+
+/* ---------------------------------------------------------------------------
+   BIR form code chips (.bir-chips) in the Admin Billing table and card view.
+   Each chip is one form code; colour and the title attribute carry the
+   filed / not-filed / exempt status, and not-applicable forms are dimmed.
+   --------------------------------------------------------------------------- */
+
+.bir-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    justify-content: center;
+    margin-bottom: 4px;
+}
+
+.bir-chip {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    font-variant-numeric: tabular-nums;
+}
+
+.bir-chip-filed { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+.bir-chip-not_filed { background: #fef3c7; color: #a16207; border-color: #fde68a; }
+.bir-chip-not_applicable { background: #e2e8f0; color: #475569; border-color: #cbd5e1; }
+.bir-chip-na { opacity: 0.55; font-weight: 500; }
+
+/* Card view stacks chips left-aligned at the row's natural width. */
+.table-card-view .cv-pair .bir-chips { justify-content: flex-end; }
+
+/* ---------------------------------------------------------------------------
+   Billing Summary — grouped accounting table (.bsum) and receipt summary
+   (.brsum). Mirrors the workbook layout: CLIENT | FOR REMITTANCE | FOR FEE |
+   TOTAL | GRAND TOTAL, with a two-level header and sticky row/column.
+   --------------------------------------------------------------------------- */
+
+.bsum-panel { margin: 18px 0 4px; }
+
+.bsum-panel-title {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* Wide tables scroll horizontally instead of wrapping the money columns. */
+.bsum-scroll {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #dbe3ec;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.bsum-scroll:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 2px;
+}
+
+table.bsum {
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+table.bsum th,
+table.bsum td {
+    border-right: 1px solid #e3e9f0;
+    border-bottom: 1px solid #e3e9f0;
+    padding: 7px 9px;
+    vertical-align: middle;
+}
+
+table.bsum thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: #eef2f7;
+    color: #334155;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: center;
+    white-space: normal;
+}
+
+/* Level-1 group bands. */
+.bsum-group-remit { background: #d6e8f7 !important; color: #1e4e8c !important; }
+.bsum-group-fee { background: #d1ede9 !important; color: #0f766e !important; }
+.bsum-single-grand { background: #f1f3f7 !important; color: #111827 !important; }
+
+/* Level-2 subtotal headers. */
+.bsum-sub-remit { color: #1e4e8c; }
+.bsum-sub-fee { color: #0f766e; }
+
+/* Client column stays visible while scrolling sideways. */
+table.bsum .bsum-client,
+table.bsum .bsum-client-head,
+table.bsum .bsum-total-label {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: #f8fafc;
+    text-align: left;
+    font-weight: 600;
+    color: #1e293b;
+    min-width: 190px;
+    box-shadow: 1px 0 0 #e3e9f0;
+}
+
+table.bsum thead .bsum-client-head {
+    z-index: 4;
+    background: #eef2f7;
+}
+
+.bsum-num { text-align: right; white-space: nowrap; }
+
+.bsum-cell-remit { background: #f4f9fe; font-weight: 600; }
+.bsum-cell-fee { background: #f1faf8; font-weight: 600; }
+.bsum-cell-total { font-weight: 600; }
+.bsum-cell-grand { background: #f7f8fa; font-weight: 700; }
+
+table.bsum tbody tr:hover td,
+table.bsum tbody tr:hover th { background-color: #f1f5f9; }
+
+table.bsum tfoot .bsum-total-row th,
+table.bsum tfoot .bsum-total-row td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: #f1f3f7;
+    border-top: 2px solid #cbd5e1;
+    font-weight: 700;
+    color: #111827;
+}
+
+table.bsum tfoot .bsum-total-row .bsum-cell-remit { background: #e8f1fa; }
+table.bsum tfoot .bsum-total-row .bsum-cell-fee { background: #e4f4f1; }
+
+.bsum-orphan { color: #9ca3af; font-style: italic; font-weight: 400; }
+
+.bsum-empty {
+    padding: 18px;
+    text-align: center;
+    color: #64748b;
+    font-style: italic;
+}
+
+col.bsum-col-client { width: 190px; }
+col.bsum-col-num { width: 96px; }
+col.bsum-col-sub { width: 118px; }
+
+/* Receipt summary section. */
+.brsum { margin-top: 22px; }
+
+.brsum-title {
+    margin: 0 0 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+table.brsum-table {
+    width: 100%;
+    max-width: 720px;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+table.brsum-table th,
+table.brsum-table td {
+    border: 1px solid #e3e9f0;
+    padding: 6px 10px;
+}
+
+table.brsum-table thead th {
+    background: #eef2f7;
+    color: #334155;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    text-align: left;
+}
+
+table.brsum-table .brsum-client { text-align: left; font-weight: 600; }
+table.brsum-table .brsum-num { text-align: right; white-space: nowrap; }
+
+table.brsum-table .brsum-remit { color: #1e4e8c; }
+table.brsum-table .brsum-fee { color: #0f766e; }
+table.brsum-table .brsum-grand { color: #111827; }
+
+table.brsum-table tfoot .brsum-total th,
+table.brsum-table tfoot .brsum-total td {
+    background: #f8fafc;
+    font-weight: 700;
+    color: #111827;
+}
+
+table.brsum-table tfoot .brsum-grand-row th,
+table.brsum-table tfoot .brsum-grand-row td {
+    background: #f1f3f7;
+    border-top: 2px solid #cbd5e1;
+}
+
+/* Print: the summary is the whole page, so drop the outer card chrome. */
+@media print {
+    .bsum-scroll { overflow: visible; border: 0; }
+    table.bsum { min-width: 0; font-size: 7.5pt; }
+    table.bsum .bsum-client,
+    table.bsum .bsum-client-head,
+    table.bsum .bsum-total-label { position: static; min-width: 0; }
+    table.bsum thead th,
+    table.bsum tfoot .bsum-total-row th,
+    table.bsum tfoot .bsum-total-row td { position: static; }
+    table.brsum-table { font-size: 7.5pt; }
+}

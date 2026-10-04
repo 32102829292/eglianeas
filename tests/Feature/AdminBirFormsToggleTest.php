@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\BirFormStatus;
+use App\Models\ClientCompany;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -40,20 +41,40 @@ class AdminBirFormsToggleTest extends TestCase
         return $this->internal(User::ROLE_CLIENT, 'BIR Toggle Client');
     }
 
+    /**
+     * BIR form statuses are scoped per client company, and the toggle endpoint
+     * requires one. Creating the User directly skips the primary company that
+     * registration seeds, so mirror it here.
+     */
+    private function company(User $client, string $label = 'BIR Toggle Co'): ClientCompany
+    {
+        return ClientCompany::create([
+            'client_id' => $client->id,
+            'branch_number' => 1,
+            'company_code' => $client->client_code.'-01',
+            'company_name' => $label,
+        ]);
+    }
+
     public function test_json_toggle_applies_then_unapplies_and_logs(): void
     {
         $admin = $this->admin();
         $client = $this->client();
+        $company = $this->company($client);
         $formType = BirFormStatus::FORM_TYPES[0];
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/bir-forms/{$client->id}/toggle", ['form_type' => $formType]);
+            ->postJson("/admin/bir-forms/{$client->id}/toggle", [
+                'form_type' => $formType,
+                'client_company_id' => $company->id,
+            ]);
 
         $response->assertOk()
             ->assertJson(['ok' => true, 'form_type' => $formType, 'applicable' => true]);
 
         $this->assertDatabaseHas('bir_form_statuses', [
             'client_id' => $client->id,
+            'client_company_id' => $company->id,
             'form_type' => $formType,
             'applicable' => true,
         ]);
@@ -63,13 +84,17 @@ class AdminBirFormsToggleTest extends TestCase
         ]);
 
         $response = $this->actingAs($admin)
-            ->postJson("/admin/bir-forms/{$client->id}/toggle", ['form_type' => $formType]);
+            ->postJson("/admin/bir-forms/{$client->id}/toggle", [
+                'form_type' => $formType,
+                'client_company_id' => $company->id,
+            ]);
 
         $response->assertOk()
             ->assertJson(['ok' => true, 'form_type' => $formType, 'applicable' => false]);
 
         $this->assertDatabaseHas('bir_form_statuses', [
             'client_id' => $client->id,
+            'client_company_id' => $company->id,
             'form_type' => $formType,
             'applicable' => false,
         ]);
@@ -79,10 +104,14 @@ class AdminBirFormsToggleTest extends TestCase
     {
         $admin = $this->admin();
         $client = $this->client();
+        $company = $this->company($client);
         $formType = BirFormStatus::FORM_TYPES[0];
 
         $this->actingAs($admin)
-            ->post("/admin/bir-forms/{$client->id}/toggle", ['form_type' => $formType])
+            ->post("/admin/bir-forms/{$client->id}/toggle", [
+                'form_type' => $formType,
+                'client_company_id' => $company->id,
+            ])
             ->assertRedirect()
             ->assertSessionHas('status', "{$formType} marked as applicable.");
     }
@@ -91,10 +120,14 @@ class AdminBirFormsToggleTest extends TestCase
     {
         $staff = $this->staff();
         $client = $this->client();
+        $company = $this->company($client);
         $formType = BirFormStatus::FORM_TYPES[1];
 
         $this->actingAs($staff)
-            ->postJson("/admin/bir-forms/{$client->id}/toggle", ['form_type' => $formType])
+            ->postJson("/admin/bir-forms/{$client->id}/toggle", [
+                'form_type' => $formType,
+                'client_company_id' => $company->id,
+            ])
             ->assertOk()
             ->assertJson(['ok' => true, 'applicable' => true]);
     }

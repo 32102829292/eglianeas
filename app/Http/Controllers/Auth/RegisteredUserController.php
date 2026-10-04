@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\VerificationCodeMail;
 use App\Models\ClientProfile;
+use App\Models\ClientCompany;
 use App\Models\User;
 use App\Models\VerificationCode;
 use App\Models\ActivityLog;
@@ -93,6 +94,12 @@ class RegisteredUserController extends Controller
 
         $check = $this->classifyEmail($request->input('email'));
 
+        if ($check['status'] === 'deleted') {
+            return back()
+                ->withInput()
+                ->withErrors(['email' => 'This email belongs to a deleted account. Please contact support to restore it.']);
+        }
+
         if ($check['status'] === 'verified') {
             return back()->withInput()->with('email_registered', true);
         }
@@ -135,6 +142,23 @@ class RegisteredUserController extends Controller
                 'tin_no' => $request->tin_no,
                 'mother_maiden_name' => $request->mother_maiden_name,
                 'father_name' => $request->father_name,
+            ]
+        );
+
+        // The account remains the taxpayer; registration's business details
+        // seed its primary company/branch. Existing accounts are backfilled by
+        // the migration.
+        ClientCompany::firstOrCreate(
+            ['client_id' => $user->id, 'branch_number' => 1],
+            [
+                'company_code' => $user->client_code.'-01',
+                'company_name' => $user->business_name,
+                'business_type' => $request->business_type,
+                'line_of_business' => $lineOfBusiness,
+                'bir_registration_type' => $request->bir_registration_type,
+                'business_address' => $request->business_address,
+                'business_email' => $user->email,
+                'business_contact_no' => $request->contact_no,
             ]
         );
 
@@ -294,6 +318,12 @@ class RegisteredUserController extends Controller
 
         ActivityLog::record($user, 'account.verified', 'Email address verified.');
 
+        if ($user->isClient() && $user->isAccountPending()) {
+            $request->session()->forget('setup_face');
+
+            return redirect()->route('client.pending-approval')->with('status', 'Welcome, '.$user->name.'! Your account is awaiting approval. You will be able to access the portal once an admin approves your account.');
+        }
+
         if ($request->session()->pull('setup_face')) {
             return redirect()->route('security.index')->with('status', 'Welcome, '.$user->name.'! Set up face recognition now so you can log in even faster.');
         }
@@ -303,10 +333,14 @@ class RegisteredUserController extends Controller
 
     private function classifyEmail(string $email): array
     {
-        $user = User::query()->where('email', $email)->first();
+        $user = User::withTrashed()->where('email', $email)->first();
 
         if ($user === null) {
             return ['status' => 'available'];
+        }
+
+        if ($user->trashed()) {
+            return ['status' => 'deleted'];
         }
 
         return [

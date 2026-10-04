@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\BirFormStatus;
+use App\Models\ClientCompany;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,41 +21,48 @@ class BirFormsController extends Controller
         // Deep-link support: billing create lands here with ?client_id=X so
         // the exact client's row is shown and highlighted for quick toggling.
         $highlightClientId = (int) $request->get('client_id') ?: null;
+        $selectedCompanyId = (int) $request->get('client_company_id') ?: null;
+        $formTypes = $this->formTypes();
 
-        $clients = User::query()
-            ->where('role', User::ROLE_CLIENT)
-            ->with('profile', 'birFormStatuses')
+        $clients = ClientCompany::query()
+            ->with(['client.profile', 'birFormStatuses'])
+            ->when($selectedCompanyId, fn ($query) => $query->whereKey($selectedCompanyId))
             ->when($highlightClientId, function ($query) use ($highlightClientId) {
-                $query->where('id', $highlightClientId);
+                $query->where('client_id', $highlightClientId);
             })
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%{$q}%")
-                        ->orWhere('business_name', 'like', "%{$q}%")
-                        ->orWhere('client_code', 'like', "%{$q}%");
+                    $query->where('company_name', 'like', "%{$q}%")
+                        ->orWhere('company_code', 'like', "%{$q}%")
+                        ->orWhereHas('client', function ($client) use ($q) {
+                            $client->where('name', 'like', "%{$q}%")
+                                ->orWhere('client_code', 'like', "%{$q}%");
+                        });
                 });
             })
-            ->orderBy('business_name')
+            ->orderBy('company_name')
             ->paginate(50)
             ->withQueryString()
-            ->through(function (User $client): array {
-                $statuses = $client->birFormStatuses->pluck('applicable', 'form_type');
+            ->through(function (ClientCompany $company) use ($formTypes): array {
+                $statuses = $company->birFormStatuses->pluck('applicable', 'form_type');
                 $applicableCount = $statuses->filter()->count();
 
                 return [
-                    'user' => $client,
+                    'company' => $company,
                     'statuses' => $statuses,
-                    'profile' => $client->profile,
+                    'profile' => $company->client->profile,
                     'applicableCount' => $applicableCount,
-                    'totalForms' => count(BirFormStatus::FORM_TYPES),
+                    'totalForms' => $formTypes->count(),
                 ];
             });
 
         return view('admin.bir-forms.index', [
             'clients' => $clients,
             'q' => $q,
-            'formTypes' => BirFormStatus::FORM_TYPES,
+            'formTypes' => $formTypes,
             'highlightClientId' => $highlightClientId,
+            'selectedCompanyId' => $selectedCompanyId,
+            'companyOptions' => ClientCompany::query()->with('client:id,name')->orderBy('company_code')->get(),
         ]);
     }
 
@@ -63,11 +71,16 @@ class BirFormsController extends Controller
         abort_unless($client->role === User::ROLE_CLIENT, 404);
 
         $validated = $request->validate([
-            'form_type' => ['required', 'string', 'in:'.implode(',', BirFormStatus::FORM_TYPES)],
+            'form_type' => ['required', 'string', 'in:'.implode(',', $this->formTypes()->all())],
+            'client_company_id' => ['required', 'exists:client_companies,id'],
         ]);
 
+        $company = ClientCompany::whereKey($validated['client_company_id'])
+            ->where('client_id', $client->id)
+            ->firstOrFail();
+
         $record = BirFormStatus::firstOrCreate(
-            ['client_id' => $client->id, 'form_type' => $validated['form_type']],
+            ['client_id' => $client->id, 'client_company_id' => $company->id, 'form_type' => $validated['form_type']],
             ['status' => BirFormStatus::STATUS_NOT_FILED, 'applicable' => false]
         );
 
@@ -77,12 +90,12 @@ class BirFormsController extends Controller
         ]);
 
         $state = $record->applicable ? 'applicable' : 'not applicable';
-        $displayName = $client->business_name ?: $client->name;
+        $displayName = $company->company_name ?: $client->name;
 
         \App\Models\ActivityLog::record(
             auth()->user(),
             'admin.bir_form_toggled',
-            "Marked {$validated['form_type']} as {$state} for {$displayName}."
+            "Marked {$validated['form_type']} as {$state} for {$displayName} ({$company->company_code})."
         );
 
         $message = "{$validated['form_type']} marked as {$state}.";
@@ -102,7 +115,9 @@ class BirFormsController extends Controller
     public function exportXlsx(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         $q = trim((string) $request->get('q'));
-        $entries = $this->getFilteredClients($q);
+        $selectedCompanyId = (int) $request->get('client_company_id') ?: null;
+        $entries = $this->getFilteredClients($q, $selectedCompanyId);
+        $formTypes = $this->formTypes();
 
         if ($entries->isEmpty()) {
             abort(404, 'No clients found for the current filter.');
@@ -117,13 +132,13 @@ class BirFormsController extends Controller
             'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
         ];
 
-        return response()->stream(function () use ($entries) {
+        return response()->stream(function () use ($entries, $formTypes) {
             $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
             $colHeaders = array_merge(
                 ['Client ID', 'Client Name', 'Business Name', 'Business Type', 'Line of Business'],
-                BirFormStatus::FORM_TYPES,
+                $formTypes->all(),
                 ['Total']
             );
 
@@ -139,19 +154,20 @@ class BirFormsController extends Controller
 
             $row = 2;
             foreach ($entries as $entry) {
-                $client = $entry['user'];
+                $company = $entry['company'];
+                $client = $company->client;
                 $p = $entry['profile'];
                 $statuses = $entry['statuses'];
 
                 $values = [
-                    $client->client_code ?? '',
+                    $company->company_code ?? '',
                     $client->name,
-                    $client->business_name ?? '',
-                    $p?->business_type ?? '',
-                    $p?->line_of_business ?? '',
+                    $company->company_name ?? '',
+                    $company->business_type ?? '',
+                    $company->line_of_business ?? '',
                 ];
 
-                foreach (BirFormStatus::FORM_TYPES as $ft) {
+                foreach ($formTypes as $ft) {
                     $values[] = ($statuses[$ft] ?? false) ? '✓' : '—';
                 }
 
@@ -175,7 +191,9 @@ class BirFormsController extends Controller
     public function exportPdf(Request $request): \Symfony\Component\HttpFoundation\Response
     {
         $q = trim((string) $request->get('q'));
-        $entries = $this->getFilteredClients($q);
+        $selectedCompanyId = (int) $request->get('client_company_id') ?: null;
+        $entries = $this->getFilteredClients($q, $selectedCompanyId);
+        $formTypes = $this->formTypes();
 
         if ($entries->isEmpty()) {
             abort(404, 'No clients found for the current filter.');
@@ -185,7 +203,7 @@ class BirFormsController extends Controller
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.bir-forms.summary-pdf', [
             'entries' => $entries,
-            'formTypes' => BirFormStatus::FORM_TYPES,
+            'formTypes' => $formTypes,
         ])->setPaper('a4', 'landscape');
 
         $filename = 'Egliane-BIR-Forms-Summary-' . now()->format('Y-m-d') . '.pdf';
@@ -193,31 +211,42 @@ class BirFormsController extends Controller
         return $pdf->download($filename);
     }
 
-    private function getFilteredClients(string $q): Collection
+    private function getFilteredClients(string $q, ?int $selectedCompanyId = null): Collection
     {
-        return User::query()
-            ->where('role', User::ROLE_CLIENT)
-            ->with('profile', 'birFormStatuses')
+        return ClientCompany::query()
+            ->with(['client.profile', 'birFormStatuses'])
+            ->when($selectedCompanyId, fn ($query) => $query->whereKey($selectedCompanyId))
             ->when($q !== '', function ($query) use ($q) {
                 $query->where(function ($query) use ($q) {
-                    $query->where('name', 'like', "%{$q}%")
-                        ->orWhere('business_name', 'like', "%{$q}%")
-                        ->orWhere('client_code', 'like', "%{$q}%");
+                    $query->where('company_name', 'like', "%{$q}%")
+                        ->orWhere('company_code', 'like', "%{$q}%")
+                        ->orWhereHas('client', fn ($client) => $client->where('name', 'like', "%{$q}%"));
                 });
             })
-            ->orderBy('business_name')
+            ->orderBy('company_name')
             ->get()
-            ->map(function (User $client): array {
-                $statuses = $client->birFormStatuses->pluck('applicable', 'form_type');
+            ->map(function (ClientCompany $company): array {
+                $statuses = $company->birFormStatuses->pluck('applicable', 'form_type');
                 $applicableCount = $statuses->filter()->count();
 
                 return [
-                    'user' => $client,
+                    'company' => $company,
                     'statuses' => $statuses,
-                    'profile' => $client->profile,
+                    'profile' => $company->client->profile,
                     'applicableCount' => $applicableCount,
                 ];
             });
+    }
+
+    /** @return Collection<int, string> */
+    private function formTypes(): Collection
+    {
+        return collect(BirFormStatus::getFormTypeCodes())
+            ->merge(BirFormStatus::query()->pluck('form_type'))
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values();
     }
 
     private function logExport(string $format, int $count, string $query): void

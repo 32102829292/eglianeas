@@ -4,6 +4,7 @@
 
 @section('content')
     @php($client = $billing->client)
+    @php($company = $billing->company)
     @php($gcashNumber = \App\Models\Setting::get('gcash_number', ''))
     @php($shareUrl = rtrim((string) config('app.url'), '/') . '/' . ltrim(route('client.billing.show', $billing, false), '/'))
 
@@ -15,7 +16,12 @@
     <div class="page-head page-head-row no-print">
         <div>
             <h1>Billing statement</h1>
-            <p>Period: {{ $billing->period_label }}</p>
+            <p>Period: {{ $billing->period_label }}@if($client?->client_code)
+                &middot; Client ID: {{ $client->client_code }}
+            @endif
+            @if($company?->company_code)
+                &middot; Company/Branch ID: {{ $company->company_code }}
+            @endif</p>
         </div>
         <div class="btn-row">
             <form method="POST" action="{{ route('admin.billing.sendEmail', $billing) }}" class="inline-form" id="emailBillingForm">

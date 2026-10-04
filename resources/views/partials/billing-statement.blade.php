@@ -14,6 +14,8 @@
 @endphp
 
 <div class="statement">
+    @php($statementCompany = $billing->company)
+    @php($statementClient = $billing->client)
     @if ($billing->isPaid())
         <div class="paid-stamp" aria-hidden="true">
             <div class="paid-stamp-line1">PAID</div>
@@ -21,13 +23,19 @@
         </div>
     @endif
 
+    <div class="statement-client">
+        {{ $statementCompany?->company_name ?: $billing->client?->business_name ?: $billing->client?->name }}
+    </div>
     <div class="statement-head">
         <div class="statement-brand">EGLIANE ACCOUNTING SERVICES</div>
-        <div class="statement-period">{{ $billing->period_label }}</div>
+        <div class="statement-period">{{ $billing->period_label }}@if($statementClient?->client_code) · Client ID {{ $statementClient->client_code }}@endif
+            @if($statementCompany?->company_code) · Company/Branch ID {{ $statementCompany->company_code }}@endif</div>
     </div>
-
-    <div class="statement-client">
-        {{ $billing->client?->business_name ?: $billing->client?->name }}
+    <div class="statement-client-details">
+        <div><strong>Surname, Name:</strong> {{ $statementClient?->name }}</div>
+        <div><strong>Company Name:</strong> {{ $statementCompany?->company_name ?: $statementClient?->business_name }}</div>
+        <div><strong>Email:</strong> {{ $statementCompany?->business_email ?: $statementClient?->email }}</div>
+        <div><strong>Type of Business:</strong> {{ $statementCompany?->business_type ?: $statementClient?->profile?->business_type }}</div>
     </div>
 
     @if ($remittances->isNotEmpty())

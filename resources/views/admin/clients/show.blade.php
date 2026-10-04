@@ -1,4 +1,5 @@
 @php
+    $canManage = auth()->user()->canManageClients();
     $maskTin = function (?string $value): string {
         if (! $value) { return ''; }
         $clean = preg_replace('/\D/', '', $value) ?? '';
@@ -26,16 +27,20 @@
             <p>{{ $client->name }} &middot; <a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></p>
         </div>
         <div class="btn-row">
-            <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
-                @csrf
-                <button type="submit" class="btn btn-outline">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    Login as Client
-                </button>
-            </form>
+            @if ($canManage)
+                <form method="POST" action="{{ route('admin.clients.impersonate', $client) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'View application as {{ addslashes($client->business_name ?: $client->name) }}?', message: 'You can exit anytime from the top banner.', confirmLabel: 'Login as Client' });">
+                    @csrf
+                    <button type="submit" class="btn btn-outline">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Login as Client
+                    </button>
+                </form>
+            @endif
             <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-outline">Billing Statements</a>
             <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline">Document Distribution</a>
-            <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-primary">Edit profile</a>
+            @if ($canManage)
+                <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-primary">Edit profile</a>
+            @endif
         </div>
     </div>
 
@@ -66,9 +71,10 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-head">
-            <h2 class="card-title">Status</h2>
+    @if ($canManage)
+        <div class="card">
+            <div class="card-head">
+                <h2 class="card-title">Status</h2>
             <form method="POST" action="{{ route('admin.clients.update', $client) }}" class="inline-form" id="statusForm">
                 @csrf
                 @method('PUT')
@@ -98,12 +104,13 @@
             @endforeach
         </div>
     </div>
+    @endif
 
     <div class="grid-2">
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Business information</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                @if ($canManage)<a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>@endif
             </div>
             <div class="profile-grid">
                 <div class="profile-row"><span class="profile-k">Business name</span><span class="profile-v">{{ $client->business_name ?: '—' }}</span></div>
@@ -118,7 +125,7 @@
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Address &amp; location</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                @if ($canManage)<a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>@endif
             </div>
             <div class="profile-grid">
                 <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v">@if($profile->business_address)<a href="https://www.google.com/maps/search/?api=1&query={{ urlencode($profile->business_address) }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->business_address }}</a>@else — @endif</span></div>
@@ -130,12 +137,17 @@
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Contact information</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                @if ($canManage)<a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>@endif
             </div>
             <div class="profile-grid">
-                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">@if($profile->contact_no)<a href="tel:{{ $profile->contact_no }}" class="contact-link">{{ $profile->contact_no }}</a>@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v">@if($profile->contact_no_tel)<a href="tel:{{ $profile->contact_no_tel }}" class="contact-link">{{ $profile->contact_no }}</a>@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">Email</span><span class="profile-v"><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a></span></div>
+                <div class="profile-row"><span class="profile-k">Facebook</span><span class="profile-v">@if($profile->facebook_url)<a href="{{ $profile->facebook_url }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->facebook_url }}</a>@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">Messenger</span><span class="profile-v">@if($profile->messenger_url)<a href="{{ $profile->messenger_url }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->messenger_url }}</a>@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">Website</span><span class="profile-v">@if($profile->website_url)<a href="{{ $profile->website_url }}" target="_blank" rel="noopener" class="contact-link">{{ $profile->website_url }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v">{{ $profile->second_contact_name ?: '—' }}</span></div>
-                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE)<a href="tel:{{ $profile->second_contact_no }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->secondContactChannelLabel() }}: <x-url-link :value="$profile->second_contact_no" />@endif@else — @endif</span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact</span><span class="profile-v">@if($profile->second_contact_display)@if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE && $profile->second_contact_no_tel)<a href="tel:{{ $profile->second_contact_no_tel }}" class="contact-link">{{ $profile->second_contact_display }}</a>@else{{ $profile->secondContactChannelLabel() }}: <x-url-link :value="$profile->second_contact_no" />@endif
+                    @else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">2nd email</span><span class="profile-v">@if($profile->second_email)<a href="mailto:{{ $profile->second_email }}" class="contact-link">{{ $profile->second_email }}</a>@else — @endif</span></div>
                 <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v">{{ $profile->birth_date?->format('M j, Y') ?? '—' }}</span></div>
             </div>
@@ -144,7 +156,7 @@
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">BIR details</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                @if ($canManage)<a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>@endif
             </div>
             <div class="form-hint mb-2">Sensitive fields are masked.</div>
             <div class="profile-grid">
@@ -185,9 +197,14 @@
         </div>
 
         <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">BIR forms</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}#bir-forms-card" class="link">Edit</a>
+            <div class="card-head d-flex align-items-center justify-content-between">
+                <h3 class="card-title mb-0">BIR forms</h3>
+                @if ($canManage)
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBirFormModal">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add BIR Form
+                    </button>
+                @endif
             </div>
             @if ($applicableForms->isNotEmpty())
                 <div class="bir-form-badges">
@@ -203,7 +220,7 @@
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Internal remarks</h3>
-                <a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>
+                @if ($canManage)<a href="{{ route('admin.clients.edit', $client) }}" class="link">Edit</a>@endif
             </div>
             @if ($profile->remarks)
                 <p class="pre-wrap">{{ $profile->remarks }}</p>
@@ -227,16 +244,18 @@
                                 @else
                                     —
                                 @endif
-                                <button type="button" class="btn btn-link btn-sm muted edit-info-btn"
-                                        data-entry-id="{{ $entry->id }}"
-                                        data-key="{{ $entry->key }}"
-                                        data-value="{{ $entry->value }}"
-                                        class="ms-1">Edit</button>
-                                <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-outline danger btn-sm ms-1">Del</button>
-                                </form>
+                                @if ($canManage)
+                                    <button type="button" class="btn btn-link btn-sm muted edit-info-btn"
+                                            data-entry-id="{{ $entry->id }}"
+                                            data-key="{{ $entry->key }}"
+                                            data-value="{{ $entry->value }}"
+                                            class="ms-1">Edit</button>
+                                    <form method="POST" action="{{ route('admin.clients.destroyInfoEntry', [$client, $entry]) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Delete this entry?', message: 'This custom info entry will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-outline danger btn-sm ms-1">Del</button>
+                                    </form>
+                                @endif
                             </span>
                         </div>
                     @endforeach
@@ -245,9 +264,10 @@
                 <div class="form-hint">No custom info entries yet.</div>
             @endif
 
-            <div class="section-divider"></div>
+            @if ($canManage)
+                <div class="section-divider"></div>
 
-            <form method="POST" action="{{ route('admin.clients.storeInfoEntry', $client) }}" class="form-inline" id="addInfoForm">
+                <form method="POST" action="{{ route('admin.clients.storeInfoEntry', $client) }}" class="form-inline" id="addInfoForm">
                 @csrf
                 <div class="form-grid two">
                     <div class="form-group">
@@ -280,8 +300,49 @@
                     <button type="button" class="btn btn-outline btn-sm mt-2 cancel-edit-info">Cancel</button>
                 </form>
             </div>
+            @endif
         </div>
     </div>
+
+    {{-- Add BIR Form Modal --}}
+    @if ($canManage)
+    <div class="modal fade" id="addBirFormModal" tabindex="-1" aria-labelledby="addBirFormModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="POST" action="{{ route('admin.bir-form-types.store') }}">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addBirFormModalLabel">Add BIR Form</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label" for="bir_form_code">Form Code <span class="text-danger">*</span></label>
+                            <input class="form-control" id="bir_form_code" name="code" type="text" maxlength="30" required placeholder="e.g. 1800">
+                            <div class="form-hint">Unique code/number for the BIR form (e.g., 1701, 2551Q, 1800)</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="bir_form_name">Form Name <span class="text-danger">*</span></label>
+                            <input class="form-control" id="bir_form_name" name="name" type="text" maxlength="255" required placeholder="e.g. BIR Form 1800">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="bir_form_description">Description</label>
+                            <textarea class="form-control" id="bir_form_description" name="description" rows="3" maxlength="1000" placeholder="Brief description of this form"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="bir_form_active" name="active" value="1" checked>
+                            <label class="form-check-label" for="bir_form_active">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add BIR Form</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
 @endsection
 
 @push('scripts')

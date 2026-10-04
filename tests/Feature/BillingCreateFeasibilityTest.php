@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
 use App\Models\BirFormStatus;
+use App\Models\ClientCompany;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -41,6 +42,20 @@ class BillingCreateFeasibilityTest extends TestCase
     private function client(): User
     {
         return $this->internal(User::ROLE_CLIENT, 'Billing Feasibility Client');
+    }
+
+    /**
+     * The BIR Forms page lists client companies, and creating the User directly
+     * skips the primary company that registration seeds.
+     */
+    private function company(User $client): ClientCompany
+    {
+        return ClientCompany::create([
+            'client_id' => $client->id,
+            'branch_number' => 1,
+            'company_code' => $client->client_code.'-01',
+            'company_name' => 'Feasibility Co',
+        ]);
     }
 
     private function payload(User $client, array $lineItems = []): array
@@ -171,13 +186,16 @@ class BillingCreateFeasibilityTest extends TestCase
         $admin = $this->admin();
         $clientA = $this->client();
         $clientB = $this->client();
+        $companyA = $this->company($clientA);
+        $companyB = $this->company($clientB);
 
-        $response = $this->actingAs($admin)
-            ->get(route('admin.bir-forms.index', ['client_id' => $clientA->id]));
-
-        $response->assertOk()
-            ->assertSee('client-'.$clientA->id)
-            ->assertDontSee('client-'.$clientB->id);
+        // Rows are company-scoped (id="company-<id>"), while ?client_id= is
+        // still the deep link billing create uses to reach a client's rows.
+        $this->actingAs($admin)
+            ->get(route('admin.bir-forms.index', ['client_id' => $clientA->id]))
+            ->assertOk()
+            ->assertSee('id="company-'.$companyA->id.'"', false)
+            ->assertDontSee('id="company-'.$companyB->id.'"', false);
     }
 
     public function test_billing_index_marks_client_without_bir_forms_with_add_action(): void

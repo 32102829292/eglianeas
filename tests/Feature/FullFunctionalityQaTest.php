@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\Billing;
 use App\Models\BillingLineItem;
 use App\Models\BirFormStatus;
+use App\Models\ClientCompany;
 use App\Models\ClientSurveyResponse;
 use App\Models\Document;
 use App\Models\Notification;
@@ -50,15 +51,30 @@ class FullFunctionalityQaTest extends TestCase
 
     private function client(string $label = 'QA Client'): User
     {
-        return User::create([
+        $user = User::create([
             'name' => $label,
             'email' => 'qa'.uniqid().'@example.com',
             'password' => bcrypt('secret'),
             'role' => User::ROLE_CLIENT,
             'email_verified_at' => now(),
+            'approved_at' => now(),
             'confidentiality_acknowledged_at' => now(),
             'confidentiality_ack_version' => EnsureAdminConfidentialityAcknowledged::CURRENT_VERSION,
         ]);
+
+        // Registration seeds the primary company/branch (RegisteredUserController);
+        // creating the User directly skips that, so mirror it here or the
+        // company-scoped BIR/billing queries match nothing.
+        ClientCompany::firstOrCreate(
+            ['client_id' => $user->id, 'branch_number' => 1],
+            [
+                'company_code' => $user->client_code.'-01',
+                'company_name' => $label,
+                'business_email' => $user->email,
+            ]
+        );
+
+        return $user;
     }
 
     private function billing(User $client, array $over = []): Billing

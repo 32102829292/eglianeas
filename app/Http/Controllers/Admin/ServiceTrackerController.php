@@ -67,7 +67,11 @@ class ServiceTrackerController extends Controller
 
         $scopedInstanceQuery = TrackerInstance::query()->tap($scopeToOwn)->select('id');
 
+        /* `staff` must be eager loaded: displayName() falls back to
+           $this->staff->name, and without the eager load every row issued its
+           own `select * from users where id = ?`. */
         $allStaff = TrackerAssignment::query()
+            ->with('staff')
             ->whereIn('instance_id', $scopedInstanceQuery)
             ->get(['staff_name', 'staff_id'])
             ->map(fn (TrackerAssignment $a) => $a->displayName())
@@ -81,6 +85,27 @@ class ServiceTrackerController extends Controller
             ->whereNull('deleted_at')
             ->orderBy('name')
             ->get(['id', 'name']);
+
+        /* One grouped query per table instead of one COUNT() per number.
+           The previous version issued 7 separate round trips (total, 4 status
+           counts, assignmentsTotal, assignmentsDone) just to render the stat
+           cards, which is costly whenever the database is not local. */
+        $statusCounts = $statsQuery->clone()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status')
+            ->map(fn ($n) => (int) $n);
+
+        /* Postgres returns a boolean column as a PHP bool, so the pluck key
+           collapses to 1 / 0. Accept both to stay driver-agnostic. */
+        $assignmentCounts = TrackerAssignment::query()
+            ->whereIn('instance_id', $scopedInstanceQuery)
+            ->selectRaw('completed, count(*) as aggregate')
+            ->groupBy('completed')
+            ->pluck('aggregate', 'completed')
+            ->map(fn ($n) => (int) $n);
+
+        $statusCount = static fn (string $status): int => (int) ($statusCounts[$status] ?? 0);
 
         return view('admin.service-tracker.index', [
             'instances' => $instances,
@@ -98,13 +123,13 @@ class ServiceTrackerController extends Controller
                 TrackerInstance::STATUS_DONE => 'badge-success',
             ],
             'stats' => [
-                'total' => $statsQuery->clone()->count(),
-                'done' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_DONE)->count(),
-                'inProgress' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_IN_PROGRESS)->count(),
-                'todo' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_TODO)->count(),
-                'onHold' => $statsQuery->clone()->where('status', TrackerInstance::STATUS_ON_HOLD)->count(),
-                'assignmentsTotal' => TrackerAssignment::query()->whereIn('instance_id', $scopedInstanceQuery)->count(),
-                'assignmentsDone' => TrackerAssignment::query()->whereIn('instance_id', $scopedInstanceQuery)->where('completed', true)->count(),
+                'total' => (int) $statusCounts->sum(),
+                'done' => $statusCount(TrackerInstance::STATUS_DONE),
+                'inProgress' => $statusCount(TrackerInstance::STATUS_IN_PROGRESS),
+                'todo' => $statusCount(TrackerInstance::STATUS_TODO),
+                'onHold' => $statusCount(TrackerInstance::STATUS_ON_HOLD),
+                'assignmentsTotal' => (int) $assignmentCounts->sum(),
+                'assignmentsDone' => (int) ($assignmentCounts[1] ?? $assignmentCounts[true] ?? 0),
             ],
         ]);
     }

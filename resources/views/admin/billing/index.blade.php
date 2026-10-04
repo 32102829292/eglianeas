@@ -63,6 +63,14 @@
                     @endforeach
                 </select>
             </label>
+            <label class="toolbar-field">
+                <span class="toolbar-label">Billing amount</span>
+                <select name="amount_order" class="toolbar-select" aria-label="Sort by billing amount">
+                    <option value="">Default order</option>
+                    <option value="asc" @selected($amountOrder === 'asc')>Smallest → Largest</option>
+                    <option value="desc" @selected($amountOrder === 'desc')>Largest → Smallest</option>
+                </select>
+            </label>
             <button type="submit" class="btn btn-outline btn-sm">Filter</button>
         </form>
         <div class="page-toolbar-group">
@@ -108,10 +116,48 @@
         </div>
     </div>
 
+    @php
+        $selYear = $activeQuarter?->year ?? $defaultDownloadYear;
+        $selParams = ['year' => $selYear];
+        if ($activeQuarter) {
+            $selParams['quarter'] = $activeQuarter->quarter;
+        }
+        if ($q !== '') {
+            $selParams['q'] = $q;
+        }
+        $printAllUrl = route('admin.billing.printBatch', $selParams ?: null);
+        $exportAllUrl = route('admin.billing.exportSummaryXlsx', $selParams ?: null);
+    @endphp
+    <div class="billing-select-bar">
+        <div class="billing-select-summary">
+            <label class="billing-select-all-label">
+                <input type="checkbox" id="billingSelectAll" data-billing-select-all aria-label="Select all matching clients on this page">
+                Select all
+            </label>
+            <span><strong id="billingSelectCount">0</strong> of {{ $entries->total() }} matching clients selected</span>
+        </div>
+        <p class="billing-select-helper">No clients selected &mdash; all matching billing receipts will be included.</p>
+        <div class="billing-select-actions">
+            <button type="button" id="printSelectedBtn" class="btn btn-outline btn-sm" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print Selected (<span id="printSelectedCount">0</span>)
+            </button>
+            <a href="{{ $printAllUrl }}" id="printAllBtn" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print All
+            </a>
+            <a href="{{ $exportAllUrl }}" id="exportXlsxBtn" class="btn btn-outline btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                Export XLSX
+            </a>
+        </div>
+    </div>
+
     <div class="card">
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0 finance-table">
                 <colgroup>
+                    <col class="print-check-cell">
                     <col class="col-business">
                     <col class="col-contact">
                     <col class="col-bir">
@@ -123,6 +169,9 @@
                 </colgroup>
                 <thead class="thead-muted">
                     <tr>
+                        <th class="print-check-cell">
+                            <input type="checkbox" data-billing-select-all aria-label="Select all matching clients on this page">
+                        </th>
                         <th>Business</th>
                         <th>Contact</th>
                         <th class="text-center">BIR Forms</th>
@@ -137,6 +186,9 @@
                     @forelse ($entries as $entry)
                         @php($client = $entry['user'])
                         <tr>
+                            <td class="print-check-cell">
+                                <input type="checkbox" class="billing-select-check" value="{{ $client->id }}" aria-label="Select {{ $client->business_name ?: $client->name }} for printing">
+                            </td>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
                                 <small class="muted">{{ $client->profile?->line_of_business ?? '—' }}</small>
@@ -174,7 +226,7 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="empty-cell">No clients found.</td></tr>
+                        <tr><td colspan="9" class="empty-cell">No clients found.</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -195,18 +247,25 @@
                             @endif
                         </div>
                         <div class="cv-card-body">
+                            <div class="cv-pair"><span class="cv-label">Select</span><span class="cv-value"><input type="checkbox" class="billing-select-check" value="{{ $client->id }}" aria-label="Select {{ $client->business_name ?: $client->name }} for printing"></span></div>
                             <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link contact-email">{{ $client->email }}</a></span></div>
-                            <div class="cv-pair"><span class="cv-label">BIR forms</span><span class="cv-value">@if ($entry['bir_ready'])<span class="badge badge-success">BIR Forms Ready</span>@else<a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">BIR forms</span><span class="cv-value">
+                                @if ($entry['bir_ready'])
+                                    <span class="badge badge-success">BIR Forms Ready</span>
+                                @else
+                                    <a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>
+                                @endif
+                            </span></div>
                             <div class="cv-pair"><span class="cv-label">Bills</span><span class="cv-value">{{ $entry['billing_count'] }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Total billed</span><span class="cv-value">{{ '₱'.number_format($entry['total_billed'], 2) }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
                         </div>
-                        <div class="cv-card-actions">
-                            @if (! $entry['bir_ready'])
-                                <a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>
-                            @endif
-                            <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-primary btn-sm row-action">Open billing statement</a>
-                        </div>
+<div class="cv-card-actions">
+                                @if (! $entry['bir_ready'])
+                                    <a href="{{ route('admin.bir-forms.index', ['client_id' => $client->id]) }}" class="btn btn-outline btn-sm row-action">Add BIR Forms</a>
+                                @endif
+                                <a href="{{ route('admin.billing.show', $client) }}" class="btn btn-primary btn-sm row-action">Open billing statement</a>
+                            </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">No clients found.</p>
@@ -234,25 +293,77 @@
         var yearSelect = document.getElementById('dl-year');
         var xlsxLink = document.getElementById('dl-xlsx');
         var pdfLink = document.getElementById('dl-pdf');
-        var xlsxBase = '{{ route("admin.billing.exportSummaryXlsx") }}';
-        var pdfBase = '{{ route("admin.billing.exportSummaryPdf") }}';
+        var exportXlsxBtn = document.getElementById('exportXlsxBtn');
+        var printAllBtn = document.getElementById('printAllBtn');
+        var printSelectedBtn = document.getElementById('printSelectedBtn');
+        var selectCountEl = document.getElementById('billingSelectCount');
+        var printSelectedCountEl = document.getElementById('printSelectedCount');
+        var xlsxBase = @js(route('admin.billing.exportSummaryXlsx'));
+        var pdfBase = @js(route('admin.billing.exportSummaryPdf'));
+        var exportAllBase = @js($exportAllUrl);
+        var printAllBase = @js($printAllUrl);
+        var selected = [];
 
-        function buildUrl(base) {
+        function withClients(url, ids) {
+            if (!ids.length) return url;
+            var sep = url.indexOf('?') === -1 ? '?' : '&';
+            return url + sep + ids.map(function (id) {
+                return 'clients[]=' + encodeURIComponent(id);
+            }).join('&');
+        }
+
+        function updateAllLinks() {
             var params = new URLSearchParams();
             if (quarterSelect.value) params.set('quarter', quarterSelect.value);
             if (yearSelect.value) params.set('year', yearSelect.value);
             var qs = params.toString();
-            return qs ? base + '?' + qs : base;
+            var base = qs ? '?' + qs : '';
+            xlsxLink.href = withClients(xlsxBase + base, selected);
+            pdfLink.href = withClients(pdfBase + base, selected);
+            exportXlsxBtn.href = withClients(exportAllBase, selected);
+            printAllBtn.href = printAllBase;
+            printSelectedBtn.disabled = selected.length === 0;
+            selectCountEl.textContent = selected.length;
+            printSelectedCountEl.textContent = selected.length;
         }
 
-        function refreshLinks() {
-            xlsxLink.href = buildUrl(xlsxBase);
-            pdfLink.href = buildUrl(pdfBase);
+        function refreshSelection() {
+            var raw = Array.prototype.map.call(
+                document.querySelectorAll('.billing-select-check:checked'),
+                function (cb) { return cb.value; }
+            );
+            // The same client appears once per visible view (table + cards);
+            // dedupe so export/print URLs never repeat a client_id.
+            selected = Array.from(new Set(raw));
+            updateAllLinks();
         }
 
-        quarterSelect.addEventListener('change', refreshLinks);
-        yearSelect.addEventListener('change', refreshLinks);
-        refreshLinks();
+        document.addEventListener('change', function (e) {
+            if (e.target.matches('.billing-select-check')) {
+                refreshSelection();
+                return;
+            }
+            if (e.target.matches('[data-billing-select-all]')) {
+                var checked = e.target.checked;
+                document.querySelectorAll('[data-billing-select-all]').forEach(function (sel) {
+                    sel.checked = checked;
+                });
+                document.querySelectorAll('.billing-select-check').forEach(function (cb) {
+                    cb.checked = checked;
+                });
+                refreshSelection();
+            }
+        });
+
+        quarterSelect.addEventListener('change', updateAllLinks);
+        yearSelect.addEventListener('change', updateAllLinks);
+
+        printSelectedBtn.addEventListener('click', function () {
+            if (!selected.length) return;
+            window.open(withClients(printAllBase, selected), '_blank', 'noopener');
+        });
+
+        updateAllLinks();
     })();
     var billingSearch = document.getElementById('billing-search');
     billingSearch.addEventListener('submit', function (e) {

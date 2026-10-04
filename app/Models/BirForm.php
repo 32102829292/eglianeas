@@ -20,6 +20,7 @@ class BirForm extends Model
 
     protected $fillable = [
         'client_id',
+        'client_company_id',
         'name',
         'original_name',
         'path',
@@ -40,6 +41,11 @@ class BirForm extends Model
     public function client(): BelongsTo
     {
         return $this->belongsTo(User::class, 'client_id');
+    }
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(ClientCompany::class, 'client_company_id');
     }
 
     public function isReviewed(): bool
