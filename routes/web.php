@@ -377,6 +377,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     // Kaizen Concerns / Admin Concerns
     Route::get('/kaizen-concerns', [KaizenConcernController::class, 'index'])->name('kaizen-concerns.index');
+    // Registered before /{concern} so the literal segment is matched, not an id.
+    Route::get('/kaizen-concerns/admin-concerns', [KaizenConcernController::class, 'adminConcerns'])->name('kaizen-concerns.admin-concerns.index');
     Route::get('/kaizen-concerns/submit', [KaizenConcernController::class, 'submit'])->name('kaizen-concerns.submit');
     Route::post('/kaizen-concerns/submit', [KaizenConcernController::class, 'storeSubmission'])->name('kaizen-concerns.submit.store');
     Route::get('/kaizen-concerns/create', [KaizenConcernController::class, 'create'])->name('kaizen-concerns.create');

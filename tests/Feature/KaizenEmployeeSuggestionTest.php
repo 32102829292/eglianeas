@@ -1208,4 +1208,278 @@ class KaizenEmployeeSuggestionTest extends TestCase
 
         $this->fail("No board row containing \"{$needle}\".");
     }
+
+    /* ---------------------------------------------------------------
+     | 10. The dedicated Admin Concerns board
+     | -------------------------------------------------------------- */
+
+    public function test_the_improvement_board_lists_employee_suggestions_only(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        // One of each, created through the real endpoints so the types are real.
+        $adminConcern = $this->createAdminConcern($admin, 'Admin raised: photocopier jams');
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.submit.store'), [
+            'date_identified' => '2026-10-02',
+            'challenge' => 'Staff raised: the front door sticks',
+            'recommended_solution' => 'Oil the hinges monthly.',
+        ])->assertRedirect();
+
+        $suggestion = KaizenConcern::query()
+            ->where('type', KaizenConcern::TYPE_EMPLOYEE_SUGGESTION)
+            ->latest('id')
+            ->firstOrFail();
+
+        // (1) + (2): each list shows its own type and only its own type.
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->assertSee('Staff raised: the front door sticks')
+            ->assertDontSee('Admin raised: photocopier jams');
+
+        // (3): the Admin Concerns board shows the admin concern, not the suggestion.
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('Admin raised: photocopier jams')
+            ->assertDontSee('Staff raised: the front door sticks');
+
+        $this->assertTrue($adminConcern->isAdminConcern());
+        $this->assertTrue($suggestion->isEmployeeSuggestion());
+    }
+
+    public function test_the_admin_concerns_board_has_its_own_columns(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->createAdminConcern($admin);
+
+        $table = $this->boardTable(
+            $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+                ->assertOk()
+                ->getContent()
+        );
+
+        foreach (['Admin Concern', 'Submitted By', 'Assigned To', 'Status', 'Target Date', 'Implementation', 'Evidence', 'Actions'] as $heading) {
+            $this->assertStringContainsString('>'.$heading.'<', $table, "The Admin Concerns board must keep the \"{$heading}\" column.");
+        }
+    }
+
+    public function test_the_admin_concerns_board_shows_the_assignment_and_reuses_the_workflow(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.store'), [
+            'date_identified' => '2026-10-01',
+            'challenge' => 'Reconcile the client receipts folder',
+            'recommended_solution' => 'Rebuild the folder structure.',
+            'status' => KaizenConcern::STATUS_IN_PROGRESS,
+            'assigned_staff_id' => $staff->id,
+        ])->assertRedirect();
+
+        $concern = KaizenConcern::query()->latest('id')->firstOrFail();
+
+        $row = $this->boardRow(
+            $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+                ->assertOk()
+                ->getContent(),
+            'Reconcile the client receipts folder'
+        );
+
+        // Assignment, status, target date and evidence all read the same shared
+        // relations they always did.
+        $this->assertStringContainsString($staff->name, $row);
+        $this->assertStringContainsString('In Progress', $row);
+        $this->assertStringContainsString('No evidence', $row);
+        $this->assertStringNotContainsString('Unassigned', $row);
+
+        // The existing implementation workflow still applies to an Admin Concern.
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.implement', $concern))->assertRedirect();
+
+        $concern = $concern->fresh();
+        $this->assertSame(KaizenConcern::STATUS_IMPLEMENTED, $concern->status);
+        $this->assertSame(now()->format('Y-m-d'), $concern->implementation_date?->format('Y-m-d'));
+
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('kaizen-row-implemented', false);
+    }
+
+    public function test_admin_concerns_are_never_counted_on_the_improvement_suggestions_board(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->createAdminConcern($admin, 'Admin raised: aircon leaking');
+        $this->createAdminConcern($admin, 'Admin raised: Wi-Fi drops in the back office');
+
+        $content = $this->actingAs($admin)->get(route('admin.kaizen-concerns.index'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('Admin raised: aircon leaking', $content);
+        $this->assertStringNotContainsString('Admin raised: Wi-Fi drops in the back office', $content);
+
+        // The Improvement Suggestions heading counts suggestions only.
+        $this->assertStringContainsString('0 suggestions', $content);
+
+        $adminBoard = $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('2 concerns', $adminBoard);
+    }
+
+    public function test_both_boards_survive_side_by_side_without_moving_or_duplicating_records(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $adminConcern = $this->createAdminConcern($admin, 'Admin raised: shredder is jammed');
+        $suggestion = $this->concern($admin, KaizenConcern::STATUS_PENDING);
+        $suggestion->update(['challenge' => 'Desk drawer will not open']);
+
+        $before = KaizenConcern::withTrashed()->count();
+
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.index'))->assertOk();
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))->assertOk();
+
+        // (4) + (5): viewing either board mutates nothing.
+        $this->assertSame($before, KaizenConcern::withTrashed()->count());
+        $this->assertSame(KaizenConcern::TYPE_ADMIN_CONCERN, $adminConcern->fresh()->type);
+        $this->assertSame(KaizenConcern::TYPE_EMPLOYEE_SUGGESTION, $suggestion->fresh()->type);
+
+        // Neither record moved table: both are still the same kaizen rows.
+        $this->assertDatabaseHas('kaizen_concerns', [
+            'id' => $adminConcern->id,
+            'type' => KaizenConcern::TYPE_ADMIN_CONCERN,
+        ]);
+        $this->assertDatabaseHas('kaizen_concerns', [
+            'id' => $suggestion->id,
+            'type' => KaizenConcern::TYPE_EMPLOYEE_SUGGESTION,
+        ]);
+    }
+
+    public function test_the_admin_concerns_board_keeps_evidence_with_the_concern_that_owns_it(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $withEvidence = $this->createAdminConcern($admin, 'Admin raised: new laptops not delivered');
+        $withoutEvidence = $this->createAdminConcern($admin, 'Admin raised: whiteboard is missing');
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.evidence.add', $withEvidence), [
+            'evidence' => UploadedFile::fake()->create('delivery-note.png', 40, 'image/png'),
+        ])->assertRedirect();
+
+        $this->assertSame(1, $withEvidence->evidences()->count());
+        $this->assertSame(0, $withoutEvidence->evidences()->count());
+
+        $content = $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $withRow = $this->boardRow($content, 'Admin raised: new laptops not delivered');
+        $withoutRow = $this->boardRow($content, 'Admin raised: whiteboard is missing');
+
+        $this->assertStringContainsString('View Evidence', $withRow);
+        $this->assertStringContainsString('1 file attached', $withRow);
+        $this->assertStringContainsString('No evidence', $withoutRow);
+    }
+
+    public function test_a_legacy_record_with_no_type_is_never_treated_as_an_admin_concern(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        // Rows from before the type column existed are backfilled, but the
+        // application must never assume one way or the other for a null type.
+        $legacy = KaizenConcern::create([
+            'type' => null,
+            'date_identified' => now()->subDays(4),
+            'challenge' => 'Legacy record with no type',
+            'recommended_solution' => 'Still listed as a suggestion.',
+            'status' => KaizenConcern::STATUS_PENDING,
+            'created_by' => $admin->id,
+        ]);
+
+        $this->assertNull($legacy->fresh()->type);
+
+        // It stays on the suggestion side and never appears as an Admin Concern.
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->assertSee('Legacy record with no type');
+
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertDontSee('Legacy record with no type');
+
+        // And it was not converted behind our back.
+        $this->assertNull($legacy->fresh()->type);
+    }
+
+    public function test_only_admins_may_open_the_admin_concerns_board(): void
+    {
+        foreach ([User::ROLE_STAFF, User::ROLE_SUPERVISOR, User::ROLE_CLIENT] as $role) {
+            $this->actingAs($this->user($role))
+                ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+                ->assertForbidden();
+        }
+
+        $this->actingAs($this->user(User::ROLE_ADMIN))
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk();
+    }
+
+    public function test_the_two_boards_keep_their_own_filters(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->createAdminConcern($admin, 'Admin raised: printer out of toner');
+
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.index', ['q' => 'toner']))
+            ->assertOk()
+            ->assertDontSee('Admin raised: printer out of toner');
+
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index', ['q' => 'toner']))
+            ->assertOk()
+            ->assertSee('Admin raised: printer out of toner');
+
+        // Each board's filter form and Clear link point back at itself.
+        $content = $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index', ['q' => 'toner']))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            route('admin.kaizen-concerns.admin-concerns.index'),
+            $content
+        );
+    }
+
+    public function test_the_admin_concerns_board_is_linked_from_the_navigation_for_admins_only(): void
+    {
+        $adminNav = $this->actingAs($this->user(User::ROLE_ADMIN))
+            ->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            route('admin.kaizen-concerns.admin-concerns.index'),
+            $adminNav
+        );
+
+        $staffNav = $this->actingAs($this->user(User::ROLE_STAFF))
+            ->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            route('admin.kaizen-concerns.admin-concerns.index'),
+            $staffNav
+        );
+    }
+
+    public function test_the_admin_concerns_route_is_not_shadowed_by_the_concern_id_route(): void
+    {
+        // The literal segment has to win over /kaizen-concerns/{concern}.
+        $this->actingAs($this->user(User::ROLE_ADMIN))
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('Admin Concerns');
+    }
 }

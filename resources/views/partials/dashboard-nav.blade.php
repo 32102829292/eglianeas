@@ -115,10 +115,18 @@
     </a>
 
     <div class="dash-nav-head">Kaizen & Priorities</div>
-    <a href="{{ route('admin.kaizen-concerns.index') }}" class="{{ $active('admin.kaizen-concerns') }}">
+    {{-- Excludes the admin-concerns subtree so exactly one of these two links is
+         highlighted on either page (the helper is a startsWith test). --}}
+    <a href="{{ route('admin.kaizen-concerns.index') }}" class="{{ ($active('admin.kaizen-concerns') && ! $active('admin.kaizen-concerns.admin')) ? 'active' : '' }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
         Kaizen Strategy
     </a>
+    @if (auth()->user()->isAdmin())
+        <a href="{{ route('admin.kaizen-concerns.admin-concerns.index') }}" class="{{ $active('admin.kaizen-concerns.admin-concerns') }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Admin Concerns
+        </a>
+    @endif
     <a href="{{ route('admin.priority-items.index') }}" class="{{ $active('admin.priority-items') }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         Priority List / To-Do List

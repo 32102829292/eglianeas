@@ -9,6 +9,8 @@ use App\Models\KaizenEvidence;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -28,14 +30,57 @@ class KaizenConcernController extends Controller
      */
     public function index(Request $request): View
     {
+        return $this->concernBoard(
+            $request,
+            fn (Builder $query) => $query->employeeSuggestions(),
+            'admin.kaizen-concerns.index'
+        );
+    }
+
+    /**
+     * The Admin Concerns board.
+     *
+     * This is the same board pointed at the other half of the shared table, so
+     * the filters, columns, evidence counts, status logic and actions cannot
+     * drift apart from the Improvement Suggestions board. Admin Concerns are
+     * selected purely by `type` — who created a record (an admin can submit an
+     * Employee Suggestion too) never decides where it appears.
+     *
+     * Admin only: this is the administrative view of admin-raised records, and
+     * nothing here widens what any other role can reach. Per-record access is
+     * still decided by the unchanged isVisibleTo()/visibleTo() rules below.
+     */
+    public function adminConcerns(Request $request): View
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can view the Admin Concerns list.');
+
+        return $this->concernBoard(
+            $request,
+            fn (Builder $query) => $query->adminConcerns(),
+            'admin.kaizen-concerns.admin-concerns'
+        );
+    }
+
+    /**
+     * Shared board for both halves of kaizen_concerns.
+     *
+     * Only the type scope and the view differ; the filter handling, eager
+     * loading, ordering and per-user visibility are built once so the two
+     * boards cannot drift.
+     *
+     * @param  Closure(Builder): Builder  $typeScope
+     */
+    private function concernBoard(Request $request, Closure $typeScope, string $view): View
+    {
         $user = auth()->user();
         $q = trim((string) $request->get('q'));
         $status = $request->get('status');
         $assignedStaffId = $request->get('assigned_staff_id');
 
-        $query = KaizenConcern::with(['assignedStaff', 'creator'])
-            ->withCount('evidences')
-            ->employeeSuggestions()
+        $query = $typeScope(
+            KaizenConcern::with(['assignedStaff', 'creator'])
+                ->withCount('evidences')
+        )
             ->orderByDesc('date_identified')
             ->orderByDesc('id')
             ->visibleTo($user);
@@ -60,13 +105,14 @@ class KaizenConcernController extends Controller
 
         $concerns = $query->paginate(50)->withQueryString();
 
-        return view('admin.kaizen-concerns.index', [
+        return view($view, [
             'concerns' => $concerns,
             'staffAccounts' => $this->staffAccounts(),
             'statuses' => KaizenConcern::STATUSES,
             'q' => $q,
             'activeStatus' => $status,
             'activeAssignedStaffId' => $assignedStaffId,
+            'hasFilters' => $q !== '' || ! empty($status) || ! empty($assignedStaffId),
         ]);
     }
 
