@@ -841,6 +841,191 @@ abstract class PeriodBookkeepingTestCase extends TestCase
         $this->assertSame('With Balance · ₱1,800.50', $payment->balanceSummary());
     }
 
+    public function test_the_assigned_staff_can_add_remarks_once_the_work_has_started(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        $plan = $this->createPlan($staff, [
+            $client->id => ['tasks' => ['pickup'], 'date' => $period->startDate()],
+        ], $period);
+
+        $target = $this->target($plan, 'pickup');
+
+        $this->actingAs($staff)
+            ->post($this->url('start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($staff)
+            ->patch($this->url('update-target', [$plan, $target]), [
+                'notes' => 'Logbook was short; the client is sending the rest.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $this->assertSame(
+            'Logbook was short; the client is sending the rest.',
+            $target->refresh()->notes
+        );
+    }
+
+    public function test_a_remarks_only_save_does_not_touch_the_other_target_fields(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        $plan = $this->createPlan($staff, [
+            $client->id => ['tasks' => ['pickup', 'payment'], 'date' => $period->startDate()],
+        ], $period);
+
+        $payment = $this->target($plan, 'payment');
+
+        $payment->update([
+            'notes' => 'Awaiting the filing receipt.',
+            'payment_status' => 'with_balance',
+            'balance_amount' => '1800.50',
+            'balance_note' => 'Outstanding filing fee.',
+        ]);
+
+        $dateBefore = $payment->target_date->format('Y-m-d');
+
+        $this->actingAs($staff)
+            ->post($this->url('start-target', [$plan, $payment]))
+            ->assertRedirect();
+
+        $this->actingAs($staff)
+            ->patch($this->url('update-target', [$plan, $payment]), [
+                'notes' => 'Client called: payment lands this week.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $payment->refresh();
+        $this->assertSame('Client called: payment lands this week.', $payment->notes);
+        $this->assertSame($dateBefore, $payment->target_date->format('Y-m-d'));
+        $this->assertSame($staff->id, $payment->assigned_staff_id);
+        $this->assertSame('with_balance', $payment->payment_status);
+        $this->assertSame('1800.50', $payment->balance_amount);
+        $this->assertSame('Outstanding filing fee.', $payment->balance_note);
+    }
+
+    public function test_a_remarks_only_save_does_not_blank_existing_remarks(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        $plan = $this->createPlan($staff, [
+            $client->id => ['tasks' => ['pickup'], 'date' => $period->startDate()],
+        ], $period);
+
+        $target = $this->target($plan, 'pickup');
+        $target->update(['notes' => 'Keep me.']);
+
+        /* A date-only save must not wipe the remark. */
+        $this->actingAs($staff)
+            ->patch($this->url('update-target', [$plan, $target]), [
+                'target_date' => $period->startDate(),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $this->assertSame('Keep me.', $target->refresh()->notes);
+    }
+
+    public function test_remarks_cannot_be_edited_by_another_staff_member(): void
+    {
+        $owner = $this->staff();
+        $other = $this->staff('Other Staff');
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        $plan = $this->createPlan($owner, [
+            $client->id => ['tasks' => ['pickup'], 'date' => $period->startDate()],
+        ], $period);
+
+        $target = $this->target($plan, 'pickup');
+
+        $this->actingAs($owner)
+            ->post($this->url('start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($other)
+            ->patch($this->url('update-target', [$plan, $target]), [
+                'notes' => 'Not my task.',
+            ])
+            ->assertForbidden();
+
+        $this->assertNull($target->refresh()->notes);
+    }
+
+    public function test_a_supervisor_can_add_remarks_to_a_started_task(): void
+    {
+        $staff = $this->staff();
+        $supervisor = $this->supervisor('Juan Dela Cruz');
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        $plan = $this->createPlan($staff, [
+            $client->id => ['tasks' => ['pickup'], 'date' => $period->startDate()],
+        ], $period);
+
+        $target = $this->target($plan, 'pickup');
+
+        $this->actingAs($staff)
+            ->post($this->url('start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($supervisor)
+            ->patch($this->url('update-target', [$plan, $target]), [
+                'notes' => 'Oversight note after a spot check.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $this->assertSame('Oversight note after a spot check.', $target->refresh()->notes);
+    }
+
+    public function test_the_remarks_editor_submits_only_the_remarks(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client();
+        $period = $this->currentPeriod();
+
+        /* A payment stage, because that is the stage whose own form also carries
+           the balance and payment fields the remarks editor must never touch. */
+        $plan = $this->createPlan($staff, [
+            $client->id => ['tasks' => ['pickup', 'payment'], 'date' => $period->startDate()],
+        ], $period);
+
+        $payment = $this->target($plan, 'payment');
+
+        $this->actingAs($staff)
+            ->post($this->url('start-target', [$plan, $payment]))
+            ->assertRedirect();
+
+        $html = $this->actingAs($staff)
+            ->get($this->url('show', [$plan]))
+            ->assertOk()
+            ->getContent();
+
+        /* The remarks modal is rendered last inside the content section, so
+           everything from its id onwards is the editor. */
+        $start = strpos($html, 'id="bkRemarksModal"');
+        $this->assertNotFalse($start, 'The remarks modal should be present on the plan page.');
+
+        $editor = substr($html, $start);
+
+        $this->assertStringContainsString('name="notes"', $editor);
+        $this->assertStringNotContainsString('target_date', $editor);
+        $this->assertStringNotContainsString('payment_status', $editor);
+        $this->assertStringNotContainsString('balance_amount', $editor);
+        $this->assertStringNotContainsString('balance_note', $editor);
+        $this->assertStringNotContainsString('assigned_staff_id', $editor);
+    }
+
     public function test_the_balance_is_cleared_once_the_status_is_no_longer_with_balance(): void
     {
         $staff = $this->staff();

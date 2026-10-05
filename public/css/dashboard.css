@@ -552,6 +552,63 @@
 .table-card-view .cv-card .cv-label { color: var(--text-muted); font-weight: 600; flex-shrink: 0; font-size: 12px; }
 .table-card-view .cv-card .cv-value { font-weight: 500; color: #334155; text-align: right; min-width: 0; word-break: break-word; }
 
+/* Kaizen improvement board: implemented suggestions read as finished at a
+   glance in the stacked mobile card view too, not just via the Status pill. */
+.table-card-view .cv-card.cv-implemented {
+  border-color: rgba(25, 111, 61, .35);
+  box-shadow: inset 4px 0 0 #196F3D, var(--shadow-card);
+  background: linear-gradient(180deg, #F4FBF7 0%, var(--surface) 60%);
+}
+
+/* ---------- Kaizen improvement board (table) ----------
+   The board was 10 columns wide and needed horizontal scrolling on a laptop.
+   It is now 7 priority columns, and the widths below are tuned so the
+   suggestion text is the only column that flexes while the dates, status and
+   actions keep their natural size. Column details that matter less live on
+   the View page instead. */
+.kaizen-board-table { table-layout: auto; }
+.kaizen-board-table th,
+.kaizen-board-table td { white-space: nowrap; }
+.kaizen-board-table .kaizen-cell-suggestion { white-space: normal; min-width: 260px; }
+.kaizen-board-table .kaizen-cell-by { white-space: normal; min-width: 120px; }
+
+.kaizen-challenge {
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.kaizen-cell-sub {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.kaizen-by-name { font-weight: 600; color: #334155; overflow-wrap: anywhere; }
+.kaizen-impl-date { font-size: 11px; color: var(--text-muted); line-height: 1.2; }
+.kaizen-impl-value { font-weight: 700; color: #196F3D; white-space: nowrap; }
+.kaizen-cell-actions { white-space: nowrap; }
+.kaizen-cell-actions .btn + .btn { margin-left: 6px; }
+
+/* Subtle distinction for finished improvements: a green rail plus a faint
+   tint, so a completed row is identifiable without reading the Status cell. */
+.kaizen-board-table tbody tr.kaizen-row-implemented > td {
+  background: #F4FBF7;
+}
+.kaizen-board-table tbody tr.kaizen-row-implemented > td:first-child {
+  box-shadow: inset 3px 0 0 #196F3D;
+}
+.kaizen-board-table tbody tr.kaizen-row-implemented:hover > td {
+  background: #E9F6EF;
+}
+
+@media (max-width: 900px) {
+  /* Below this width the 7 columns stop fitting, so let the wrapper scroll
+     horizontally rather than crushing the text. */
+  .kaizen-board-table { min-width: 860px; }
+}
+
 /* Empty card-view state (replaces inline text-align/color) */
 .cv-card.cv-empty { text-align: center; color: var(--text-muted); }
 

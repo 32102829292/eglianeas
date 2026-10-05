@@ -3,14 +3,26 @@
 @section('title', 'Priority Item #'. $item->id .' — Egliane Accounting Services')
 
 @section('content')
+    @php
+        $overdueDays = $item->overdueDays();
+        $checklistTotal = $item->checklistItems->count();
+        $checklistDone = $item->checklistItems->where('completed', true)->count();
+        $checklistComplete = $checklistTotal > 0 && $checklistDone === $checklistTotal;
+        $checklistPercent = $checklistTotal > 0 ? (int) round(($checklistDone / $checklistTotal) * 100) : 0;
+        $evidenceCount = $item->evidences->count();
+    @endphp
+
     <div class="page-head page-head-row">
         <div>
-            <h1>Priority Item #{{ $item->id }}</h1>
+            <h1>{{ $item->typeLabel() }} #{{ $item->id }}</h1>
             <p>{{ $item->task_lesson }}</p>
-            <div class="d-flex gap-2 flex-wrap mt-2">
+            <div class="priority-head-badges">
                 <span class="badge {{ $item->typeBadgeClass() }}">{{ $item->typeLabel() }}</span>
-                <span class="badge {{ $item->priorityBadgeClass() }}">Priority: {{ $item->priorityLabel() }}</span>
-                <span class="badge {{ $item->urgencyBadgeClass() }}">Urgency: {{ $item->urgencyLabel() }}</span>
+                <span class="badge priority-pill {{ $item->priorityBadgeClass() }} priority-{{ $item->priority }}">
+                    <span class="priority-dot" aria-hidden="true"></span>{{ $item->priorityLabel() }}
+                </span>
+                <span class="badge {{ $item->urgencyBadgeClass() }}">{{ $item->urgencyLabel() }}</span>
+                <span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span>
             </div>
         </div>
         <div class="d-flex gap-2 flex-wrap">
@@ -21,10 +33,38 @@
         </div>
     </div>
 
-    @if ($item->urgencyInstruction())
+    {{-- Completed state, shown at the top of the page --}}
+    @if ($item->isCompleted())
+        <div class="priority-complete-banner">
+            <div class="priority-complete-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="26" height="26"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div class="priority-complete-body">
+                <div class="priority-complete-title">&#10003; COMPLETED</div>
+                <div class="priority-complete-meta">
+                    Completed on:
+                    <strong>{{ $item->completionDateFormatted() ?? '—' }}</strong>
+                    <span class="priority-complete-sep">&middot;</span>
+                    Completed by:
+                    <strong>{{ $item->completer?->name ?? '—' }}</strong>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if ($item->urgencyInstruction() && ! $item->isCompleted())
         <div class="urgency-banner urgency-{{ $item->priority }}">
+            <span class="urgency-banner-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    @if ($item->priority === \App\Models\PriorityItem::PRIORITY_URGENT || $item->priority === \App\Models\PriorityItem::PRIORITY_HIGH)
+                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                    @else
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    @endif
+                </svg>
+            </span>
             <span class="urgency-banner-label">Priority guidance</span>
-            <strong>{{ $item->urgencyInstruction() }}</strong>
+            <strong class="urgency-banner-text">{{ $item->urgencyInstruction() }}</strong>
         </div>
     @endif
 
@@ -33,24 +73,34 @@
             <div class="card-head">
                 <h2 class="card-title">Details</h2>
             </div>
-            <ul class="detail-list">
+            <ul class="detail-list priority-detail-list">
                 <li>
                     <span class="k">Type</span>
                     <span class="v"><span class="badge {{ $item->typeBadgeClass() }}">{{ $item->typeLabel() }}</span></span>
                 </li>
                 <li>
                     <span class="k">Priority</span>
-                    <span class="v"><span class="badge {{ $item->priorityBadgeClass() }}">{{ $item->priorityLabel() }}</span></span>
+                    <span class="v">
+                        <span class="badge priority-pill {{ $item->priorityBadgeClass() }} priority-{{ $item->priority }}">
+                            <span class="priority-dot" aria-hidden="true"></span>{{ $item->priorityLabel() }}
+                        </span>
+                    </span>
                 </li>
                 <li>
                     <span class="k">Urgency</span>
                     <span class="v"><span class="badge {{ $item->urgencyBadgeClass() }}">{{ $item->urgencyLabel() }}</span></span>
                 </li>
-                <li>
+                <li class="{{ $overdueDays !== null ? 'priority-detail-overdue' : '' }}">
                     <span class="k">Deadline</span>
                     <span class="v">
-                        {{ $item->due_date?->format('F j, Y') ?? '—' }}
+                        <span class="priority-due-date">{{ $item->due_date?->format('F j, Y') ?? '—' }}</span>
                         <span class="badge {{ $item->deadlineBadgeClass() }}">{{ $item->deadlineLabel() }}</span>
+                        @if ($overdueDays !== null)
+                            <span class="priority-overdue-note">
+                                <span aria-hidden="true">&#128308;</span>
+                                {{ $overdueDays }} {{ Str::plural('day', $overdueDays) }} overdue
+                            </span>
+                        @endif
                     </span>
                 </li>
                 <li>
@@ -59,13 +109,23 @@
                         @if ($item->assignedStaff)
                             {{ $item->assignedStaff->name }}
                         @else
-                            <span class="badge badge-info">Unassigned (visible to all staff & supervisors)</span>
+                            <span class="badge badge-info">Unassigned (visible to all staff &amp; supervisors)</span>
                         @endif
                     </span>
                 </li>
-                <li>
+                <li class="{{ $item->isCompleted() ? 'priority-detail-completed' : '' }}">
                     <span class="k">Status</span>
-                    <span class="v"><span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span></span>
+                    <span class="v">
+                        <span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span>
+                        @if ($item->isCompleted())
+                            <div class="priority-detail-completion">
+                                Completed on <strong>{{ $item->completionDateFormatted() ?? '—' }}</strong>
+                                @if ($item->completer)
+                                    &middot; by <strong>{{ $item->completer->name }}</strong>
+                                @endif
+                            </div>
+                        @endif
+                    </span>
                 </li>
             </ul>
         </div>
@@ -76,7 +136,7 @@
                 <h2 class="card-title">Description</h2>
             </div>
             <div class="card-data">
-                <div class="p-4" style="white-space: pre-wrap;">{{ $item->description }}</div>
+                <div class="rich-text">{{ $item->description }}</div>
             </div>
         </div>
         @endif
@@ -87,7 +147,7 @@
                 <h2 class="card-title">Notes</h2>
             </div>
             <div class="card-data">
-                <div class="p-4" style="white-space: pre-wrap;">{{ $item->notes }}</div>
+                <div class="rich-text">{{ $item->notes }}</div>
             </div>
         </div>
         @endif
@@ -111,12 +171,20 @@
         @endphp
 
         @if ($checklistTotal > 0)
-            <div class="checklist-progress">
+            <div class="checklist-progress {{ $checklistComplete ? 'is-complete' : '' }}">
                 <div class="checklist-progress-bar">
-                    <span style="width: {{ (int) round(($checklistDone / $checklistTotal) * 100) }}%"></span>
+                    <span style="width: {{ $checklistPercent }}%"></span>
                 </div>
                 <span class="checklist-progress-label">{{ $checklistDone }} of {{ $checklistTotal }} complete</span>
+                <span class="checklist-progress-percent">{{ $checklistPercent }}%</span>
             </div>
+            @if ($checklistComplete)
+                <div class="priority-checklist-done">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                    All checklist items completed
+                    <span class="priority-checklist-done-note">This does not mark the item as completed on its own.</span>
+                </div>
+            @endif
         @endif
 
         @if ($item->checklistItems->isNotEmpty())
@@ -233,53 +301,67 @@
     </div>
     @endif
 
-    {{-- Evidence of Implementation --}}
+    {{-- Evidence of Completion --}}
     <div class="card" id="evidence" style="margin-top: 20px;">
         <div class="card-head d-flex align-items-center justify-content-between">
-            <h2 class="card-title mb-0">Evidence of Completion / Implementation @if ($item->evidences->isNotEmpty())<span class="badge badge-info">{{ $item->evidences->count() }}</span>@endif</h2>
+            <h2 class="card-title mb-0"><span aria-hidden="true">&#128206;</span> Evidence of Completion @if ($evidenceCount > 0)<span class="badge badge-info">{{ $evidenceCount }}</span>@endif</h2>
             <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addEvidenceModal">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Add Evidence
             </button>
         </div>
+        <p class="priority-evidence-hint">
+            Proof of work that this item was carried out &mdash; photos, documents or signed records.
+            Any staff member who can see this item can add evidence.
+        </p>
 
-        @if ($item->evidences->isNotEmpty())
-            <div class="table-wrap">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="thead-muted">
-                        <tr>
-                            <th>File</th>
-                            <th style="width: 140px;">Type</th>
-                            <th style="width: 160px;">Uploaded By</th>
-                            <th style="width: 180px;">Uploaded At</th>
-                            <th class="text-end" style="width: 230px;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($item->evidences as $evidence)
-                            <tr>
-                                <td>{{ $evidence->original_name }}</td>
-                                <td><span class="badge badge-info">{{ $evidence->mime_type ?? 'file' }}</span></td>
-                                <td>{{ $evidence->uploader->name ?? '—' }}</td>
-                                <td>{{ $evidence->created_at?->format('M j, Y g:i A') }}</td>
-                                <td class="text-end">
-                                    <a href="{{ URL::temporarySignedRoute('admin.priority-items.evidence.view', now()->addMinutes(30), ['item' => $item->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">View</a>
-                                    <a href="{{ URL::temporarySignedRoute('admin.priority-items.evidence.download', now()->addMinutes(30), ['item' => $item->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm">Download</a>
-                                    @if (auth()->user()->isAdmin() || auth()->user()->isSupervisor())
-                                        <form method="POST" action="{{ route('admin.priority-items.evidence.delete', [$item, $evidence]) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Remove this evidence?', message: 'This file will be permanently removed.', danger: true, confirmLabel: 'Remove' });">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
-                                        </form>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+        @if ($evidenceCount > 0)
+            <div class="priority-evidence-grid">
+                @foreach ($item->evidences as $evidence)
+                    <div class="priority-evidence-card">
+                        <div class="priority-evidence-icon" aria-hidden="true">
+                            @if ($evidence->mime_type && str_starts_with($evidence->mime_type, 'image/'))
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            @elseif ($evidence->mime_type === 'application/pdf')
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                            @else
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 19 9"/></svg>
+                            @endif
+                        </div>
+                        <div class="priority-evidence-meta">
+                            <div class="priority-evidence-name" title="{{ $evidence->original_name }}">{{ $evidence->original_name }}</div>
+                            <div class="priority-evidence-sub">
+                                @if ($evidence->mime_type)
+                                    <span class="badge badge-info">{{ $evidence->mime_type }}</span>
+                                @else
+                                    <span class="badge badge-info">file</span>
+                                @endif
+                                &middot; {{ $evidence->uploader->name ?? '—' }}
+                                &middot; {{ $evidence->created_at?->format('M j, Y g:i A') }}
+                            </div>
+                        </div>
+                        <div class="priority-evidence-actions">
+                            <a href="{{ URL::temporarySignedRoute('admin.priority-items.evidence.view', now()->addMinutes(30), ['item' => $item->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">View</a>
+                            <a href="{{ URL::temporarySignedRoute('admin.priority-items.evidence.download', now()->addMinutes(30), ['item' => $item->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm">Download</a>
+                            @if (auth()->user()->isAdmin() || auth()->user()->isSupervisor())
+                                <form method="POST" action="{{ route('admin.priority-items.evidence.delete', [$item, $evidence]) }}" onsubmit="return egliane.confirm.form(this, { title: 'Remove this evidence?', message: 'This file will be permanently removed.', danger: true, confirmLabel: 'Remove' });">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
+                                </form>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
             </div>
         @else
-            <div class="text-center py-4 muted">No implementation evidence has been uploaded yet. Click "Add Evidence" to upload a file.</div>
+            <div class="priority-evidence-empty">
+                <span class="priority-evidence-empty-icon" aria-hidden="true">&#128206;</span>
+                <div>
+                    <div class="priority-evidence-empty-title">No implementation evidence attached yet.</div>
+                    <div class="priority-evidence-empty-note">Click "Add Evidence" to upload a file.</div>
+                </div>
+            </div>
         @endif
     </div>
 
@@ -291,6 +373,8 @@
         <ul class="detail-list">
             <li><span class="k">Created By</span><span class="v">{{ $item->creator->name ?? '—' }}</span></li>
             <li><span class="k">Created At</span><span class="v">{{ $item->created_at?->format('F j, Y g:i A') }}</span></li>
+            <li><span class="k">Completed On</span><span class="v">{{ $item->completionDateFormatted() ?? '—' }}</span></li>
+            <li><span class="k">Completed By</span><span class="v">{{ $item->completer?->name ?? '—' }}</span></li>
         </ul>
     </div>
 

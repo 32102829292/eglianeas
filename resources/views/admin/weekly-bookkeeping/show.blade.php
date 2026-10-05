@@ -30,6 +30,8 @@
         </div>
     </div>
 
+    @include('admin.bookkeeping.partials.plan-strip', ['bookkeeping' => $bookkeeping, 'targets' => $targets])
+
     <div class="grid-2 bookkeeping-details">
         <div class="card">
             <div class="card-head"><h2 class="card-title">Weekly Target Summary</h2></div>
@@ -101,19 +103,8 @@
         @error('action')<div class="form-error" style="margin-bottom:12px;">{{ $message }}</div>@enderror
 
         @if ($targets->isNotEmpty())
-            <div class="table-wrap table-card-view">
-                <table class="table table-hover align-middle mb-0 target-table">
-                    <colgroup>
-                        <col style="width:8%">
-                        <col style="width:10%">
-                        <col style="width:15%">
-                        <col style="width:10%">
-                        <col style="width:9%">
-                        <col style="width:11%">
-                        <col style="width:12%">
-                        <col style="width:10%">
-                        <col style="width:7%">
-                    </colgroup>
+            <div class="table-wrap table-card-view bk-table-wrap">
+                <table class="table table-hover align-middle mb-0 target-table bk-target-table">
                     <thead class="thead-muted">
                         <tr>
                             <th>Target Date</th>
@@ -122,7 +113,7 @@
                             <th>Assigned Staff</th>
                             <th class="text-center">Target</th>
                             <th class="text-center">Actual</th>
-                            <th>Remarks</th>
+                            <th class="bk-col-remarks">Remarks</th>
                             <th>Performed By</th>
                             <th>Evidence</th>
                             <th class="text-end">Actions</th>
@@ -130,21 +121,11 @@
                     </thead>
                     <tbody>
                         @foreach ($targets as $target)
-                            @php
-                                $eff = $target->effectiveStatus();
-                                $badge = match(true) {
-                                    $target->isCompleted() && $target->isLate() => 'badge-warn',
-                                    $target->isCompleted() => 'badge-success',
-                                    $target->isInProgress() => 'badge-info',
-                                    $target->isPastDue() => 'badge-warn',
-                                    default => 'badge-neutral',
-                                };
-                            @endphp
                             <tr id="target-{{ $target->id }}">
                                 <td data-col="Target Date" class="td-date">
                                     {{ $target->target_date?->format('D, M j') ?? '—' }}
                                 </td>
-                                <td data-col="Task Type">
+                                <td data-col="Task Type" data-bk-task-title>
                                     <span class="task-type-dot task-{{ $target->task_type }}"></span>
                                     {{ $target->taskLabel() }}
                                 </td>
@@ -174,72 +155,31 @@
                                     <span class="badge badge-primary">Yes</span>
                                 </td>
                                 <td data-col="Actual" class="text-center">
-                                    <span class="badge {{ $badge }}">{{ $target->effectiveStatusLabel() }}</span>
+                                    @include('admin.bookkeeping.partials.task-status-badge', ['target' => $target])
                                     @if ($target->isCompleted())
                                         @if ($target->timingLabel())
                                             <div><small class="muted">{{ $target->timingLabel() }}</small></div>
                                         @endif
                                         @if ($target->paymentDetail())
                                             <div><small class="muted">{{ $target->paymentDetail() }}</small></div>
-                                        @elseif ($target->ended_at)
-                                            <div><small class="muted">{{ $target->ended_at->format('M j, g:i A') }}</small></div>
                                         @endif
                                         @if ($target->durationHuman())
                                             <div><small class="muted">{{ $target->durationHuman() }}</small></div>
                                         @endif
                                     @endif
                                 </td>
-
-                                {{-- Remarks Column --}}
-                                <td data-col="Remarks">
-                                    @php
-                                        $isOwnTask = $target->isAssignedTo(auth()->user());
-                                        $isOversight = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
-                                        $canEditRemarks = $target->isInProgress() && ($isOwnTask || $isOversight);
-                                        $hasRemarks = filled($target->notes);
-                                    @endphp
-                                    @if ($canEditRemarks)
-                                        @if ($hasRemarks)
-                                            <div class="remarks-cell">
-                                                <div class="remarks-text" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $target->notes }}</div>
-                                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-remarks-btn" data-target-id="{{ $target->id }}" data-notes="{{ $target->notes }}" title="Edit remarks">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                                </button>
-                                            </div>
-                                        @else
-                                            <button type="button" class="btn btn-primary btn-sm add-remarks-btn" data-target-id="{{ $target->id }}" title="Add remarks">
-                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                                Add Remarks
-                                            </button>
-                                        @endif
-                                    @elseif ($hasRemarks)
-                                        <div class="remarks-cell">
-                                            <div class="remarks-text" style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $target->notes }}">{{ $target->notes }}</div>
-                                        </div>
-                                    @else
-                                        <span class="muted">—</span>
-                                    @endif
+                                <td data-col="Remarks" class="bk-col-remarks">
+                                    @include('admin.bookkeeping.partials.remarks-cell', ['target' => $target])
                                 </td>
                                 <td data-col="Performed By">
-                                    @if ($target->performed_by_id || $target->performed_by_name)
-                                        <div>{{ $target->performedByDisplayName() }}</div>
-                                        <small>
-                                            <span class="badge badge-sm performer-badge role-{{ $target->performed_by_role }}">{{ $target->performedByRoleLabel() }}</span>
-                                        </small>
-                                    @else
-                                        <span class="muted">—</span>
-                                    @endif
+                                    @include('admin.bookkeeping.partials.performed-by-cell', ['target' => $target])
                                 </td>
                                 <td data-col="Evidence">
-                                    @if ($target->attachment_path)
-                                        <div class="evidence-links">
-                                            <a href="{{ route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]) }}" target="_blank">View</a>
-                                            <a href="{{ route('admin.weekly-bookkeeping.download-attachment', [$bookkeeping, $target]) }}" download>Download</a>
-                                        </div>
-                                        <small class="muted wk-file" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</small>
-                                    @else
-                                        <span class="muted">—</span>
-                                    @endif
+                                    @include('admin.bookkeeping.partials.evidence-cell', [
+                                        'target' => $target,
+                                        'bookkeeping' => $bookkeeping,
+                                        'prefix' => 'admin.weekly-bookkeeping',
+                                    ])
                                 </td>
                                 <td data-col="Actions" class="text-end">
                                     @if ($canManage)
@@ -302,23 +242,13 @@
 
                 <div class="card-view-list">
                     @foreach ($targets as $target)
-                        @php
-                            $eff = $target->effectiveStatus();
-                            $badge = match(true) {
-                                $target->isCompleted() && $target->isLate() => 'badge-warn',
-                                $target->isCompleted() => 'badge-success',
-                                $target->isInProgress() => 'badge-info',
-                                $target->isPastDue() => 'badge-warn',
-                                default => 'badge-neutral',
-                            };
-                        @endphp
                         <div class="cv-card">
                             <div class="cv-card-head">
                                 <div class="cv-head-main">
-                                    <div class="cv-head-title">{{ $target->taskLabel() }} · {{ $target->displayClientName() }}</div>
+                                    <div class="cv-head-title" data-bk-task-title>{{ $target->taskLabel() }} · {{ $target->displayClientName() }}</div>
                                     <div class="cv-head-sub">{{ $target->target_date?->format('D, M j') ?? 'Any day' }}</div>
                                 </div>
-                                <span class="badge {{ $badge }}">{{ $target->effectiveStatusLabel() }}</span>
+                                @include('admin.bookkeeping.partials.task-status-badge', ['target' => $target])
                             </div>
                             <div class="cv-card-body">
                                 <div class="cv-pair">
@@ -326,63 +256,38 @@
                                     <span class="cv-value"><span class="badge badge-primary">Yes</span></span>
                                 </div>
                                 <div class="cv-pair">
-                                    <span class="cv-label">Performed By</span>
+                                    <span class="cv-label">Assigned Staff</span>
                                     <span class="cv-value">
-                                        @if ($target->performed_by_id || $target->performed_by_name)
-                                            {{ $target->performedByDisplayName() }}
-                                            <span class="badge badge-sm performer-badge role-{{ $target->performed_by_role }}">{{ $target->performedByRoleLabel() }}</span>
+                                        @if ($target->assignedStaffDisplayName() !== '')
+                                            {{ $target->assignedStaffDisplayName() }}
                                         @else
-                                            —
+                                            <span class="muted">Unassigned</span>
                                         @endif
                                     </span>
                                 </div>
-                                @if ($target->started_at)
-                                    <div class="cv-pair"><span class="cv-label">Started</span><span class="cv-value">{{ $target->started_at->format('M j, g:i A') }}</span></div>
-                                @endif
-                                @if ($target->ended_at)
-                                    <div class="cv-pair"><span class="cv-label">Ended</span><span class="cv-value">{{ $target->ended_at->format('M j, g:i A') }}</span></div>
-                                @endif
+                                <div class="cv-pair cv-full">
+                                    <span class="cv-label">Remarks</span>
+                                    <span class="cv-value">
+                                        @include('admin.bookkeeping.partials.remarks-cell', ['target' => $target])
+                                    </span>
+                                </div>
+                                <div class="cv-pair cv-full">
+                                    <span class="cv-label">Performed By</span>
+                                    <span class="cv-value">
+                                        @include('admin.bookkeeping.partials.performed-by-cell', ['target' => $target])
+                                    </span>
+                                </div>
                                 @if ($target->durationHuman())
                                     <div class="cv-pair"><span class="cv-label">Duration</span><span class="cv-value">{{ $target->durationHuman() }}</span></div>
                                 @endif
-                                @php
-                                    $isOwnTask = $target->isAssignedTo(auth()->user());
-                                    $isOversight = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
-                                    $canEditRemarks = $target->isInProgress() && ($isOwnTask || $isOversight);
-                                    $hasRemarks = filled($target->notes);
-                                @endphp
-                                <div class="cv-pair">
-                                    <span class="cv-label">Remarks</span>
-                                    <span class="cv-value">
-                                        @if ($canEditRemarks)
-                                            @if ($hasRemarks)
-                                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                                    <span class="remarks-text" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $target->notes }}</span>
-                                                    <button type="button" class="btn btn-link btn-sm p-0 edit-remarks-btn" data-target-id="{{ $target->id }}" data-notes="{{ $target->notes }}" title="Edit remarks">
-                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                                    </button>
-                                                </div>
-                                            @else
-                                                <button type="button" class="btn btn-primary btn-sm add-remarks-btn" data-target-id="{{ $target->id }}" title="Add remarks">
-                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                                    Add Remarks
-                                                </button>
-                                            @endif
-                                        @elseif ($hasRemarks)
-                                            <span class="remarks-text" style="white-space: normal; max-width: 300px;">{{ $target->notes }}</span>
-                                        @else
-                                            <span class="muted">—</span>
-                                        @endif
-                                    </span>
-                                </div>
-                                <div class="cv-pair">
+                                <div class="cv-pair cv-full">
                                     <span class="cv-label">Evidence</span>
                                     <span class="cv-value">
-                                        @if ($target->attachment_path)
-                                            <a class="wk-file" href="{{ route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]) }}" target="_blank" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</a>
-                                        @else
-                                            —
-                                        @endif
+                                        @include('admin.bookkeeping.partials.evidence-cell', [
+                                            'target' => $target,
+                                            'bookkeeping' => $bookkeeping,
+                                            'prefix' => 'admin.weekly-bookkeeping',
+                                        ])
                                     </span>
                                 </div>
                             </div>
@@ -424,72 +329,13 @@
             </div>
         @endif
     </div>
+
+    {{-- Remarks Editor Modal --}}
+    @include('admin.bookkeeping.partials.remarks-modal', [
+        'updateRoute' => 'admin.weekly-bookkeeping.update-target',
+        'bookkeeping' => $bookkeeping,
+    ])
 @endsection
-
-{{-- Remarks Editor Modal --}}
-<div class="modal fade" id="remarksModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-sm">
-        <div class="modal-content">
-            <form id="remarksForm" method="POST" action="{{ route('admin.weekly-bookkeeping.update-target', [$bookkeeping, '__TARGET_ID__']) }}">
-                @csrf
-                @method('PATCH')
-                <div class="modal-header">
-                    <h5 class="modal-title">Task Remarks</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label class="form-label" for="remarksTextarea">Remarks</label>
-                        <textarea id="remarksTextarea" name="notes" class="form-control" rows="4" maxlength="1000" placeholder="Why was this task late or what happened during processing?"></textarea>
-                        <small class="form-text">Explain why this task was delayed or any relevant circumstance.</small>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Remarks</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-@push('scripts')
-<script>
-(function () {
-    'use strict';
-
-    var modalEl = document.getElementById('remarksModal');
-    if (! modalEl) { return; }
-
-    var modal = new bootstrap.Modal(modalEl);
-    var form = document.getElementById('remarksForm');
-    var textarea = document.getElementById('remarksTextarea');
-    var originalAction = form.action;
-
-    document.querySelectorAll('.add-remarks-btn, .edit-remarks-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            var targetId = btn.getAttribute('data-target-id');
-            var notes = btn.getAttribute('data-notes') || '';
-
-            textarea.value = notes;
-            form.action = originalAction.replace('__TARGET_ID__', targetId);
-            modal.show();
-        });
-    });
-
-    form.addEventListener('submit', function (e) {
-        var submitBtn = form.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
-    });
-
-    modalEl.addEventListener('hidden.bs.modal', function () {
-        form.reset();
-        targetIdInput.value = '';
-    });
-})();
-</script>
-@endpush
 
 @push('styles')
 <style>

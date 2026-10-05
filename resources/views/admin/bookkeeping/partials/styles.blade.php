@@ -129,7 +129,7 @@
     .wk-dot-completed { background: var(--success); }
     .wk-dot-in_progress, .wk-dot-active { background: var(--sky-deep); }
     .wk-dot-attention { background: var(--danger); }
-    .wk-dot-pending { background: #C8CEDA; }
+    .wk-dot-pending { background: #EAB308; }
 
     .wk-pill {
         display: inline-flex; align-items: center; padding: 3px 9px;
@@ -139,7 +139,7 @@
     .wk-pill-completed { background: #DCFCE7; color: #166534; }
     .wk-pill-in_progress, .wk-pill-active { background: #DBEAFE; color: #1E40AF; }
     .wk-pill-attention { background: #FEE2E2; color: #991B1B; }
-    .wk-pill-pending { background: var(--surface-sunken); color: var(--muted-text); }
+    .wk-pill-pending { background: #FEF3C7; color: #92400E; }
 
     .wk-badge {
         display: inline-flex; align-items: center; padding: 3px 9px;
@@ -352,7 +352,11 @@
     .wk-evi { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; }
     .wk-evi svg { width: 13px; height: 13px; flex: none; }
     .wk-evi-none { font-size: var(--text-xs); color: #94A3B8; }
-    .wk-evi-has { font-size: var(--text-xs); font-weight: 700; color: #166534; }
+    .wk-evi-has {
+        font-size: var(--text-xs); font-weight: 700; color: #166534;
+        display: inline-flex; align-items: center; gap: 4px; text-decoration: none;
+    }
+    .wk-evi-has:hover { text-decoration: underline; }
 
     /* ---------- Responsive ---------- */
     @media (max-width: 1100px) {
@@ -478,5 +482,126 @@
         .schedule-stages { padding: 0 12px 12px; grid-template-columns: 1fr; }
         .schedule-pair { flex-direction: column; gap: 0; }
         .schedule-pair .schedule-label { flex: 0 0 auto; }
+    }
+
+    /* ---- Shared tracker bits: status, remarks, evidence, performed by ------- */
+    /* Used by the weekly, monthly and quarterly Target vs Actual tables so all
+       three read the same way. Presentation only — the status values themselves
+       still come from each target model's effectiveStatus(). */
+
+    /* Status: yellow pending, blue in progress, green completed, red missed.
+       A task that finished late keeps its own tone so "done" and "done late"
+       never read as the same thing. */
+    .bk-status {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 3px 10px; border-radius: 999px;
+        font-size: 11.5px; font-weight: 700; letter-spacing: 0.01em;
+        border: 1px solid transparent; white-space: nowrap;
+    }
+    .bk-status::before {
+        content: ''; width: 7px; height: 7px; border-radius: 999px;
+        background: currentColor; opacity: 0.8; flex: 0 0 auto;
+    }
+    .bk-status-pending { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .bk-status-active  { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .bk-status-done    { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .bk-status-late    { background: #fff7ed; color: #c2410c; border-color: #fed7aa; }
+    .bk-status-overdue { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+    /* Remarks wrap instead of truncating: a remark nobody can finish reading is
+       no better than a hidden one. */
+    .bk-remarks { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .bk-remarks-text {
+        font-size: 13px; line-height: 1.55; color: var(--text, #1e293b);
+        white-space: pre-wrap; overflow-wrap: anywhere; min-width: 15ch;
+    }
+    .bk-remarks-none { font-size: 12px; color: var(--muted, #6b7280); }
+    .bk-remarks-edit { display: inline-flex; align-items: center; gap: 5px; }
+    .bk-remarks-target {
+        font-size: 13px; font-weight: 600; color: var(--text, #0f172a);
+        padding: 8px 12px; border-radius: 8px;
+        background: var(--surface-2, #f8fafc); border: 1px solid var(--border, #e5e7eb);
+    }
+
+    /* Evidence */
+    .bk-evidence { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+    .bk-evidence-pill {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 11.5px; font-weight: 700; color: #0369a1;
+        background: #f0f9ff; border: 1px solid #bae6fd;
+        border-radius: 999px; padding: 2px 9px;
+    }
+    .bk-evidence-links { display: inline-flex; gap: 10px; font-size: 12.5px; }
+    .bk-evidence-links a { color: var(--primary, #6366f1); text-decoration: none; }
+    .bk-evidence-links a:hover { text-decoration: underline; }
+    .bk-evidence-name {
+        display: block; max-width: 22ch; overflow: hidden;
+        text-overflow: ellipsis; white-space: nowrap;
+        font-size: 11.5px; color: var(--muted, #6b7280);
+    }
+    .bk-evidence-empty {
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 12px; color: var(--muted, #6b7280);
+    }
+
+    /* Performed by */
+    .bk-performed-name { font-size: 13px; font-weight: 600; color: var(--text, #0f172a); }
+    .bk-performed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+    .bk-performed-time { font-size: 11.5px; color: var(--muted, #6b7280); }
+    .bk-role {
+        display: inline-flex; align-items: center;
+        font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px;
+    }
+    .bk-role-staff { background: #eff6ff; color: #1d4ed8; }
+    .bk-role-supervisor { background: #fffbeb; color: #b45309; }
+    .bk-role-admin { background: #eef2ff; color: #4338ca; }
+
+    /* Wide Target vs Actual tables scroll rather than shrink: the remarks and
+       evidence columns keep a readable width and the actions stay clickable. */
+    .bk-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .bk-target-table { min-width: 1120px; }
+    .bk-target-table th, .bk-target-table td { vertical-align: top; }
+    .bk-target-table .bk-col-remarks { min-width: 240px; }
+
+    /* The at-a-glance strip at the top of each target page. A finished week or
+       period flips the whole strip green so completion reads without hunting. */
+    .bk-plan-strip {
+        display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+        gap: 16px; margin-bottom: 16px; padding: 16px 18px;
+        background: #fff; border: 1px solid var(--border, #e2e8f0);
+        border-radius: var(--radius, 10px); border-left: 4px solid var(--sky-deep, #0369a1);
+    }
+    .bk-plan-strip.is-finished { border-left-color: var(--success, #16a34a); background: #f0fdf4; }
+    .bk-plan-strip-main { min-width: 220px; flex: 1 1 260px; }
+    .bk-plan-strip-label {
+        font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+        color: var(--muted, #64748b);
+    }
+    .bk-plan-strip-value {
+        font-size: 26px; font-weight: 800; line-height: 1.15; color: var(--text, #0f172a);
+        margin-top: 2px;
+    }
+    .bk-plan-strip-pct { font-size: 15px; font-weight: 700; color: var(--muted, #64748b); }
+    .bk-plan-bar {
+        height: 8px; margin-top: 9px; border-radius: 999px;
+        background: var(--surface-sunken, #e2e8f0); overflow: hidden;
+    }
+    .bk-plan-bar span { display: block; height: 100%; background: var(--sky-deep, #0369a1); }
+    .bk-plan-strip.is-finished .bk-plan-bar span { background: var(--success, #16a34a); }
+    .bk-plan-strip-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .bk-count {
+        font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 4px 11px;
+        white-space: nowrap;
+    }
+    .bk-count-done { background: #dcfce7; color: #166534; }
+    .bk-count-active { background: #dbeafe; color: #1e40af; }
+    .bk-count-pending { background: #fef3c7; color: #92400e; }
+    .bk-count-overdue { background: #fee2e2; color: #991b1b; }
+
+    @media (max-width: 720px) {
+        .bk-target-table { min-width: 0; }
+        .bk-remarks-text { min-width: 0; }
+        .bk-evidence-name { max-width: 100%; }
+        .bk-plan-strip { flex-direction: column; align-items: stretch; }
     }
 </style>

@@ -1349,7 +1349,16 @@ trait HandlesBookkeepingWorkflow
             ]);
         }
 
-        $updateData = ['notes' => $validated['notes'] ?? null];
+        $updateData = [];
+
+        /* Only write the remarks when the form actually carried them. A save that
+           is about the target date or the balance must never blank a remark that is
+           already on the task, and the remarks editor sends `notes` on its own. */
+        if ($request->has('notes')) {
+            $notes = trim((string) ($validated['notes'] ?? ''));
+            $updateData['notes'] = $notes === '' ? null : $notes;
+        }
+
         if ($canUpdateDate) {
             $updateData['target_date'] = $targetDate;
         }

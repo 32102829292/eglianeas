@@ -18,6 +18,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class KaizenConcernController extends Controller
 {
+    /**
+     * The Improvement Suggestions board.
+     *
+     * Admin Concerns live in the same table, so the query is narrowed to
+     * employee suggestions here rather than in the view. `withCount` is what the
+     * Evidence column reads, so the board can say how many files are attached
+     * without opening each record.
+     */
     public function index(Request $request): View
     {
         $user = auth()->user();
@@ -26,6 +34,8 @@ class KaizenConcernController extends Controller
         $assignedStaffId = $request->get('assigned_staff_id');
 
         $query = KaizenConcern::with(['assignedStaff', 'creator'])
+            ->withCount('evidences')
+            ->employeeSuggestions()
             ->orderByDesc('date_identified')
             ->orderByDesc('id')
             ->visibleTo($user);
@@ -42,7 +52,9 @@ class KaizenConcernController extends Controller
             $query->where('status', $status);
         }
 
-        if ($assignedStaffId !== '' && $assignedStaffId !== null) {
+        if ($assignedStaffId === 'unassigned') {
+            $query->whereNull('assigned_staff_id');
+        } elseif ($assignedStaffId !== '' && $assignedStaffId !== null) {
             $query->where('assigned_staff_id', $assignedStaffId);
         }
 
@@ -68,6 +80,54 @@ class KaizenConcernController extends Controller
         ]);
     }
 
+    public function submit(): View
+    {
+        abort_unless(auth()->user()->isOperational(), 403);
+
+        return view('admin.kaizen-concerns.submit');
+    }
+
+    /**
+     * Any operational employee (staff, supervisor, admin) can submit their own
+     * Employee Suggestion. The submitter is taken from the authenticated user
+     * and is never accepted from the request, so nobody can submit an idea in
+     * someone else's name. The record is always created as Pending and
+     * unassigned so the existing admin assignment / status workflow stays the
+     * only way to move it forward.
+     *
+     * The record is also typed as an employee suggestion here, which is what keeps
+     * it on the Improvement Suggestions board and keeps Admin Concerns off it.
+     */
+    public function storeSubmission(Request $request): RedirectResponse
+    {
+        abort_unless(auth()->user()->isOperational(), 403);
+
+        $validated = $request->validate([
+            'date_identified' => ['required', 'date'],
+            'challenge' => ['required', 'string', 'max:5000'],
+            'recommended_solution' => ['required', 'string', 'max:5000'],
+            'target_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $validated['type'] = KaizenConcern::TYPE_EMPLOYEE_SUGGESTION;
+        $validated['created_by'] = auth()->id();
+        $validated['status'] = KaizenConcern::STATUS_PENDING;
+        $validated['assigned_staff_id'] = null;
+
+        $concern = KaizenConcern::create($validated);
+
+        $this->logActivity($concern, 'admin.kaizen_concern_submitted', 'Submitted Employee Suggestion');
+
+        return redirect()->route('admin.kaizen-concerns.show', $concern)
+            ->with('status', 'Thank you! Your improvement suggestion has been submitted.');
+    }
+
+    /**
+     * The Admin Concern create path. It records the row as an Admin Concern so it
+     * is kept out of the Improvement Suggestions board, where every row is meant
+     * to be an employee suggestion.
+     */
     public function store(Request $request): RedirectResponse
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can create Kaizen concerns.');
@@ -83,6 +143,7 @@ class KaizenConcernController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $validated['type'] = KaizenConcern::TYPE_ADMIN_CONCERN;
         $validated['created_by'] = auth()->id();
 
         $concern = KaizenConcern::create($validated);
@@ -131,11 +192,26 @@ class KaizenConcernController extends Controller
             'target_date' => ['nullable', 'date'],
             'implementation_date' => ['nullable', 'date'],
             'assigned_staff_id' => ['nullable', 'exists:users,id'],
-            'status' => ['required', 'string', 'in:'.implode(',', array_keys(KaizenConcern::STATUSES))],
+            'status' => ['nullable', 'string', 'in:'.implode(',', array_keys(KaizenConcern::STATUSES))],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $concern->update($validated);
+        /* The status is not something that has to be picked by hand. Leaving it
+           out keeps the record on whatever the implementation workflow already
+           decided, and the displayed status is derived from the implementation
+           state (see KaizenConcern::effectiveStatus) rather than from this
+           field alone. */
+        $status = $validated['status'] ?? $concern->status;
+        unset($validated['status']);
+
+        // Finalising as Implemented is what fills in the implementation date when
+        // one is not supplied, so the board can always show "Implemented on:
+        // <date>". This stays behind the admin-only guard above.
+        if ($status === KaizenConcern::STATUS_IMPLEMENTED && empty($validated['implementation_date'])) {
+            $validated['implementation_date'] = now()->format('Y-m-d');
+        }
+
+        $concern->update($validated + ['status' => $status]);
 
         if ($concern->assigned_staff_id !== $wasAssigned) {
             $this->notifyAssignment($concern);
@@ -164,6 +240,39 @@ class KaizenConcernController extends Controller
         ActivityLog::record(auth()->user(), 'admin.kaizen_concern_deleted', 'Deleted a Kaizen concern record.');
 
         return back()->with('status', 'Kaizen concern deleted.');
+    }
+
+    /**
+     * Implementation confirmation from the detail page.
+     *
+     * This is a shortcut for the existing admin-only edit workflow, not a new
+     * permission: it carries the exact same `isAdmin()` guard as update(), so
+     * employees and supervisors still cannot finalise a suggestion. It applies
+     * the same rule as update() too — an implementation date is filled in when
+     * the record is finalised as Implemented and none was supplied.
+     *
+     * Note that checklist completion deliberately does NOT call this. Finishing
+     * the implementation tasks only means the work is ready to be confirmed;
+     * an Admin still has to confirm it here.
+     */
+    public function implement(KaizenConcern $concern): RedirectResponse
+    {
+        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can confirm a Kaizen concern as implemented.');
+
+        abort_if($concern->isImplemented(), 422, 'This suggestion is already implemented.');
+
+        $concern->update([
+            'status' => KaizenConcern::STATUS_IMPLEMENTED,
+            'implementation_date' => $concern->implementation_date ?? now()->format('Y-m-d'),
+        ]);
+
+        ActivityLog::record(
+            auth()->user(),
+            'admin.kaizen_concern_implemented',
+            "Confirmed Kaizen concern #{$concern->id} as implemented."
+        );
+
+        return back()->with('status', 'Improvement confirmed as implemented.');
     }
 
     public function toggleChecklistItem(Request $request, KaizenConcern $concern): RedirectResponse|JsonResponse

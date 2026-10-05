@@ -1093,8 +1093,21 @@ class WeeklyBookkeepingController extends Controller
     {
         $this->authorizeManageTarget($target);
 
-        if (! $target->isPending()) {
-            return back()->withErrors(['action' => 'This target has actual work recorded and can no longer be edited.']);
+        $user = auth()->user();
+        $isOversight = $user->isAdmin() || $user->isSupervisor();
+
+        /* Remarks are the one field that stays writable once the actual work has
+           started: the assigned staff member keeps explaining what happened for as
+           long as the task is In Progress, which is exactly when a remark is worth
+           writing. This is an exception for the `notes` column alone — the target
+           date, the balance columns, the assignment and the completion status all
+           stay behind the pending lock they have always had. */
+        $canEditRemarks = $target->isPending()
+            || $isOversight
+            || ($target->isInProgress() && $target->isAssignedTo($user));
+
+        if (! $canEditRemarks) {
+            return back()->withErrors(['action' => 'This task is finalized, so its remarks are read-only.']);
         }
 
         /* Balance columns are validated inside `targetWorkflowAttributes`, and
@@ -1104,6 +1117,8 @@ class WeeklyBookkeepingController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
+        /* The submitted date, falling back to what is already stored so a
+           remarks-only save never blanks the deadline. */
         $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
 
         /* A target date may only move inside the plan's own week, so a week can
@@ -1121,11 +1136,33 @@ class WeeklyBookkeepingController extends Controller
             }
         }
 
-        $target->update([
-            'target_date' => $targetDate,
-            'notes' => $validated['notes'] ?? null,
-            ...$this->targetWorkflowAttributes($request, $target, $targetDate),
-        ]);
+        /* The date itself only moves while the task is still pending (or under
+           oversight). The remarks exception above deliberately does not extend
+           to it. */
+        $canUpdateDate = $target->isPending() || $isOversight;
+        $dateChanged = $targetDate !== null && $targetDate !== $target->target_date?->format('Y-m-d');
+
+        if ($dateChanged && ! $canUpdateDate) {
+            return back()->withErrors([
+                'action' => 'Target date can only be changed while the task is pending.',
+            ]);
+        }
+
+        $attributes = $this->targetWorkflowAttributes($request, $target, $targetDate);
+
+        /* Only write the remarks when the form actually carried them. A save that
+           is about something else must never blank a remark that is already on
+           the task, and the remarks editor sends `notes` on its own. */
+        if ($request->has('notes')) {
+            $notes = trim((string) ($validated['notes'] ?? ''));
+            $attributes['notes'] = $notes === '' ? null : $notes;
+        }
+
+        if ($canUpdateDate) {
+            $attributes['target_date'] = $targetDate;
+        }
+
+        $target->update($attributes);
 
         $refreshed = $target->task_type === 'pickup'
             ? $target->resequenceFrom($targetDate, fn ($sibling) => $this->mayManageTarget($sibling))

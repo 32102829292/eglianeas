@@ -432,13 +432,17 @@
                                     </div>
 
                                     {{-- Evidence: presence only, taken from the item's existing
-                                         has_attachment flag. Opening it stays on the show page. --}}
+                                         has_attachment flag. The paperclip links straight to
+                                         that task's row on the show page, where the existing
+                                         View/Download buttons already live. --}}
                                     <span class="wk-evi">
                                         @if ($item['has_attachment'])
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                                            <span class="wk-evi-has">Evidence</span>
+                                            <a class="wk-evi-has" href="{{ $item['show_url'] }}#target-{{ $item['id'] }}" title="Open the evidence for this task">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                <span aria-hidden="true">&#128206;</span> Evidence
+                                            </a>
                                         @else
-                                            <span class="wk-evi-none">No evidence</span>
+                                            <span class="wk-evi-none"><span aria-hidden="true">&#128206;</span> No evidence</span>
                                         @endif
                                     </span>
 

@@ -1099,6 +1099,278 @@ class WeeklyBookkeepingTest extends TestCase
             ->assertSee('With Balance · ₱1,250.00');
     }
 
+    public function test_the_assigned_staff_can_add_remarks_once_the_work_has_started(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['pickup']]]);
+
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $target]), [
+                'notes' => 'Books were incomplete; client is sending the rest tomorrow.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $target->refresh();
+        $this->assertSame('Books were incomplete; client is sending the rest tomorrow.', $target->notes);
+    }
+
+    public function test_a_remarks_only_save_does_not_touch_the_other_target_fields(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'payment'], 'date' => $this->insideWeek(1)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        $payment->update([
+            'notes' => 'Awaiting the BIR receipt.',
+            'payment_status' => WeeklyBookkeepingTarget::PAYMENT_STATUS_WITH_BALANCE,
+            'balance_amount' => '2500.00',
+            'balance_note' => 'Remaining half of the retainer.',
+        ]);
+
+        $dateBefore = $payment->target_date->format('Y-m-d');
+        $sequenceBefore = $payment->sequence;
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $payment]))
+            ->assertRedirect();
+
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $payment]), [
+                'notes' => 'Client called: payment lands Friday.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $payment->refresh();
+        $this->assertSame('Client called: payment lands Friday.', $payment->notes);
+        $this->assertSame($dateBefore, $payment->target_date->format('Y-m-d'));
+        $this->assertSame($sequenceBefore, $payment->sequence);
+        $this->assertSame($staff->id, $payment->assigned_staff_id);
+        $this->assertSame('with_balance', $payment->payment_status);
+        $this->assertSame('2500.00', $payment->balance_amount);
+        $this->assertSame('Remaining half of the retainer.', $payment->balance_note);
+    }
+
+    public function test_a_remarks_only_save_does_not_blank_existing_remarks(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['pickup']]]);
+
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $target->update(['notes' => 'Keep me.']);
+
+        /* A date-only save (the old reschedule form) must not wipe the remark. */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $target]), [
+                'target_date' => $this->insideWeek(2),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $this->assertSame('Keep me.', $target->refresh()->notes);
+    }
+
+    public function test_remarks_cannot_be_edited_once_the_task_is_completed(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup'], 'date' => now()->format('Y-m-d')],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        // Pick-Up only completes once its proof of work is on file.
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $target]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $target->refresh();
+        $this->assertTrue($target->isCompleted());
+
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $target]), [
+                'notes' => 'Trying to rewrite history.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('action');
+
+        $this->assertNull($target->refresh()->notes);
+    }
+
+    public function test_remarks_cannot_be_edited_by_another_staff_member(): void
+    {
+        $owner = $this->staff('Maria Santos');
+        $other = $this->staff('Other Staff');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($owner, $week, [$client->id => ['tasks' => ['pickup']]]);
+
+        $plan = $this->findPlan($owner, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($owner)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($other)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $target]), [
+                'notes' => 'Not my task.',
+            ])
+            ->assertForbidden();
+
+        $this->assertNull($target->refresh()->notes);
+    }
+
+    public function test_a_supervisor_can_add_remarks_to_a_started_task(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $supervisor = $this->supervisor('Juan Dela Cruz');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['pickup']]]);
+
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        $this->actingAs($supervisor)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $target]), [
+                'notes' => 'Oversight note after a spot check.',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Target updated.');
+
+        $this->assertSame('Oversight note after a spot check.', $target->refresh()->notes);
+    }
+
+    public function test_the_plan_page_offers_remarks_editing_only_where_it_is_allowed(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup'], 'date' => now()->format('Y-m-d')],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        /* Pending: the assigned staff member may still start the remarks. */
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->assertSee('data-bs-target="#bkRemarksModal"', false);
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]))
+            ->assertRedirect();
+
+        /* In progress: the remark is still editable. */
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->assertSee('data-bs-target="#bkRemarksModal"', false);
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $target]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        /* Completed: read-only, so no editor is offered any more. The modal
+           itself stays on the page for the rows that can still be edited, but
+           nothing triggers it for this task. */
+        $html = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringNotContainsString(
+            'data-bk-remarks-for="'.$target->id.'"',
+            $html,
+            'A completed task should not offer a remarks editor.'
+        );
+    }
+
+    public function test_the_remarks_editor_submits_only_the_remarks(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        /* A payment stage, because that is the stage whose form also carries the
+           balance and payment fields the remarks editor must never touch. */
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'payment'], 'date' => $this->insideWeek(1)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $payment]))
+            ->assertRedirect();
+
+        $html = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->getContent();
+
+        /* The remarks modal is rendered last on the page, so everything from its
+           id onwards is the editor. It carries the remarks field and nothing that
+           could move a date, a payment, a balance or an assignment. */
+        $start = strpos($html, 'id="bkRemarksModal"');
+        $this->assertNotFalse($start, 'The remarks modal should be present on the plan page.');
+
+        $editor = substr($html, $start);
+
+        $this->assertStringContainsString('name="notes"', $editor);
+        $this->assertStringNotContainsString('target_date', $editor);
+        $this->assertStringNotContainsString('payment_status', $editor);
+        $this->assertStringNotContainsString('balance_amount', $editor);
+        $this->assertStringNotContainsString('balance_note', $editor);
+        $this->assertStringNotContainsString('assigned_staff_id', $editor);
+    }
+
     public function test_the_balance_fields_stay_hidden_on_a_stage_that_is_not_payment(): void
     {
         $staff = $this->staff('Maria Santos');

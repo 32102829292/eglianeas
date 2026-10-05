@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
+use App\Models\ChecklistItem;
 use App\Models\PriorityEvidence;
 use App\Models\PriorityItem;
 use App\Models\User;
@@ -22,6 +23,8 @@ use Tests\TestCase;
  *  - urgency-first default ordering plus filters/search/pagination
  *  - evidence upload/display/authorization and role-limited deletion
  *  - checklist permissions (admin + supervisor manage, staff complete)
+ *  - list/detail hierarchy, overdue phrasing and evidence cards
+ *  - completion audit trail (completed_at / completed_by)
  */
 class PriorityEnhancementTest extends TestCase
 {
@@ -215,7 +218,7 @@ class PriorityEnhancementTest extends TestCase
             ->assertOk()
             ->assertSee('Priority guidance')
             ->assertSee('ACTION REQUIRED NOW')
-            ->assertSee('Urgency:')
+            ->assertSee('Urgency')
             ->assertSee('DUE TODAY');
     }
 
@@ -294,7 +297,7 @@ class PriorityEnhancementTest extends TestCase
             ->assertOk()
             ->assertSee('first.png')
             ->assertSee('second.png')
-            ->assertSee('Evidence of Completion / Implementation');
+            ->assertSee('Evidence of Completion');
     }
 
     public function test_uploading_evidence_does_not_complete_the_item(): void
@@ -599,7 +602,7 @@ class PriorityEnhancementTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.priority-items.index'))
             ->assertOk()
-            ->assertSee('[2 files]');
+            ->assertSee('2 files');
     }
 
     public function test_staff_sees_derived_urgency_and_can_filter_by_it(): void
@@ -621,5 +624,285 @@ class PriorityEnhancementTest extends TestCase
         $this->actingAs($staff)->get(route('admin.priority-items.index', ['urgency' => PriorityItem::URGENCY_OVERDUE]))
             ->assertOk()
             ->assertSee('Staff overdue');
+    }
+
+    /* ---------------------------------------------------------------
+     | Overdue phrasing and completion audit trail
+     * -------------------------------------------------------------- */
+
+    public function test_overdue_days_agrees_with_the_existing_deadline_label(): void
+    {
+        $this->travelTo(Carbon::parse('2026-06-15 09:00:00'));
+
+        $overdue = $this->item(['due_date' => '2026-06-10']);
+        $this->assertSame(5, $overdue->overdueDays());
+        $this->assertSame('OVERDUE BY 5 DAYS', $overdue->deadlineLabel());
+        $this->assertTrue($overdue->isOverdue());
+
+        $future = $this->item(['due_date' => '2026-06-20']);
+        $this->assertNull($future->overdueDays());
+        $this->assertFalse($future->isOverdue());
+
+        // A completed item is never overdue, so it must not report overdue days.
+        $done = $this->item([
+            'status' => PriorityItem::STATUS_COMPLETED,
+            'due_date' => '2026-06-10',
+        ]);
+        $this->assertNull($done->overdueDays());
+        $this->assertFalse($done->isOverdue());
+
+        // An undated item cannot be overdue either.
+        $undated = $this->item(['due_date' => null]);
+        $this->assertNull($undated->overdueDays());
+    }
+
+    public function test_list_and_detail_surface_how_many_days_an_item_is_overdue(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->travelTo(Carbon::parse('2026-06-15 09:00:00'));
+
+        $this->item([
+            'task_lesson' => 'Deeply overdue item',
+            'due_date' => '2026-06-08',
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.index'))
+            ->assertOk()
+            ->assertSee('7 days overdue')
+            ->assertSee('priority-row-overdue', false);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', PriorityItem::first()))
+            ->assertOk()
+            ->assertSee('7 days overdue')
+            ->assertSee('priority-detail-overdue', false);
+    }
+
+    public function test_completing_an_item_records_when_and_by_whom(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $item = $this->item();
+
+        $this->assertNull($item->completed_at);
+        $this->assertNull($item->completed_by);
+
+        $this->travelTo(Carbon::parse('2026-06-15 09:30:00'));
+
+        $this->actingAs($admin)->put(route('admin.priority-items.update', $item), [
+            'task_lesson' => $item->task_lesson,
+            'type' => $item->type,
+            'priority' => $item->priority,
+            'status' => PriorityItem::STATUS_COMPLETED,
+        ])->assertRedirect();
+
+        $item->refresh();
+
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->status);
+        $this->assertTrue($item->isCompleted());
+        $this->assertNotNull($item->completed_at);
+        $this->assertSame($admin->id, $item->completed_by);
+        $this->assertTrue($item->completer->is($admin));
+        $this->assertSame('2026-06-15', $item->completed_at->format('Y-m-d'));
+    }
+
+    public function test_completing_an_item_directly_on_create_records_the_creator(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->travelTo(Carbon::parse('2026-06-15 10:00:00'));
+
+        $this->actingAs($admin)->post(route('admin.priority-items.store'), [
+            'task_lesson' => 'Created already done',
+            'type' => PriorityItem::TYPE_PRIORITY_TASK,
+            'priority' => PriorityItem::PRIORITY_LOW,
+            'status' => PriorityItem::STATUS_COMPLETED,
+            'due_date' => '2026-06-20',
+        ])->assertRedirect(route('admin.priority-items.index'));
+
+        $item = PriorityItem::where('task_lesson', 'Created already done')->firstOrFail();
+
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->status);
+        $this->assertSame($admin->id, $item->completed_by);
+        $this->assertNotNull($item->completed_at);
+    }
+
+    public function test_completion_metadata_is_not_stamped_on_unrelated_updates(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $item = $this->item();
+
+        $this->actingAs($admin)->put(route('admin.priority-items.update', $item), [
+            'task_lesson' => $item->task_lesson,
+            'type' => $item->type,
+            'priority' => PriorityItem::PRIORITY_HIGH,
+            'status' => PriorityItem::STATUS_PENDING,
+        ])->assertRedirect();
+
+        $item->refresh();
+
+        $this->assertSame(PriorityItem::PRIORITY_HIGH, $item->priority);
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->status);
+        $this->assertNull($item->completed_at);
+        $this->assertNull($item->completed_by);
+    }
+
+    public function test_completed_detail_page_shows_the_recorded_completion_trail(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->travelTo(Carbon::parse('2026-06-15 09:30:00'));
+
+        $item = $this->item(['task_lesson' => 'Finished work']);
+
+        $this->actingAs($admin)->put(route('admin.priority-items.update', $item), [
+            'task_lesson' => $item->task_lesson,
+            'type' => $item->type,
+            'priority' => $item->priority,
+            'status' => PriorityItem::STATUS_COMPLETED,
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('priority-complete-banner', false)
+            ->assertSee('COMPLETED')
+            ->assertSee('Completed on:')
+            ->assertSee('June 15, 2026')
+            ->assertSee($admin->name);
+
+        // A completed item no longer needs overdue nagging, so the banner is hidden.
+        $this->travelTo(Carbon::parse('2026-08-01 09:00:00'));
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertDontSee('Priority guidance')
+            ->assertDontSee('days overdue');
+    }
+
+    public function test_legacy_completed_item_without_audit_data_does_not_invent_it(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        // Simulate a row that was completed before the audit columns existed.
+        $item = $this->item([
+            'status' => PriorityItem::STATUS_COMPLETED,
+            'completed_at' => null,
+            'completed_by' => null,
+        ]);
+
+        $this->assertTrue($item->isCompleted());
+        $this->assertNull($item->completionDateFormatted());
+        $this->assertNull($item->completer);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('priority-complete-banner', false)
+            ->assertSee('Completed on:')
+            ->assertSee('Completed by:');
+    }
+
+    public function test_deleting_the_recording_user_keeps_the_completion_date(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->travelTo(Carbon::parse('2026-06-15 09:30:00'));
+
+        $item = $this->item(['task_lesson' => 'Survives completer deletion']);
+        $this->actingAs($admin)->put(route('admin.priority-items.update', $item), [
+            'task_lesson' => $item->task_lesson,
+            'type' => $item->type,
+            'priority' => $item->priority,
+            'status' => PriorityItem::STATUS_COMPLETED,
+        ])->assertRedirect();
+
+        // Users are soft-deleted, so the FK only clears on a hard delete.
+        $admin->forceDelete();
+
+        $item->refresh();
+
+        $this->assertNull($item->completed_by);
+        $this->assertNull($item->completer);
+        $this->assertSame('2026-06-15', $item->completed_at->format('Y-m-d'));
+    }
+
+    public function test_detail_page_shows_checklist_completion_separately_from_item_status(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $item = $this->item();
+
+        foreach (['Step one', 'Step two'] as $title) {
+            $this->actingAs($admin)->post(route('admin.priority-items.checklist.add', $item), [
+                'title' => $title,
+            ])->assertRedirect();
+        }
+
+        $first = ChecklistItem::where('title', 'Step one')->firstOrFail();
+
+        $this->actingAs($admin)->post(route('admin.priority-items.checklist.toggle', $item), [
+            'checklist_item_id' => $first->id,
+        ])->assertRedirect();
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('1 of 2 complete')
+            ->assertSee('50%')
+            ->assertDontSee('All checklist items completed');
+
+        // Completing every checklist item still must not complete the parent item.
+        $second = ChecklistItem::where('title', 'Step two')->firstOrFail();
+        $this->actingAs($admin)->post(route('admin.priority-items.checklist.toggle', $item), [
+            'checklist_item_id' => $second->id,
+        ])->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->status);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('2 of 2 complete')
+            ->assertSee('100%')
+            ->assertSee('All checklist items completed')
+            ->assertSee('This does not mark the item as completed on its own.');
+    }
+
+    public function test_evidence_section_uses_cards_and_hints_who_can_upload(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $staff->id]);
+
+        $this->actingAs($admin)->post(route('admin.priority-items.evidence.add', $item), [
+            'evidence' => UploadedFile::fake()->image('proof.png', 60, 60),
+        ])->assertRedirect();
+
+        $this->actingAs($staff)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('priority-evidence-card', false)
+            ->assertSee('priority-evidence-hint', false)
+            ->assertSee('Any staff member who can see this item can add evidence.')
+            // Assigned staff can see and download the proof, but get no Delete control.
+            ->assertDontSee('Remove this evidence?');
+    }
+
+    public function test_list_keeps_type_aware_evidence_indicator_and_empty_state(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->item(['task_lesson' => 'Item with no proof']);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.index'))
+            ->assertOk()
+            ->assertSee('Item with no proof')
+            ->assertSee('No evidence')
+            ->assertSee('priority-evidence-empty', false);
+    }
+
+    public function test_detail_page_uses_a_type_aware_heading(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->item([
+            'task_lesson' => 'Teach the new batch',
+            'type' => PriorityItem::TYPE_LESSON_LEARNED,
+        ]);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', PriorityItem::first()))
+            ->assertOk()
+            ->assertSee('Lesson Learned #1');
     }
 }

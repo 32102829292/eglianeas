@@ -35,6 +35,8 @@
         </div>
     </div>
 
+    @include('admin.bookkeeping.partials.plan-strip', ['bookkeeping' => $bookkeeping, 'targets' => $targets])
+
     <div class="grid-2 bookkeeping-details">
         <div class="card">
             <div class="card-head"><h2 class="card-title">{{ $config['noun_title'] }} Summary</h2></div>
@@ -106,19 +108,8 @@
         @error('action')<div class="form-error" style="margin-bottom:12px;">{{ $message }}</div>@enderror
 
         @if ($targets->isNotEmpty())
-            <div class="table-wrap table-card-view">
-                <table class="table table-hover align-middle mb-0 target-table">
-                    <colgroup>
-                        <col style="width:10%">
-                        <col style="width:12%">
-                        <col style="width:17%">
-                        <col style="width:11%">
-                        <col style="width:11%">
-                        <col style="width:13%">
-                        <col style="width:10%">
-                        <col style="width:9%">
-                        <col style="width:7%">
-                    </colgroup>
+            <div class="table-wrap table-card-view bk-table-wrap">
+                <table class="table table-hover align-middle mb-0 target-table bk-target-table">
                     <thead class="thead-muted">
                         <tr>
                             <th>Target Date</th>
@@ -127,6 +118,7 @@
                             <th>Assigned Staff</th>
                             <th class="text-center">Target</th>
                             <th class="text-center">Actual</th>
+                            <th class="bk-col-remarks">Remarks</th>
                             <th>Performed By</th>
                             <th>Evidence</th>
                             <th class="text-end">Actions</th>
@@ -134,15 +126,6 @@
                     </thead>
                     <tbody>
                         @foreach ($targets as $target)
-                            @php
-                                $badge = match(true) {
-                                    $target->isCompleted() && $target->isLate() => 'badge-warn',
-                                    $target->isCompleted() => 'badge-success',
-                                    $target->isInProgress() => 'badge-info',
-                                    $target->isPastDue() => 'badge-warn',
-                                    default => 'badge-neutral',
-                                };
-                            @endphp
                             <tr id="target-{{ $target->id }}">
                                 <td data-col="Target Date" class="td-date">
                                     {{ $target->target_date?->format('D, M j') ?? '—' }}
@@ -177,41 +160,31 @@
                                     <span class="badge badge-primary">Yes</span>
                                 </td>
                                 <td data-col="Actual" class="text-center">
-                                    <span class="badge {{ $badge }}">{{ $target->effectiveStatusLabel() }}</span>
+                                    @include('admin.bookkeeping.partials.task-status-badge', ['target' => $target])
                                     @if ($target->isCompleted())
                                         @if ($target->timingLabel())
                                             <div><small class="muted">{{ $target->timingLabel() }}</small></div>
                                         @endif
                                         @if ($target->paymentDetail())
                                             <div><small class="muted">{{ $target->paymentDetail() }}</small></div>
-                                        @elseif ($target->ended_at)
-                                            <div><small class="muted">{{ $target->ended_at->format('M j, g:i A') }}</small></div>
                                         @endif
                                         @if ($target->durationHuman())
                                             <div><small class="muted">{{ $target->durationHuman() }}</small></div>
                                         @endif
                                     @endif
                                 </td>
+                                <td data-col="Remarks" class="bk-col-remarks">
+                                    @include('admin.bookkeeping.partials.remarks-cell', ['target' => $target])
+                                </td>
                                 <td data-col="Performed By">
-                                    @if ($target->performed_by_id || $target->performed_by_name)
-                                        <div>{{ $target->performedByDisplayName() }}</div>
-                                        <small>
-                                            <span class="badge badge-sm performer-badge role-{{ $target->performed_by_role }}">{{ $target->performedByRoleLabel() }}</span>
-                                        </small>
-                                    @else
-                                        <span class="muted">—</span>
-                                    @endif
+                                    @include('admin.bookkeeping.partials.performed-by-cell', ['target' => $target])
                                 </td>
                                 <td data-col="Evidence">
-                                    @if ($target->attachment_path)
-                                        <div class="evidence-links">
-                                            <a href="{{ route($prefix.'.view-attachment', [$bookkeeping, $target]) }}" target="_blank">View</a>
-                                            <a href="{{ route($prefix.'.download-attachment', [$bookkeeping, $target]) }}" download>Download</a>
-                                        </div>
-                                        <small class="muted wk-file" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</small>
-                                    @else
-                                        <span class="muted">—</span>
-                                    @endif
+                                    @include('admin.bookkeeping.partials.evidence-cell', [
+                                        'target' => $target,
+                                        'bookkeeping' => $bookkeeping,
+                                        'prefix' => $prefix,
+                                    ])
                                 </td>
                                 <td data-col="Actions" class="text-end">
                                     @if ($canManage)
@@ -274,22 +247,13 @@
 
                 <div class="card-view-list">
                     @foreach ($targets as $target)
-                        @php
-                            $badge = match(true) {
-                                $target->isCompleted() && $target->isLate() => 'badge-warn',
-                                $target->isCompleted() => 'badge-success',
-                                $target->isInProgress() => 'badge-info',
-                                $target->isPastDue() => 'badge-warn',
-                                default => 'badge-neutral',
-                            };
-                        @endphp
                         <div class="cv-card">
                             <div class="cv-card-head">
                                 <div class="cv-head-main">
-                                    <div class="cv-head-title">{{ $target->taskLabel() }} · {{ $target->displayClientName() }}</div>
+                                    <div class="cv-head-title" data-bk-task-title>{{ $target->taskLabel() }} · {{ $target->displayClientName() }}</div>
                                     <div class="cv-head-sub">{{ $target->target_date?->format('D, M j') ?? 'Any day' }}</div>
                                 </div>
-                                <span class="badge {{ $badge }}">{{ $target->effectiveStatusLabel() }}</span>
+                                @include('admin.bookkeeping.partials.task-status-badge', ['target' => $target])
                             </div>
                             <div class="cv-card-body">
                                 <div class="cv-pair">
@@ -297,33 +261,38 @@
                                     <span class="cv-value"><span class="badge badge-primary">Yes</span></span>
                                 </div>
                                 <div class="cv-pair">
-                                    <span class="cv-label">Performed By</span>
+                                    <span class="cv-label">Assigned Staff</span>
                                     <span class="cv-value">
-                                        @if ($target->performed_by_id || $target->performed_by_name)
-                                            {{ $target->performedByDisplayName() }}
-                                            <span class="badge badge-sm performer-badge role-{{ $target->performed_by_role }}">{{ $target->performedByRoleLabel() }}</span>
+                                        @if ($target->assignedStaffDisplayName() !== '')
+                                            {{ $target->assignedStaffDisplayName() }}
                                         @else
-                                            —
+                                            <span class="muted">Unassigned</span>
                                         @endif
                                     </span>
                                 </div>
-                                @if ($target->started_at)
-                                    <div class="cv-pair"><span class="cv-label">Started</span><span class="cv-value">{{ $target->started_at->format('M j, g:i A') }}</span></div>
-                                @endif
-                                @if ($target->ended_at)
-                                    <div class="cv-pair"><span class="cv-label">Ended</span><span class="cv-value">{{ $target->ended_at->format('M j, g:i A') }}</span></div>
-                                @endif
+                                <div class="cv-pair cv-full">
+                                    <span class="cv-label">Remarks</span>
+                                    <span class="cv-value">
+                                        @include('admin.bookkeeping.partials.remarks-cell', ['target' => $target])
+                                    </span>
+                                </div>
+                                <div class="cv-pair cv-full">
+                                    <span class="cv-label">Performed By</span>
+                                    <span class="cv-value">
+                                        @include('admin.bookkeeping.partials.performed-by-cell', ['target' => $target])
+                                    </span>
+                                </div>
                                 @if ($target->durationHuman())
                                     <div class="cv-pair"><span class="cv-label">Duration</span><span class="cv-value">{{ $target->durationHuman() }}</span></div>
                                 @endif
-                                <div class="cv-pair">
+                                <div class="cv-pair cv-full">
                                     <span class="cv-label">Evidence</span>
                                     <span class="cv-value">
-                                        @if ($target->attachment_path)
-                                            <a class="wk-file" href="{{ route($prefix.'.view-attachment', [$bookkeeping, $target]) }}" target="_blank" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</a>
-                                        @else
-                                            —
-                                        @endif
+                                        @include('admin.bookkeeping.partials.evidence-cell', [
+                                            'target' => $target,
+                                            'bookkeeping' => $bookkeeping,
+                                            'prefix' => $prefix,
+                                        ])
                                     </span>
                                 </div>
                             </div>
@@ -365,6 +334,12 @@
             </div>
         @endif
     </div>
+
+    {{-- Remarks Editor Modal --}}
+    @include('admin.bookkeeping.partials.remarks-modal', [
+        'updateRoute' => $prefix.'.update-target',
+        'bookkeeping' => $bookkeeping,
+    ])
 @endsection
 
 @push('styles')

@@ -5,8 +5,8 @@
 @section('content')
     <div class="page-head page-head-row">
         <div>
-            <h1>Edit Kaizen Concern</h1>
-            <p>Update the concern, solution, assignment, target date, and implementation progress.</p>
+            <h1>Edit Employee Suggestion</h1>
+            <p>Update the suggestion, assignment, target date, and implementation outcome.</p>
         </div>
         <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="vertical-align:-2px"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -43,13 +43,16 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label" for="status">Status <span class="text-danger">*</span></label>
-                            <select class="form-control" id="status" name="status" required>
+                            <label class="form-label" for="status">Status</label>
+                            <select class="form-control" id="status" name="status">
                                 @foreach ($statuses as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('status', $concern->status) === $value)>{{ $label }}</option>
+                                    <option value="{{ $value }}" @selected(old('status', $concern->effectiveStatus()) === $value)>
+                                        {{ $value === \App\Models\KaizenConcern::STATUS_IMPLEMENTED ? '✓ '.$label : $label }}
+                                    </option>
                                 @endforeach
                             </select>
                             @error('status')<div class="form-error">{{ $message }}</div>@enderror
+                            <div class="form-hint">The status is worked out from the implementation itself, so you do not have to pick it: leaving this alone keeps the suggestion where the implementation workflow put it. Choosing Implemented finalises the suggestion and fills in the implementation date when one is not set.</div>
                         </div>
                     </div>
                 </section>
@@ -109,7 +112,7 @@
                             <input class="form-control" id="implementation_date" name="implementation_date" type="date"
                                    value="{{ old('implementation_date', $concern->implementation_date?->format('Y-m-d')) }}">
                             @error('implementation_date')<div class="form-error">{{ $message }}</div>@enderror
-                            <div class="form-hint">Set when the solution is actually implemented.</div>
+                            <div class="form-hint">Shown as "Implemented on" once the suggestion is marked Implemented.</div>
                         </div>
                     </div>
 

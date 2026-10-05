@@ -84,24 +84,21 @@
                     @php
                         $isOwnTask = $stage->isAssignedTo($user);
                         $isOversight = $user->isAdmin() || $user->isSupervisor();
-                        // Remarks editable when task is In Progress and user is assigned staff (or oversight)
-                        $remarksEditable = ($stage->isInProgress() && $isOwnTask) || $isOversight;
+
+                        // Same rule as partials/remarks-cell.blade.php: a finished
+                        // task is read-only, an In Progress task stays editable for
+                        // the staff member doing it, and before the work starts
+                        // whoever may edit the task at all may write a remark.
+                        $remarksEditable = ! $stage->isCompleted()
+                            && ($isOversight
+                                || ($isOwnTask && ($stage->isPending() || $stage->isInProgress())));
+
                         // Target date only editable when pending (or oversight)
                         $dateEditable = $stage->isPending() || $isOversight;
                         // Form visible if any field is editable
                         $formVisible = $canManage && ($remarksEditable || $dateEditable);
                         $offset = $offsets[$taskType] ?? null;
                         $isPayment = $taskType === 'payment';
-
-                        // Status badge class
-                        $statusBadge = match(true) {
-                            $stage->isCompleted() && $stage->isLate() => 'badge-warn',
-                            $stage->isCompleted() => 'badge-success',
-                            $stage->isInProgress() => 'badge-info',
-                            $stage->isPastDue() => 'badge-warn',
-                            default => 'badge-neutral',
-                        };
-                        $statusLabel = $stage->effectiveStatusLabel();
                     @endphp
 
                     <div class="schedule-stage">
@@ -109,7 +106,7 @@
                         <div class="schedule-stage-head">
                             <span class="task-type-dot task-{{ $taskType }}"></span>
                             <span class="schedule-stage-name">{{ $labels[$taskType] ?? $taskType }}</span>
-                            <span class="badge {{ $statusBadge }} schedule-status-badge">{{ $statusLabel }}</span>
+                            @include('admin.bookkeeping.partials.task-status-badge', ['target' => $stage])
                             @if ($isOwnTask)
                                 <span class="schedule-own-badge" title="This task is assigned to you">
                                     <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true"><path d="M10 2a6 6 0 016 6c0 4.418-6 10-6 10S4 12.418 4 8a6 6 0 016-6z"/><path d="M7 9l3 3 6-6"/></svg>
@@ -231,7 +228,7 @@
                                     </div>
                                     <div class="schedule-info-row">
                                         <span class="schedule-info-label">Status</span>
-                                        <span class="schedule-info-value"><span class="badge {{ $statusBadge }}">{{ $statusLabel }}</span></span>
+                                        <span class="schedule-info-value">@include('admin.bookkeeping.partials.task-status-badge', ['target' => $stage])</span>
                                     </div>
                                     @if ($stage->started_at)
                                         <div class="schedule-info-row">

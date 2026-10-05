@@ -963,6 +963,490 @@ button.badge { cursor: pointer; font-family: inherit; }
 button.badge:hover { filter: brightness(.96); }
 .badge-new { margin-left: 6px; }
 
+/* ---------- Kaizen: Implemented state ----------
+   The Implemented state must read at a glance without relying on the
+   generic Status pill colour, so it gets a solid green badge plus a
+   full-width banner on the detail screen. */
+.badge.kaizen-implemented-badge {
+  background: #E6F7EE;
+  color: #196F3D;
+  border: 1px solid rgba(25, 111, 61, .18);
+  box-shadow: inset 0 0 0 1px rgba(25, 111, 61, .12);
+}
+
+/* ---------- Kaizen detail: header status ----------
+   The overall status is scaled up and pinned in the page head so it is
+   readable without scrolling, while reusing the shared status pill so the
+   colour language stays identical to the board. */
+.kaizen-hero-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+.kaizen-hero-status-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kaizen-hero-status .kaizen-status {
+  font-size: 15px;
+  padding: 8px 16px;
+  gap: 8px;
+}
+.kaizen-hero-status .kaizen-dot {
+  width: 10px;
+  height: 10px;
+  flex-basis: 10px;
+}
+@media (max-width: 700px) {
+  .kaizen-hero-status { align-items: flex-start; }
+}
+
+/* ---------- Kaizen detail: Employee Suggestion → Progress → Implementation → Evidence ---------- */
+.kaizen-flow {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+.kaizen-flow-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.kaizen-flow-step:not(:last-child)::after {
+  content: "\203A";
+  margin-left: 2px;
+  color: var(--border);
+  font-size: 15px;
+  line-height: 1;
+}
+.kaizen-flow-step.is-done {
+  background: var(--sky-soft);
+  border-color: rgba(26, 82, 118, .16);
+  color: #1A5276;
+}
+.kaizen-flow-step.is-current {
+  border-color: rgba(26, 82, 118, .34);
+  border-style: dashed;
+  color: var(--navy);
+}
+.kaizen-flow-marker {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid currentColor;
+  color: inherit;
+}
+.kaizen-flow-step.is-done .kaizen-flow-marker {
+  background: #1A5276;
+  border-color: #1A5276;
+  color: #fff;
+}
+.kaizen-flow-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.kaizen-flow-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Kaizen detail: readable long-form text ---------- */
+.kaizen-prose {
+  padding: 18px 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: #2F3B45;
+}
+
+/* The Suggested Solution sits next to the Challenge, so it gets a light
+   accent rail to stay visually distinct without adding another colour. */
+.kaizen-solution-card {
+  border-left: 3px solid var(--sky);
+  background: linear-gradient(180deg, #FAFCFE 0%, var(--surface) 55%);
+}
+.kaizen-solution-card .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #1A5276;
+}
+.kaizen-solution-card .card-title svg { flex: 0 0 auto; }
+
+/* ---------- Kaizen detail: Details card hierarchy ---------- */
+.kaizen-detail-list li { padding: 11px 0; }
+.kaizen-detail-list .k {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.kaizen-detail-list .v { font-size: 14px; }
+.kaizen-detail-impl.is-implemented {
+  margin: 4px -8px;
+  padding: 11px 8px;
+  border-radius: 10px;
+  background: #E6F7EE;
+}
+.kaizen-detail-impl.is-implemented .k { color: #196F3D; }
+.kaizen-detail-impl.is-implemented .v { color: #196F3D; }
+
+/* ---------- Kaizen detail: Implementation Progress ---------- */
+.kaizen-progress { padding: 14px 18px 10px; }
+.kaizen-progress-ready {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 18px 14px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: #E6F7EE;
+  border: 1px solid rgba(25, 111, 61, .22);
+}
+.kaizen-progress-ready-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #196F3D;
+  color: #fff;
+}
+.kaizen-progress-ready-body { display: flex; flex-direction: column; min-width: 0; }
+.kaizen-progress-ready-body strong { color: #196F3D; font-size: 13.5px; }
+.kaizen-progress-ready-note { color: #2F3B45; font-size: 12.5px; }
+
+/* ---------- Kaizen detail: evidence ---------- */
+.kaizen-section-hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.kaizen-evidence-count {
+  margin-right: auto;
+  padding: 4px 11px;
+  border-radius: 999px;
+  background: var(--sky-soft);
+  color: #1A5276;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.kaizen-evidence-implemented {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 18px 0;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: #E6F7EE;
+  border: 1px solid rgba(25, 111, 61, .22);
+  color: #196F3D;
+  font-size: 13.5px;
+}
+.kaizen-evidence-implemented-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #196F3D;
+  color: #fff;
+}
+.kaizen-evidence-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+}
+.kaizen-evidence-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+.kaizen-evidence-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--sky-soft);
+  font-size: 17px;
+}
+.kaizen-evidence-meta { flex: 1 1 auto; min-width: 0; }
+.kaizen-evidence-name {
+  font-weight: 700;
+  color: var(--navy);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.kaizen-evidence-sub { margin-top: 2px; font-size: 12.5px; color: var(--text-muted); }
+.kaizen-evidence-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kaizen-evidence-empty {
+  padding: 26px 18px;
+  text-align: center;
+  color: var(--text-muted);
+}
+@media (max-width: 640px) {
+  .kaizen-evidence-item { flex-wrap: wrap; }
+  .kaizen-evidence-actions { width: 100%; }
+}
+
+/* ---------- Kaizen detail: implementation confirmation ---------- */
+.kaizen-confirm {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 4px 18px 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border);
+}
+.kaizen-confirm-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; }
+.kaizen-confirm-hint { margin-top: 2px; font-size: 12.5px; color: var(--text-muted); }
+.kaizen-confirm .btn-success svg { margin-right: 6px; }
+.kaizen-confirm-done {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 4px 18px 18px;
+  padding: 13px 16px;
+  border-radius: 12px;
+  background: #E6F7EE;
+  border: 1px solid rgba(25, 111, 61, .22);
+  color: #196F3D;
+  font-size: 13.5px;
+}
+.kaizen-confirm-done-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #196F3D;
+  color: #fff;
+}
+
+/* ---------- Kaizen detail: completed summary ---------- */
+.kaizen-complete-card {
+  margin-top: 20px;
+  padding: 20px 22px;
+  border: 1px solid rgba(25, 111, 61, .26);
+  background: linear-gradient(135deg, #E9F8F0 0%, #F6FCF9 100%);
+}
+.kaizen-complete-head { display: flex; align-items: center; gap: 14px; }
+.kaizen-complete-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #196F3D;
+  color: #fff;
+}
+.kaizen-complete-title {
+  font-family: var(--font-head);
+  font-size: 16px;
+  font-weight: 800;
+  color: #196F3D;
+}
+.kaizen-complete-note { margin-top: 2px; font-size: 13.5px; color: #2F3B45; }
+.kaizen-complete-facts {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid rgba(25, 111, 61, .18);
+}
+.kaizen-complete-facts li { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kaizen-complete-facts span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #4A7A61;
+}
+.kaizen-complete-facts strong { font-size: 14px; color: #196F3D; overflow-wrap: anywhere; }
+
+/* 🏷 Employee Suggestion tag — the marker that every board entry is an
+   employee-submitted idea rather than an admin-assigned task. */
+.badge.kaizen-suggestion-tag {
+  background: var(--sky-soft);
+  color: #1A5276;
+  border: 1px solid rgba(26, 82, 118, .18);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ---------- Kaizen: status indicator ----------
+   One shared pill for the board table, the mobile card and the detail
+   screen, so all four states read identically everywhere. */
+.kaizen-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: #EEF1F5;
+  color: #4A5568;
+  border: 1px solid rgba(74, 85, 104, .14);
+}
+.kaizen-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+  background: currentColor;
+}
+.kaizen-dot-pending   { background: #E8A33D; }
+.kaizen-dot-progress  { background: #2E9BD6; }
+.kaizen-dot-done      { background: #196F3D; }
+.kaizen-dot-none      { background: #8A94A6; }
+.kaizen-dot-overdue   { background: #C0392B; }
+
+.kaizen-status-pending  { background: #FFF3E0; color: #92400E; border-color: rgba(146, 64, 14, .18); }
+.kaizen-status-progress { background: #E7F3FB; color: #14567F; border-color: rgba(20, 86, 127, .18); }
+.kaizen-status-overdue  { background: #FDECEA; color: #A93226; border-color: rgba(169, 50, 38, .16); }
+.kaizen-status-none     { background: #EEF1F5; color: #4A5568; border-color: rgba(74, 85, 104, .14); }
+.kaizen-status-done {
+  background: #E6F7EE;
+  color: #196F3D;
+  border-color: rgba(25, 111, 61, .28);
+  box-shadow: inset 0 0 0 1px rgba(25, 111, 61, .12);
+}
+
+.kaizen-implemented-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #E6F7EE 0%, #F2FBF6 100%);
+  border: 1px solid rgba(25, 111, 61, .28);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .05);
+}
+.kaizen-implemented-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #196F3D;
+  color: #fff;
+}
+.kaizen-implemented-body { min-width: 0; }
+.kaizen-implemented-title {
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: #196F3D;
+  font-size: 1.05rem;
+}
+.kaizen-implemented-date { color: #2F3B45; font-size: .92rem; }
+.kaizen-implemented-note { color: #4A5568; font-size: .85rem; }
+.kaizen-not-implemented-banner {
+  background: linear-gradient(135deg, #EEF1F5 0%, #F7F9FB 100%);
+  border-color: rgba(74, 85, 104, .25);
+}
+.kaizen-not-implemented-banner .kaizen-implemented-icon { background: #4A5568; }
+.kaizen-not-implemented-banner .kaizen-implemented-title { color: #4A5568; }
+
+/* ---------- Kaizen: submit page identity + layout ---------- */
+.kaizen-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+}
+.kaizen-identity-text { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.kaizen-identity-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kaizen-identity-name {
+  font-family: var(--font-head);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+.kaizen-identity-role {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+/* Wider than the default narrow form so the sections have room to breathe,
+   but still capped so line lengths stay readable on very large screens. */
+.kaizen-submit-card { max-width: 980px; }
+/* Planning / implementation are filled in by the review team, so they read as
+   secondary while the suggestion is still Pending. */
+.kaizen-section-secondary .form-control[readonly] {
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.kaizen-section-secondary { background: var(--surface-sunken); }
+
 /* ---------- Misc ---------- */
 .text-center { text-align: center; }
 .muted { color: var(--text-muted); }
@@ -4071,6 +4555,43 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   color: var(--text-muted, #6b7280);
   white-space: nowrap;
 }
+.checklist-progress-percent {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--success, #16a34a);
+  background: var(--success-soft, #ecfdf5);
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.checklist-progress.is-complete .checklist-progress-bar > span {
+  background: var(--success, #16a34a);
+}
+.priority-checklist-done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 700;
+}
+.priority-checklist-done svg { flex: 0 0 auto; }
+.priority-checklist-done-note {
+  margin-left: auto;
+  font-weight: 500;
+  font-size: 12px;
+  color: #047857;
+}
+@media (max-width: 720px) {
+  .priority-checklist-done { flex-wrap: wrap; }
+  .priority-checklist-done-note { margin-left: 22px; }
+}
 
 /* Priority List / To-Do List — separate urgency indicator */
 .badge-urgent {
@@ -4078,6 +4599,252 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
   color: #b91c1c;
   border: 1px solid #fecaca;
 }
+
+/* Priority List / To-Do List — board */
+.priority-board-table {
+  min-width: 1080px;
+}
+.priority-board-table th,
+.priority-board-table td {
+  vertical-align: top;
+}
+.priority-board-table th:nth-child(1) { width: 120px; }
+.priority-board-table th:nth-child(2) { width: auto; min-width: 260px; }
+.priority-board-table th:nth-child(3) { width: 128px; }
+.priority-board-table th:nth-child(4) { width: 150px; }
+.priority-board-table th:nth-child(5) { width: 190px; }
+.priority-board-table th:nth-child(6) { width: 170px; }
+.priority-board-table th:nth-child(7) { width: 140px; }
+.priority-board-table th:nth-child(8) { width: 165px; }
+.priority-board-table th:nth-child(9) { width: 210px; }
+
+.priority-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.priority-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+  flex: 0 0 auto;
+}
+.priority-task-title {
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  line-height: 1.45;
+}
+.priority-cell-sub {
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+.priority-due-date {
+  font-weight: 600;
+  color: var(--text, #0f172a);
+  line-height: 1.5;
+}
+.priority-cell-due .badge { margin-top: 3px; }
+.priority-overdue-note {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b91c1c;
+  white-space: nowrap;
+}
+.priority-cell-by { color: var(--text, #0f172a); }
+.priority-evidence-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0369a1;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 999px;
+  padding: 3px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.priority-evidence-pill:hover { background: #e0f2fe; }
+.priority-evidence-pill + .btn { margin-top: 6px; }
+.priority-evidence-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+}
+.priority-cell-actions .btn { margin-left: 4px; }
+.priority-cell-actions .btn:first-child { margin-left: 0; }
+.priority-cell-actions .btn-link { margin-left: 0; }
+
+.priority-row-overdue > td:first-child {
+  box-shadow: inset 3px 0 0 #dc2626;
+}
+.priority-row-overdue { background: #fef2f2; }
+.priority-row-overdue:hover { background: #fee2e2 !important; }
+.priority-row-completed .priority-task-title { color: var(--text-muted, #475569); }
+
+/* card view (small screens) */
+.priority-cv-overdue {
+  box-shadow: inset 3px 0 0 #dc2626;
+  background: #fef9f9;
+}
+@media (max-width: 720px) {
+  .priority-board-table { min-width: 0; }
+  .priority-overdue-note { white-space: normal; }
+}
+
+/* Priority List / To-Do List — detail */
+.priority-head-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.priority-complete-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1px solid #a7f3d0;
+}
+.priority-complete-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  flex: 0 0 auto;
+  box-shadow: 0 6px 14px rgba(22, 163, 74, 0.25);
+}
+.priority-complete-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #065f46;
+}
+.priority-complete-meta {
+  margin-top: 3px;
+  font-size: 13px;
+  color: #047857;
+}
+.priority-complete-sep { margin: 0 6px; color: #10b981; }
+@media (max-width: 720px) {
+  .priority-complete-banner { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .priority-complete-sep { display: none; }
+}
+.urgency-banner-icon {
+  display: inline-flex;
+  color: var(--text-muted, #6b7280);
+  flex: 0 0 auto;
+}
+.urgency-banner.urgency-urgent .urgency-banner-icon { color: #dc2626; }
+.urgency-banner.urgency-high .urgency-banner-icon { color: #ea580c; }
+.urgency-banner.urgency-medium .urgency-banner-icon { color: #d97706; }
+.urgency-banner.urgency-low .urgency-banner-icon { color: #2563eb; }
+.urgency-banner-text { color: var(--text, #0f172a); }
+
+.priority-detail-list .k { width: 132px; }
+.priority-detail-list .v { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.priority-detail-overdue .v { color: #b91c1c; }
+.priority-detail-overdue .priority-due-date { color: #b91c1c; }
+.priority-detail-completed .v { flex-direction: column; align-items: flex-start; }
+.priority-detail-completion {
+  font-size: 13px;
+  color: #047857;
+}
+
+.rich-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text, #1e293b);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 16px;
+}
+
+.priority-evidence-hint {
+  margin: 0;
+  padding: 0 16px 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted, #6b7280);
+}
+.priority-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  padding: 12px 16px 16px;
+}
+.priority-evidence-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface-2, #f8fafc);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.priority-evidence-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  flex: 0 0 auto;
+}
+.priority-evidence-meta { flex: 1 1 160px; min-width: 0; }
+.priority-evidence-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text, #0f172a);
+  overflow-wrap: anywhere;
+}
+.priority-evidence-sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+}
+.priority-evidence-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 100%;
+}
+.priority-evidence-empty {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 12px 16px 16px;
+  padding: 18px;
+  border: 1px dashed var(--border, #cbd5e1);
+  border-radius: 12px;
+  background: var(--surface-2, #f8fafc);
+}
+.priority-evidence-empty-icon { font-size: 22px; opacity: 0.6; }
+.priority-evidence-empty-title { font-weight: 600; color: var(--text, #0f172a); }
+.priority-evidence-empty-note { font-size: 13px; color: var(--text-muted, #6b7280); margin-top: 2px; }
+
 .stat-grid.priority-summary {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }

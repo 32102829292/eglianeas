@@ -377,11 +377,14 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     // Kaizen Concerns / Admin Concerns
     Route::get('/kaizen-concerns', [KaizenConcernController::class, 'index'])->name('kaizen-concerns.index');
+    Route::get('/kaizen-concerns/submit', [KaizenConcernController::class, 'submit'])->name('kaizen-concerns.submit');
+    Route::post('/kaizen-concerns/submit', [KaizenConcernController::class, 'storeSubmission'])->name('kaizen-concerns.submit.store');
     Route::get('/kaizen-concerns/create', [KaizenConcernController::class, 'create'])->name('kaizen-concerns.create');
     Route::post('/kaizen-concerns', [KaizenConcernController::class, 'store'])->name('kaizen-concerns.store');
     Route::get('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'show'])->name('kaizen-concerns.show');
     Route::get('/kaizen-concerns/{concern}/edit', [KaizenConcernController::class, 'edit'])->name('kaizen-concerns.edit');
     Route::put('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'update'])->name('kaizen-concerns.update');
+    Route::post('/kaizen-concerns/{concern}/implement', [KaizenConcernController::class, 'implement'])->name('kaizen-concerns.implement');
     Route::delete('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'destroy'])->name('kaizen-concerns.destroy');
     Route::post('/kaizen-concerns/{concern}/checklist/toggle', [KaizenConcernController::class, 'toggleChecklistItem'])->name('kaizen-concerns.checklist.toggle');
     Route::post('/kaizen-concerns/{concern}/checklist/add', [KaizenConcernController::class, 'addChecklistItem'])->name('kaizen-concerns.checklist.add');

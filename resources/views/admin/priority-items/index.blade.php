@@ -204,9 +204,10 @@
     <div class="card">
         <div class="card-head">
             <h2 class="card-title">Priority Items</h2>
+            <span class="card-head-note">{{ $items->total() }} {{ Str::plural('item', $items->total()) }}</span>
         </div>
         <div class="table-wrap table-card-view">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 priority-board-table">
                 <thead class="thead-muted">
                     <tr>
                         <th>Type</th>
@@ -215,57 +216,75 @@
                         <th>Urgency</th>
                         <th>Due Date</th>
                         <th>Assigned Staff</th>
-                        <th class="text-center">Status</th>
-                        <th class="text-center">Evidence</th>
+                        <th>Status</th>
+                        <th>Evidence</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $item)
-                        <tr class="{{ $item->isOverdue() ? 'table-danger' : '' }}">
+                        @php $overdueDays = $item->overdueDays(); @endphp
+                        <tr class="{{ $item->isOverdue() ? 'priority-row-overdue' : '' }} {{ $item->isCompleted() ? 'priority-row-completed' : '' }}">
                             <td data-col="Type">
                                 <span class="badge {{ $item->typeBadgeClass() }}">{{ $item->typeLabel() }}</span>
                             </td>
-                            <td data-col="Task / Lesson">
-                                <div class="fw-semibold">{{ Str::limit($item->task_lesson, 80) }}</div>
+                            <td data-col="Task / Lesson" class="priority-cell-task">
+                                <div class="priority-task-title">{{ Str::limit($item->task_lesson, 80) }}</div>
+                                @if ($item->description)
+                                    <div class="priority-cell-sub">{{ Str::limit($item->description, 90) }}</div>
+                                @endif
                                 @if (strlen($item->task_lesson) > 80)
                                     <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-bs-toggle="tooltip" title="{{ $item->task_lesson }}">Show more</button>
                                 @endif
                             </td>
                             <td data-col="Priority">
-                                <span class="badge {{ $item->priorityBadgeClass() }}">{{ $item->priorityLabel() }}</span>
+                                <span class="badge priority-pill {{ $item->priorityBadgeClass() }} priority-{{ $item->priority }}">
+                                    <span class="priority-dot" aria-hidden="true"></span>{{ $item->priorityLabel() }}
+                                </span>
                             </td>
                             <td data-col="Urgency">
                                 <span class="badge {{ $item->urgencyBadgeClass() }}">{{ $item->urgencyLabel() }}</span>
                             </td>
-                            <td data-col="Due Date">
-                                <div>{{ $item->due_date?->format('M j, Y') ?? '—' }}</div>
+                            <td data-col="Due Date" class="priority-cell-due {{ $overdueDays !== null ? 'is-overdue' : '' }}">
+                                <div class="priority-due-date">{{ $item->due_date?->format('M j, Y') ?? '—' }}</div>
                                 <span class="badge {{ $item->deadlineBadgeClass() }}">{{ $item->deadlineLabel() }}</span>
+                                @if ($overdueDays !== null)
+                                    <div class="priority-overdue-note">
+                                        <span aria-hidden="true">&#128308;</span>
+                                        {{ $overdueDays }} {{ Str::plural('day', $overdueDays) }} overdue
+                                    </div>
+                                @endif
                             </td>
-                            <td data-col="Assigned Staff">
+                            <td data-col="Assigned Staff" class="priority-cell-by">
                                 @if ($item->assignedStaff)
                                     {{ $item->assignedStaff->name }}
                                 @else
                                     <span class="badge badge-info">Unassigned</span>
                                 @endif
                             </td>
-                            <td data-col="Status" class="text-center">
+                            <td data-col="Status">
                                 <span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span>
                             </td>
-                            <td data-col="Evidence" class="text-center">
+                            <td data-col="Evidence" class="priority-cell-evidence">
                                 @php
                                     $evidenceCount = $item->evidences_count > 0 ? $item->evidences_count : ($item->evidence_path ? 1 : 0);
                                 @endphp
                                 @if ($evidenceCount > 0)
-                                    <a href="{{ route('admin.priority-items.show', $item) }}#evidence" class="badge badge-success" title="View implementation evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>
+                                    <span class="priority-evidence-pill">
+                                        <span aria-hidden="true">&#128206;</span>
+                                        {{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}
+                                    </span>
+                                    <a href="{{ route('admin.priority-items.show', $item) }}#evidence" class="btn btn-outline btn-sm">View</a>
                                 @else
-                                    <span class="text-muted">No evidence</span>
+                                    <span class="priority-evidence-empty">
+                                        <span aria-hidden="true">&#128206;</span> No evidence
+                                    </span>
                                 @endif
                             </td>
-                            <td data-col="Actions" class="text-end">
-                                <a href="{{ route('admin.priority-items.show', $item) }}" class="btn btn-link btn-sm">View</a>
+                            <td data-col="Actions" class="text-end priority-cell-actions">
+                                <a href="{{ route('admin.priority-items.show', $item) }}" class="btn btn-outline btn-sm">View</a>
                                 @if (auth()->user()->isAdmin())
-                                    <a href="{{ route('admin.priority-items.edit', $item) }}" class="btn btn-link btn-sm">Edit</a>
+                                    <a href="{{ route('admin.priority-items.edit', $item) }}" class="btn btn-outline btn-sm">Edit</a>
                                     <form method="POST" action="{{ route('admin.priority-items.destroy', $item) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this item?', message: 'This item will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
                                         @csrf
                                         @method('DELETE')
@@ -290,7 +309,11 @@
 
             <div class="card-view-list">
                 @forelse ($items as $item)
-                    <div class="cv-card">
+                    @php
+                        $overdueDays = $item->overdueDays();
+                        $evidenceCount = $item->evidences_count > 0 ? $item->evidences_count : ($item->evidence_path ? 1 : 0);
+                    @endphp
+                    <div class="cv-card {{ $item->isOverdue() ? 'priority-cv-overdue' : '' }} {{ $item->isCompleted() ? 'cv-implemented' : '' }}">
                         <div class="cv-card-head">
                             <div class="cv-head-main">
                                 <div class="cv-head-title">
@@ -298,21 +321,31 @@
                                     {{ Str::limit($item->task_lesson, 60) }}
                                 </div>
                                 <div class="cv-head-sub">
-                                    <span class="badge {{ $item->priorityBadgeClass() }}">{{ $item->priorityLabel() }}</span>
-                                    &middot;
+                                    <span class="badge priority-pill {{ $item->priorityBadgeClass() }} priority-{{ $item->priority }}">
+                                        <span class="priority-dot" aria-hidden="true"></span>{{ $item->priorityLabel() }}
+                                    </span>
                                     <span class="badge {{ $item->urgencyBadgeClass() }}">{{ $item->urgencyLabel() }}</span>
-                                    &middot;
                                     <span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span>
-                                    &middot;
+                                </div>
+                                <div class="cv-head-sub">
                                     <span class="badge {{ $item->deadlineBadgeClass() }}">{{ $item->deadlineLabel() }}</span>
+                                    @if ($overdueDays !== null)
+                                        <span class="priority-overdue-note">
+                                            <span aria-hidden="true">&#128308;</span>
+                                            {{ $overdueDays }} {{ Str::plural('day', $overdueDays) }} overdue
+                                        </span>
+                                    @endif
                                 </div>
                             </div>
                         </div>
                         <div class="cv-card-body">
                             <div class="cv-pair cv-full"><span class="cv-label">Description</span><span class="cv-value">@if ($item->description){{ $item->description }}@else<span class="muted">—</span>@endif</span></div>
-                            <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">@if ($item->assignedStaff){{ $item->assignedStaff->name }}@else<span class="badge badge-info">Unassigned</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Due Date</span><span class="cv-value">{{ $item->due_date?->format('M j, Y') ?? '—' }}</span></div>
-                            <div class="cv-pair"><span class="cv-label">Evidence</span><span class="cv-value">@php $evidenceCount = $item->evidences_count > 0 ? $item->evidences_count : ($item->evidence_path ? 1 : 0); @endphp @if ($evidenceCount > 0)<a href="{{ route('admin.priority-items.show', $item) }}#evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>@else<span class="muted">No evidence</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">@if ($item->assignedStaff){{ $item->assignedStaff->name }}@else<span class="badge badge-info">Unassigned</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Evidence</span><span class="cv-value">@if ($evidenceCount > 0)<a href="{{ route('admin.priority-items.show', $item) }}#evidence">{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}</a>@else<span class="muted">No evidence</span>@endif</span></div>
+                            @if ($item->isCompleted())
+                                <div class="cv-pair"><span class="cv-label">Completed On</span><span class="cv-value">{{ $item->completionDateFormatted() ?? '—' }}</span></div>
+                            @endif
                             @if ($item->notes)
                                 <div class="cv-pair cv-full"><span class="cv-label">Notes</span><span class="cv-value">{{ $item->notes }}</span></div>
                             @endif

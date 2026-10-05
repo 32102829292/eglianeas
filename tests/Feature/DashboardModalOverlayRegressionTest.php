@@ -154,7 +154,7 @@ class DashboardModalOverlayRegressionTest extends TestCase
         $priority = $this->actingAs($admin)->get(route('admin.priority-items.show', $this->priorityItem($admin)));
         $priority->assertOk();
         $this->assertStringContainsString(
-            '/css/app.css?v=50',
+            '/css/app.css?v=54',
             $priority->getContent(),
             'Priority Item View must request the CSS version containing the modal fix.'
         );
@@ -162,7 +162,7 @@ class DashboardModalOverlayRegressionTest extends TestCase
         $kaizen = $this->actingAs($admin)->get(route('admin.kaizen-concerns.show', $this->kaizenConcern($admin)));
         $kaizen->assertOk();
         $this->assertStringContainsString(
-            '/css/app.css?v=50',
+            '/css/app.css?v=54',
             $kaizen->getContent(),
             'Kaizen Concern View must request the CSS version containing the modal fix.'
         );

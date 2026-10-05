@@ -1,27 +1,44 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Admin Concerns / Kaizen Strategy — Egliane Accounting Services')
+@section('title', 'Kaizen Strategy — Employee Improvement Board — Egliane Accounting Services')
 
 @section('content')
     @php
         $isStaffView = auth()->user()->isStaff();
+        $isOperational = auth()->user()->isOperational();
     @endphp
     <div class="page-head page-head-row">
         <div>
-            <h1>Admin Concerns / Kaizen Strategy</h1>
-            @if ($isStaffView)
-                <p>Your assigned concerns and unassigned work available to pick up.</p>
-            @else
-                <p>Track workplace challenges, recommended solutions, and implementation progress.</p>
+            <h1>Kaizen Strategy</h1>
+            <p>Employee Improvement Board — Track suggestions, progress, and implemented improvements.</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            @if ($isOperational)
+                <a href="{{ route('admin.kaizen-concerns.submit') }}" class="btn btn-primary">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" style="margin-right: 6px; vertical-align: -3px;">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Submit Improvement
+                </a>
+            @endif
+            @if (auth()->user()->isAdmin())
+                <a href="#create-concern-form" class="btn btn-outline" data-bs-toggle="collapse" role="button" aria-expanded="false" aria-controls="create-concern-form">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="margin-right: 6px; vertical-align: -2px;">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Admin: Create Concern
+                </a>
             @endif
         </div>
     </div>
 
-    {{-- Add concern form (admin only) --}}
+    {{-- Admin create concern form (collapsible) --}}
     @if (auth()->user()->isAdmin())
-    <div class="card">
+    <div class="card collapse" id="create-concern-form">
         <div class="card-head">
-            <h2 class="card-title">Create Kaizen Concern</h2>
+            <h2 class="card-title">Create Kaizen Concern (Admin)</h2>
         </div>
         <form method="POST" action="{{ route('admin.kaizen-concerns.store') }}">
             @csrf
@@ -118,85 +135,82 @@
         </form>
     </div>
 
-    {{-- Concerns list --}}
+    {{-- Improvement board --}}
     <div class="card">
         <div class="card-head">
-            <h2 class="card-title">Kaizen Concerns</h2>
+            <h2 class="card-title">Improvement Suggestions</h2>
+            <span class="card-head-note">{{ $concerns->total() }} {{ Str::plural('suggestion', $concerns->total()) }}</span>
         </div>
         <div class="table-wrap table-card-view">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0 kaizen-board-table">
                 <thead class="thead-muted">
                     <tr>
-                        <th>Date Identified</th>
-                        <th>Challenge / Opportunity</th>
-                        <th>Recommended Solution</th>
+                        <th>Employee Suggestion</th>
+                        <th>Submitted By</th>
+                        <th>Status</th>
                         <th>Target Date</th>
-                        <th>Impl. Date</th>
-                        <th>Assigned Staff</th>
-                        <th class="text-center">Status</th>
+                        <th>Implementation</th>
                         <th>Evidence</th>
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse ($concerns as $concern)
-                        <tr class="{{ $concern->status === 'overdue' ? 'table-danger' : '' }}">
-                            <td data-col="Date Identified">{{ $concern->date_identified?->format('M j, Y') ?? '—' }}</td>
-                            <td data-col="Challenge / Opportunity">
-                                <div class="fw-semibold">{{ Str::limit($concern->challenge, 100) }}</div>
-                                @if (strlen($concern->challenge) > 100)
-                                    <button type="button" class="btn btn-link btn-sm p-0 text-muted" data-bs-toggle="tooltip" title="{{ $concern->challenge }}">Show more</button>
+                        <tr class="{{ $concern->isImplemented() ? 'kaizen-row-implemented' : ($concern->effectiveStatus() === \App\Models\KaizenConcern::STATUS_OVERDUE ? 'table-danger' : '') }}">
+                            <td data-col="Employee Suggestion" class="kaizen-cell-suggestion">
+                                <span class="badge kaizen-suggestion-tag">Employee Suggestion</span>
+                                <div class="kaizen-challenge">{{ Str::limit($concern->challenge, 90) }}</div>
+                                <div class="kaizen-cell-sub">
+                                    Identified {{ $concern->date_identified?->format('M j, Y') ?? '—' }}
+                                    @if ($concern->recommended_solution)
+                                        &middot; {{ Str::limit($concern->recommended_solution, 60) }}
+                                    @endif
+                                </div>
+                            </td>
+                            <td data-col="Submitted By" class="kaizen-cell-by">
+                                <div class="kaizen-by-name">{{ $concern->creator->name ?? '—' }}</div>
+                                @if ($concern->assignedStaff)
+                                    <div class="kaizen-cell-sub">Assigned: {{ $concern->assignedStaff->name }}</div>
+                                @else
+                                    <div class="kaizen-cell-sub">Unassigned</div>
                                 @endif
                             </td>
-                            <td data-col="Recommended Solution">
-                                @if ($concern->recommended_solution)
-                                    {{ Str::limit($concern->recommended_solution, 80) }}
+                            <td data-col="Status">
+                                @include('admin.kaizen-concerns.partials.status-pill', ['concern' => $concern])
+                            </td>
+                            <td data-col="Target Date">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</td>
+                            <td data-col="Implementation">
+                                @if ($concern->isImplemented())
+                                    <div class="kaizen-impl-date">Implemented on:</div>
+                                    <div class="kaizen-impl-value">{{ $concern->implementation_date?->format('M j, Y') ?? '—' }}</div>
                                 @else
                                     <span class="muted">—</span>
                                 @endif
                             </td>
-                            <td data-col="Target Date">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</td>
-                            <td data-col="Impl. Date">{{ $concern->implementation_date?->format('M j, Y') ?? '—' }}</td>
-                            <td data-col="Assigned Staff">
-                                @if ($concern->assignedStaff)
-                                    {{ $concern->assignedStaff->name }}
-                                @else
-                                    <span class="badge badge-info">Unassigned</span>
-                                @endif
-                            </td>
-                            <td data-col="Status" class="text-center">
-                                <span class="badge {{ $concern->statusBadgeClass() }}">{{ $concern->statusLabel() }}</span>
-                            </td>
                             <td data-col="Evidence">
-                                @php
-                                    $evidenceCount = $concern->evidences_count > 0 ? $concern->evidences_count : 0;
-                                @endphp
+                                @php $evidenceCount = (int) ($concern->evidences_count ?? 0); @endphp
                                 @if ($evidenceCount > 0)
-                                    <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence" class="badge badge-success" title="View implementation evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>
+                                    <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence" class="btn btn-outline btn-sm">
+                                        View Evidence
+                                    </a>
+                                    <div class="kaizen-cell-sub">{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }} attached</div>
                                 @else
-                                    <span class="text-muted">No evidence</span>
+                                    <span class="muted">No evidence</span>
                                 @endif
                             </td>
-                            <td data-col="Actions" class="text-end">
-                                <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-link btn-sm">View</a>
+                            <td data-col="Actions" class="text-end kaizen-cell-actions">
+                                <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline btn-sm">View</a>
                                 @if (auth()->user()->isAdmin())
-                                    <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-link btn-sm">Edit</a>
-                                    <form method="POST" action="{{ route('admin.kaizen-concerns.destroy', $concern) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
-                                    </form>
+                                    <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
                                 @endif
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="empty-cell">
+                        <tr><td colspan="7" class="empty-cell">
                             @if ($q || $activeStatus || $activeAssignedStaffId)
-                                No Kaizen concerns match your current filters.
-                            @elseif ($isStaffView)
-                                Nothing has been assigned to you yet. Unassigned concerns will appear here as soon as they are created.
+                                No suggestions match your current filters.
                             @else
-                                No Kaizen concerns found.
+                                No improvement suggestions yet. Use "Submit Improvement" to add the first one.
                             @endif
                         </td></tr>
                     @endforelse
@@ -205,20 +219,47 @@
 
             <div class="card-view-list">
                 @forelse ($concerns as $concern)
-                    <div class="cv-card">
+                    <div class="cv-card {{ $concern->isImplemented() ? 'cv-implemented' : '' }}">
                         <div class="cv-card-head">
                             <div class="cv-head-main">
-                                <div class="cv-head-title">{{ Str::limit($concern->challenge, 80) }}</div>
-                                <div class="cv-head-sub">{{ $concern->date_identified?->format('M j, Y') ?? '—' }} &middot; <span class="badge {{ $concern->statusBadgeClass() }}">{{ $concern->statusLabel() }}</span></div>
+                                <span class="badge kaizen-suggestion-tag">Employee Suggestion</span>
+                                <div class="cv-head-title">{{ Str::limit($concern->challenge, 90) }}</div>
+                                <div class="cv-head-sub">
+                                    Submitted by {{ $concern->creator->name ?? '—' }}
+                                    &middot; Identified {{ $concern->date_identified?->format('M j, Y') ?? '—' }}
+                                </div>
+                                <div class="cv-head-sub">
+                                    @include('admin.kaizen-concerns.partials.status-pill', ['concern' => $concern])
+                                </div>
                             </div>
                         </div>
                         <div class="cv-card-body">
-                            <div class="cv-pair cv-full"><span class="cv-label">Challenge / Opportunity</span><span class="cv-value">{{ $concern->challenge }}</span></div>
-                            <div class="cv-pair cv-full"><span class="cv-label">Recommended Solution</span><span class="cv-value">@if ($concern->recommended_solution){{ $concern->recommended_solution }}@else<span class="muted">—</span>@endif</span></div>
+                            <div class="cv-pair cv-full"><span class="cv-label">Suggested Solution</span><span class="cv-value">@if ($concern->recommended_solution){{ $concern->recommended_solution }}@else<span class="muted">—</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Submitted By</span><span class="cv-value">{{ $concern->creator->name ?? '—' }}</span></div>
+                            <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">{{ $concern->assignedStaff?->name ?? 'Unassigned' }}</span></div>
                             <div class="cv-pair"><span class="cv-label">Target Date</span><span class="cv-value">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</span></div>
-                            <div class="cv-pair"><span class="cv-label">Implementation Date</span><span class="cv-value">{{ $concern->implementation_date?->format('M j, Y') ?? '—' }}</span></div>
-                            <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">@if ($concern->assignedStaff){{ $concern->assignedStaff->name }}@else<span class="badge badge-info">Unassigned</span>@endif</span></div>
-                            <div class="cv-pair"><span class="cv-label">Evidence</span><span class="cv-value">@php $evidenceCount = $concern->evidences_count > 0 ? $concern->evidences_count : 0; @endphp @if ($evidenceCount > 0)<a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence">[{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }}]</a>@else<span class="muted">No evidence</span>@endif</span></div>
+                            <div class="cv-pair">
+                                <span class="cv-label">Implementation</span>
+                                <span class="cv-value">
+                                    @if ($concern->isImplemented())
+                                        Implemented on {{ $concern->implementation_date?->format('M j, Y') ?? '—' }}
+                                    @else
+                                        —
+                                    @endif
+                                </span>
+                            </div>
+                            <div class="cv-pair">
+                                <span class="cv-label">Evidence</span>
+                                <span class="cv-value">
+                                    @php $evidenceCount = (int) ($concern->evidences_count ?? 0); @endphp
+                                    @if ($evidenceCount > 0)
+                                        <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence">View Evidence</a>
+                                        <span class="muted">({{ $evidenceCount }})</span>
+                                    @else
+                                        <span class="muted">No evidence</span>
+                                    @endif
+                                </span>
+                            </div>
                             @if ($concern->notes)
                                 <div class="cv-pair cv-full"><span class="cv-label">Notes</span><span class="cv-value">{{ $concern->notes }}</span></div>
                             @endif
@@ -227,18 +268,16 @@
                             <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline btn-sm">View</a>
                             @if (auth()->user()->isAdmin())
                                 <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
-                                <form method="POST" action="{{ route('admin.kaizen-concerns.destroy', $concern) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this concern?', message: 'This concern record will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
+                                <form method="POST" action="{{ route('admin.kaizen-concerns.destroy', $concern) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this suggestion?', message: 'This improvement suggestion will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
                             @endif
                         </div>
                     </div>
                 @empty
                     <p class="cv-card cv-empty">
                         @if ($q || $activeStatus || $activeAssignedStaffId)
-                            No Kaizen concerns match your current filters.
-                        @elseif ($isStaffView)
-                            Nothing has been assigned to you yet. Unassigned concerns will appear here as soon as they are created.
+                            No suggestions match your current filters.
                         @else
-                            No Kaizen concerns found.
+                            No improvement suggestions yet. Use "Submit Improvement" to add the first one.
                         @endif
                     </p>
                 @endforelse

@@ -106,6 +106,8 @@ class PriorityItem extends Model
         'assigned_staff_id',
         'due_date',
         'status',
+        'completed_at',
+        'completed_by',
         'notes',
         'evidence_path',
         'evidence_name',
@@ -117,6 +119,7 @@ class PriorityItem extends Model
     {
         return [
             'due_date' => 'date',
+            'completed_at' => 'date',
         ];
     }
 
@@ -128,6 +131,19 @@ class PriorityItem extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * The user who moved the item to completed, when that was recorded.
+     */
+    public function completer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'completed_by');
+    }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
     }
 
     public function checklistItems(): MorphMany
@@ -343,6 +359,29 @@ class PriorityItem extends Model
         return $this->status !== self::STATUS_COMPLETED
             && $this->due_date !== null
             && $this->due_date->copy()->startOfDay()->lt(now()->startOfDay());
+    }
+
+    /**
+     * How many days past its deadline an open item is, or null when it is not
+     * overdue.
+     *
+     * Presentation only: it reuses isOverdue() and the same day truncation, so
+     * the "N days overdue" wording in the UI can never disagree with the
+     * existing deadlineLabel() / urgencyKey() rules. Nothing here influences
+     * whether an item counts as overdue.
+     */
+    public function overdueDays(): ?int
+    {
+        if (! $this->isOverdue()) {
+            return null;
+        }
+
+        return (int) $this->due_date->copy()->startOfDay()->diffInDays(now()->startOfDay());
+    }
+
+    public function completionDateFormatted(): ?string
+    {
+        return $this->completed_at?->format('F j, Y');
     }
 
     public function urgencyInstruction(): string

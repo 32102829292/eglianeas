@@ -120,6 +120,13 @@ class PriorityItemController extends Controller
             $validated['due_date'] = PriorityItem::defaultDueDateForPriority($validated['priority']);
         }
 
+        /* Mirrors the audit stamp in update(): an item created directly as
+           completed still records who created it that way. */
+        if ($validated['status'] === PriorityItem::STATUS_COMPLETED) {
+            $validated['completed_at'] = now();
+            $validated['completed_by'] = auth()->id();
+        }
+
         $item = PriorityItem::create($validated);
 
         $this->notifyAssignment($item);
@@ -132,7 +139,7 @@ class PriorityItemController extends Controller
     {
         abort_unless($item->isVisibleTo(auth()->user()), 403);
 
-        $item->load(['assignedStaff', 'creator', 'checklistItems.completer', 'evidences.uploader']);
+        $item->load(['assignedStaff', 'creator', 'completer', 'checklistItems.completer', 'evidences.uploader']);
 
         return view('admin.priority-items.show', [
             'item' => $item,
@@ -178,6 +185,16 @@ class PriorityItemController extends Controller
            stored deadline intact. */
         if (! $request->filled('due_date')) {
             $validated['due_date'] = $item->due_date?->format('Y-m-d');
+        }
+
+        /* Purely additive audit trail for the completion state: who moved the
+           item to "completed" and when. The status workflow above is unchanged,
+           and this only ever runs on a transition *into* completed, so
+           re-saving an already-completed item never rewrites the recorded
+           moment. */
+        if ($validated['status'] === PriorityItem::STATUS_COMPLETED && $item->status !== PriorityItem::STATUS_COMPLETED) {
+            $validated['completed_at'] = now();
+            $validated['completed_by'] = auth()->id();
         }
 
         $item->update($validated);

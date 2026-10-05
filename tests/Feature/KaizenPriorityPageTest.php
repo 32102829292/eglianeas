@@ -572,7 +572,7 @@ class KaizenPriorityPageTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.priority-items.index'))
             ->assertOk()
-            ->assertSee('[2 files]');
+            ->assertSee('2 files');
     }
 
     public function test_evidence_can_be_downloaded_through_a_signed_route(): void
