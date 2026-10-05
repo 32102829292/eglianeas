@@ -1482,4 +1482,202 @@ class KaizenEmployeeSuggestionTest extends TestCase
             ->assertOk()
             ->assertSee('Admin Concerns');
     }
+
+    /* ---------------------------------------------------------------
+     | 11. The compact Create Concern modal (UI only)
+     | -------------------------------------------------------------- */
+
+    public function test_the_create_concern_modal_opens_from_the_admin_concerns_board(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $content = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        // The board opens the modal in place rather than navigating away.
+        $this->assertStringContainsString('data-bs-target="#createConcernModal"', $content);
+        $this->assertStringContainsString('id="createConcernModal"', $content);
+
+        // Posting to the same endpoint as the full-page form.
+        $this->assertStringContainsString(route('admin.kaizen-concerns.store'), $content);
+
+        // Scoped internal scroll, not a page-level scroll.
+        $this->assertStringContainsString('concern-modal', $content);
+    }
+
+    /**
+     * The Create Concern modal's own <form> block.
+     *
+     * Scoped because the board's filter form also posts a `status` field, so
+     * asserting against the whole page could match the filter instead of the
+     * modal's Status select.
+     */
+    private function createConcernModalForm(string $html): string
+    {
+        $this->assertSame(
+            1,
+            preg_match('/<form[^>]*concern-modal-form.*?<\/form>/s', $html, $m),
+            'The Create Concern modal form must be present exactly once.'
+        );
+
+        return $m[0];
+    }
+
+    public function test_the_create_concern_modal_keeps_every_required_field(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $page = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $html = $this->createConcernModalForm($page);
+
+        // Every field store() validates must still be in the form, with the
+        // same tag, the same name, the same input type and the same required
+        // flag. tag => input type (null when the tag is the type).
+        $required = [
+            'challenge' => ['textarea', null],
+            'recommended_solution' => ['textarea', null],
+            'date_identified' => ['input', 'date'],
+            'status' => ['select', null],
+        ];
+
+        foreach ($required as $name => [$tag, $type]) {
+            $pattern = '/<'.$tag.'\b[^>]*\bname="'.$name.'"[^>]*>/i';
+            $this->assertSame(1, preg_match($pattern, $html, $m), "The \"{$name}\" {$tag} must be present in the modal.");
+
+            // Checked on the captured tag so attribute order cannot matter.
+            $tagMarkup = $m[0];
+            $this->assertStringContainsString('required', $tagMarkup, "The \"{$name}\" {$tag} must still be required.");
+
+            if ($type !== null) {
+                $this->assertStringContainsString('type="'.$type.'"', $tagMarkup, "The \"{$name}\" input must still be type=\"{$type}\".");
+            }
+        }
+
+        // Optional fields must survive too, still optional.
+        $optional = [
+            'notes' => ['textarea', null],
+            'target_date' => ['input', 'date'],
+            'assigned_staff_id' => ['select', null],
+        ];
+
+        foreach ($optional as $name => [$tag, $type]) {
+            $pattern = '/<'.$tag.'\b[^>]*\bname="'.$name.'"[^>]*>/i';
+            $this->assertSame(1, preg_match($pattern, $html, $m), "The \"{$name}\" {$tag} must be present in the modal.");
+            $this->assertStringNotContainsString('required', $m[0], "The \"{$name}\" {$tag} must stay optional.");
+        }
+
+        // Maxlength limits unchanged.
+        $this->assertStringContainsString('name="challenge" rows="3" maxlength="5000"', $html);
+        $this->assertStringContainsString('name="recommended_solution" rows="3" maxlength="5000"', $html);
+        $this->assertStringContainsString('name="notes" rows="2" maxlength="2000"', $html);
+
+        // The CSRF token, the endpoint and both actions are present.
+        $this->assertStringContainsString('name="_token"', $html);
+        $this->assertStringContainsString(route('admin.kaizen-concerns.store'), $html);
+        $this->assertStringContainsString('Create Concern', $html);
+        $this->assertStringContainsString('Cancel', $html);
+    }
+
+    public function test_the_create_concern_modal_still_creates_an_admin_concern(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.store'), [
+            'date_identified' => '2026-10-03',
+            'challenge' => 'Modal raised: the scanner is offline',
+            'recommended_solution' => 'Replace the cable and re-pair.',
+            'status' => KaizenConcern::STATUS_PENDING,
+        ])->assertRedirect(route('admin.kaizen-concerns.index'));
+
+        $concern = KaizenConcern::query()->latest('id')->firstOrFail();
+
+        $this->assertTrue($concern->isAdminConcern());
+        $this->assertSame('Modal raised: the scanner is offline', $concern->challenge);
+
+        // And it shows up on the Admin Concerns board, not the suggestion board.
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('Modal raised: the scanner is offline');
+    }
+
+    public function test_a_validation_failure_reopens_the_modal_and_keeps_the_typed_values(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        $this->actingAs($admin)
+            ->from(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->post(route('admin.kaizen-concerns.store'), [
+                'date_identified' => '2026-10-03',
+                'challenge' => '',
+                'recommended_solution' => 'Something.',
+                'status' => KaizenConcern::STATUS_PENDING,
+            ])
+            ->assertRedirect(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertSessionHasErrors('challenge');
+
+        $this->assertSame(0, KaizenConcern::query()->count());
+
+        // Returning to the board reopens the modal and repopulates what was typed.
+        $content = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('bootstrap.Modal.getOrCreateInstance', $content);
+        $this->assertStringContainsString('Something.', $content);
+    }
+
+    public function test_the_create_concern_modal_is_admin_only_and_the_page_form_still_works(): void
+    {
+        // No staff member can reach the create page or post a concern.
+        $this->actingAs($this->user(User::ROLE_STAFF))
+            ->get(route('admin.kaizen-concerns.create'))
+            ->assertForbidden();
+
+        $admin = $this->user(User::ROLE_ADMIN);
+
+        // The full-page fallback keeps every field too.
+        $this->actingAs($admin)->get(route('admin.kaizen-concerns.create'))
+            ->assertOk()
+            ->assertSee('Create Kaizen Concern')
+            ->assertSee('name="challenge"', false)
+            ->assertSee('name="recommended_solution"', false)
+            ->assertSee('name="assigned_staff_id"', false)
+            ->assertSee('name="target_date"', false)
+            ->assertSee('name="date_identified"', false)
+            ->assertSee('name="status"', false)
+            ->assertSee('name="notes"', false);
+    }
+
+    public function test_employee_suggestion_creation_is_unaffected_by_the_modal(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+
+        $this->actingAs($staff)->post(route('admin.kaizen-concerns.submit.store'), [
+            'date_identified' => '2026-10-04',
+            'challenge' => 'Staff raised: the kettle leaks',
+            'recommended_solution' => 'Replace the seal.',
+        ])->assertRedirect();
+
+        $suggestion = KaizenConcern::query()->latest('id')->firstOrFail();
+
+        $this->assertTrue($suggestion->isEmployeeSuggestion());
+        $this->assertSame(KaizenConcern::STATUS_PENDING, $suggestion->status);
+
+        // The employee form is unchanged and the modal did not leak onto it.
+        $this->actingAs($staff)->get(route('admin.kaizen-concerns.submit'))
+            ->assertOk()
+            ->assertDontSee('id="createConcernModal"', false);
+
+        // Only the Improvement Suggestions board lists it.
+        $this->actingAs($staff)->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->assertSee('Staff raised: the kettle leaks');
+    }
 }

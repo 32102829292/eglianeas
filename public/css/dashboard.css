@@ -4563,3 +4563,158 @@ table.brsum-table tfoot .brsum-grand-row td {
     table.bsum tfoot .bsum-total-row td { position: static; }
     table.brsum-table { font-size: 7.5pt; }
 }
+
+/* ---------- Compact Admin Concern create form ----------
+   UI-only compaction of the Create Concern form (the modal on the Admin
+   Concerns board and the full-page fallback). Every rule is scoped to
+   .kaizen-form-compact / .concern-modal, so no other Kaizen, Billing, BIR,
+   Bookkeeping, Daily Journal or Priority screen is affected.
+
+   Nothing is removed here: field count, names, options, required flags and
+   the maxlength limits are unchanged. Only padding, gaps, label size, the
+   two-column arrangement and the textarea heights are tightened, and the
+   textareas stay user-resizable. */
+
+.kaizen-form-compact .form-group { margin-bottom: 10px; }
+.kaizen-form-compact .form-group:last-child { margin-bottom: 0; }
+
+/* Compact labels: still 12px bold with a real <label for>, so they stay
+   readable and click-to-focus works. */
+.kaizen-form-compact .form-label {
+    font-size: 12px;
+    margin-bottom: 3px;
+    letter-spacing: .01em;
+}
+
+.kaizen-form-compact .form-control {
+    padding: 6px 10px;
+    font-size: 13.5px;
+    border-radius: 8px;
+}
+
+/* Date inputs keep a usable touch/click target and never clip their picker. */
+.kaizen-form-compact input[type="date"] { min-height: 34px; }
+.kaizen-form-compact select.form-control { min-height: 34px; }
+
+/* Shorter by default, still growable by hand, and no page-level drag artifact. */
+.kaizen-form-compact textarea.form-control {
+    line-height: 1.45;
+    min-height: 0;
+    resize: vertical;
+    overflow: auto;
+}
+
+.kaizen-form-compact .form-hint { font-size: 11px; margin-top: 3px; line-height: 1.35; }
+.kaizen-form-compact .form-error { font-size: 12px; margin-top: 3px; }
+
+/* The short controls sit two per row. 1fr 1fr at every width, so they get
+   narrower on phones but are never squeezed below a usable width. */
+.kaizen-form-compact .form-grid { gap: 0 12px; }
+@media (min-width: 700px) {
+    .kaizen-form-compact .form-grid.two { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- Create Concern modal ---------- */
+
+/* app.css defines a custom `.modal` (flex, always visible, 20px padding) that
+   would fight Bootstrap's modal, exactly as confirm-modal documents. Scope the
+   correction to this dialog only. */
+.concern-modal {
+    padding: 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Bootstrap toggles visibility by adding .show, and app.css forces .fade.show to
+   `display:block`. Restore a flex overlay so the dialog can be centred. The
+   dialog uses `margin:auto` rather than `align-items:center`, because a centred
+   flex item is clipped at the top once it outgrows the viewport — auto margins
+   centre it when there is room and push it down cleanly when there is not. */
+.concern-modal.fade.show {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.concern-modal .modal-dialog {
+    width: 100%;
+    max-width: 700px;
+    margin: auto;
+}
+
+/* The dialog is capped to the viewport and only the body scrolls, so a short
+   screen scrolls inside the modal instead of moving the page. */
+.concern-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 32px);
+    border: none;
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(27, 27, 58, .28);
+    overflow: hidden;
+}
+
+/* The <form> sits between .modal-content and .modal-body, so it has to be a
+   flex column too — otherwise the body's flex:1 cannot resolve and the capped
+   height would clip the footer instead of scrolling the body. */
+.concern-modal .concern-modal-form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.concern-modal .modal-header {
+    flex: 0 0 auto;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.concern-modal .modal-title {
+    font-family: var(--font-head, "Space Grotesk", sans-serif);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 0;
+}
+
+/* min-height:0 lets the body shrink below its content height, which is what
+   turns the overflow into a scrollbar on the body alone. */
+.concern-modal .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 13px 16px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+
+.concern-modal .modal-footer {
+    flex: 0 0 auto;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+}
+
+/* Compact action buttons, still comfortably clickable. */
+.concern-modal .modal-footer .btn {
+    padding: 7px 16px;
+    font-size: 13px;
+    border-radius: 9px;
+}
+
+.concern-modal .alert { margin-bottom: 10px; padding: 9px 12px; font-size: 13px; }
+
+/* Small screens: use nearly the whole viewport and let the body scroll. */
+@media (max-width: 560px) {
+    .concern-modal { padding: 8px; }
+    .concern-modal .modal-dialog { margin: 0; }
+    .concern-modal .modal-content { max-height: calc(100vh - 16px); border-radius: 12px; }
+    .concern-modal .modal-header,
+    .concern-modal .modal-body,
+    .concern-modal .modal-footer { padding-left: 12px; padding-right: 12px; }
+    .concern-modal .modal-footer .btn { flex: 1 1 auto; }
+}
+
+/* Never allow a horizontal scrollbar from the dialog itself. */
+.concern-modal .modal-body { max-width: 100%; }

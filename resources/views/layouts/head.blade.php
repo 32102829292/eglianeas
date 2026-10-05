@@ -22,6 +22,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="/css/app.css?v=54">
     <link rel="stylesheet" href="/css/auth.css?v=17">
-    <link rel="stylesheet" href="/css/dashboard.css?v=42">
+    <link rel="stylesheet" href="/css/dashboard.css?v=43">
     @stack('styles')
 </head>
