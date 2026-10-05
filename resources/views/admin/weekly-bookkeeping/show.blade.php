@@ -85,6 +85,13 @@
         </div>
     </div>
 
+    @include('admin.bookkeeping.partials.target-schedule', [
+        'updateRoute' => 'admin.weekly-bookkeeping.update-target',
+        'bookkeeping' => $bookkeeping,
+        'targets' => $targets,
+        'canManage' => $canManage,
+    ])
+
     <div class="card">
         <div class="card-head">
             <h2 class="card-title">Target vs Actual</h2>
@@ -97,14 +104,14 @@
             <div class="table-wrap table-card-view">
                 <table class="table table-hover align-middle mb-0 target-table">
                     <colgroup>
+                        <col style="width:8%">
                         <col style="width:10%">
-                        <col style="width:12%">
-                        <col style="width:17%">
-                        <col style="width:11%">
-                        <col style="width:11%">
-                        <col style="width:13%">
+                        <col style="width:15%">
                         <col style="width:10%">
                         <col style="width:9%">
+                        <col style="width:11%">
+                        <col style="width:12%">
+                        <col style="width:10%">
                         <col style="width:7%">
                     </colgroup>
                     <thead class="thead-muted">
@@ -115,6 +122,7 @@
                             <th>Assigned Staff</th>
                             <th class="text-center">Target</th>
                             <th class="text-center">Actual</th>
+                            <th>Remarks</th>
                             <th>Performed By</th>
                             <th>Evidence</th>
                             <th class="text-end">Actions</th>
@@ -181,6 +189,37 @@
                                         @endif
                                     @endif
                                 </td>
+
+                                {{-- Remarks Column --}}
+                                <td data-col="Remarks">
+                                    @php
+                                        $isOwnTask = $target->isAssignedTo(auth()->user());
+                                        $isOversight = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
+                                        $canEditRemarks = $target->isInProgress() && ($isOwnTask || $isOversight);
+                                        $hasRemarks = filled($target->notes);
+                                    @endphp
+                                    @if ($canEditRemarks)
+                                        @if ($hasRemarks)
+                                            <div class="remarks-cell">
+                                                <div class="remarks-text" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $target->notes }}</div>
+                                                <button type="button" class="btn btn-link btn-sm p-0 ms-1 edit-remarks-btn" data-target-id="{{ $target->id }}" data-notes="{{ $target->notes }}" title="Edit remarks">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                                </button>
+                                            </div>
+                                        @else
+                                            <button type="button" class="btn btn-primary btn-sm add-remarks-btn" data-target-id="{{ $target->id }}" title="Add remarks">
+                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                                Add Remarks
+                                            </button>
+                                        @endif
+                                    @elseif ($hasRemarks)
+                                        <div class="remarks-cell">
+                                            <div class="remarks-text" style="max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $target->notes }}">{{ $target->notes }}</div>
+                                        </div>
+                                    @else
+                                        <span class="muted">—</span>
+                                    @endif
+                                </td>
                                 <td data-col="Performed By">
                                     @if ($target->performed_by_id || $target->performed_by_name)
                                         <div>{{ $target->performedByDisplayName() }}</div>
@@ -197,7 +236,7 @@
                                             <a href="{{ route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]) }}" target="_blank">View</a>
                                             <a href="{{ route('admin.weekly-bookkeeping.download-attachment', [$bookkeeping, $target]) }}" download>Download</a>
                                         </div>
-                                        <small class="muted">{{ $target->attachment_name }}</small>
+                                        <small class="muted wk-file" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</small>
                                     @else
                                         <span class="muted">—</span>
                                     @endif
@@ -306,11 +345,41 @@
                                 @if ($target->durationHuman())
                                     <div class="cv-pair"><span class="cv-label">Duration</span><span class="cv-value">{{ $target->durationHuman() }}</span></div>
                                 @endif
+                                @php
+                                    $isOwnTask = $target->isAssignedTo(auth()->user());
+                                    $isOversight = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
+                                    $canEditRemarks = $target->isInProgress() && ($isOwnTask || $isOversight);
+                                    $hasRemarks = filled($target->notes);
+                                @endphp
+                                <div class="cv-pair">
+                                    <span class="cv-label">Remarks</span>
+                                    <span class="cv-value">
+                                        @if ($canEditRemarks)
+                                            @if ($hasRemarks)
+                                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                                    <span class="remarks-text" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ $target->notes }}</span>
+                                                    <button type="button" class="btn btn-link btn-sm p-0 edit-remarks-btn" data-target-id="{{ $target->id }}" data-notes="{{ $target->notes }}" title="Edit remarks">
+                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                                    </button>
+                                                </div>
+                                            @else
+                                                <button type="button" class="btn btn-primary btn-sm add-remarks-btn" data-target-id="{{ $target->id }}" title="Add remarks">
+                                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="me-1"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                                    Add Remarks
+                                                </button>
+                                            @endif
+                                        @elseif ($hasRemarks)
+                                            <span class="remarks-text" style="white-space: normal; max-width: 300px;">{{ $target->notes }}</span>
+                                        @else
+                                            <span class="muted">—</span>
+                                        @endif
+                                    </span>
+                                </div>
                                 <div class="cv-pair">
                                     <span class="cv-label">Evidence</span>
                                     <span class="cv-value">
                                         @if ($target->attachment_path)
-                                            <a href="{{ route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]) }}" target="_blank">{{ $target->attachment_name }}</a>
+                                            <a class="wk-file" href="{{ route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]) }}" target="_blank" title="{{ $target->attachment_name }}">{{ $target->attachment_name }}</a>
                                         @else
                                             —
                                         @endif
@@ -357,6 +426,71 @@
     </div>
 @endsection
 
+{{-- Remarks Editor Modal --}}
+<div class="modal fade" id="remarksModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <form id="remarksForm" method="POST" action="{{ route('admin.weekly-bookkeeping.update-target', [$bookkeeping, '__TARGET_ID__']) }}">
+                @csrf
+                @method('PATCH')
+                <div class="modal-header">
+                    <h5 class="modal-title">Task Remarks</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label" for="remarksTextarea">Remarks</label>
+                        <textarea id="remarksTextarea" name="notes" class="form-control" rows="4" maxlength="1000" placeholder="Why was this task late or what happened during processing?"></textarea>
+                        <small class="form-text">Explain why this task was delayed or any relevant circumstance.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Remarks</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    var modalEl = document.getElementById('remarksModal');
+    if (! modalEl) { return; }
+
+    var modal = new bootstrap.Modal(modalEl);
+    var form = document.getElementById('remarksForm');
+    var textarea = document.getElementById('remarksTextarea');
+    var originalAction = form.action;
+
+    document.querySelectorAll('.add-remarks-btn, .edit-remarks-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var targetId = btn.getAttribute('data-target-id');
+            var notes = btn.getAttribute('data-notes') || '';
+
+            textarea.value = notes;
+            form.action = originalAction.replace('__TARGET_ID__', targetId);
+            modal.show();
+        });
+    });
+
+    form.addEventListener('submit', function (e) {
+        var submitBtn = form.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+    });
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        form.reset();
+        targetIdInput.value = '';
+    });
+})();
+</script>
+@endpush
+
 @push('styles')
 <style>
 .tb-mini-select {
@@ -386,8 +520,11 @@
     display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
 }
 
-.evidence-links { display: inline-flex; gap: 10px; font-size: 13px; }
-.evidence-links a { color: var(--primary, #6366f1); }
+        .evidence-links { display: inline-flex; gap: 10px; font-size: 13px; }
+        .evidence-links a { color: var(--primary, #6366f1); }
+        /* Long filenames truncate instead of stretching the table or card. */
+        .wk-file { display: block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 
 .performer-badge.role-staff { background: var(--info-bg, #dbeafe); color: var(--info, #3b82f6); }
 .performer-badge.role-supervisor { background: var(--warn-bg, #fef3c7); color: var(--warn, #df6b00); }
@@ -395,5 +532,236 @@
 
 .tb-actions-form { margin-bottom: 4px; }
 .tb-file-input { display: block; max-width: 150px; font-size: 11px; margin-bottom: 4px; }
+
+/* ---- Enhanced Target Schedule Stage UI ---- */
+.schedule-stage {
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm, 12px);
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+.schedule-stage:hover {
+    box-shadow: var(--shadow-sm);
+    border-color: var(--border);
+}
+.schedule-stage:last-child { margin-bottom: 0; }
+
+.schedule-stage-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-light);
+}
+.schedule-stage-name {
+    font-weight: 600;
+    font-size: var(--text-base);
+    color: var(--navy);
+    flex: 1 1 auto;
+    min-width: 150px;
+}
+.schedule-status-badge {
+    font-size: var(--text-xs);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-weight: 600;
+    flex: 0 0 auto;
+}
+.schedule-own-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--sky-deep);
+    background: var(--sky-soft);
+    border: 1px solid var(--sky-deep);
+    border-radius: 999px;
+    padding: 3px 10px;
+    flex: 0 0 auto;
+}
+.schedule-stage-offset {
+    width: 100%;
+    font-size: var(--text-xs);
+    color: var(--muted-text);
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+}
+
+/* Editable Form */
+.schedule-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.schedule-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.schedule-remarks-field {
+    border-top: 2px solid var(--sky-soft);
+    padding-top: 18px;
+    margin-top: 4px;
+}
+.schedule-remarks-field .schedule-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--navy);
+}
+.schedule-remarks-field .text-muted { color: var(--muted-text); }
+.schedule-required-indicator {
+    color: var(--sky-deep);
+    font-size: 10px;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.schedule-hint-own {
+    font-size: var(--text-xs);
+    color: var(--sky-deep);
+    background: var(--sky-soft);
+    padding: 6px 10px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-top: 4px;
+}
+.schedule-payment-fields {
+    border-top: 2px solid var(--warning-soft, #fef3c7);
+    padding-top: 18px;
+    margin-top: 4px;
+}
+.schedule-field-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+}
+.schedule-field-divider span {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.schedule-save {
+    align-self: flex-start;
+    margin-top: 6px;
+    min-width: 140px;
+}
+
+/* Read-only Info Grid */
+.schedule-readonly { padding-top: 4px; }
+.schedule-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.schedule-info-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+}
+.schedule-info-label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted-text);
+}
+.schedule-info-value {
+    font-size: var(--text-sm);
+    color: var(--text);
+    word-break: break-word;
+}
+.schedule-info-value .badge { font-size: var(--text-xs); }
+.schedule-remarks-readonly {
+    grid-column: 1 / -1;
+    border-left: 3px solid var(--sky-deep);
+    background: var(--sky-soft);
+}
+.schedule-remarks-readonly .schedule-info-value {
+    white-space: pre-wrap;
+    font-style: italic;
+    color: var(--text);
+}
+.schedule-remarks-value { min-height: 2.5em; }
+.schedule-payment-readonly { margin-top: 8px; }
+.schedule-payment-readonly .schedule-info-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .schedule-stage { padding: 12px; }
+    .schedule-stage-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .schedule-stage-name { min-width: 0; width: 100%; }
+    .schedule-status-badge { width: fit-content; }
+    .schedule-own-badge { width: fit-content; }
+    .schedule-form { gap: 12px; }
+    .schedule-field { gap: 5px; }
+    .schedule-info-grid { grid-template-columns: 1fr; }
+    .schedule-remarks-readonly { grid-column: auto; }
+}
+
+/* ---- Remarks Column (Main Table & Card View) ---- */
+.remarks-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.remarks-text {
+    font-size: var(--text-sm);
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+.add-remarks-btn {
+    white-space: nowrap;
+    padding: 4px 10px;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    background: var(--primary);
+    color: var(--primary-bg);
+    border: none;
+    border-radius: 999px;
+    transition: background var(--transition-fast);
+}
+.add-remarks-btn:hover {
+    background: var(--primary, #6366f1);
+    color: #fff;
+}
+.edit-remarks-btn {
+    color: var(--primary);
+    text-decoration: none;
+    padding: 2px;
+    border-radius: 4px;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+.edit-remarks-btn:hover {
+    background: var(--primary-soft, #e0e7ff);
+    color: var(--primary);
+}
+@media (max-width: 640px) {
+    .remarks-text { max-width: 120px; }
+    .add-remarks-btn { padding: 4px 8px; font-size: 10px; }
+}
 </style>
+@include('admin.bookkeeping.partials.styles')
 @endpush
