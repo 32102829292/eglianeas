@@ -8,6 +8,20 @@
         $clean = preg_replace('/\D/', '', $value) ?? '';
         return str_repeat('X', max(strlen($clean) - 3, 0)).substr($clean, -3);
     };
+
+    // Filter-preserving URLs for the active-filter chips. Changing a filter drops
+    // the page number so the user lands on page 1 of the new result set.
+    $resetUrl = route('admin.clients.index');
+    $queryParams = request()->query();
+    $searchRemoveUrl = route('admin.clients.index', array_diff_key($queryParams, ['q' => null, 'page' => null]));
+    $birRemoveUrls = [];
+    foreach ($selectedBirCodes as $selectedCode) {
+        $params = array_diff_key($queryParams, ['bir_codes' => null, 'page' => null]);
+        $remaining = array_values(array_diff($selectedBirCodes, [$selectedCode]));
+        if ($remaining !== []) { $params['bir_codes'] = $remaining; }
+        $birRemoveUrls[$selectedCode] = route('admin.clients.index', $params);
+    }
+    $birFilterSummary = $selectedBirCodes === [] ? 'All codes' : count($selectedBirCodes).' selected';
 @endphp
 
 @section('content')
@@ -23,8 +37,39 @@
                     Add Client
                 </a>
             @endif
-            <form method="GET" action="{{ route('admin.clients.index') }}" class="page-search">
+            <form method="GET" action="{{ route('admin.clients.index') }}" class="page-search" id="client-filter-form">
+                @if ($sort !== 'business_name')
+                    <input type="hidden" name="sort" value="{{ $sort }}">
+                @endif
+                @if ($direction !== 'asc')
+                    <input type="hidden" name="direction" value="{{ $direction }}">
+                @endif
                 <input type="search" name="q" value="{{ $q }}" placeholder="Search name, business, email, or TIN&hellip;" data-live-filter>
+                <div class="dropdown-wrap">
+                    <button type="button" class="btn btn-outline btn-sm dropdown-toggle bir-filter-toggle" data-dropdown="bir-code-filter" aria-haspopup="true" aria-expanded="false">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8v7l-4 2v-9L3 4z"/></svg>
+                        BIR Codes
+                        <span class="bir-filter-count" data-bir-summary>{{ $birFilterSummary }}</span>
+                    </button>
+                    <div class="dropdown-menu bir-filter-menu" id="bir-code-filter">
+                        <div class="bir-filter-head">Show clients assigned these BIR codes</div>
+                        <div class="bir-filter-grid">
+                            @forelse ($birCodes as $birCode)
+                                @php($birChecked = in_array($birCode, $selectedBirCodes, true))
+                                <label class="bir-form-check {{ $birChecked ? 'is-checked' : '' }}">
+                                    <input type="checkbox" name="bir_codes[]" value="{{ $birCode }}" @checked($birChecked) data-bir-code>
+                                    <span>{{ $birCode }}</span>
+                                </label>
+                            @empty
+                                <p class="bir-filter-empty">No BIR codes are configured yet.</p>
+                            @endforelse
+                        </div>
+                        <div class="bir-filter-foot">
+                            <button type="button" class="btn btn-link btn-sm" data-bir-clear>Clear</button>
+                            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                        </div>
+                    </div>
+                </div>
                 <button type="submit" class="btn btn-outline btn-sm">Filter</button>
             </form>
             <div class="dropdown-wrap">
@@ -48,12 +93,15 @@
 
     <div class="card card-data">
         <div class="card-head">
-            <span class="card-title">All Clients <span class="count-pill">{{ $clients->total() }}</span></span>
+            <span class="card-title">{{ $hasActiveFilters ? 'Matching Clients' : 'All Clients' }} <span class="count-pill">{{ $clients->total() }}</span></span>
             <div class="sort-controls" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <label class="form-label mb-0" style="font-size: 12px;">Sort by:</label>
                 <form method="GET" action="{{ route('admin.clients.index') }}" style="display: inline-flex; align-items: center; gap: 6px;">
                     @foreach (['q' => $q] as $key => $value)
                         <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                    @endforeach
+                    @foreach ($selectedBirCodes as $selectedCode)
+                        <input type="hidden" name="bir_codes[]" value="{{ $selectedCode }}">
                     @endforeach
                     <select class="form-control form-control-sm" name="sort" style="width: auto; min-width: 160px;" onchange="this.form.submit()">
                         <option value="business_name" {{ $sort === 'business_name' ? 'selected' : '' }}>Business Name</option>
@@ -73,10 +121,27 @@
                 </form>
             </div>
         </div>
+        @if ($hasActiveFilters)
+            <div class="active-filter-row">
+                <span class="active-filter-label">Active filters:</span>
+                @if ($q !== '')
+                    <a href="{{ $searchRemoveUrl }}" class="filter-chip" title="Remove the search filter">
+                        Search: {{ $q }}<span class="filter-chip-x" aria-hidden="true">&times;</span>
+                    </a>
+                @endif
+                @foreach ($selectedBirCodes as $selectedCode)
+                    <a href="{{ $birRemoveUrls[$selectedCode] }}" class="filter-chip" title="Remove the {{ $selectedCode }} filter">
+                        BIR: {{ $selectedCode }}<span class="filter-chip-x" aria-hidden="true">&times;</span>
+                    </a>
+                @endforeach
+                <a href="{{ $resetUrl }}" class="btn btn-outline btn-sm">Clear filters</a>
+            </div>
+        @endif
         <div class="table-wrap table-card-view">
             <table class="table table-hover align-middle mb-0 clients-table">
                 <colgroup>
                     <col class="col-business">
+                    <col class="col-bir">
                     <col class="col-contact">
                     <col class="col-status">
                     <col class="col-payment">
@@ -87,6 +152,7 @@
                 <thead class="thead-muted">
                     <tr>
                         <th>Business</th>
+                        <th>BIR Codes</th>
                         <th>Contact</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Payment</th>
@@ -104,6 +170,17 @@
                                 <small class="muted">{{ $entry['profile']?->line_of_business ?? $entry['profile']?->business_type ?? '—' }}</small>
                                 @if ($entry['profile']?->tin_no)
                                     <small class="muted d-block">TIN {{ $maskTin($entry['profile']->tin_no) }}</small>
+                                @endif
+                            </td>
+                            <td data-col="BIR Codes">
+                                @if ($entry['bir_codes'])
+                                    <div class="bir-chips bir-chips-list">
+                                        @foreach ($entry['bir_codes'] as $entryBirCode)
+                                            <span class="bir-chip bir-chip-{{ $entryBirCode['status'] }}" title="{{ $entryBirCode['label'] }}">{{ $entryBirCode['code'] }}</span>
+                                        @endforeach
+                                    </div>
+                                @else
+                                    <span class="muted">&mdash;</span>
                                 @endif
                             </td>
                             <td data-col="Contact">
@@ -167,7 +244,16 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="empty-cell">No clients found.</td></tr>
+                        <tr>
+                                <td colspan="8" class="empty-cell">
+                                    @if ($hasActiveFilters)
+                                        No clients match the current filters.
+                                        <a href="{{ $resetUrl }}" class="btn btn-outline btn-sm">Clear filters</a>
+                                    @else
+                                        No clients found.
+                                    @endif
+                                </td>
+                            </tr>
                     @endforelse
                 </tbody>
             </table>
@@ -185,6 +271,7 @@
                         </div>
                         <div class="cv-card-body">
                             <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a>@if ($entry['profile']?->contact_no_tel)<br><a href="tel:{{ $entry['profile']->contact_no_tel }}" class="contact-link">{{ $entry['profile']->contact_no }}</a>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">BIR Codes</span><span class="cv-value">@if ($entry['bir_codes'])<div class="bir-chips">@foreach ($entry['bir_codes'] as $entryBirCode)<span class="bir-chip bir-chip-{{ $entryBirCode['status'] }}" title="{{ $entryBirCode['label'] }}">{{ $entryBirCode['code'] }}</span>@endforeach</div>@else<span class="muted">&mdash;</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Payment</span><span class="cv-value">@if ($entry['payment_status'])@php($p = $entry['payment_status'])<span class="badge @if($p==='paid') badge-success @elseif($p==='unpaid') badge-danger @elseif($p==='partial') badge-warn @else badge-neutral @endif">{{ ucfirst($p) }}</span>@else<span class="muted">—</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
@@ -221,7 +308,13 @@
                         </div>
                     </div>
                 @empty
-                    <p class="cv-card cv-empty">No clients found.</p>
+                    <p class="cv-card cv-empty">
+                        @if ($hasActiveFilters)
+                            No clients match the current filters. <a href="{{ $resetUrl }}" class="btn btn-outline btn-sm">Clear filters</a>
+                        @else
+                            No clients found.
+                        @endif
+                    </p>
                 @endforelse
             </div>
         </div>
@@ -238,6 +331,14 @@
                 row.hidden = term !== '' && row.textContent.toLowerCase().indexOf(term) === -1;
             });
         });
+        // Keep aria-expanded truthful for every dropdown on the page, whichever
+        // branch above opened or closed the menu.
+        var syncDropdowns = function () {
+            document.querySelectorAll('[data-dropdown]').forEach(function (toggle) {
+                var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+                toggle.setAttribute('aria-expanded', menu && menu.style.display === 'block' ? 'true' : 'false');
+            });
+        };
         document.addEventListener('click', function (e) {
             var toggle = e.target.closest('[data-dropdown]');
             if (toggle) {
@@ -246,10 +347,40 @@
                     if (m !== menu) m.style.display = 'none';
                 });
                 if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                syncDropdowns();
                 return;
             }
             if (e.target.closest('.dropdown-menu')) return;
             document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
+            syncDropdowns();
         });
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
+            syncDropdowns();
+        });
+
+        // BIR code multi-select. Checkboxes do not auto-submit so several codes
+        // can be ticked in one pass; Apply sends them with the rest of the form.
+        var filterForm = document.getElementById('client-filter-form');
+        if (filterForm) {
+            var summary = filterForm.querySelector('[data-bir-summary]');
+            var syncSummary = function () {
+                if (!summary) return;
+                var count = filterForm.querySelectorAll('[data-bir-code]:checked').length;
+                summary.textContent = count === 0 ? 'All codes' : count + ' selected';
+            };
+            filterForm.addEventListener('change', function (e) {
+                if (e.target.matches('[data-bir-code]')) syncSummary();
+            });
+            var clearBir = filterForm.querySelector('[data-bir-clear]');
+            if (clearBir) {
+                clearBir.addEventListener('click', function () {
+                    filterForm.querySelectorAll('[data-bir-code]').forEach(function (cb) { cb.checked = false; });
+                    syncSummary();
+                    filterForm.submit();
+                });
+            }
+        }
     </script>
 @endpush

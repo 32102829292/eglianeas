@@ -160,3 +160,45 @@
 </script>
 @endpush
 @endif
+
+@push('scripts')
+<script>
+{{--
+    Opens the "Download BIR Forms Summary" menu.
+
+    .dropdown-menu is display:none by default (dashboard.css) and only becomes
+    visible via the .show class, so the two export links below were unreachable:
+    clicking the button did nothing and neither export could ever be clicked.
+    The other pages that use [data-dropdown] (billing, clients, collections,
+    service-tracker) each ship this handler inline; this page did not, which is
+    the whole bug. Delegated from document so render order does not matter.
+--}}
+(function () {
+    function closeOpen() {
+        document.querySelectorAll('.dropdown-menu.show').forEach(function (menu) {
+            menu.classList.remove('show');
+            var owner = document.querySelector('[data-dropdown="' + menu.id + '"]');
+            if (owner) owner.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    document.addEventListener('click', function (e) {
+        var toggle = e.target.closest('[data-dropdown]');
+        if (toggle) {
+            var menu = document.getElementById(toggle.getAttribute('data-dropdown'));
+            if (menu) {
+                var open = menu.classList.toggle('show');
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            }
+            return;
+        }
+
+        closeOpen();
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeOpen();
+    });
+})();
+</script>
+@endpush

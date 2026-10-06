@@ -9,11 +9,13 @@ use App\Models\Billing;
 use App\Models\BillingLineItem;
 use App\Models\ClientCompany;
 use App\Models\BirFormStatus;
+use App\Models\BirFormType;
 use App\Models\FeeRate;
 use App\Models\Notification;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\PushNotificationService;
+use App\Support\BillingFrequency;
 use App\Support\BillingSummaryMatrix;
 use App\Support\Quarter;
 use App\Support\SupportedBanks;
@@ -654,7 +656,18 @@ class BillingController extends Controller
             ->pluck('form_type')
             ->values();
 
-        return response()->json(['forms' => $forms]);
+        // Every active BIR form code is returned alongside the applicable ones so
+        // the billing page can render the non-applicable forms as an explicit
+        // "Not applicable" row instead of silently omitting them. Omitting them
+        // left the admin unable to tell "not applicable to this client" apart
+        // from "this form was forgotten". `forms` keeps its original shape and
+        // meaning, so the existing feasibility gate is unaffected.
+        $allForms = BirFormType::active()->ordered()->pluck('code')->values();
+
+        return response()->json([
+            'forms' => $forms,
+            'all_forms' => $allForms,
+        ]);
     }
 
     public function lastBilling(Request $request): JsonResponse
@@ -682,6 +695,12 @@ class BillingController extends Controller
             'month' => $item->month,
             'amount' => $item->amount,
             'fee_rate_id' => $item->fee_rate_id,
+            // Carry the scheduling context forward too, so re-billing a client
+            // for the next quarter does not silently drop a deliberate manual
+            // override or the notes attached to a custom item.
+            'frequency' => $item->frequency,
+            'manual_include' => $item->manual_include,
+            'notes' => $item->notes,
         ])->values()->all();
 
         return response()->json([
@@ -774,6 +793,7 @@ class BillingController extends Controller
 
             $category = $item['category'] ?? BillingLineItem::CATEGORY_BIR_REMITTANCE;
             $formType = $item['form_type'] ?? null;
+            $formType = $formType === '' ? null : $formType;
             $month = ! empty($item['month']) ? (int) $item['month'] : null;
             $label = $item['label'] ?? '';
             $feeRateId = ! empty($item['fee_rate_id']) ? (int) $item['fee_rate_id'] : null;
@@ -783,6 +803,18 @@ class BillingController extends Controller
                 $label = $this->buildLineItemLabel($category, $formType, $month);
             }
 
+            // Frequency is snapshotted onto the row. A submitted value always
+            // wins (custom items let the admin pick one); otherwise it is
+            // derived from the category + BIR form code. It is stored rather
+            // than recomputed on read so a historical statement keeps the
+            // frequency it was actually billed under.
+            $frequency = $item['frequency'] ?? null;
+            $frequency = BillingFrequency::isKnown($frequency)
+                ? $frequency
+                : BillingFrequency::forLineItem($category, $formType);
+
+            $label = trim($label);
+
             BillingLineItem::create([
                 'billing_id' => $billing->id,
                 'category' => $category,
@@ -791,6 +823,9 @@ class BillingController extends Controller
                 'month' => $month,
                 'amount' => $amount,
                 'fee_rate_id' => $feeRateId,
+                'frequency' => $frequency,
+                'manual_include' => ! empty($item['manual_include']),
+                'notes' => $item['notes'] ?? null,
             ]);
         }
     }
@@ -810,6 +845,9 @@ class BillingController extends Controller
             BillingLineItem::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
             BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
             BillingLineItem::CATEGORY_DATA_ENTRY => 'Data Entry',
+            // Ad-hoc items are named by the admin in the custom-item modal, so
+            // there is no generated label to fall back on.
+            BillingLineItem::CATEGORY_CUSTOM => $formType ?? 'Custom Item',
             default => $formType ?? 'Line Item',
         };
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\BillingFrequency;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,6 +19,14 @@ class BillingLineItem extends Model
     public const CATEGORY_OTHER_ATTACHMENT = 'other_attachment';
     public const CATEGORY_DATA_ENTRY = 'data_entry';
 
+    /**
+     * Ad-hoc charge created from the billing page itself (e.g. "Annual BIR
+     * Registration"). It has no workbook column of its own — BillingSummaryMatrix
+     * collects it into the trailing Custom Fee column — but it is a first-class
+     * category so it can carry a frequency and notes like any other line.
+     */
+    public const CATEGORY_CUSTOM = 'custom';
+
     public const CATEGORIES = [
         self::CATEGORY_BIR_REMITTANCE => 'BIR Remittance',
         self::CATEGORY_PROFESSIONAL_FEE => 'Professional Fee',
@@ -26,6 +35,7 @@ class BillingLineItem extends Model
         self::CATEGORY_INVENTORY_LIST => 'Inventory List (Notarized)',
         self::CATEGORY_OTHER_ATTACHMENT => 'Other Attachment',
         self::CATEGORY_DATA_ENTRY => 'Data Entry',
+        self::CATEGORY_CUSTOM => 'Custom Item',
     ];
 
     protected $fillable = [
@@ -36,6 +46,9 @@ class BillingLineItem extends Model
         'month',
         'amount',
         'fee_rate_id',
+        'frequency',
+        'manual_include',
+        'notes',
     ];
 
     protected function casts(): array
@@ -43,7 +56,20 @@ class BillingLineItem extends Model
         return [
             'month' => 'integer',
             'amount' => 'float',
+            'manual_include' => 'boolean',
         ];
+    }
+
+    /**
+     * Frequency this row was billed under.
+     *
+     * Snapshotted at save time (rather than resolved from the current
+     * BillingFrequency map when read) so an old statement keeps reporting the
+     * frequency it was created with if the master map is ever revised.
+     */
+    public function frequencyLabel(): string
+    {
+        return BillingFrequency::label($this->frequency);
     }
 
     public function billing(): BelongsTo

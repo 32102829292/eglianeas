@@ -37,6 +37,20 @@ final class BillingSummaryMatrix
     ];
 
     /**
+     * Canonical category order for the fee columns, independent of which
+     * categories a particular period happens to have used.
+     *
+     * @var array<int, string>
+     */
+    private const FEE_COLUMNS_KEYS = [
+        'bookkeeping_fee',
+        'post_closing_tb',
+        'inventory_list',
+        'other_attachment',
+        'data_entry',
+    ];
+
+    /**
      * Line items stored under the `custom` category have no dedicated column in
      * the workbook layout, but they ARE real money and are already counted in
      * the fee subtotal. They get a trailing column inside FOR FEE so the visible
@@ -94,6 +108,41 @@ final class BillingSummaryMatrix
     }
 
     /**
+     * The fee categories that actually carry a line item somewhere in the period.
+     *
+     * A line item only exists if it was selected and given an amount, so this is
+     * exactly the set of categories the period really charged for. It drives
+     * which columns appear: the summary must describe the statements that exist,
+     * not every service the application knows about. Before this, Bookkeeping /
+     * Post-Closing / Inventory / Other Attachment / Data Entry and Cash In were
+     * emitted unconditionally, so a period that billed none of them still showed
+     * a full row of ₱0.00 columns.
+     *
+     * @return array<int, string>
+     */
+    public function categoriesInUse(): array
+    {
+        $used = $this->billings
+            ->flatMap(fn (Billing $billing) => $billing->lineItems->pluck('category')->filter())
+            ->unique()
+            ->values()
+            ->all();
+
+        return array_values(array_intersect(self::FEE_COLUMNS_KEYS, $used));
+    }
+
+    /** Whether any statement in the period recorded a Cash In offset. */
+    public function hasCashIn(): bool
+    {
+        return $this->billings->contains(
+            fn (Billing $billing) => $billing->lineItems->contains(
+                fn (BillingLineItem $item) => $item->category === BillingLineItem::CATEGORY_BIR_REMITTANCE
+                    && $item->form_type === null
+            )
+        );
+    }
+
+    /**
      * Flattened column model shared by the web table, the workbook and the PDF.
      *
      * Each entry is [key, group, level-2 header, is-subtotal]. `group` is null
@@ -125,7 +174,14 @@ final class BillingSummaryMatrix
             'subtotal' => true,
         ];
 
-        $columns[] = ['key' => 'cash_in', 'group' => 'fee', 'label' => 'Cash In', 'subtotal' => false];
+        // Cash In and the fee categories only appear when the period actually
+        // charged them, so the summary describes real statements instead of
+        // listing every known service at ₱0.00.
+        $inUse = $this->categoriesInUse();
+
+        if ($this->hasCashIn()) {
+            $columns[] = ['key' => 'cash_in', 'group' => 'fee', 'label' => 'Cash In', 'subtotal' => false];
+        }
 
         // FEE group - dynamic per-form fees
         foreach ($this->formTypes() as $formType) {
@@ -138,8 +194,8 @@ final class BillingSummaryMatrix
         }
 
         // Other billing categories belong to the same FOR FEE group.
-        foreach (self::FEE_COLUMNS as $category => $label) {
-            $columns[] = ['key' => $category, 'group' => 'fee', 'label' => $label, 'subtotal' => false];
+        foreach ($inUse as $category) {
+            $columns[] = ['key' => $category, 'group' => 'fee', 'label' => self::FEE_COLUMNS[$category], 'subtotal' => false];
         }
 
         if ($this->hasCustomFees()) {

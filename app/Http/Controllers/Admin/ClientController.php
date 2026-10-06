@@ -37,6 +37,9 @@ class ClientController extends Controller
         $sort = $request->get('sort', 'business_name');
         $direction = strtolower($request->get('direction', 'asc'));
 
+        $knownBirCodes = BirFormStatus::getFormTypeCodes();
+        $selectedBirCodes = $this->selectedBirCodes($request, $knownBirCodes);
+
         $allowedSorts = [
             'business_name' => 'business_name',
             'name' => 'name',
@@ -57,9 +60,14 @@ class ClientController extends Controller
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->with('profile')
+            ->with(['birFormStatuses' => fn ($query) => $query->where('applicable', true)])
             ->withCount(['billings', 'documents'])
             ->withSum(['billings' => fn ($q) => $q->whereIn('status', [Billing::STATUS_PENDING, Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])], 'total')
             ->when($q !== '', fn ($query) => $this->applySearch($query, $q))
+            ->when($selectedBirCodes !== [], fn ($query) => $query->whereHas(
+                'birFormStatuses',
+                fn ($status) => $status->where('applicable', true)->whereIn('form_type', $selectedBirCodes)
+            ))
             ->when(str_contains($sortColumn, 'profile.'), function ($query) use ($sortColumn, $sortDirection) {
                 $query->join('client_profiles', 'users.id', '=', 'client_profiles.user_id')
                       ->orderBy($sortColumn, $sortDirection);
@@ -77,6 +85,7 @@ class ClientController extends Controller
                     'status' => $profile?->status ?? ClientProfile::STATUS_PENDING,
                     'payment_status' => $profile?->payment_status,
                     'outstanding' => (float) $client->billings_sum_total,
+                    'bir_codes' => $this->birCodesFor($client),
                 ];
             });
 
@@ -88,6 +97,9 @@ class ClientController extends Controller
             'allowedSorts' => array_keys($allowedSorts),
             'statuses' => ClientProfile::STATUSES,
             'statusNotes' => ClientProfile::STATUS_NOTES,
+            'birCodes' => $knownBirCodes,
+            'selectedBirCodes' => $selectedBirCodes,
+            'hasActiveFilters' => $q !== '' || $selectedBirCodes !== [],
         ]);
     }
 
@@ -325,6 +337,76 @@ class ClientController extends Controller
         $filename = 'Egliane-Client-Masterlist-'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
+    }
+
+    /**
+     * BIR codes requested for filtering the client list.
+     *
+     * Accepts both the array form the filter form submits (bir_codes[]=1701) and
+     * a comma-separated list (bir_codes=1701,2551Q) so shared or bookmarked URLs
+     * keep working. Anything not in the active master list is dropped rather
+     * than passed down to SQL.
+     *
+     * @param  array<int, string>  $knownCodes
+     * @return array<int, string>
+     */
+    private function selectedBirCodes(Request $request, array $knownCodes): array
+    {
+        $raw = $request->query('bir_codes', []);
+
+        return collect(is_array($raw) ? $raw : explode(',', (string) $raw))
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->filter(fn ($code) => $code !== '' && in_array($code, $knownCodes, true))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The BIR codes flagged as applicable to a client, for the list column.
+     *
+     * The uniqueness key is now (client_company_id, form_type), so the same code
+     * can be flagged on several of a client's branches; collapse it to one chip
+     * and keep the most advanced filing status (filed > not filed > exempt).
+     *
+     * @return array<int, array{code: string, status: string}>
+     */
+    private function birCodesFor(User $client): array
+    {
+        $rank = [
+            BirFormStatus::STATUS_FILED => 0,
+            BirFormStatus::STATUS_NOT_FILED => 1,
+            BirFormStatus::STATUS_NOT_APPLICABLE => 2,
+        ];
+
+        $best = [];
+
+        foreach ($client->birFormStatuses as $status) {
+            $code = strtoupper(trim((string) $status->form_type));
+
+            if ($code === '') {
+                continue;
+            }
+
+            $current = $rank[$status->status] ?? 9;
+
+            if (! isset($best[$code]['rank']) || $current < $best[$code]['rank']) {
+                $best[$code] = [
+                    'code' => $code,
+                    'status' => $status->status,
+                    'label' => ucfirst(str_replace('_', ' ', (string) $status->status)),
+                    'rank' => $current,
+                ];
+            }
+        }
+
+        uasort($best, fn (array $a, array $b) => [$a['rank'], $a['code']] <=> [$b['rank'], $b['code']]);
+
+        return array_map(
+            fn (array $item): array => ['code' => $item['code'], 'status' => $item['status'], 'label' => $item['label']],
+            array_values($best)
+        );
     }
 
     private function applySearch($query, string $q): void
