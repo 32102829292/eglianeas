@@ -119,20 +119,109 @@ class SupervisorAccessTest extends TestCase
             ->assertOk();
     }
 
-    public function test_supervisor_cannot_write_to_clients(): void
+    public function test_supervisor_can_manage_clients(): void
     {
         $supervisor = $this->supervisor();
         $client = $this->client();
         $entry = \App\Models\ClientInfoEntry::create(['user_id' => $client->id, 'key' => 'Fiscal Year End', 'value' => 'December 31']);
 
-        $this->actingAs($supervisor)->get(route('admin.clients.create'))->assertForbidden();
-        $this->actingAs($supervisor)->get(route('admin.clients.edit', $client))->assertForbidden();
-        $this->actingAs($supervisor)->put(route('admin.clients.update', $client), ['name' => 'X', 'email' => 'x@example.com', 'status' => 'current'])->assertForbidden();
-        $this->actingAs($supervisor)->delete(route('admin.clients.destroy', $client))->assertForbidden();
-        $this->actingAs($supervisor)->post(route('admin.clients.impersonate', $client))->assertForbidden();
-        $this->actingAs($supervisor)->post(route('admin.clients.storeInfoEntry', $client), ['key' => 'K', 'value' => 'V'])->assertForbidden();
-        $this->actingAs($supervisor)->put(route('admin.clients.updateInfoEntry', [$client, $entry]), ['key' => 'K', 'value' => 'V'])->assertForbidden();
-        $this->actingAs($supervisor)->delete(route('admin.clients.destroyInfoEntry', [$client, $entry]))->assertForbidden();
+        $this->actingAs($supervisor)->get(route('admin.clients.create'))->assertOk();
+        $this->actingAs($supervisor)->get(route('admin.clients.edit', $client))->assertOk();
+
+        $this->actingAs($supervisor)
+            ->put(route('admin.clients.update', $client), [
+                'name' => 'Renamed By Supervisor',
+                'email' => $client->email,
+                'status' => 'current',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame('Renamed By Supervisor', $client->fresh()->name);
+
+        $this->actingAs($supervisor)
+            ->post(route('admin.clients.storeInfoEntry', $client), ['key' => 'K', 'value' => 'V'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('client_info_entries', ['user_id' => $client->id, 'key' => 'K']);
+
+        $this->actingAs($supervisor)
+            ->put(route('admin.clients.updateInfoEntry', [$client, $entry]), ['key' => 'K2', 'value' => 'V2'])
+            ->assertRedirect();
+
+        $this->assertSame('K2', $entry->fresh()->key);
+
+        $this->actingAs($supervisor)
+            ->delete(route('admin.clients.destroyInfoEntry', [$client, $entry]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('client_info_entries', ['id' => $entry->id]);
+    }
+
+    public function test_supervisor_can_create_clients(): void
+    {
+        $supervisor = $this->supervisor();
+
+        $email = 'supervisor.created'.uniqid().'@example.com';
+
+        $this->actingAs($supervisor)
+            ->post(route('admin.clients.store'), [
+                'name' => 'Supervisor Created Client',
+                'email' => $email,
+                'business_name' => 'Supervisor Created Business',
+                'password' => 'password123',
+                'password_confirmation' => 'password123',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('users', [
+            'email' => $email,
+            'role' => User::ROLE_CLIENT,
+            'business_name' => 'Supervisor Created Business',
+        ]);
+    }
+
+    public function test_supervisor_can_delete_and_impersonate_clients(): void
+    {
+        $supervisor = $this->supervisor();
+        $client = $this->client();
+        $other = $this->client();
+
+        $this->actingAs($supervisor)
+            ->post(route('admin.clients.impersonate', $other))
+            ->assertRedirect(route('client.dashboard'));
+
+        $this->actingAs($supervisor)
+            ->delete(route('admin.clients.destroy', $client))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('users', ['id' => $client->id]);
+    }
+
+    public function test_supervisor_sees_full_client_list_controls(): void
+    {
+        $this->client();
+
+        $html = $this->actingAs($this->supervisor())
+            ->get(route('admin.clients.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Add Client', $html);
+        $this->assertStringContainsString('BIR Codes', $html);
+        $this->assertStringContainsString('Add BIR Code', $html);
+        $this->assertStringContainsString('Download Masterlist', $html);
+        $this->assertStringContainsString('Edit', $html);
+        $this->assertStringContainsString('Open', $html);
+    }
+
+    public function test_supervisor_can_download_client_masterlist(): void
+    {
+        $this->client();
+
+        $supervisor = $this->supervisor();
+
+        $this->actingAs($supervisor)->get(route('admin.clients.exportXlsx'))->assertOk();
+        $this->actingAs($supervisor)->get(route('admin.clients.exportPdf'))->assertOk();
     }
 
     public function test_supervisor_can_manage_team_accounts(): void

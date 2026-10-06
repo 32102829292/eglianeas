@@ -22,6 +22,11 @@
         $birRemoveUrls[$selectedCode] = route('admin.clients.index', $params);
     }
     $birFilterSummary = $selectedBirCodes === [] ? 'All codes' : count($selectedBirCodes).' selected';
+
+    // Admins and supervisors may create new BIR form codes; this mirrors the
+    // authorization enforced by BirFormTypeController@store so the action is
+    // never offered to a user the store endpoint would reject with a 403.
+    $canManageBirCodes = (bool) auth()->user()?->canManageBirCodes();
 @endphp
 
 @section('content')
@@ -70,6 +75,12 @@
                         </div>
                     </div>
                 </div>
+                @if ($canManageBirCodes)
+                    <button type="button" class="btn btn-outline btn-sm bir-add-code-btn" data-bs-toggle="modal" data-bs-target="#addBirCodeModal" title="Create a new BIR form code">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Add BIR Code
+                    </button>
+                @endif
                 <button type="submit" class="btn btn-outline btn-sm">Filter</button>
             </form>
             <div class="dropdown-wrap">
@@ -320,6 +331,53 @@
         </div>
         {{ $clients->links('pagination.simple') }}
     </div>
+
+    @if ($canManageBirCodes)
+        {{--
+            Add BIR Code modal. Reuses the existing BIR form-type creation flow
+            verbatim: the same route (admin.bir-form-types.store), the same
+            fields and the same controller validation the client profile's "Add
+            BIR Form" modal posts to. No new table, endpoint or calculation is
+            involved — a new code simply becomes available to assign to clients.
+        --}}
+        <div class="modal fade" id="addBirCodeModal" tabindex="-1" aria-labelledby="addBirCodeModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <form method="POST" action="{{ route('admin.bir-form-types.store') }}">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="addBirCodeModalLabel">Add BIR Code</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="form-hint">Creates a new BIR form code that can be assigned to clients and used on billing statements. It does not change any existing statement.</p>
+                            <div class="form-group">
+                                <label class="form-label" for="bir_code_code">Form Code <span class="text-danger">*</span></label>
+                                <input class="form-control" id="bir_code_code" name="code" type="text" maxlength="30" required placeholder="e.g. 1800">
+                                <div class="form-hint">Unique code/number for the BIR form (e.g., 1701, 2551Q, 1800).</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="bir_code_name">Form Name <span class="text-danger">*</span></label>
+                                <input class="form-control" id="bir_code_name" name="name" type="text" maxlength="255" required placeholder="e.g. BIR Form 1800">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="bir_code_description">Description</label>
+                                <textarea class="form-control" id="bir_code_description" name="description" rows="3" maxlength="1000" placeholder="Brief description of this form"></textarea>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="bir_code_active" name="active" value="1" checked>
+                                <label class="form-check-label" for="bir_code_active">Active</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Add BIR Code</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    @endif
 @endsection
 
 @push('scripts')

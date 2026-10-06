@@ -130,47 +130,61 @@
                 amount, so nothing is charged by accident. Annual, one-time and
                 as-needed services start unticked with the reason shown, because
                 they must never ride along just because the service exists.
+
+                The items and the live summary share a two-column workspace. The
+                summary used to be a plain sibling stuck to the bottom of the
+                viewport (position:sticky; bottom:10px). Sticky offsets an element
+                out of its own flow slot, so the panel floated up over the service
+                sections and the action buttons instead of sitting beside them. It
+                is now a real grid column, so it occupies its own space and can
+                never overlap a row.
             --}}
-            <div class="bill-items-head">
-                <h3 class="bill-items-heading">Billing Items</h3>
-                <p class="form-hint">Tick only the services being charged this period. Amounts marked <em>Default</em> come from the master fee rate and are copied here &mdash; editing them affects this statement only.</p>
-            </div>
-
-            <div id="lineItemsContainer">
-                <p class="muted" id="lineItemsPlaceholder">Select a client to load their applicable BIR forms and generate billing line items.</p>
-            </div>
-
-            <div id="customItemsContainer" class="bill-custom-items"></div>
-
-            @if (! $locked)
-                <button type="button" class="btn btn-outline btn-sm mt-2" id="addCustomItemBtn">+ Add Custom Billing Item</button>
-            @endif
-
-            {{--
-                Live summary. Sticks to the bottom of the viewport while the admin
-                scrolls a long item list, then settles into place above the total.
-                Its arithmetic mirrors BillingSummaryMatrix exactly, so what is
-                shown here is what the generated Excel-style summary will contain.
-            --}}
-            <div class="bill-summary-wrap">
-                <section class="bill-summary" id="billingSummary" aria-live="polite">
-                    <h4 class="bill-summary-title">Billing Summary</h4>
-                    <dl class="bill-summary-list">
-                        <div class="bill-summary-line"><dt>Selected services</dt><dd data-bill-sum="count">0</dd></div>
-                        <div class="bill-summary-line"><dt>BIR Remittances</dt><dd data-bill-sum="remittance">&#8369;0.00</dd></div>
-                        <div class="bill-summary-line"><dt>Professional Fees</dt><dd data-bill-sum="fees">&#8369;0.00</dd></div>
-                        <div class="bill-summary-line"><dt>Bookkeeping</dt><dd data-bill-sum="bookkeeping">&#8369;0.00</dd></div>
-                        <div class="bill-summary-line"><dt>Other Fees</dt><dd data-bill-sum="other">&#8369;0.00</dd></div>
-                    </dl>
-                    <div class="bill-summary-total">
-                        <span>TOTAL</span>
-                        <strong data-bill-sum="total">&#8369;0.00</strong>
+            <div class="bill-workspace">
+                <div class="bill-workspace-main">
+                    <div class="bill-items-head">
+                        <h3 class="bill-items-heading">Billing Items</h3>
+                        <p class="form-hint">Tick only the services being charged this period. Amounts marked <em>Default</em> come from the master fee rate and are copied here &mdash; editing them affects this statement only.</p>
                     </div>
-                    <p class="bill-summary-note" data-bill-sum="note">No services selected yet.</p>
-                </section>
+
+                    <div id="lineItemsContainer">
+                        <p class="muted" id="lineItemsPlaceholder">Select a client to load their applicable BIR forms and generate billing line items.</p>
+                    </div>
+
+                    <div id="customItemsContainer" class="bill-custom-items"></div>
+
+                    @if (! $locked)
+                        <button type="button" class="btn btn-outline btn-sm mt-2" id="addCustomItemBtn">+ Add Custom Billing Item</button>
+                    @endif
+                </div>
+
+                {{--
+                    Live summary. It sits in its own column beside the items and
+                    sticks to the top of that column, so it stays visible while a
+                    long item list is scrolled without ever covering a row.
+                    Its arithmetic mirrors BillingSummaryMatrix exactly, so what
+                    is shown here is what the generated Excel-style summary will
+                    contain.
+                --}}
+                <aside class="bill-summary-wrap" aria-label="Billing summary">
+                    <section class="bill-summary" id="billingSummary" aria-live="polite">
+                        <h4 class="bill-summary-title">Billing Summary</h4>
+                        <dl class="bill-summary-list">
+                            <div class="bill-summary-line"><dt>Selected services</dt><dd data-bill-sum="count">0</dd></div>
+                            <div class="bill-summary-line"><dt>BIR Remittances</dt><dd data-bill-sum="remittance">&#8369;0.00</dd></div>
+                            <div class="bill-summary-line"><dt>Professional Fees</dt><dd data-bill-sum="fees">&#8369;0.00</dd></div>
+                            <div class="bill-summary-line"><dt>Bookkeeping</dt><dd data-bill-sum="bookkeeping">&#8369;0.00</dd></div>
+                            <div class="bill-summary-line"><dt>Other Fees</dt><dd data-bill-sum="other">&#8369;0.00</dd></div>
+                        </dl>
+                        <div class="bill-summary-total">
+                            <span>TOTAL</span>
+                            <strong data-bill-sum="total">&#8369;0.00</strong>
+                        </div>
+                        <p class="bill-summary-note" data-bill-sum="note">No services selected yet.</p>
+                    </section>
+                </aside>
             </div>
 
-            <div class="form-group mt-4">
+            <div class="form-group bill-total-block">
                 <label class="form-label">Computed total payment</label>
                 <div class="form-control amount-display" id="totalDisplay" readonly>&#8369;0.00</div>
                 <small class="form-hint">Totals every ticked line item automatically.</small>
@@ -233,7 +247,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" id="confirmAddBillingItem">Add Item</button>
+                        <button type="submit" class="btn btn-primary" id="confirmAddBillingItem">Add Item</button>
                         <button type="button" class="btn btn-outline" data-bs-dismiss="modal">Cancel</button>
                     </div>
                 </form>
@@ -986,8 +1000,10 @@
                 opt.textContent = FREQ_OPTIONS[key];
                 freqSelect.appendChild(opt);
             });
-            freqSelect.value = 'one_time';
         }
+        // Reset every field on each open so the modal is reusable: without this
+        // the previous item's frequency stayed selected for the next one.
+        freqSelect.value = 'one_time';
         descInput.value = '';
         amountField.value = '';
         notesField.value = '';

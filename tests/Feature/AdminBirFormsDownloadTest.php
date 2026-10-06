@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\BirFormStatus;
+use App\Models\BirFormType;
 use App\Models\ClientCompany;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -118,6 +119,46 @@ class AdminBirFormsDownloadTest extends TestCase
         $this->assertSame("PK\x03\x04", substr($body, 0, 4), 'The XLSX response must be a real xlsx (zip) file.');
     }
 
+    /**
+     * Regression guard for ERR_INVALID_RESPONSE on the XLSX export.
+     *
+     * The controller hard-coded a 19-entry $colWidths list. The sheet is
+     * 5 descriptive columns + one per form type + a Total column, so a 14th
+     * form type produced 20 headers and $colWidths[19] hit an undefined key.
+     * Laravel converts that warning to an ErrorException inside the stream
+     * callback, after the 200 + xlsx headers were already flushed, so the body
+     * came back empty and the browser reported ERR_INVALID_RESPONSE. Seed well
+     * past the old limit to prove the width list now scales with the headers.
+     */
+    public function test_xlsx_export_is_valid_when_there_are_more_form_types_than_the_legacy_width_list(): void
+    {
+        $this->seedOneApplicableForm();
+
+        foreach (range(1, 6) as $i) {
+            BirFormType::create([
+                'code' => 'XTRA'.$i,
+                'name' => 'Extra Form Type '.$i,
+                'active' => true,
+                'sort_order' => 100 + $i,
+            ]);
+        }
+
+        // 13 seeded defaults + these 6 = 19 form types -> 25 headers.
+        $response = $this->actingAs($this->internal(User::ROLE_ADMIN, 'BIR Admin'))
+            ->get(route('admin.bir-forms.exportXlsx'));
+
+        $response->assertOk();
+        $this->assertSame(
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            $response->headers->get('content-type'),
+            'The XLSX export must advertise the spreadsheet content type.'
+        );
+
+        $body = (string) $response->streamedContent();
+        $this->assertNotSame('', $body, 'A column-width overflow used to leave the streamed body empty.');
+        $this->assertSame("PK\x03\x04", substr($body, 0, 4), 'The XLSX must still be a valid zip archive.');
+    }
+
     public function test_admin_can_download_the_pdf_summary(): void
     {
         $this->seedOneApplicableForm();
@@ -135,6 +176,32 @@ class AdminBirFormsDownloadTest extends TestCase
 
         $body = (string) $response->getContent();
         $this->assertStringStartsWith('%PDF-', $body, 'The PDF response must be a real PDF file.');
+    }
+
+    /**
+     * Regression guard for the "?" that replaced every applicable checkmark.
+     *
+     * The matrix paints applicable forms with U+2713, but the PDF template drew
+     * them in the core Helvetica font, which has no glyph for U+2713, so DomPDF
+     * substituted "?" in every filled cell. The template now renders those cells
+     * in DejaVu Sans (bundled with DomPDF), so a PDF with applicable forms must
+     * reference/embed a DejaVu face. Before the fix no DejaVu font was used at
+     * all, so this assertion only passes once the checkmark renders correctly.
+     */
+    public function test_pdf_summary_embeds_a_font_with_the_checkmark_glyph(): void
+    {
+        $this->seedOneApplicableForm();
+
+        $body = (string) $this->actingAs($this->internal(User::ROLE_ADMIN, 'BIR Admin'))
+            ->get(route('admin.bir-forms.exportPdf'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString(
+            'DejaVu',
+            $body,
+            'The PDF must embed a font that actually has the U+2713 checkmark glyph.'
+        );
     }
 
     public function test_supervisor_can_download_both_summaries(): void

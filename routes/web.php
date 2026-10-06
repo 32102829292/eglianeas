@@ -239,7 +239,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
         ->middleware('signed')
         ->name('clients.requirements.show');
 
-    Route::middleware('role:admin,staff')->group(function () {
+    Route::middleware('role:admin,staff,supervisor')->group(function () {
         Route::get('/clients/create', [AdminClientController::class, 'create'])->name('clients.create');
         Route::post('/clients', [AdminClientController::class, 'store'])->name('clients.store');
         Route::get('/clients/{client}/edit', [AdminClientController::class, 'edit'])->name('clients.edit');

@@ -12,7 +12,7 @@ class BirFormTypeController extends Controller
 {
     public function store(Request $request): RedirectResponse
     {
-        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can add BIR form types.');
+        abort_unless(auth()->user()->canManageBirCodes(), 403, 'Only admins and supervisors can add BIR form types.');
 
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:30', 'unique:bir_form_types,code'],

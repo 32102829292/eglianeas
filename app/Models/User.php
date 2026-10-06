@@ -128,7 +128,12 @@ class User extends Authenticatable
 
     public function canManageClients(): bool
     {
-        return $this->isAdmin() || $this->isStaff();
+        return $this->isAdmin() || $this->isStaff() || $this->isSupervisor();
+    }
+
+    public function canManageBirCodes(): bool
+    {
+        return $this->isAdmin() || $this->isSupervisor();
     }
 
     public function isAccountApproved(): bool

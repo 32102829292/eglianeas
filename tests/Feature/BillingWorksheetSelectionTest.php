@@ -226,6 +226,71 @@ class BillingWorksheetSelectionTest extends TestCase
         $this->assertSame(820.0, (float) Billing::sole()->total);
     }
 
+    /**
+     * Regression guard for "adding item #2 drops item #1".
+     *
+     * Each custom row the modal appends gets its own line_items[N] index and is
+     * saved independently, so adding a second or third item must never replace
+     * the ones already entered. This drives the three-item flow all the way
+     * through a save and checks every label survives and the statement total is
+     * the sum of all of them.
+     */
+    public function test_multiple_custom_items_are_all_retained_and_totalled(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client();
+        $this->company($client);
+        $this->applicable($client, ['1701Q']);
+
+        $this->actingAs($admin)->post(route('admin.billing.store'), $this->payload($client, [
+            ['category' => 'bir_remittance', 'form_type' => '1701Q', 'label' => '', 'amount' => 320],
+            ['category' => BillingLineItem::CATEGORY_CUSTOM, 'form_type' => '', 'label' => '3641', 'amount' => 20, 'frequency' => BillingFrequency::ONE_TIME, 'notes' => 'Registration renewal'],
+            ['category' => BillingLineItem::CATEGORY_CUSTOM, 'form_type' => '', 'label' => 'SEC Filing', 'amount' => 750, 'frequency' => BillingFrequency::ONE_TIME],
+            ['category' => BillingLineItem::CATEGORY_CUSTOM, 'form_type' => '', 'label' => 'Notarization', 'amount' => 150, 'frequency' => BillingFrequency::ONE_TIME],
+        ]))->assertRedirect(route('admin.billing.index'));
+
+        $custom = BillingLineItem::where('category', BillingLineItem::CATEGORY_CUSTOM)->get();
+        $this->assertCount(3, $custom, 'Adding a second or third custom item must not drop the earlier ones.');
+        $this->assertEqualsCanonicalizing(
+            ['3641', 'SEC Filing', 'Notarization'],
+            $custom->pluck('label')->all()
+        );
+        // 320 remittance + 20 + 750 + 150 custom items.
+        $this->assertSame(1240.0, (float) Billing::sole()->total);
+    }
+
+    /**
+     * Regression guard for the click-does-nothing half of the same bug.
+     *
+     * The Add Item button shipped as type="button" and nothing referenced it,
+     * so clicking it never reached confirmCustomItem(); only an Enter keypress
+     * (implicit form submission) added a row, which is why the modal "did not
+     * reliably" add items. Pin the wiring the fix relies on.
+     */
+    public function test_the_add_billing_item_button_submits_the_form(): void
+    {
+        $admin = $this->admin();
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.billing.create'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<button[^>]*type="submit"[^>]*id="confirmAddBillingItem"/',
+            $html,
+            'Add Item must be a submit button, otherwise clicking it never runs the form submit handler.'
+        );
+
+        // The form submit handler is the code that validates and adds the row.
+        $this->assertStringContainsString("addEventListener('submit'", $html);
+        $this->assertStringContainsString('confirmCustomItem', $html);
+
+        // New rows are appended, never written over the container, so item #2
+        // can never replace item #1.
+        $this->assertStringContainsString('customContainer.appendChild(buildCustomItemRow(', $html);
+    }
+
     public function test_editing_a_custom_item_amount_does_not_touch_the_master_fee_rate(): void
     {
         $admin = $this->admin();

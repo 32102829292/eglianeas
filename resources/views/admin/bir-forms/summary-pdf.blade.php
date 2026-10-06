@@ -20,7 +20,10 @@
         table.masterlist td.text-right { text-align: right; }
         table.masterlist tbody tr:nth-child(even) td { background: #f3f4f6; }
 
-        .check { color: #16a34a; font-weight: 700; }
+        /* U+2713 is not in the Helvetica core font, so DomPDF rendered every
+           applicable cell as "?". DejaVu Sans ships with DomPDF and has the
+           glyph, so the checkmark is drawn instead of a substituted "?". */
+        .check { color: #16a34a; font-weight: 700; font-family: "DejaVu Sans", sans-serif; }
         .empty-cell { text-align: center; padding: 20px; font-style: italic; color: #6B7280; }
 
         @page { size: A4 landscape; margin: 10mm; }

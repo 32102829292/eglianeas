@@ -142,7 +142,18 @@ class BirFormsController extends Controller
                 ['Total']
             );
 
-            $colWidths = [12, 20, 24, 18, 20, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8];
+            // Widths are derived from the header list rather than hard-coded.
+            // The old 19-entry literal silently overflowed once a 14th form type
+            // existed (5 + 14 + 1 = 20 headers), so $colWidths[$col] hit an
+            // undefined key. That warning is converted to an ErrorException by
+            // Laravel *inside* the stream callback, after the 200 + xlsx headers
+            // were already sent, leaving an empty body and the browser's
+            // ERR_INVALID_RESPONSE. Deriving the widths makes that impossible.
+            $colWidths = array_merge(
+                [12, 20, 24, 18, 20],                                  // five descriptive columns
+                array_fill(0, $formTypes->count(), 8),                 // one compact column per form type
+                [8]                                                     // trailing Total column
+            );
 
             foreach ($colHeaders as $col => $header) {
                 $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col + 1);
@@ -204,7 +215,13 @@ class BirFormsController extends Controller
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.bir-forms.summary-pdf', [
             'entries' => $entries,
             'formTypes' => $formTypes,
-        ])->setPaper('a4', 'landscape');
+        ])
+            ->setPaper('a4', 'landscape')
+            // The matrix marks applicable forms with U+2713. The default core
+            // Helvetica font has no glyph for it, so DomPDF substituted "?" in
+            // every filled cell. The template now draws that cell in DejaVu
+            // Sans (bundled with DomPDF); subsetting keeps the embed small.
+            ->setOption('isFontSubsettingEnabled', true);
 
         $filename = 'Egliane-BIR-Forms-Summary-' . now()->format('Y-m-d') . '.pdf';
 
