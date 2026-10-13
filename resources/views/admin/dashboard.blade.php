@@ -42,9 +42,35 @@
 @section('content')
     @include('partials.daily-journal-alert')
     <div class="page-head page-head-row page-head-dash">
-        <div>
-            <h1>Admin dashboard</h1>
-            <p>Overview of accounts, filings and activity.</p>
+        <div class="dash-headline">
+            @php
+                $dashLabel = 'Accounting Overview';
+                $dashTitle = 'Admin Dashboard';
+                $dashSubtitle = 'Manage accounts, oversee operations, and monitor accounting activities.';
+                if (auth()->user()->isSupervisor()) {
+                    $dashLabel = 'Team Oversight';
+                    $dashTitle = 'Supervisor Dashboard';
+                    $dashSubtitle = 'Monitor team progress, review daily accomplishments, and keep operations on track.';
+                } elseif (auth()->user()->isStaff()) {
+                    $dashLabel = 'Daily Tasks';
+                    $dashTitle = 'Staff Dashboard';
+                    $dashSubtitle = 'Stay organized, manage your daily tasks, and track your accomplishments.';
+                }
+            @endphp
+            <span class="dash-headline-icon" aria-hidden="true">
+                @if (auth()->user()->isSupervisor())
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                @elseif (auth()->user()->isStaff())
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                @else
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+                @endif
+            </span>
+            <div class="dash-headline-text">
+                <span class="dash-headline-label">{{ $dashLabel }}</span>
+                <h1>{{ $dashTitle }}</h1>
+                <p>{{ $dashSubtitle }}</p>
+            </div>
         </div>
         <form method="GET" class="date-filter" aria-label="Dashboard period">
             <label class="toolbar-field"><span class="toolbar-label">Year:</span>

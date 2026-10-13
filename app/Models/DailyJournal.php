@@ -72,6 +72,32 @@ class DailyJournal extends Model
         return $query->whereIn('status', [self::STATUS_SUBMITTED, self::STATUS_LATE]);
     }
 
+    /**
+     * Only include journals whose required date falls on a weekday (Monday to
+     * Friday). Weekend dates are never required, so any weekend rows that may
+     * exist in historical data must not be counted as missing/overdue.
+     *
+     * Written against the raw date column so the same scope works on every
+     * connection the application and its tests use (pgsql in runtime, sqlite
+     * in the test suite, mysql/mariadb as a fallback).
+     */
+    public function scopeOnWeekdays(Builder $query): Builder
+    {
+        $connection = $query->getModel()->getConnection();
+        $column = $connection->getQueryGrammar()->wrap(
+            $query->getModel()->getTable() . '.required_date'
+        );
+
+        $clause = match ($connection->getDriverName()) {
+            'pgsql' => "EXTRACT(ISODOW FROM {$column}) BETWEEN 1 AND 5",
+            'sqlite' => "CAST(strftime('%w', {$column}) AS INTEGER) BETWEEN 1 AND 5",
+            'mysql', 'mariadb' => "DAYOFWEEK({$column}) BETWEEN 2 AND 6",
+            default => null,
+        };
+
+        return $clause === null ? $query : $query->whereRaw($clause);
+    }
+
     public function isMissing(): bool
     {
         return $this->status === self::STATUS_MISSING;

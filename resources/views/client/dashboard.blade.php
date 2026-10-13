@@ -3,10 +3,16 @@
 @section('title', 'My Dashboard — Egliane Accounting Services')
 
 @section('content')
-    <div class="page-head page-head-row">
-        <div>
-            <h1>Hello, {{ auth()->user()->name }}</h1>
-            <p>Here&rsquo;s what&rsquo;s happening with your books and filings.</p>
+    <div class="page-head page-head-row page-head-dash">
+        <div class="dash-headline">
+            <span class="dash-headline-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            </span>
+            <div class="dash-headline-text">
+                <span class="dash-headline-label">Account Overview</span>
+                <h1>Client Dashboard</h1>
+                <p>View your account information, track your services, and stay updated.</p>
+            </div>
         </div>
     </div>
 

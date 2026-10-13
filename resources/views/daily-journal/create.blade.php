@@ -3,10 +3,11 @@
 @section('title', 'Daily Accomplishment Report')
 
 @php
-    $isSubmitted = $journal->isNotMissing();
-    $statusBadge = $journal->getStatusBadgeClass();
-    $statusLabel = $journal->getStatusLabel();
-    $statusIcon = $journal->getStatusIcon();
+    $requiresReport = $requiresReport ?? true;
+    $isSubmitted = $journal ? $journal->isNotMissing() : false;
+    $statusBadge = $journal ? $journal->getStatusBadgeClass() : 'badge-info';
+    $statusLabel = $journal ? $journal->getStatusLabel() : 'Not required';
+    $statusIcon = $journal ? $journal->getStatusIcon() : '—';
 
     $dayHeading = match (true) {
         $date->isToday() => 'Today',
@@ -45,7 +46,9 @@
         <h1>Daily Accomplishment Report</h1>
         <p>
             {{ $dayHeading }} &middot; {{ $date->format('l, F j, Y') }}
-            @if ($isSubmitted)
+            @if (! $requiresReport)
+                <span class="badge badge-info ms-2">Not required (weekend)</span>
+            @elseif ($isSubmitted)
                 <span class="badge {{ $statusBadge }} ms-2">{{ $statusIcon }} {{ $statusLabel }}</span>
             @elseif ($isFuture)
                 <span class="badge badge-info ms-2">Not due yet</span>
@@ -70,7 +73,13 @@
     </div>
 </div>
 
-@if ($isSubmitted)
+@if (! $requiresReport)
+    <div class="alert alert-info mb-4">
+        <strong>No report required.</strong>
+        Daily Accomplishment Reports are only required Monday through Friday.
+        {{ $date->format('l, F j, Y') }} falls on a weekend, so nothing is due.
+    </div>
+@elseif ($isSubmitted)
     <div class="alert alert-success mb-4">
         <strong>Report submitted.</strong>
         @if ($journal->submitted_at)
@@ -89,6 +98,7 @@
     </div>
 @endif
 
+@if ($requiresReport)
 <form method="POST" action="{{ route('daily-journal.store') }}" enctype="multipart/form-data" class="daily-journal-form" data-journal-form>
     @csrf
     <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}">
@@ -231,6 +241,7 @@
         @endif
     </div>
 </form>
+@endif
 @endsection
 
 @push('styles')

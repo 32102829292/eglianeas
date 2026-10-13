@@ -125,6 +125,7 @@ class DailyJournalService
     {
         return DailyJournal::query()
             ->whereDate('required_date', $date->toDateString())
+            ->onWeekdays()
             ->where('status', DailyJournal::STATUS_MISSING)
             ->with('user')
             ->get();
@@ -137,6 +138,7 @@ class DailyJournalService
     {
         $query = DailyJournal::query()
             ->whereDate('required_date', $date->toDateString())
+            ->onWeekdays()
             ->with('user');
 
         if ($supervisorId) {
@@ -167,18 +169,22 @@ class DailyJournalService
 
         return self::$missingCountMemo[$userId] = DailyJournal::query()
             ->where('user_id', $userId)
+            ->onWeekdays()
             ->where('status', DailyJournal::STATUS_MISSING)
             ->count();
     }
 
     /**
      * Check if an employee has a missing journal for today.
+     * Weekends are never required, so this is always false on Saturday/Sunday
+     * even if a historical weekend row was recorded.
      */
     public static function hasMissingForToday(int $userId): bool
     {
         return DailyJournal::query()
             ->where('user_id', $userId)
             ->whereDate('required_date', now()->toDateString())
+            ->onWeekdays()
             ->where('status', DailyJournal::STATUS_MISSING)
             ->exists();
     }
@@ -315,7 +321,7 @@ class DailyJournalService
         ?string $role = null,
         ?string $status = null
     ): \Illuminate\Database\Eloquent\Collection {
-        $query = DailyJournal::query()->with('user');
+        $query = DailyJournal::query()->onWeekdays()->with('user');
 
         if ($date) {
             $query->whereDate('required_date', $date->toDateString());
@@ -344,6 +350,7 @@ class DailyJournalService
     public static function getAvailableDates(): \Illuminate\Support\Collection
     {
         return DailyJournal::query()
+            ->onWeekdays()
             ->select('required_date')
             ->distinct()
             ->orderByDesc('required_date')

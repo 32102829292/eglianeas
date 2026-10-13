@@ -273,9 +273,10 @@ class DailyJournalTest extends TestCase
     public function late_submission_is_recorded_as_late()
     {
         $staff = $this->staff('Late Staff');
-        $date = Carbon::yesterday();
+        // Previous Friday (a required weekday) so the report is genuinely overdue.
+        $date = Carbon::parse('2026-10-02');
 
-        // Create missing journal for yesterday
+        // Create missing journal for the required date
         DailyJournal::create([
             'user_id' => $staff->id,
             'required_date' => $date->format('Y-m-d'),
@@ -508,6 +509,216 @@ class DailyJournalTest extends TestCase
 
         $created = DailyJournalService::ensureJournalsForDate($saturday);
         $this->assertEquals(0, $created);
+    }
+
+    /** @test */
+    public function weekend_form_does_not_create_missing_journal()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-03 09:00:00')); // Saturday
+        $staff = $this->staff('Weekend Form Staff');
+
+        $this->actingAs($staff)
+            ->get(route('daily-journal.create'))
+            ->assertOk()
+            ->assertSee('No report required')
+            ->assertSee('Monday through Friday');
+
+        $this->assertDatabaseMissing('daily_journals', [
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03',
+        ]);
+
+        $this->assertEquals(0, DailyJournalService::getMissingCountForUser($staff->id));
+        $this->assertFalse(DailyJournalService::hasMissingForToday($staff->id));
+    }
+
+    /** @test */
+    public function weekend_submission_is_rejected()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-03 09:00:00')); // Saturday
+        $staff = $this->staff('Weekend Submit Staff');
+
+        $this->actingAs($staff)
+            ->post(route('daily-journal.store'), [
+                'date' => '2026-10-03',
+                'problems_encountered' => 'Problem',
+                'achievements' => 'Achievement',
+                'suggested_solutions' => 'Solution',
+            ])
+            ->assertRedirect(route('daily-journal.create', ['date' => '2026-10-03']))
+            ->assertSessionHasErrors('date');
+
+        $this->assertDatabaseMissing('daily_journals', [
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03',
+        ]);
+    }
+
+    /** @test */
+    public function missing_count_excludes_weekend_records()
+    {
+        $staff = $this->staff('Weekend Count Staff');
+
+        // Historical/legacy weekend row plus a real weekday obligation.
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03', // Saturday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-05', // Monday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        $this->assertEquals(1, DailyJournalService::getMissingCountForUser($staff->id));
+    }
+
+    /** @test */
+    public function missing_today_is_not_flagged_on_weekend()
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-04 09:00:00')); // Sunday
+        $staff = $this->staff('Sunday Staff');
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-04',
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        $this->assertFalse(DailyJournalService::hasMissingForToday($staff->id));
+        $this->assertEquals(0, DailyJournalService::getMissingCountForUser($staff->id));
+    }
+
+    /** @test */
+    public function reminders_are_not_sent_for_weekends()
+    {
+        $staff = $this->staff('Weekend Reminder Staff');
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03', // Saturday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        $sent = DailyJournalService::remindMissingForDate(Carbon::parse('2026-10-03'));
+
+        $this->assertEquals(0, $sent);
+        $this->assertEquals(0, \App\Models\Notification::where('user_id', $staff->id)->count());
+    }
+
+    /** @test */
+    public function status_summary_excludes_weekends()
+    {
+        $staff = $this->staff('Summary Staff');
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03', // Saturday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-05', // Monday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        $saturday = DailyJournalService::getStatusForDate(Carbon::parse('2026-10-03'));
+        $this->assertSame(0, $saturday['total']);
+        $this->assertCount(0, $saturday['missing']);
+
+        $monday = DailyJournalService::getStatusForDate(Carbon::parse('2026-10-05'));
+        $this->assertSame(1, $monday['total']);
+        $this->assertCount(1, $monday['missing']);
+    }
+
+    /** @test */
+    public function monitor_filters_exclude_weekends()
+    {
+        $staff = $this->staff('Monitor Staff');
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03', // Saturday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'missing',
+        ]);
+
+        $this->assertCount(0, DailyJournalService::getFilteredJournals(Carbon::parse('2026-10-03')));
+    }
+
+    /** @test */
+    public function available_dates_exclude_weekends()
+    {
+        $staff = $this->staff('Dates Staff');
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-03', // Saturday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'submitted',
+            'submitted_at' => now(),
+        ]);
+
+        DailyJournal::create([
+            'user_id' => $staff->id,
+            'required_date' => '2026-10-05', // Monday
+            'problems_encountered' => '',
+            'achievements' => '',
+            'suggested_solutions' => '',
+            'status' => 'submitted',
+            'submitted_at' => now(),
+        ]);
+
+        $dates = DailyJournalService::getAvailableDates();
+
+        $this->assertTrue($dates->contains('2026-10-05'));
+        $this->assertFalse($dates->contains('2026-10-03'));
+    }
+
+    /** @test */
+    public function friday_to_monday_transition_skips_weekends()
+    {
+        $staff = $this->staff('Transition Staff');
+
+        $friday = Carbon::parse('2026-10-02');
+        $saturday = Carbon::parse('2026-10-03');
+        $sunday = Carbon::parse('2026-10-04');
+        $monday = Carbon::parse('2026-10-05');
+
+        $this->assertEquals(1, DailyJournalService::ensureJournalsForDate($friday));
+        $this->assertEquals(0, DailyJournalService::ensureJournalsForDate($saturday));
+        $this->assertEquals(0, DailyJournalService::ensureJournalsForDate($sunday));
+        $this->assertEquals(1, DailyJournalService::ensureJournalsForDate($monday));
+
+        $this->assertDatabaseHas('daily_journals', ['user_id' => $staff->id, 'required_date' => '2026-10-02']);
+        $this->assertDatabaseMissing('daily_journals', ['user_id' => $staff->id, 'required_date' => '2026-10-03']);
+        $this->assertDatabaseMissing('daily_journals', ['user_id' => $staff->id, 'required_date' => '2026-10-04']);
+        $this->assertDatabaseHas('daily_journals', ['user_id' => $staff->id, 'required_date' => '2026-10-05']);
     }
 
     /** @test */

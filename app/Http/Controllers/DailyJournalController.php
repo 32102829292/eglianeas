@@ -31,8 +31,21 @@ class DailyJournalController extends Controller
 
         $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::today();
 
-        // Employees can only submit for themselves
-        $journal = DailyJournalService::getOrCreateForUserAndDate($user->id, $date);
+        // Reports are only required Monday to Friday. Never create a "missing"
+        // row for a weekend: otherwise the badge/overdue state would inflate
+        // for days that are not actually required.
+        $requiresReport = DailyJournalService::isWorkingDay($date);
+
+        if ($requiresReport) {
+            // Employees can only submit for themselves
+            $journal = DailyJournalService::getOrCreateForUserAndDate($user->id, $date);
+        } else {
+            // Show any historical weekend entry (read-only) without creating one.
+            $journal = DailyJournal::query()
+                ->where('user_id', $user->id)
+                ->whereDate('required_date', $date->toDateString())
+                ->first();
+        }
 
         $isToday = $date->isToday();
         $isPast = $date->lt(Carbon::today());
@@ -44,6 +57,7 @@ class DailyJournalController extends Controller
             'isToday' => $isToday,
             'isPast' => $isPast,
             'isFuture' => $isFuture,
+            'requiresReport' => $requiresReport,
             'user' => $user,
         ]);
     }
@@ -67,6 +81,14 @@ class DailyJournalController extends Controller
         }
 
         $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::today();
+
+        // Reports are only required Monday to Friday; reject weekend submissions
+        // so no weekend obligation is ever created.
+        if (! DailyJournalService::isWorkingDay($date)) {
+            return redirect()
+                ->route('daily-journal.create', ['date' => $date->toDateString()])
+                ->withErrors(['date' => 'Daily Accomplishment Reports are only required Monday through Friday.']);
+        }
 
         $request->validate([
             'problems_encountered' => 'required|string',

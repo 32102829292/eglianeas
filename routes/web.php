@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\QuarterlyBookkeepingController as AdminQuarterlyBookkeepingController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
 use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
+use App\Http\Controllers\Admin\TechnicalIssueController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\WeeklyBookkeepingController as AdminWeeklyBookkeepingController;
 use App\Http\Controllers\Auth\SecurityController;
@@ -413,6 +414,22 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/priority-items/{item}/evidence/{evidence}', [PriorityItemController::class, 'viewEvidence'])->name('priority-items.evidence.view')->middleware('signed');
     Route::get('/priority-items/{item}/evidence/{evidence}/download', [PriorityItemController::class, 'downloadEvidence'])->name('priority-items.evidence.download')->middleware('signed');
     Route::delete('/priority-items/{item}/evidence/{evidence}', [PriorityItemController::class, 'deleteEvidence'])->name('priority-items.evidence.delete');
+
+    // Technical Issue Reporting. Any operational user can raise and follow their
+    // own reports; only admins and supervisors may manage them (see the nested
+    // group below). Attachments are served through signed, authorised routes.
+    Route::get('/technical-issues', [TechnicalIssueController::class, 'index'])->name('technical-issues.index');
+    // Registered before /{issue} so the literal segment is matched, not an id.
+    Route::get('/technical-issues/create', [TechnicalIssueController::class, 'create'])->name('technical-issues.create');
+    Route::post('/technical-issues', [TechnicalIssueController::class, 'store'])->name('technical-issues.store');
+    Route::get('/technical-issues/{issue}', [TechnicalIssueController::class, 'show'])->name('technical-issues.show');
+    Route::get('/technical-issues/{issue}/attachments/{attachment}', [TechnicalIssueController::class, 'viewAttachment'])->name('technical-issues.attachments.view')->middleware('signed');
+    Route::get('/technical-issues/{issue}/attachments/{attachment}/download', [TechnicalIssueController::class, 'downloadAttachment'])->name('technical-issues.attachments.download')->middleware('signed');
+
+    Route::middleware('role:admin,supervisor')->group(function () {
+        Route::patch('/technical-issues/{issue}', [TechnicalIssueController::class, 'update'])->name('technical-issues.update');
+        Route::post('/technical-issues/{issue}/notes', [TechnicalIssueController::class, 'addNote'])->name('technical-issues.notes.store');
+    });
 });
 
 // Daily Accomplishment Journal routes - Employee facing (no admin prefix)
