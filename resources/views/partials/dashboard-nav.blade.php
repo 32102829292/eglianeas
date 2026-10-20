@@ -134,7 +134,7 @@
 
     @if ($user->isOperational())
         <a href="{{ route('admin.weekly-bookkeeping.index') }}" class="{{ $active('admin.weekly-bookkeeping') }}">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M9 14h2M9 18h2"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h1M8 18h1M12 14h1M12 18h1M16 14h1M16 18h1"/></svg>
             Weekly Bookkeeping
         </a>
         <a href="{{ route('admin.monthly-bookkeeping.index') }}" class="{{ $active('admin.monthly-bookkeeping') }}">

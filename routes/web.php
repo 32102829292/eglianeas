@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
 use App\Http\Controllers\Admin\TechnicalIssueController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\WeeklyBookkeepingController as AdminWeeklyBookkeepingController;
+use App\Http\Controllers\Admin\WeeklyTrackerController as AdminWeeklyTrackerController;
 use App\Http\Controllers\Auth\SecurityController;
 use App\Http\Controllers\Auth\WebauthnController;
 use App\Http\Controllers\ChatbotController;
@@ -293,9 +294,9 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/weekly-bookkeeping/create', [AdminWeeklyBookkeepingController::class, 'create'])->name('weekly-bookkeeping.create');
     Route::get('/weekly-bookkeeping-report', [AdminWeeklyBookkeepingController::class, 'report'])->name('weekly-bookkeeping.report');
     Route::post('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'store'])->name('weekly-bookkeeping.store');
-    Route::post('/weekly-bookkeeping/assign', [AdminWeeklyBookkeepingController::class, 'bulkAssign'])->name('weekly-bookkeeping.bulk-assign');
     Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
     Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
+    Route::get('/weekly-bookkeeping/{bookkeeping}/task/{target}', [AdminWeeklyBookkeepingController::class, 'showTask'])->name('weekly-bookkeeping.task');
     Route::post('/weekly-bookkeeping/{bookkeeping}/owner', [AdminWeeklyBookkeepingController::class, 'updateOwner'])->name('weekly-bookkeeping.update-owner');
     Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/start', [AdminWeeklyBookkeepingController::class, 'startTarget'])->name('weekly-bookkeeping.start-target');
     Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/complete', [AdminWeeklyBookkeepingController::class, 'completeTarget'])->name('weekly-bookkeeping.complete-target');
@@ -307,6 +308,19 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::patch('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'updateTarget'])->name('weekly-bookkeeping.update-target');
     Route::delete('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'destroyTarget'])->name('weekly-bookkeeping.destroy-target');
     Route::delete('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'destroy'])->name('weekly-bookkeeping.destroy');
+
+    // Weekly Tracker — the single weekly feature (the Google-Sheets-style board
+    // grouped Mon–Sun). It renders the existing weekly_bookkeeping and
+    // weekly_bookkeeping_targets records, so it reuses that data instead of a
+    // duplicate table. The old weekly-bookkeeping pages above stay fully
+    // routable and functional; only their sidebar link was removed so the
+    // tracker is the single weekly item shown to users.
+    Route::get('/weekly-tracker', [AdminWeeklyTrackerController::class, 'index'])->name('weekly-tracker.index');
+    Route::post('/weekly-tracker', [AdminWeeklyTrackerController::class, 'store'])->name('weekly-tracker.store');
+    Route::patch('/weekly-tracker/bulk', [AdminWeeklyTrackerController::class, 'bulkUpdateStage'])->name('weekly-tracker.bulk-stage');
+    Route::patch('/weekly-tracker/{target}/stage', [AdminWeeklyTrackerController::class, 'updateStage'])->name('weekly-tracker.update-stage');
+    Route::patch('/weekly-tracker/{target}', [AdminWeeklyTrackerController::class, 'update'])->name('weekly-tracker.update');
+    Route::delete('/weekly-tracker/{target}', [AdminWeeklyTrackerController::class, 'destroy'])->name('weekly-tracker.destroy');
 
     // Monthly and Quarterly Bookkeeping run the same workflow as the weekly one,
     // with a calendar month or quarter as the planning unit instead of a week.

@@ -141,7 +141,12 @@
 @media print {
     .no-print, .sidebar, .topbar, header, footer { display: none !important; }
     body { background: #fff; }
-    .wk-report { border: 0; padding: 0; }
+    {{-- The dashboard stylesheet hides every element for print and only re-shows
+         billing statements. Without this, printing this report would produce a
+         blank page. Scoped to this report alone. --}}
+    body * { visibility: hidden; }
+    .wk-report, .wk-report * { visibility: visible; }
+    .wk-report { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
     .wk-report-table { font-size: 10pt; }
     .wk-report-table thead { display: table-header-group; }
     .wk-report-table tr { break-inside: avoid; }

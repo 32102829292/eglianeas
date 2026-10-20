@@ -7,7 +7,8 @@
         <div>
             <h1>Set Weekly Target</h1>
             <p>
-                Select as many clients as you will handle this week, choose the task(s) for each, and assign a target day.
+                Tick the clients you will handle this week, set their tasks and target days, then save.
+                Newly selected clients start with Pick-Up, Return and Billing ticked.
             </p>
         </div>
         <div class="page-head-actions">
@@ -25,148 +26,8 @@
         <span class="week-picker-range">{{ \Illuminate\Support\Carbon::parse($activeWeekStart)->format('F j, Y') }} – {{ \Illuminate\Support\Carbon::parse($activeWeekEnd)->format('F j, Y') }}</span>
     </form>
 
-    {{-- Staff-centered assignment: name the staff member once, give the batch one
-         target date and one task type, then tick every client that work covers.
-         Writes the same target rows the client matrix below writes, so both stay
-         in step and the week is still the organising unit. Built from the same
-         .card / .client-row / .table classes as the rest of this screen. --}}
-    <form method="POST" action="{{ route('admin.weekly-bookkeeping.bulk-assign') }}" id="assignForm" class="card">
-        @csrf
-        <input type="hidden" name="week_start" value="{{ $activeWeekStart }}">
-
-        <div class="card-head">
-            <h2 class="card-title">Assign Bookkeeping Tasks</h2>
-        </div>
-        <p class="form-hint">Assign a staff member, target date, task, and multiple clients.</p>
-
-        <div class="form-grid three">
-            <div>
-                <label class="form-label" for="assignStaff">Staff Member</label>
-                <select name="assigned_staff_id" id="assignStaff" class="form-control" required>
-                    <option value="">Select staff member</option>
-                    @foreach ($assignableStaff as $staffMember)
-                        <option value="{{ $staffMember->id }}">{{ $staffMember->name }}</option>
-                    @endforeach
-                </select>
-            </div>
-
-            <div>
-                <label class="form-label" for="assignTargetDate">Target Date</label>
-                <input type="date" name="target_date" id="assignTargetDate" class="form-control"
-                       min="{{ $activeWeekStart }}" max="{{ $activeWeekEnd }}" required>
-                <p class="form-hint">
-                    Within this week:
-                    {{ \Illuminate\Support\Carbon::parse($activeWeekStart)->format('M j') }} – {{ \Illuminate\Support\Carbon::parse($activeWeekEnd)->format('M j, Y') }}
-                </p>
-            </div>
-
-            <div>
-                <label class="form-label" for="assignTaskType">Task Type</label>
-                <select name="task_type" id="assignTaskType" class="form-control" required>
-                    @foreach ($taskTypes as $key => $label)
-                        <option value="{{ $key }}">{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-        </div>
-
-        <div class="assign-clients">
-            <div class="target-card-head">
-                <h3 class="card-title">Select Clients</h3>
-                <span class="selected-count-wrap">
-                    <b id="assignSelectedCount" class="selected-count">0</b>
-                    <span class="selected-count-label">clients selected</span>
-                </span>
-            </div>
-
-            <div class="client-selector-tools">
-                <input type="search" id="assignClientSearch" class="form-control" placeholder="Search clients&hellip;" aria-label="Search clients">
-                <button type="button" class="btn btn-outline btn-sm" id="assignSelectAll">Select All</button>
-                <button type="button" class="btn btn-outline btn-sm" id="assignClearSelection">Clear</button>
-            </div>
-
-            <div class="client-list" id="assignClientRows">
-                @forelse ($clients as $client)
-                    @php
-                        $assignedTasks = $existingByClient->get($client->id, collect())->keys()->implode(',');
-                    @endphp
-                    <div class="client-row" data-name="{{ strtolower($client->name) }}" data-business="{{ strtolower($client->business_name ?? '') }}">
-                        <label class="client-pick">
-                            <input type="checkbox" class="assign-client-check"
-                                   name="client_ids[]" value="{{ $client->id }}"
-                                   data-assigned="{{ $assignedTasks }}"
-                                   aria-label="Select {{ $client->name }}">
-                        </label>
-
-                        <div class="client-id">
-                            @if ($client->profile_image_path)
-                                <img src="{{ $client->photoUrl() }}" alt="" class="client-photo-sm">
-                            @else
-                                <span class="avatar">{{ mb_strtoupper(mb_substr($client->name, 0, 1)) }}</span>
-                            @endif
-                            <div class="client-id-text">
-                                <span class="client-name">{{ $client->business_name ?: $client->name }}</span>
-                                @if ($client->business_name)
-                                    <span class="client-sub">{{ $client->name }}</span>
-                                @endif
-                                <span class="form-hint assign-existing" hidden></span>
-                            </div>
-                        </div>
-                    </div>
-                @empty
-                    <div class="client-empty">No clients are available yet.</div>
-                @endforelse
-
-                <div class="client-empty" id="assignClientEmpty" hidden>No clients match your search.</div>
-            </div>
-        </div>
-
-        {{-- Compact confirmation of what will be written, mirroring the planner's
-             own summary rows so the two read the same way. --}}
-        <div class="staff-assign-panel assign-summary">
-            <div class="summary-row">
-                <span>Staff</span>
-                <b id="assignSumStaff">—</b>
-            </div>
-            <div class="summary-row">
-                <span>Target Date</span>
-                <b id="assignSumDate">—</b>
-            </div>
-            <div class="summary-row">
-                <span>Task</span>
-                <b id="assignSumTask">—</b>
-            </div>
-            <div class="summary-row">
-                <span>Clients</span>
-                <b id="assignSumClients">0 selected</b>
-            </div>
-        </div>
-
-        <div class="form-actions">
-            @error('assigned_staff_id')
-                <div class="form-error">{{ $message }}</div>
-            @enderror
-            @error('task_type')
-                <div class="form-error">{{ $message }}</div>
-            @enderror
-            @error('target_date')
-                <div class="form-error">{{ $message }}</div>
-            @enderror
-            @error('client_ids')
-                <div class="form-error">{{ $message }}</div>
-            @enderror
-            @error('client_ids.*')
-                <div class="form-error">{{ $message }}</div>
-            @enderror
-
-            <button type="submit" id="assignSubmitBtn" class="btn btn-primary" disabled>
-                Add Assignment
-            </button>
-        </div>
-    </form>
-
-    {{-- What is already assigned this week, grouped the way the form above
-         submits it: one staff member, one date, one task, many clients. --}}
+    {{-- What is already assigned this week, grouped by staff member, target
+         date and task type. --}}
     @php
         $assignRoster = $existingByClient
             ->map(fn ($byTask, $clientId) => $byTask->flatten()->map(fn ($target) => [
@@ -205,7 +66,7 @@
         <div class="card">
             <div class="card-head">
                 <h2 class="card-title">Current Assignments</h2>
-                <span class="form-hint">{{ $assignRoster->count() }} batch{{ $assignRoster->count() === 1 ? '' : 'es' }} this week</span>
+                <span class="form-hint">{{ $assignRoster->count() }} group{{ $assignRoster->count() === 1 ? '' : 's' }} this week</span>
             </div>
 
             <div class="table-wrap">
@@ -243,19 +104,20 @@
         </div>
     @endif
 
-    {{-- The client matrix is the original client-centered planner. It posts the
-         same targets and stays on the page, but folded away by default so the
-         staff-centered panel above is the one assignment section in view. --}}
-    <details class="target-adv">
-        <summary class="target-adv-head">
-            <span class="target-adv-caret" aria-hidden="true"></span>
-            <span class="target-adv-name">Client-by-client planner</span>
-            <span class="target-adv-count">Per-client target dates, tasks and staff</span>
-        </summary>
-
+    {{-- The planner is the single interface on this page: pick clients, tick
+         tasks, set a target day per client, assign staff per task, save. --}}
     <form method="POST" action="{{ route('admin.weekly-bookkeeping.store') }}" id="targetForm">
         @csrf
         <input type="hidden" name="week_start" value="{{ $activeWeekStart }}">
+
+        <div class="target-section-head">
+            <h2 class="card-title">Clients and tasks this week</h2>
+            <p class="form-hint">
+                Newly selected clients start with Pick-Up, Return and Billing ticked. Set each client&rsquo;s
+                target day, adjust the staff per task, then save. One client and one task type can only hold
+                one target per week: re-saving updates it, and unticking a saved target removes it when you save.
+            </p>
+        </div>
 
         <div class="target-layout">
             <div class="card target-client-card">
@@ -290,14 +152,23 @@
                     @forelse ($clients as $client)
                         @php
                             $clientExisting = $existingByClient->get($client->id, collect());
+
+                            /* After a failed save the submitted selection wins over
+                               what is already stored, so nothing the user ticked is
+                               lost when validation bounces them back. */
+                            $oldClientIds = old('clients');
+                            $clientChecked = $oldClientIds !== null
+                                ? collect($oldClientIds)->contains(fn ($id) => (int) $id === $client->id)
+                                : $clientExisting->isNotEmpty();
                         @endphp
-                        <div class="client-row" data-name="{{ strtolower($client->name) }}" data-business="{{ strtolower($client->business_name ?? '') }}">
+                        <div class="client-row" data-name="{{ strtolower($client->name) }}" data-business="{{ strtolower($client->business_name ?? '') }}"
+                             data-existing="{{ $clientExisting->keys()->implode(',') }}">
                             <label class="client-pick">
                                 <input type="checkbox" class="client-check"
                                        name="clients[]" value="{{ $client->id }}"
                                        data-client-id="{{ $client->id }}"
                                        aria-label="Select {{ $client->name }}"
-                                       @checked($clientExisting->isNotEmpty())>
+                                       @checked($clientChecked)>
                             </label>
 
                             <div class="client-id">
@@ -314,54 +185,59 @@
                                 </div>
                             </div>
 
-                            <div class="client-target">
-                                <span class="field-label">Target Date</span>
-                                <input type="date" class="target-date"
-                                       name="target_date[{{ $client->id }}]"
-                                       min="{{ $activeWeekStart }}" max="{{ $activeWeekEnd }}"
-                                       value="{{ $clientExisting->flatten()->first()?->target_date?->format('Y-m-d') ?? '' }}"
-                                       aria-label="Target date for {{ $client->name }}">
-                                {{-- One date here seeds the whole schedule. On the plan page this
-                                     date becomes Pick-Up, and Record, Return and Payment follow one
-                                     day apart unless someone edits them by hand. --}}
-                                <small class="schedule-seed-hint">
-                                    Seeds the schedule: Record +1, Return +2, Payment +3 days. Adjust any stage on the plan page.
-                                </small>
-                            </div>
+                            <div class="client-assignment" data-assignment>
+                                <div class="client-target">
+                                    <span class="field-label">Target Date</span>
+                                    <input type="date" class="target-date"
+                                           name="target_date[{{ $client->id }}]"
+                                           min="{{ $activeWeekStart }}" max="{{ $activeWeekEnd }}"
+                                           value="{{ old('target_date.'.$client->id, $clientExisting->flatten()->first()?->target_date?->format('Y-m-d') ?? '') }}"
+                                           aria-label="Target date for {{ $client->name }}">
+                                    <small class="schedule-seed-hint">
+                                        Seeds the schedule: Record +1, Return +2, Payment +3 days. Adjust any stage on the plan page.
+                                    </small>
+                                </div>
 
-                            <div class="client-tasks">
-                                <span class="field-label">Target Tasks</span>
-                                <div class="task-chips">
-                                    @foreach ($taskTypes as $key => $label)
-                                        @php
-                                            $existingTask = $clientExisting->get($key)?->first();
-                                            $checked = $existingTask !== null;
-                                        @endphp
-                                        {{-- Each task carries its own assignee, matching the
-                                             workbook where a client can have different staff
-                                             for Pick-Up, Record, Return and Billing. --}}
-                                        <span class="task-unit" data-task-unit="{{ $key }}">
-                                            <label class="task-chip">
-                                                <input type="checkbox" class="task-check-input"
-                                                       name="tasks[{{ $client->id }}][]" value="{{ $key }}"
-                                                       data-client-id="{{ $client->id }}"
-                                                       @checked($checked)>
-                                                <span>{{ $label }}</span>
-                                            </label>
-                                            <select class="task-staff"
-                                                    name="assignee[{{ $client->id }}][{{ $key }}]"
-                                                    aria-label="Assigned staff for {{ $label }} — {{ $client->name }}"
-                                                    @disabled(! $checked)>
-                                                <option value="">—</option>
-                                                @foreach ($assignableStaff as $staffMember)
-                                                    <option value="{{ $staffMember->id }}"
-                                                            @selected($existingTask && $existingTask->assigned_staff_id === $staffMember->id)>
-                                                        {{ $staffMember->name }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </span>
-                                    @endforeach
+                                <div class="client-tasks">
+                                    <span class="field-label">Target Tasks</span>
+                                    <div class="task-chips">
+                                        @foreach ($taskTypes as $key => $label)
+                                            @php
+                                                $existingTask = $clientExisting->get($key)?->first();
+
+                                                $oldTasks = old('tasks.'.$client->id);
+                                                $checked = $oldTasks !== null
+                                                    ? in_array($key, $oldTasks, true)
+                                                    : $existingTask !== null;
+
+                                                $oldAssignee = old('assignee.'.$client->id.'.'.$key);
+                                                $selectedAssignee = $oldAssignee !== null
+                                                    ? ($oldAssignee !== '' ? (int) $oldAssignee : null)
+                                                    : $existingTask?->assigned_staff_id;
+                                            @endphp
+                                            <span class="task-unit" data-task-unit="{{ $key }}">
+                                                <label class="task-chip">
+                                                    <input type="checkbox" class="task-check-input"
+                                                           name="tasks[{{ $client->id }}][]" value="{{ $key }}"
+                                                           data-client-id="{{ $client->id }}"
+                                                           @checked($checked)>
+                                                    <span>{{ $label }}</span>
+                                                </label>
+                                                <select class="task-staff"
+                                                        name="assignee[{{ $client->id }}][{{ $key }}]"
+                                                        aria-label="Assigned staff for {{ $label }} — {{ $client->name }}"
+                                                        @disabled(! $checked)>
+                                                    <option value="">—</option>
+                                                    @foreach ($assignableStaff as $staffMember)
+                                                        <option value="{{ $staffMember->id }}"
+                                                                @selected($selectedAssignee !== null && $selectedAssignee === $staffMember->id)>
+                                                            {{ $staffMember->name }}
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </span>
+                                        @endforeach
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -391,12 +267,20 @@
                         <b id="summaryClients">0</b>
                     </div>
                     <div class="summary-row">
-                        <span>Selected tasks</span>
+                        <span>Planned targets</span>
                         <b id="summaryTasks">0</b>
                     </div>
-                    <div class="summary-note">
-                        Targets lock once actual work starts, so you can keep adjusting them until then.
+                    <div class="summary-row">
+                        <span>Already saved</span>
+                        <b id="summarySaved">0</b>
                     </div>
+                    <p class="summary-removals" id="summaryRemovals" hidden></p>
+                    <div class="summary-note">
+                        Planned targets counts every client &times; task pair. Already saved counts the pairs
+                        that exist for this week and will be updated rather than created. Targets lock once
+                        actual work starts, so you can keep adjusting them until then.
+                    </div>
+                    <div class="form-error" id="targetFormError" hidden role="alert"></div>
                     <button type="submit" id="saveTargetsBtn" class="btn btn-primary target-save" disabled>
                         Save Weekly Targets
                     </button>
@@ -413,7 +297,6 @@
             </aside>
         </div>
     </form>
-    </details>
 @endsection
 
 @push('styles')
@@ -444,51 +327,9 @@
 }
 .week-picker-range { font-size: var(--text-sm); color: var(--muted-text); }
 
-/* Folded client matrix. Same disclosure the tracker already uses for its client
-   cards: white surface, subtle border, rotating caret. */
-.target-adv {
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    margin-bottom: 20px;
-    overflow: hidden;
-}
-.target-adv[open] { box-shadow: var(--shadow-sm); }
-.target-adv-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    padding: 12px 14px;
-    min-height: 48px;
-    cursor: pointer;
-    list-style: none;
-}
-.target-adv-head::-webkit-details-marker { display: none; }
-.target-adv-head::marker { content: ''; }
-.target-adv-caret {
-    width: 0;
-    height: 0;
-    flex: 0 0 auto;
-    border-left: 6px solid var(--muted-text);
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    transition: transform var(--transition-fast);
-}
-.target-adv[open] .target-adv-caret { transform: rotate(90deg); }
-.target-adv-name {
-    font-family: var(--font-head);
-    font-size: var(--text-base);
-    color: var(--navy);
-}
-.target-adv-count {
-    margin-left: auto;
-    font-size: var(--text-xs);
-    color: var(--muted-text);
-    white-space: nowrap;
-}
-.target-adv[open] .target-adv-head { border-bottom: 1px solid var(--border-subtle); }
-.target-adv .target-layout { padding: 14px; }
+/* Section head introducing the planner */
+.target-section-head { margin-bottom: 14px; }
+.target-section-head .card-title { margin: 0 0 4px; }
 
 /* Layout: client list gets the width, summary stays narrow */
 .target-layout {
@@ -759,6 +600,12 @@
 .summary-row:last-of-type { border-bottom: 0; }
 .summary-row span { color: var(--muted-text); }
 .summary-row b { color: var(--navy); text-align: right; }
+.summary-removals {
+    margin: 8px 0 0;
+    font-size: var(--text-xs);
+    line-height: 1.45;
+    color: var(--warning);
+}
 .summary-note {
     margin: 10px 0 12px;
     padding: 8px 10px;
@@ -777,21 +624,6 @@
     border-radius: 9px;
 }
 .target-summary .form-error { margin-top: 8px; font-size: var(--text-sm); color: var(--danger); }
-
-/* ---- Staff-centered assignment -------------------------------------
-   The panel above reuses .card, .form-grid, .client-row, .client-selector-tools,
-   .summary-row, .form-actions and .table wholesale, so only the white client box
-   and the vertical rhythm between the stacked pieces are declared here. */
-.assign-clients {
-    margin-top: 16px;
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-}
-.assign-summary { margin-top: 14px; }
-.assign-summary .summary-row:last-of-type { border-bottom: 0; }
-.assign-existing { font-style: normal; }
 
 /* Mobile: client list -> target date -> target tasks */
 @media (max-width: 980px) {
@@ -820,163 +652,6 @@
 (function () {
     'use strict';
 
-    /* ---- Staff-centered assignment -------------------------------------
-       Owns its own form. All it adds on top of the planner's usual behaviour is
-       the live confirmation strip and the note that a client already holds the
-       chosen task, since one client + one task type per week is the existing
-       rule and a repeat save moves that row instead of adding another. */
-    var assignForm = document.getElementById('assignForm');
-
-    if (assignForm) {
-        var assignRows = Array.prototype.slice.call(assignForm.querySelectorAll('.client-row'));
-        var assignChecks = Array.prototype.slice.call(assignForm.querySelectorAll('.assign-client-check'));
-        var assignSearch = document.getElementById('assignClientSearch');
-        var assignSelectAll = document.getElementById('assignSelectAll');
-        var assignClear = document.getElementById('assignClearSelection');
-        var assignCount = document.getElementById('assignSelectedCount');
-        var assignSubmit = document.getElementById('assignSubmitBtn');
-        var assignStaff = document.getElementById('assignStaff');
-        var assignDate = document.getElementById('assignTargetDate');
-        var assignTaskType = document.getElementById('assignTaskType');
-        var assignEmpty = document.getElementById('assignClientEmpty');
-        var assignSumStaff = document.getElementById('assignSumStaff');
-        var assignSumDate = document.getElementById('assignSumDate');
-        var assignSumTask = document.getElementById('assignSumTask');
-        var assignSumClients = document.getElementById('assignSumClients');
-
-        var ASSIGN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-            'July', 'August', 'September', 'October', 'November', 'December'];
-
-        function assignSelectedCount() {
-            return assignChecks.filter(function (check) { return check.checked; }).length;
-        }
-
-        /* Reads straight off the selected option so the summary can never drift
-           from what the form will actually post. */
-        function assignOptionText(field) {
-            if (!field || field.selectedIndex < 0) {
-                return '';
-            }
-
-            var option = field.options[field.selectedIndex];
-            return option.value === '' ? '' : option.textContent.trim();
-        }
-
-        function assignFormatDate(iso) {
-            var parts = String(iso).split('-');
-
-            if (parts.length !== 3) {
-                return iso;
-            }
-
-            return Number(parts[2]) + ' ' + ASSIGN_MONTHS[Number(parts[1]) - 1] + ', ' + parts[0];
-        }
-
-        function refreshAssignSummary() {
-            var count = assignSelectedCount();
-
-            assignCount.textContent = String(count);
-            assignSumStaff.textContent = assignOptionText(assignStaff) || '—';
-            assignSumDate.textContent = assignDate.value ? assignFormatDate(assignDate.value) : '—';
-            assignSumTask.textContent = assignOptionText(assignTaskType) || '—';
-            assignSumClients.textContent = count + ' selected';
-
-            assignSubmit.disabled = count === 0
-                || assignStaff.value === ''
-                || assignDate.value === '';
-        }
-
-        function refreshAssignRows() {
-            assignChecks.forEach(function (check) {
-                check.closest('.client-row').classList.toggle('is-selected', check.checked);
-            });
-
-            refreshAssignSummary();
-        }
-
-        function refreshExistingHints() {
-            var task = assignTaskType ? assignTaskType.value : '';
-
-            assignChecks.forEach(function (check) {
-                var note = check.closest('.client-row').querySelector('.assign-existing');
-                var assigned = (check.getAttribute('data-assigned') || '').split(',').filter(Boolean);
-
-                if (task && assigned.indexOf(task) !== -1) {
-                    note.textContent = 'Already has this task — saving will update it';
-                    note.hidden = false;
-                } else {
-                    note.hidden = true;
-                }
-            });
-        }
-
-        function applyAssignFilter() {
-            var needle = (assignSearch.value || '').trim().toLowerCase();
-            var visible = 0;
-
-            assignRows.forEach(function (row) {
-                var haystack = (row.getAttribute('data-name') || '') + ' ' + (row.getAttribute('data-business') || '');
-                var matches = needle === '' || haystack.indexOf(needle) !== -1;
-
-                row.style.display = matches ? '' : 'none';
-
-                if (matches) {
-                    visible++;
-                }
-            });
-
-            assignEmpty.hidden = visible !== 0;
-        }
-
-        assignSearch.addEventListener('input', applyAssignFilter);
-
-        assignSelectAll.addEventListener('click', function () {
-            assignRows.forEach(function (row) {
-                if (row.style.display !== 'none') {
-                    row.querySelector('.assign-client-check').checked = true;
-                }
-            });
-            refreshAssignRows();
-        });
-
-        assignClear.addEventListener('click', function () {
-            assignChecks.forEach(function (check) { check.checked = false; });
-            refreshAssignRows();
-        });
-
-        assignChecks.forEach(function (check) {
-            check.addEventListener('change', refreshAssignRows);
-        });
-
-        [assignStaff, assignDate, assignTaskType].forEach(function (field) {
-            field.addEventListener('change', refreshAssignSummary);
-            field.addEventListener('input', refreshAssignSummary);
-        });
-
-        if (assignTaskType) {
-            assignTaskType.addEventListener('change', refreshExistingHints);
-        }
-
-        /* Submitting an empty selection would only bounce off the server, so the
-           button also guards itself for keyboards that submit on Enter. */
-        assignForm.addEventListener('submit', function (event) {
-            if (assignSelectedCount() === 0) {
-                event.preventDefault();
-            }
-        });
-
-        refreshExistingHints();
-        refreshAssignRows();
-    }
-})();
-</script>
-
-<script>
-(function () {
-    'use strict';
-
-    /* Scoped to the matrix list: the assignment card above reuses .client-row
-       for its own client picker, so an unscoped query would mix the two. */
     var rows = Array.prototype.slice.call(document.querySelectorAll('#clientRows .client-row'));
     var form = document.getElementById('targetForm');
     var searchInput = document.getElementById('clientSearch');
@@ -994,17 +669,88 @@
         }).length;
     }
 
-    function taskCount() {
-        return rows.reduce(function (acc, row) {
-            return acc + row.querySelectorAll('.task-check-input:checked').length;
-        }, 0);
+    /* Task types a client starts with when newly ticked. Record is deliberately
+       left out: it is the one stage staff usually schedule by hand. */
+    var DEFAULT_TASKS = ['pickup', 'return', 'payment'];
+
+    /* The saved task set rendered for this client at load, used to restore the
+       exact chips on re-tick instead of re-applying the defaults. */
+    function existingTasks(row) {
+        return (row.getAttribute('data-existing') || '').split(',').filter(Boolean);
+    }
+
+    /* { pairs, saved, removals } — pairs is every ticked client×task, saved is
+       how many of those already exist for this week, removals is how many
+       existing targets are currently unticked and will be deleted on save. */
+    function plannedCounts() {
+        var pairs = 0;
+        var saved = 0;
+        var removals = 0;
+
+        rows.forEach(function (row) {
+            var existing = existingTasks(row);
+            var checkedKeys = Array.prototype.map.call(
+                row.querySelectorAll('.task-check-input:checked'),
+                function (input) { return input.value; }
+            );
+
+            pairs += checkedKeys.length;
+            saved += checkedKeys.filter(function (key) { return existing.indexOf(key) !== -1; }).length;
+            removals += existing.filter(function (key) { return checkedKeys.indexOf(key) === -1; }).length;
+        });
+
+        return { pairs: pairs, saved: saved, removals: removals };
     }
 
     function updateSummary() {
-        document.getElementById('selectedCount').textContent = selectedCount();
-        document.getElementById('summaryClients').textContent = selectedCount();
-        document.getElementById('summaryTasks').textContent = taskCount();
-        document.getElementById('saveTargetsBtn').disabled = selectedCount() === 0;
+        var clients = selectedCount();
+        var counts = plannedCounts();
+        var removalNote = document.getElementById('summaryRemovals');
+
+        document.getElementById('selectedCount').textContent = clients;
+        document.getElementById('summaryClients').textContent = clients;
+        document.getElementById('summaryTasks').textContent = counts.pairs;
+        document.getElementById('summarySaved').textContent = counts.saved;
+        document.getElementById('saveTargetsBtn').disabled = clients === 0;
+
+        if (removalNote) {
+            removalNote.hidden = counts.removals === 0;
+            removalNote.textContent = counts.removals + ' saved target' + (counts.removals === 1 ? '' : 's')
+                + ' will be removed when you save unless still ticked.';
+        }
+    }
+
+    /* Newly ticking a client preloads the usual week: Pick-Up, Return and
+       Billing. A client that already holds saved targets keeps them exactly as
+       rendered — re-ticking restores that saved set, never the defaults, so an
+       existing assignment is never reset by a selection change. */
+    function applyTaskDefaults(row) {
+        var existing = existingTasks(row);
+        var chips = Array.prototype.slice.call(row.querySelectorAll('.task-check-input'));
+
+        chips.forEach(function (chip) {
+            if (existing.length) {
+                chip.checked = existing.indexOf(chip.value) !== -1;
+            } else if (DEFAULT_TASKS.indexOf(chip.value) !== -1) {
+                chip.checked = true;
+            }
+        });
+
+        syncRow(row);
+    }
+
+    function setClientChecked(row, checked) {
+        var check = row.querySelector('.client-check');
+
+        if (check.checked !== checked) {
+            check.checked = checked;
+        }
+
+        syncRow(row);
+
+        if (checked) {
+            applyTaskDefaults(row);
+        }
     }
 
     function visibleRows() {
@@ -1058,12 +804,31 @@
 
         // A staff selector is only meaningful for a task that is actually
         // targeted this week, so it enables with its own task chip.
-        Array.prototype.slice.call(row.querySelectorAll('.task-unit')).forEach(function (unit) {
-            var input = unit.querySelector('.task-check-input');
-            var staff = unit.querySelector('.task-staff');
-            if (!staff) return;
-            staff.disabled = !input.checked || input.disabled;
-            if (staff.disabled) staff.value = '';
+        Array.prototype.slice.call(row.querySelectorAll('.task-staff')).forEach(function (staffSel) {
+            if (staffSel.dataset.autoBound) return;
+            staffSel.dataset.autoBound = '1';
+            staffSel.addEventListener('change', function () {
+                var unit = staffSel.closest('.task-unit');
+                var taskKey = unit ? unit.getAttribute('data-task-unit') : null;
+                if (!taskKey) return;
+                var key = taskKey.toLowerCase();
+                if (key === 'pickup') {
+                    var val = staffSel.value;
+                    if (!val) return;
+                    var returnSel = row.querySelector('.task-unit[data-task-unit="return"] .task-staff');
+                    var paySel = row.querySelector('.task-unit[data-task-unit="payment"] .task-staff');
+                    if (returnSel && !returnSel.disabled && (!returnSel.dataset.userChanged || returnSel.dataset.userChanged === 'auto')) {
+                        returnSel.value = val;
+                        returnSel.dataset.userChanged = 'auto';
+                    }
+                    if (paySel && !paySel.disabled && (!paySel.dataset.userChanged || paySel.dataset.userChanged === 'auto')) {
+                        paySel.value = val;
+                        paySel.dataset.userChanged = 'auto';
+                    }
+                } else if (key === 'return' || key === 'payment') {
+                    staffSel.dataset.userChanged = 'manual';
+                }
+            });
         });
 
         var anyTask = taskInputs.some(function (input) { return input.checked; });
@@ -1076,24 +841,41 @@
 
     rows.forEach(function (row) {
         var check = row.querySelector('.client-check');
-        check.addEventListener('change', function () { syncRow(row); });
+        check.addEventListener('change', function () { setClientChecked(row, check.checked); });
         Array.prototype.slice.call(row.querySelectorAll('.task-check-input')).forEach(function (input) {
             input.addEventListener('change', function () { syncRow(row); });
+        });
+        Array.prototype.slice.call(row.querySelectorAll('.task-staff')).forEach(function (staffSel) {
+            staffSel.addEventListener('change', function () {
+                var unit = staffSel.closest('.task-unit');
+                var taskKey = unit ? unit.getAttribute('data-task-unit') : null;
+                if (!taskKey || taskKey.toLowerCase() !== 'pickup') return;
+                var val = staffSel.value;
+                if (!val) return;
+                var returnSel = row.querySelector('.task-unit[data-task-unit="return"] .task-staff');
+                var paySel = row.querySelector('.task-unit[data-task-unit="payment"] .task-staff');
+                if (returnSel && returnSel.disabled === false && !returnSel.dataset.userChanged) {
+                    returnSel.value = val;
+                    returnSel.dataset.userChanged = 'auto';
+                }
+                if (paySel && paySel.disabled === false && !paySel.dataset.userChanged) {
+                    paySel.value = val;
+                    paySel.dataset.userChanged = 'auto';
+                }
+            });
         });
     });
 
     selectAllToggle.addEventListener('change', function () {
-        var check = this.checked;
+        var checked = this.checked;
         visibleRows().forEach(function (row) {
-            row.querySelector('.client-check').checked = check;
-            syncRow(row);
+            setClientChecked(row, checked);
         });
     });
 
     document.getElementById('selectAllVisible').addEventListener('click', function () {
         visibleRows().forEach(function (row) {
-            row.querySelector('.client-check').checked = true;
-            syncRow(row);
+            setClientChecked(row, true);
         });
     });
 
@@ -1107,17 +889,52 @@
     searchInput.addEventListener('input', applyFilters);
     filterSelect.addEventListener('change', applyFilters);
 
-    // Prevent submitting a client with no task selected.
+    // Prevent submitting a client with no task selected. The message is shown
+    // inline next to the Save button instead of a blocking browser alert.
+    var formError = document.getElementById('targetFormError');
+
+    form.addEventListener('change', function () {
+        if (formError) {
+            formError.hidden = true;
+        }
+    });
+
     form.addEventListener('submit', function (e) {
-        var anyInvalid = rows.some(function (row) {
+        var firstInvalid = null;
+
+        rows.some(function (row) {
             var check = row.querySelector('.client-check');
             if (!check.checked) return false;
-            return row.querySelectorAll('.task-check-input:checked').length === 0;
+            if (row.querySelectorAll('.task-check-input:checked').length === 0) {
+                firstInvalid = row;
+                return true;
+            }
+            return false;
         });
-        if (anyInvalid) {
+
+        if (firstInvalid) {
             e.preventDefault();
-            alert('Each selected client needs at least one target task.');
+
+            if (formError) {
+                var nameEl = firstInvalid.querySelector('.client-name');
+                var name = nameEl ? nameEl.textContent.trim() : '';
+                formError.textContent = name
+                    ? 'Each selected client needs at least one target task. Tick a task for ' + name + ', or untick the client.'
+                    : 'Each selected client needs at least one target task.';
+                formError.hidden = false;
+                formError.scrollIntoView({ block: 'nearest' });
+            }
+
+            return;
         }
+
+        if (formError) {
+            formError.hidden = true;
+        }
+
+        var saveBtn = document.getElementById('saveTargetsBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
     });
 
     rows.forEach(function (row) { syncRow(row); });

@@ -628,6 +628,11 @@ class WeeklyBookkeepingTarget extends Model
         if ($this->weeklyBookkeeping) {
             $this->weeklyBookkeeping->syncOverallStatus();
         }
+
+        // Move the Pick-Up → Record → Return → Billing chain along by starting
+        // the next stage. Never completes it, never touches started work, and
+        // is a no-op when the next stage is already underway.
+        $this->startNextStage($user);
     }
 
     public function requiresAttachment(): bool

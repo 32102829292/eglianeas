@@ -22,14 +22,20 @@
         </div>
     </div>
 
+    {{--
+        $history is the trail the controller already scoped to the signed-in
+        user: plain staff only see entries about their own tasks, while
+        supervisors and admins see the whole week. Rendering the relation
+        directly would leak other people's events, so always iterate $history.
+    --}}
     <div class="card">
         <div class="card-head">
-            <h2 class="card-title">Accountability Timeline <span class="card-sub">{{ $bookkeeping->history->count() }} {{ \Illuminate\Support\Str::plural('event', $bookkeeping->history->count()) }}</span></h2>
+            <h2 class="card-title">Accountability Timeline <span class="card-sub">{{ $history->count() }} {{ \Illuminate\Support\Str::plural('event', $history->count()) }}</span></h2>
         </div>
 
-        @if ($bookkeeping->history->isNotEmpty())
+        @if ($history->isNotEmpty())
             <div class="timeline">
-                @foreach ($bookkeeping->history as $log)
+                @foreach ($history as $log)
                     @php
                         $userName = trim($log->user?->name ?? 'Guest');
                         $userRole = $log->user ? $log->user->role : 'Unknown';

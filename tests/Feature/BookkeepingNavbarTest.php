@@ -74,7 +74,9 @@ class BookkeepingNavbarTest extends TestCase
 
         $content = $this->actingAs($staff)->get(route('admin.dashboard'))->assertOk()->getContent();
 
-        $weekly = strpos($content, route('admin.weekly-bookkeeping.index'));
+        /* Weekly bookkeeping lives behind the consolidated Weekly Tracker entry,
+           which is the weekly half of this grouping. */
+        $weekly = strpos($content, route('admin.weekly-tracker.index'));
         $monthly = strpos($content, route('admin.monthly-bookkeeping.index'));
         $quarterly = strpos($content, route('admin.quarterly-bookkeeping.index'));
 

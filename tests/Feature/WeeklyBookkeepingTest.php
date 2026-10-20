@@ -484,7 +484,8 @@ class WeeklyBookkeepingTest extends TestCase
             ->assertSee('Select all visible')
             ->assertSee('Clear selection')
             ->assertSee('Selected clients')
-            ->assertSee('Selected tasks');
+            ->assertSee('Planned targets')
+            ->assertSee('Already saved');
 
         // Per-client target date input is still rendered for every task type.
         $response->assertSee('name="target_date['.$client->id.']"', false)
@@ -1657,40 +1658,8 @@ class WeeklyBookkeepingTest extends TestCase
     }
 
     // -----------------------------------------------------------------
-    // Staff-centered assignment
+    // Planner: single picker, defaults, summary
     // -----------------------------------------------------------------
-
-    /**
-     * Saves one staff-centered batch through the real endpoint: a single staff
-     * member, one target date, one task type and any number of clients.
-     *
-     * @param  array<int, int>  $clientIds
-     */
-    private function bulkAssign(
-        User $actor,
-        User $assignee,
-        string $taskType,
-        array $clientIds,
-        ?string $targetDate = null,
-        ?string $week = null,
-        array $overrides = []
-    ): WeeklyBookkeeping {
-        $week ??= $this->weekStart();
-
-        $this->actingAs($actor)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), array_merge([
-                'week_start' => $week,
-                'assigned_staff_id' => $assignee->id,
-                'task_type' => $taskType,
-                'target_date' => $targetDate ?? $week,
-                'client_ids' => $clientIds,
-            ], $overrides))
-            ->assertRedirect();
-
-        return WeeklyBookkeeping::query()
-            ->whereDate('week_start', $week)
-            ->firstOrFail();
-    }
 
     /** A date inside the week but not on its first day. */
     private function insideWeek(int $daysIn): string
@@ -1712,287 +1681,25 @@ class WeeklyBookkeepingTest extends TestCase
             ->firstOrFail();
     }
 
-    public function test_one_staff_member_can_be_assigned_many_clients_in_a_single_batch(): void
-    {
-        $angeli = $this->staff('Angeli');
-        $clientA = $this->client('Client A');
-        $clientB = $this->client('Client B');
-        $clientC = $this->client('Client C');
-        $date = $this->insideWeek(3);
-
-        $plan = $this->bulkAssign($angeli, $angeli, 'pickup', [$clientA->id, $clientB->id, $clientC->id], $date);
-
-        $this->assertSame(3, $plan->targets()->count());
-
-        /* One selection of the staff member, three resulting assignments that all
-           name her and carry the same batch target date. */
-        foreach ([$clientA, $clientB, $clientC] as $client) {
-            $target = $this->targetFor($plan, $client->id, 'pickup');
-
-            $this->assertSame($angeli->id, $target->assigned_staff_id);
-            $this->assertSame('Angeli', $target->assigned_staff_name);
-            $this->assertSame($date, $target->target_date->format('Y-m-d'));
-            $this->assertSame('pending', $target->actual_status);
-        }
-    }
-
-    public function test_each_staff_member_keeps_an_independent_target_date_in_the_same_week(): void
-    {
-        $angeli = $this->staff('Angeli');
-        $maria = $this->staff('Maria');
-        $clientA = $this->client('Client A');
-
-        $angeliDate = $this->insideWeek(2);
-        $mariaDate = $this->insideWeek(5);
-
-        $this->bulkAssign($angeli, $angeli, 'pickup', [$clientA->id], $angeliDate);
-        $plan = $this->bulkAssign($maria, $maria, 'record', [$clientA->id], $mariaDate);
-
-        $pickup = $this->targetFor($plan, $clientA->id, 'pickup');
-        $record = $this->targetFor($plan, $clientA->id, 'record');
-
-        /* Same plan, same week, two different deadlines. */
-        $this->assertSame($angeli->id, $pickup->assigned_staff_id);
-        $this->assertSame($angeliDate, $pickup->target_date->format('Y-m-d'));
-
-        $this->assertSame($maria->id, $record->assigned_staff_id);
-        $this->assertSame($mariaDate, $record->target_date->format('Y-m-d'));
-
-        $this->assertNotSame(
-            $pickup->target_date->format('Y-m-d'),
-            $record->target_date->format('Y-m-d')
-        );
-    }
-
-    public function test_same_client_can_have_different_staff_for_different_tasks(): void
-    {
-        $angeli = $this->staff('Angeli');
-        $maria = $this->staff('Maria');
-        $john = $this->staff('John');
-        $clientA = $this->client('Client A');
-
-        $this->bulkAssign($angeli, $angeli, 'pickup', [$clientA->id], $this->insideWeek(1));
-        $this->bulkAssign($maria, $maria, 'record', [$clientA->id], $this->insideWeek(3));
-        $plan = $this->bulkAssign($john, $john, 'return', [$clientA->id], $this->insideWeek(5));
-
-        $this->assertSame(3, $plan->targets()->where('client_id', $clientA->id)->count());
-
-        $this->assertSame($angeli->id, $this->targetFor($plan, $clientA->id, 'pickup')->assigned_staff_id);
-        $this->assertSame($maria->id, $this->targetFor($plan, $clientA->id, 'record')->assigned_staff_id);
-        $this->assertSame($john->id, $this->targetFor($plan, $clientA->id, 'return')->assigned_staff_id);
-    }
-
-    public function test_bulk_assignment_covers_every_task_type(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-
-        foreach (array_keys(WeeklyBookkeepingTarget::TASK_TYPES) as $index => $taskType) {
-            $this->bulkAssign($staff, $staff, $taskType, [$client->id], $this->insideWeek($index + 1));
-        }
-
-        $plan = $this->findPlan($staff, $this->weekStart());
-
-        $this->assertSame(
-            count(WeeklyBookkeepingTarget::TASK_TYPES),
-            $plan->targets()->where('client_id', $client->id)->count()
-        );
-
-        foreach (array_keys(WeeklyBookkeepingTarget::TASK_TYPES) as $taskType) {
-            $this->assertTrue(
-                $plan->targets()->where('client_id', $client->id)->where('task_type', $taskType)->exists(),
-                "Missing a target for the {$taskType} task."
-            );
-        }
-    }
-
-    public function test_bulk_assignment_updates_an_existing_target_instead_of_duplicating_it(): void
-    {
-        $angeli = $this->staff('Angeli');
-        $maria = $this->staff('Maria');
-        $client = $this->client('Client A');
-        $newDate = $this->insideWeek(6);
-
-        $this->bulkAssign($angeli, $angeli, 'pickup', [$client->id], $this->insideWeek(2));
-        $plan = $this->bulkAssign($maria, $maria, 'pickup', [$client->id], $newDate);
-
-        /* One client + one task type per week stays the rule, so the repeat
-           submission moves the existing row rather than adding a second one. */
-        $this->assertSame(1, $plan->targets()->where('client_id', $client->id)->where('task_type', 'pickup')->count());
-
-        $target = $this->targetFor($plan, $client->id, 'pickup');
-        $this->assertSame($maria->id, $target->assigned_staff_id);
-        $this->assertSame($newDate, $target->target_date->format('Y-m-d'));
-    }
-
-    public function test_bulk_assignment_rejects_a_target_date_outside_the_week(): void
+    public function test_the_planner_rejects_a_target_date_outside_the_week(): void
     {
         $staff = $this->staff('Angeli');
         $client = $this->client('Client A');
 
         $this->actingAs($staff)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+            ->post(route('admin.weekly-bookkeeping.store'), [
                 'week_start' => $this->weekStart(),
-                'assigned_staff_id' => $staff->id,
-                'task_type' => 'pickup',
-                'target_date' => $this->outsideWeek(),
-                'client_ids' => [$client->id],
+                'clients' => [$client->id],
+                'tasks' => [$client->id => ['pickup']],
+                'target_date' => [$client->id => $this->outsideWeek()],
             ])
-            ->assertSessionHasErrors('target_date');
+            ->assertRedirect()
+            ->assertSessionHasErrors('target_date.'.$client->id);
 
+        /* Dates are resolved before anything is written, so a rejected date must
+           not leave a half-built week behind. */
         $this->assertSame(0, WeeklyBookkeeping::query()->count());
         $this->assertSame(0, WeeklyBookkeepingTarget::query()->count());
-    }
-
-    public function test_bulk_assignment_requires_at_least_one_client(): void
-    {
-        $staff = $this->staff('Angeli');
-
-        $this->actingAs($staff)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
-                'week_start' => $this->weekStart(),
-                'assigned_staff_id' => $staff->id,
-                'task_type' => 'pickup',
-                'target_date' => $this->weekStart(),
-                'client_ids' => [],
-            ])
-            ->assertSessionHasErrors('client_ids');
-    }
-
-    public function test_bulk_assignment_will_not_name_a_client_account_as_the_owner(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-
-        $this->actingAs($staff)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
-                'week_start' => $this->weekStart(),
-                'assigned_staff_id' => $client->id,
-                'task_type' => 'pickup',
-                'target_date' => $this->weekStart(),
-                'client_ids' => [$client->id],
-            ])
-            ->assertSessionHasErrors('assigned_staff_id');
-    }
-
-    public function test_bulk_assignment_will_not_accept_a_staff_account_as_a_client(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-
-        $this->actingAs($staff)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
-                'week_start' => $this->weekStart(),
-                'assigned_staff_id' => $staff->id,
-                'task_type' => 'pickup',
-                'target_date' => $this->weekStart(),
-                'client_ids' => [$client->id, $staff->id],
-            ])
-            ->assertSessionHasErrors('client_ids');
-
-        $this->assertSame(0, WeeklyBookkeepingTarget::query()->count());
-    }
-
-    public function test_a_client_cannot_use_the_staff_centered_assignment_endpoint(): void
-    {
-        $client = $this->client('Client A');
-
-        $this->actingAs($client)
-            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
-                'week_start' => $this->weekStart(),
-                'assigned_staff_id' => $client->id,
-                'task_type' => 'pickup',
-                'target_date' => $this->weekStart(),
-                'client_ids' => [$client->id],
-            ])
-            ->assertForbidden();
-    }
-
-    public function test_bulk_assignments_stay_inside_their_own_week(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-        $current = $this->weekStart();
-        $next = now()->startOfWeek()->addWeek()->format('Y-m-d');
-
-        $plan = $this->bulkAssign($staff, $staff, 'pickup', [$client->id], null, $current);
-
-        $this->assertTrue($plan->targets()->exists());
-        $this->assertNull(
-            WeeklyBookkeeping::query()->whereDate('week_start', $next)->first(),
-            'Assigning in one week must not create a plan for another.'
-        );
-    }
-
-    public function test_bulk_assignment_feeds_the_existing_summary_counts(): void
-    {
-        $staff = $this->staff('Angeli');
-        $clientA = $this->client('Client A');
-        $clientB = $this->client('Client B');
-
-        $this->bulkAssign($staff, $staff, 'pickup', [$clientA->id, $clientB->id], $this->insideWeek(3));
-
-        $this->actingAs($staff)
-            ->get(route('admin.weekly-bookkeeping.index', ['week_start' => $this->weekStart()]))
-            ->assertOk()
-            ->assertViewHas('summary', function (array $summary) {
-                $this->assertSame(2, $summary['tasks']);
-                $this->assertSame(2, $summary['clients']);
-                $this->assertSame(0, $summary['completed']);
-                $this->assertSame(2, $summary['pending']);
-
-                return true;
-            });
-    }
-
-    public function test_bulk_assignment_is_recorded_in_the_plan_history(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-
-        $plan = $this->bulkAssign($staff, $staff, 'pickup', [$client->id], $this->insideWeek(4));
-
-        $this->assertTrue(
-            ActivityLog::query()
-                ->where('action', 'weekly_bookkeeping.target_added')
-                ->where('description', 'like', '%Angeli%')
-                ->exists()
-        );
-
-        $this->actingAs($staff)
-            ->get(route('admin.weekly-bookkeeping.show', $plan))
-            ->assertOk();
-    }
-
-    public function test_the_planner_page_offers_the_staff_centered_assignment_panel(): void
-    {
-        $staff = $this->staff('Angeli');
-        $client = $this->client('Client A');
-        $url = route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]);
-
-        $this->actingAs($staff)
-            ->get($url)
-            ->assertOk()
-            ->assertSee(route('admin.weekly-bookkeeping.bulk-assign'), false)
-            ->assertSee('Assign Bookkeeping Tasks')
-            ->assertSee('Assign a staff member, target date, task, and multiple clients.')
-            ->assertSee('Within this week:')
-            ->assertSee('Select Clients')
-            ->assertSee('clients selected')
-            ->assertSee('Add Assignment')
-            ->assertSee('name="assigned_staff_id"', false)
-            ->assertSee('name="target_date"', false)
-            ->assertSee('name="task_type"', false)
-            ->assertSee('name="client_ids[]"', false)
-            ->assertSee((string) $client->id, false);
-
-        /* The original client matrix is still on the page, untouched. */
-        $this->actingAs($staff)
-            ->get($url)
-            ->assertOk()
-            ->assertSee('Select Clients')
-            ->assertSee('name="clients[]"', false)
-            ->assertSee('name="tasks[', false);
     }
 
     public function test_existing_plan_records_still_render_on_the_planner(): void
@@ -2002,27 +1709,20 @@ class WeeklyBookkeepingTest extends TestCase
         $clientB = $this->client('Client B');
 
         $this->createPlan($staff, $this->weekStart(), [
-            $clientA->id => ['tasks' => ['pickup'], 'date' => $this->insideWeek(2)],
-            $clientB->id => ['tasks' => ['record'], 'date' => $this->insideWeek(4)],
+            $clientA->id => ['tasks' => ['pickup', 'payment'], 'date' => $this->insideWeek(2)],
+            $clientB->id => ['tasks' => ['record', 'payment'], 'date' => $this->insideWeek(4)],
         ]);
-
-        $this->actingAs($staff)
-            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
-            ->assertOk()
-            ->assertSee('Client A')
-            ->assertSee('Client B');
-
-        /* And the panel flags a client who already holds the chosen task. */
-        $this->bulkAssign($staff, $staff, 'payment', [$clientA->id, $clientB->id], $this->insideWeek(1));
 
         $plan = $this->findPlan($staff, $this->weekStart());
         $this->assertSame(4, $plan->targets()->count());
 
         /* Existing work is summarised in the app's own table style, one row per
-           staff + date + task batch. */
+           staff + date + task group. */
         $this->actingAs($staff)
             ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
             ->assertOk()
+            ->assertSee('Client A')
+            ->assertSee('Client B')
             ->assertSee('Current Assignments')
             ->assertSee('<th>Staff</th>', false)
             ->assertSee('<th>Target Date</th>', false)
@@ -2033,7 +1733,7 @@ class WeeklyBookkeepingTest extends TestCase
             ->assertSee('Payment');
     }
 
-    public function test_the_planner_shows_only_one_assignment_panel(): void
+    public function test_the_planner_has_a_single_client_picker_and_no_bulk_assignment_panel(): void
     {
         $staff = $this->staff('Angeli');
         $this->client('Client A');
@@ -2041,20 +1741,347 @@ class WeeklyBookkeepingTest extends TestCase
         $html = $this->actingAs($staff)
             ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
             ->assertOk()
+            ->assertDontSee('id="assignForm"')
+            ->assertDontSee('Assign Bookkeeping Tasks')
+            ->assertDontSee('Add Assignment')
+            ->assertDontSee('name="assigned_staff_id"', false)
+            ->assertDontSee('admin.weekly-bookkeeping.bulk-assign')
+            ->assertSee('id="targetForm"', false)
             ->getContent();
 
-        /* Exactly one staff-centered assignment panel: one heading, one form,
-           one submit button. */
-        $this->assertSame(1, substr_count($html, 'Assign Bookkeeping Tasks'));
-        $this->assertSame(1, substr_count($html, 'id="assignForm"'));
-        $this->assertSame(1, substr_count($html, 'id="assignSubmitBtn"'));
+        /* Exactly one client list posts the plan. */
+        $this->assertSame(1, substr_count($html, 'name="clients[]"'));
+        $this->assertStringNotContainsString('<details class="target-adv">', $html);
+    }
 
-        /* The client matrix is still on the page and still posts to .store, but
-           it is folded away behind its own toggle instead of reading as a second
-           assignment panel. */
-        $this->assertSame(1, substr_count($html, 'id="targetForm"'));
-        $this->assertSame(1, substr_count($html, 'Client-by-client planner'));
-        $this->assertStringContainsString('<details class="target-adv">', $html);
-        $this->assertStringNotContainsString('<details class="target-adv" open', $html);
+    public function test_completion_percent_counts_task_specific_outcomes_not_just_the_word_completed(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $clientA = $this->client('Client A');
+        $clientB = $this->client('Client B');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $clientA->id => ['tasks' => ['pickup'], 'date' => now()->format('Y-m-d')],
+            $clientB->id => ['tasks' => ['record']],
+        ]);
+        $plan = $this->findPlan($staff, $week);
+
+        $this->assertSame(0, $plan->fresh()->completionPercent());
+
+        $pickup = $this->targetFor($plan, $clientA->id, 'pickup');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $pickup]));
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $pickup]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Pick-Up On Time.');
+
+        $pickup->refresh();
+        /* A finished Pick-Up reads "On Time", not "Completed". Counting only the
+           literal "completed" status left this plan at 0% forever. */
+        $this->assertSame(WeeklyBookkeepingTarget::ACTUAL_STATUS_ON_TIME, $pickup->actual_status);
+        $this->assertSame(50, $plan->fresh()->completionPercent());
+
+        /* The show page renders the very same figure. */
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->assertSee('<div class="info-value">50%</div>', false);
+    }
+
+    public function test_a_disallowed_evidence_file_type_returns_a_validation_error_not_a_crash(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['pickup']]]);
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]));
+
+        /* A disallowed file used to escape as an InvalidArgumentException and
+           surface as a 500 page. It must come back as a field-level validation
+           error so the user can simply pick another file. */
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.upload-attachment', [$plan, $target]), [
+                'attachment' => UploadedFile::fake()->create('payload.exe', 64),
+            ])
+            ->assertRedirect()
+            ->assertSessionHasErrors('attachment');
+
+        $target->refresh();
+        $this->assertNull($target->attachment_path);
+        $this->assertNull($target->attachment_name);
+    }
+
+    public function test_a_failed_target_save_rechecks_the_previously_selected_clients(): void
+    {
+        $staff = $this->staff('Angeli');
+        $clientA = $this->client('Client A');
+        $clientB = $this->client('Client B');
+        $week = $this->weekStart();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.store'), [
+                'week_start' => $week,
+                'clients' => [$clientA->id, $clientB->id],
+                'tasks' => [
+                    $clientA->id => ['pickup'],
+                    $clientB->id => ['pickup'],
+                ],
+                // Outside the week: fails validation and flashes old input.
+                'target_date' => [
+                    $clientA->id => $this->outsideWeek(),
+                    $clientB->id => $this->outsideWeek(),
+                ],
+            ])
+            ->assertSessionHasErrors('target_date.'.$clientA->id);
+
+        $html = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $week]))
+            ->assertOk()
+            ->getContent();
+
+        /* Both clients are ticked again after the bounce, so a validation error
+           never silently empties the selection the user was building. */
+        foreach ([$clientA, $clientB] as $client) {
+            $this->assertMatchesRegularExpression(
+                '/name="clients\[\]" value="'.$client->id.'"[^>]*checked/',
+                $html
+            );
+        }
+
+        /* On a page without flashed input nobody is ticked. */
+        $fresh = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $week]))
+            ->assertOk()
+            ->getContent();
+
+        foreach ([$clientA, $clientB] as $client) {
+            $this->assertDoesNotMatchRegularExpression(
+                '/name="clients\[\]" value="'.$client->id.'"[^>]*checked/',
+                $fresh
+            );
+        }
+    }
+
+    public function test_newly_selected_clients_default_to_pickup_return_and_payment(): void
+    {
+        $staff = $this->staff('Angeli');
+        $client = $this->client('Client A');
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
+            ->assertOk()
+            ->assertSee("var DEFAULT_TASKS = ['pickup', 'return', 'payment'];", false);
+
+        /* Each row also renders the saved task set it restores on re-tick, so a
+           client with existing targets is never re-defaulted from scratch. */
+        $this->createPlan($staff, $this->weekStart(), [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insideWeek(2)],
+        ]);
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
+            ->assertOk()
+            ->assertSee('data-existing="record"', false);
+    }
+
+    public function test_the_summary_counts_saved_targets_separately_from_new_ones(): void
+    {
+        $staff = $this->staff('Angeli');
+        $this->client('Client A');
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $this->weekStart()]))
+            ->assertOk()
+            ->assertSee('Selected clients')
+            ->assertSee('Planned targets')
+            ->assertSee('Already saved')
+            ->assertSee('id="summaryClients"', false)
+            ->assertSee('id="summaryTasks"', false)
+            ->assertSee('id="summarySaved"', false)
+            ->assertSee('id="summaryRemovals"', false);
+    }
+
+    // -----------------------------------------------------------------
+    // Automatic Pick-Up → Record → Return → Billing transitions
+    // -----------------------------------------------------------------
+
+    public function test_completing_pickup_auto_starts_the_next_record_stage(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'record', 'return', 'payment']],
+        ]);
+        $plan = $this->findPlan($staff, $week);
+
+        $pickup = $this->targetFor($plan, $client->id, 'pickup');
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        $this->assertTrue($record->isPending());
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $pickup]));
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $pickup]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $record->refresh();
+        /* Finishing Pick-Up must move Record to In Progress, not complete it. */
+        $this->assertTrue($record->isInProgress(), 'Record should auto-start after Pick-Up completes.');
+        $this->assertNotNull($record->started_at);
+        $this->assertFalse($record->isCompleted(), 'Record must not be auto-completed.');
+    }
+
+    public function test_the_whole_sequence_advances_one_stage_at_a_time(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'record', 'return', 'payment']],
+        ]);
+        $plan = $this->findPlan($staff, $week);
+
+        $sequence = ['pickup', 'record', 'return', 'payment'];
+
+        foreach ($sequence as $index => $type) {
+            $target = $this->targetFor($plan, $client->id, $type);
+
+            /* Only the first stage starts pending; each later one should have
+               been auto-started by the previous completion. */
+            if ($index > 0) {
+                $this->assertTrue($target->isInProgress(), "{$type} should be in progress.");
+            }
+
+            if ($target->isPending()) {
+                $this->actingAs($staff)
+                    ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]));
+            }
+
+            $this->actingAs($staff)
+                ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $target]), [
+                    'attachment' => UploadedFile::fake()->image("proof-{$type}.jpg"),
+                ])
+                ->assertRedirect();
+        }
+
+        foreach ($sequence as $type) {
+            $this->assertTrue(
+                $this->targetFor($plan, $client->id, $type)->isCompleted(),
+                "{$type} should be completed."
+            );
+        }
+    }
+
+    public function test_completing_the_final_payment_stage_starts_nothing_and_does_not_reset_earlier_work(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'payment']],
+        ]);
+        $plan = $this->findPlan($staff, $week);
+
+        $pickup = $this->targetFor($plan, $client->id, 'pickup');
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $pickup]));
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $pickup]), [
+                'attachment' => UploadedFile::fake()->image('pickup.jpg'),
+            ])
+            ->assertRedirect();
+
+        /* Record is absent from the plan, so the auto-advance finds no next
+           stage and must not error or invent one. */
+        $this->assertSame(2, $plan->targets()->count());
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $payment]));
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $payment]), [
+                'attachment' => UploadedFile::fake()->image('payment.jpg'),
+            ])
+            ->assertRedirect();
+
+        /* The final stage completes without touching the already-finished
+           Pick-Up. */
+        $pickup->refresh();
+        $this->assertTrue($pickup->isCompleted());
+        $this->assertSame(WeeklyBookkeepingTarget::ACTUAL_STATUS_ON_TIME, $pickup->actual_status);
+    }
+
+    public function test_auto_advance_is_idempotent_and_never_resets_a_started_stage(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup', 'record']],
+        ]);
+        $plan = $this->findPlan($staff, $week);
+
+        $pickup = $this->targetFor($plan, $client->id, 'pickup');
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $record]));
+        $record->refresh();
+        $firstStartedAt = $record->started_at;
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $pickup]));
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $pickup]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ]);
+
+        $record->refresh();
+        /* Record was already in progress, so its original start time must be
+           preserved rather than reset by the auto-advance. */
+        $this->assertTrue($record->isInProgress());
+        $this->assertTrue($firstStartedAt->equalTo($record->started_at));
+    }
+
+    public function test_the_remarks_modal_never_posts_a_placeholder_target_id(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['pickup']]]);
+        $plan = $this->findPlan($staff, $week);
+
+        $html = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->getContent();
+
+        /* The opener must carry the real id, and the guard script must exist so
+           the placeholder action can never be submitted verbatim. */
+        $target = $plan->targets()->first();
+        $this->assertStringContainsString('data-bk-remarks-for="'.$target->id.'"', $html);
+        $this->assertStringContainsString("indexOf('__BK_TARGET_ID__')", $html);
     }
 }

@@ -139,9 +139,9 @@
 
         <div class="wk-weekbar-spacer"></div>
 
-        {{-- Quick actions --}}
+        {{-- Quick actions. "Set Weekly Target" and "Print Report" already sit in
+             the page header above, so only the navigation shortcuts live here. --}}
         <nav class="wk-quick" aria-label="Quick actions">
-            <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}">Add Weekly Target</a>
             @if ($plans->isNotEmpty())
                 <a href="{{ route('admin.weekly-bookkeeping.show', $plans->first()->id) }}">Assign Tasks</a>
             @else
@@ -149,7 +149,6 @@
             @endif
             <a href="{{ $viewUrl('pending') }}">View Pending</a>
             <a href="{{ $viewUrl('attention') }}">View Attention</a>
-            <a href="{{ route('admin.weekly-bookkeeping.report', ['week_start' => $activeWeekStart]) }}">Print Report</a>
         </nav>
     </div>
 
@@ -181,6 +180,31 @@
             </div>
         </div>
     </section>
+
+    {{-- ============ NEXT STEP HINT ============ --}}
+    {{-- One plain-language line telling the reader what to do next, computed
+         only from counts the controller already sent. Never blocks anything. --}}
+    @if ($plans->isEmpty())
+        <p class="wk-nextstep">
+            <b>Next step:</b> no target is set for this week yet.
+            <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}">Set this week&rsquo;s target</a>
+            to assign work to your team.
+        </p>
+    @elseif ($summary['attention'] > 0)
+        <p class="wk-nextstep is-warn">
+            <b>Next step:</b> {{ $summary['attention'] }} {{ \Illuminate\Support\Str::plural('task', $summary['attention']) }} {{ $summary['attention'] === 1 ? 'needs' : 'need' }} attention
+            (overdue, unassigned or unpaid) &mdash; see <a href="#wk-todo-h">What Needs to Be Done</a> below.
+        </p>
+    @elseif ($summary['pending'] > 0)
+        <p class="wk-nextstep">
+            <b>Next step:</b> {{ $summary['pending'] }} {{ \Illuminate\Support\Str::plural('task', $summary['pending']) }} still open this week &mdash;
+            start or complete {{ $summary['pending'] === 1 ? 'it' : 'them' }} from the task list below.
+        </p>
+    @else
+        <p class="wk-nextstep is-ok">
+            <b>All done:</b> every task scheduled for this week is complete.
+        </p>
+    @endif
 
     {{-- ============ FILTERS (collapsible) ============ --}}
     <details class="wk-filters"{!! $hasActiveFilters ? ' open' : '' !!}>
@@ -258,6 +282,141 @@
             </div>
         </form>
     </details>
+
+    {{-- ============ WEEKLY BOOKKEEPING SHEET (main content) ============ --}}
+    {{-- The comparison spreadsheet is the primary view. It matches the workbook
+         columns — Target Date, Task Type, Client Name, the four stages and the
+         Payment Date — with a dash wherever a column does not apply. --}}
+    <section class="wk-section-block" aria-labelledby="wk-report-h">
+        <div class="wk-section-head">
+            <h2 id="wk-report-h" class="wk-section-title">Weekly Bookkeeping Sheet</h2>
+            <span class="wk-section-note">{{ $weekDone }} of {{ $weekTotal }} complete</span>
+        </div>
+
+        <p class="wk-report-hint">One row per client task. A task only fills the column it belongs to; the rest stay &ldquo;&ndash;&rdquo;. Use the stage links to open a task&rsquo;s history.</p>
+
+        @if ($rows->isEmpty())
+            <div class="empty-state">
+                <p>No targets match this selection for the selected week.</p>
+                <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}" class="btn btn-primary btn-sm">Set Weekly Target</a>
+            </div>
+        @else
+            <div class="table-scroll">
+                <table class="table wk-grid">
+                    <thead>
+                        <tr>
+                            <th scope="col">Target Date</th>
+                            <th scope="col">Task Type</th>
+                            <th scope="col">Client Name</th>
+                            <th scope="col">Assigned Staff</th>
+                            <th scope="col" class="wk-col-pickup">Pick-Up</th>
+                            <th scope="col" class="wk-col-record">Record</th>
+                            <th scope="col" class="wk-col-return">Return</th>
+                            <th scope="col" class="wk-col-billing">Billing</th>
+                            <th scope="col" class="wk-col-paymentdate">Payment Date</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($rows as $row)
+                            @php($t = $row['target'])
+                            <tr class="wk-row wk-row-{{ $t->effectiveStatus() }}">
+                                <td class="wk-date">
+                                    <span class="wk-day">{{ $t->target_date?->format('D') ?? '—' }}</span>
+                                    <span class="wk-datefull">{{ $t->target_date?->format('M j, Y') ?? 'Any day' }}</span>
+                                </td>
+                                <td class="wk-task">{{ $t->taskLabel() }}</td>
+                                <td class="wk-client">{{ $t->displayClientName() }}</td>
+                                <td class="wk-staff">
+                                    <span class="wk-person">
+                                        <span class="wk-person-name">{{ $t->assignedStaffDisplayName() !== '' ? $t->assignedStaffDisplayName() : 'Unassigned' }}</span>
+                                        <span class="wk-person-sub {{ $t->assignedStaffDisplayName() === '' ? 'is-empty' : '' }}">
+                                            {{ $t->assignedStaffDisplayName() === ''
+                                                ? 'No staff assigned'
+                                                : ($staffRoleByName[$t->assignedStaffDisplayName()] ?? 'Assigned') }}
+                                        </span>
+                                    </span>
+                                </td>
+                                <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['pickup']])</td>
+                                <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['record']])</td>
+                                <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['return']])</td>
+                                <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['payment']])</td>
+                                <td class="wk-paydate">
+                                    @if ($t->task_type === 'payment' && $t->payment_at)
+                                        <span class="wk-day">{{ $t->payment_at->format('M j, Y') }}</span>
+                                        @if ($t->paymentLabel())
+                                            <span class="wk-person-sub">{{ $t->paymentLabel() }}</span>
+                                        @endif
+                                    @else
+                                        <span class="cmp-none" aria-label="Not applicable">&ndash;</span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-ghost btn-sm" data-bs-toggle="modal" data-bs-target="#wkTaskModal" data-wk-task-id="{{ $t->id }}" data-wk-booking-id="{{ $t->weekly_bookkeeping_id }}">
+                                        Open
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            {{-- Workbook side columns: work not finished, and billing not paid. --}}
+            @if (in_array($activeView, ['week', 'unfinished', 'unpaid'], true))
+                <div class="wk-side">
+                    <div class="wk-side-card">
+                        <h3>Uncollected / Unfinished</h3>
+                        @if ($unfinishedRows->isEmpty())
+                            <p class="wk-side-empty">Nothing outstanding this week.</p>
+                        @else
+                            <ul class="wk-side-list">
+                                @foreach ($unfinishedRows as $sideRow)
+                                    <li>
+                                        <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
+                                            <b>{{ $sideRow['target']->displayClientName() }}</b>
+                                            <span>{{ $sideRow['target']->taskLabel() }}</span>
+                                            <em class="wk-side-status is-bad">{{ $sideRow['target']->effectiveStatusLabel() }}</em>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+
+                    <div class="wk-side-card">
+                        <h3>Unpaid</h3>
+                        @if ($unpaidRows->isEmpty())
+                            <p class="wk-side-empty">No unpaid billing this week.</p>
+                        @else
+                            <ul class="wk-side-list">
+                                @foreach ($unpaidRows as $sideRow)
+                                    <li>
+                                        <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
+                                            <b>{{ $sideRow['target']->displayClientName() }}</b>
+                                            <span>{{ $sideRow['target']->taskLabel() }}</span>
+                                            <em class="wk-side-status is-warn">Unpaid</em>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                </div>
+            @endif
+        @endif
+    </section>
+
+    {{-- ============ WEEK AT A GLANCE (collapsible summary) ============ --}}
+    {{-- Secondary detail. The spreadsheet above is the main view; this collapsed
+         block keeps the week's counts, priorities and progress one click away. --}}
+    <details class="wk-glance">
+        <summary class="wk-glance-summary">
+            <h2 class="wk-section-title">Week at a Glance</h2>
+            <span class="wk-section-note">{{ $weekDone }} of {{ $weekTotal }} complete{{ $summary['attention'] > 0 ? ' · '.$summary['attention'].' need attention' : '' }}</span>
+            <span class="wk-report-toggle" aria-hidden="true"></span>
+        </summary>
+        <div class="wk-glance-body">
 
     {{-- ============ THIS WEEK ============ --}}
     <section class="wk-section-block" aria-labelledby="wk-summary-h">
@@ -510,114 +669,227 @@
         </section>
     @endif
 
-    {{-- ============ DETAILED WEEKLY REPORT ============ --}}
-    <section class="wk-section-block" aria-labelledby="wk-report-h">
-        <details class="card wk-report">
-            <summary class="wk-report-summary">
-                <h2 id="wk-report-h" class="wk-section-title">Detailed Weekly Report</h2>
-                <span class="wk-section-note">Target vs actual, side by side</span>
-                <span class="wk-report-toggle" aria-hidden="true"></span>
-            </summary>
-
-            <p class="wk-report-hint">A task only fills the column it belongs to; the rest stay &ldquo;&ndash;&rdquo;.</p>
-
-            @if ($rows->isEmpty())
-                <div class="empty-state">
-                    <p>No targets match this selection for the selected week.</p>
-                    <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}" class="btn btn-primary btn-sm">Set Weekly Target</a>
-                </div>
-            @else
-                <div class="table-scroll">
-                    <table class="table wk-grid">
-                        <thead>
-                            <tr>
-                                <th scope="col">Target Date</th>
-                                <th scope="col">Task Type</th>
-                                <th scope="col">Client Name</th>
-                                <th scope="col">Assigned Staff</th>
-                                <th scope="col" class="wk-col-pickup">Pick-Up</th>
-                                <th scope="col" class="wk-col-record">Record</th>
-                                <th scope="col" class="wk-col-return">Return</th>
-                                <th scope="col" class="wk-col-billing">Billing</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($rows as $row)
-                                @php($t = $row['target'])
-                                <tr class="wk-row wk-row-{{ $t->effectiveStatus() }}">
-                                    <td class="wk-date">
-                                        <span class="wk-day">{{ $t->target_date?->format('D') ?? '—' }}</span>
-                                        <span class="wk-datefull">{{ $t->target_date?->format('M j, Y') ?? 'Any day' }}</span>
-                                    </td>
-                                    <td class="wk-task">{{ $t->taskLabel() }}</td>
-                                    <td class="wk-client">{{ $t->displayClientName() }}</td>
-                                    <td class="wk-staff">
-                                        <span class="wk-person">
-                                            <span class="wk-person-name">{{ $t->assignedStaffDisplayName() !== '' ? $t->assignedStaffDisplayName() : 'Unassigned' }}</span>
-                                            <span class="wk-person-sub {{ $t->assignedStaffDisplayName() === '' ? 'is-empty' : '' }}">
-                                                {{ $t->assignedStaffDisplayName() === ''
-                                                    ? 'No staff assigned'
-                                                    : ($staffRoleByName[$t->assignedStaffDisplayName()] ?? 'Assigned') }}
-                                            </span>
-                                        </span>
-                                    </td>
-                                    <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['pickup']])</td>
-                                    <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['record']])</td>
-                                    <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['return']])</td>
-                                    <td>@include('admin.weekly-bookkeeping.partials.cell', ['target' => $row['cells']['payment']])</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-
-                {{-- Workbook side columns: work not finished, and billing not paid. --}}
-                @if (in_array($activeView, ['week', 'unfinished', 'unpaid'], true))
-                    <div class="wk-side">
-                        <div class="wk-side-card">
-                            <h3>Uncollected / Unfinished</h3>
-                            @if ($unfinishedRows->isEmpty())
-                                <p class="wk-side-empty">Nothing outstanding this week.</p>
-                            @else
-                                <ul class="wk-side-list">
-                                    @foreach ($unfinishedRows as $sideRow)
-                                        <li>
-                                            <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
-                                                <b>{{ $sideRow['target']->displayClientName() }}</b>
-                                                <span>{{ $sideRow['target']->taskLabel() }}</span>
-                                                <em class="wk-side-status is-bad">{{ $sideRow['target']->effectiveStatusLabel() }}</em>
-                                            </a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            @endif
-                        </div>
-
-                        <div class="wk-side-card">
-                            <h3>Unpaid</h3>
-                            @if ($unpaidRows->isEmpty())
-                                <p class="wk-side-empty">No unpaid billing this week.</p>
-                            @else
-                                <ul class="wk-side-list">
-                                    @foreach ($unpaidRows as $sideRow)
-                                        <li>
-                                            <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
-                                                <b>{{ $sideRow['target']->displayClientName() }}</b>
-                                                <span>{{ $sideRow['target']->taskLabel() }}</span>
-                                                <em class="wk-side-status is-warn">Unpaid</em>
-                                            </a>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            @endif
-                        </div>
-                    </div>
-                @endif
-            @endif
-        </details>
-    </section>
+    {{-- ============ DETAILED WEEKLY REPORT (removed; grid moved above) ============ --}}
+    </div>
+    </details>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const modalEl = document.getElementById('wkTaskModal');
+    if (!modalEl) return;
+    const modal = new bootstrap.Modal(modalEl);
+    const body = document.getElementById('wkTaskModalBody');
+    const title = document.getElementById('wkTaskModalTitle');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        const btn = event.relatedTarget;
+        const taskId = btn.getAttribute('data-wk-task-id');
+        const bookingId = btn.getAttribute('data-wk-booking-id');
+        title.textContent = 'Task Details';
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 small text-muted">Loading task details...</div></div>';
+        fetch(`/admin/weekly-bookkeeping/${bookingId}/task/${taskId}`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+            .then(r => {
+                if(!r.ok){
+                    throw new Error('Request failed: ' + r.status);
+                }
+                return r.json();
+            })
+            .then(data => {
+                const t = data.target || {};
+                const routes = data.routes || {};
+                const badge = t.is_completed ? 'wk-badge wk-badge-completed' : (t.is_in_progress ? 'wk-badge wk-badge-inprogress' : 'wk-badge wk-badge-pending');
+                let html = '';
+                html += '<div class="wk-modal-section">';
+                html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Task Overview</div><span class="'+badge+'">'+(t.status_label||t.status||'—')+'</span></div>';
+                html += '  <div class="wk-modal-section-body"><div class="wk-modal-grid">';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Client</span><span class="wk-modal-value">'+(t.client_name||'—')+'</span></div>';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Task Type</span><span class="wk-modal-value">'+(t.task_label||t.task_type||'—')+'</span></div>';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Assigned Staff</span><span class="wk-modal-value">'+(t.assigned_staff||'Unassigned')+'</span></div>';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Target Date</span><span class="wk-modal-value">'+(t.target_date_label||'—')+(t.date_auto?' <span class="text-muted">(Automatic)</span>':' <span class="text-muted">(Manually adjusted)</span>')+'</span></div>';
+                html += '  </div></div>';
+                html += '</div>';
+
+                html += '<div class="wk-modal-section">';
+                html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Actual Progress</div></div>';
+                html += '  <div class="wk-modal-section-body"><div class="wk-modal-grid">';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Started</span><span class="wk-modal-value">'+(t.started_at||'—')+'</span></div>';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Completed</span><span class="wk-modal-value">'+(t.ended_at||'—')+'</span></div>';
+                html += '    <div class="wk-modal-field"><span class="wk-modal-label">Performed By</span><span class="wk-modal-value">'+(t.performed_by||'—')+(t.performed_by_role? ' ('+t.performed_by_role+')':'')+'</span></div>';
+                html += '  </div>'+(t.duration? '<div class="small text-muted mt-2">Duration: '+t.duration+(t.timing_label?' ('+t.timing_label+')':'')+'</div>':'')+'</div>';
+                html += '</div>';
+
+                html += '<div class="wk-modal-section">';
+                html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Target Date & Remarks</div></div>';
+                html += '  <div class="wk-modal-section-body">';
+                html += '    <div class="mb-2"><span class="wk-modal-label">Remarks / Notes</span><div class="mt-1">'+(t.notes ? t.notes.replace(/\n/g,'<br>') : '<span class="text-muted">No remarks</span>')+'</div></div>';
+                html += '    '+(t.can_manage && routes.update_target ? '<form method="POST" action="'+routes.update_target+'" class="row g-2 align-items-end">@csrf @method("PATCH")<div class="col-md-4"><label class="form-label small mb-1">Target Date</label><input type="date" name="target_date" class="form-control form-control-sm" value="'+(t.target_date||'')+'"></div><div class="col-md-4"><label class="form-label small mb-1">Explanation for date change <span class="text-danger">*</span></label><input type="text" name="explanation" class="form-control form-control-sm" placeholder="Required if changing date" required></div><div class="col-md-4"><label class="form-label small mb-1">Remarks/Notes</label><input type="text" name="notes" class="form-control form-control-sm" placeholder="Add/update notes" value="'+(t.notes? String(t.notes).replace(/"/g,'&quot;'):'')+'"></div><div class="col-12"><button class="btn btn-sm btn-outline-secondary">Update Target Date & Remarks</button></div></form>' : '');
+                html += '  </div>';
+                html += '</div>';
+
+                html += '<div class="wk-modal-section">';
+                html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Evidence</div></div>';
+                html += '  <div class="wk-modal-section-body">';
+                if(data.evidence && data.evidence.has){
+                    html += '    <div class="d-flex flex-wrap align-items-center gap-2"><span class="wk-badge wk-badge-inprogress">Evidence Submitted</span><a class="btn btn-sm btn-outline-primary" href="'+data.evidence.view_url+'" target="_blank" rel="noopener">View</a><a class="btn btn-sm btn-outline-secondary" href="'+data.evidence.download_url+'" download>Download</a>'+(data.evidence.name? '<span class="small text-muted">'+data.evidence.name+'</span>':'')+'</div>';
+                } else {
+                    html += '    <span class="text-muted">No evidence submitted yet</span>';
+                }
+                if(t.can_manage && routes.upload){
+                    html += '    <form method="POST" action="'+routes.upload+'" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="evidence" class="form-control form-control-sm" required></div><div class="col-auto"><button class="btn btn-sm btn-outline-primary">Upload Evidence</button></div></form>';
+                }
+                html += '  </div>';
+                html += '</div>';
+
+                if(t.is_payment){
+                    html += '<div class="wk-modal-section">';
+                    html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Payment Details</div></div>';
+                    html += '  <div class="wk-modal-section-body"><div class="wk-modal-grid">';
+                    html += '    <div class="wk-modal-field"><span class="wk-modal-label">Payment Status</span><span class="wk-modal-value">'+(t.payment_label||'—')+'</span></div>';
+                    html += '    <div class="wk-modal-field"><span class="wk-modal-label">Payment Date</span><span class="wk-modal-value">'+(t.payment_at_label||'—')+'</span></div>';
+                    html += '    <div class="wk-modal-field"><span class="wk-modal-label">Payment Method</span><span class="wk-modal-value">'+(t.payment_method||'—')+'</span></div>';
+                    html += '    <div class="wk-modal-field"><span class="wk-modal-label">Payment Detail</span><span class="wk-modal-value">'+(t.payment_detail||'—')+'</span></div>';
+                    html += '  </div></div>';
+                    html += '</div>';
+                }
+
+                html += '<div class="wk-modal-section">';
+                html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Task History</div></div>';
+                html += '  <div class="wk-modal-section-body">';
+                if(data.history && data.history.length){
+                    html += '    <div class="wk-timeline">';
+                    data.history.forEach(function(h){
+                        html += '      <div class="wk-timeline-item"><div class="wk-timeline-dot"></div><div class="wk-timeline-content"><div class="wk-timeline-title">'+(h.action||'Activity')+'</div><div>'+ (h.description||'') +'</div><div class="wk-timeline-meta">'+(h.user_name? h.user_name+' • ':'')+(h.created_at||'')+'</div></div></div>';
+                    });
+                    html += '    </div>';
+                } else {
+                    html += '    <span class="text-muted">No history available</span>';
+                }
+                html += '  </div>';
+                html += '</div>';
+
+                if(t.can_manage){
+                    html += '<div class="wk-modal-section">';
+                    html += '  <div class="wk-modal-section-header"><div class="wk-modal-section-title">Task Operations</div></div>';
+                    html += '  <div class="wk-modal-section-body d-flex flex-wrap gap-2">';
+                    if(routes.start){ html += '<form method="POST" action="'+routes.start+'">@csrf<button class="btn btn-sm btn-primary">Start Task</button></form>'; }
+                    if(routes.complete){ html += '<form method="POST" action="'+routes.complete+'">@csrf<button class="btn btn-sm btn-success">Mark Complete</button></form>'; }
+                    html += '  </div>';
+                    html += '</div>';
+                }
+                body.innerHTML = html;
+            })
+            .catch(() => { body.innerHTML = '<div class="text-center text-danger py-4">Failed to load task details.<br><button class="btn btn-sm btn-outline-secondary mt-2" onclick="location.reload()">Reload Page</button></div>'; });
+    });
+});
+</script>
+@endpush
+
+<div class="modal fade" id="wkTaskModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="wkTaskModalTitle">Task Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="wkTaskModalBody" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+                <div class="text-center py-4">Loading...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 @push('styles')
     @include('admin.bookkeeping.partials.styles')
+    {{-- Weekly-only additions. The shared partial above is also used by the
+         monthly and quarterly screens, so nothing new is declared there. --}}
+    <style>
+        .wk-nextstep {
+            display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+            margin: 0 0 16px; padding: 10px 14px;
+            font-size: var(--text-sm); color: var(--text);
+            background: var(--surface);
+            border: 1px solid var(--border-subtle);
+            border-left: 3px solid var(--sky-deep);
+            border-radius: var(--radius-sm);
+        }
+        .wk-nextstep b { color: var(--navy); }
+        .wk-nextstep a { color: var(--sky-deep); font-weight: 600; }
+        .wk-nextstep.is-warn { border-left-color: var(--warning, #F59E0B); }
+        .wk-nextstep.is-ok { border-left-color: var(--success, #10B981); }
+
+        /* Collapsible "Week at a Glance" wrapper holding the secondary summary
+           blocks below the main spreadsheet. */
+        .wk-glance {
+            margin-top: 16px; background: var(--surface);
+            border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+        }
+        .wk-glance > .wk-glance-summary {
+            display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer;
+            padding: 12px 14px; list-style: none; min-height: 44px;
+        }
+        .wk-glance > .wk-glance-summary::-webkit-details-marker { display: none; }
+        .wk-glance > .wk-glance-summary::marker { content: ''; }
+        .wk-glance > .wk-glance-summary .wk-section-title { margin: 0; }
+        .wk-glance[open] > .wk-glance-summary { border-bottom: 1px solid var(--border-subtle); }
+        .wk-glance-body { padding: 14px; }
+
+        /* Payment-date column on the weekly sheet. */
+        .wk-col-paymentdate { white-space: nowrap; }
+        .wk-paydate { white-space: nowrap; vertical-align: top; }
+
+        #wkTaskModal .modal-content { border-radius: 12px; overflow: hidden; }
+        #wkTaskModal .modal-header { background: linear-gradient(90deg, #0f1f3d 0%, #1a2f5c 100%); color: #fff; border-bottom: none; }
+        #wkTaskModal .modal-header .btn-close { filter: invert(1) grayscale(100%); }
+        #wkTaskModal .modal-title { font-weight: 700; letter-spacing: 0.2px; }
+        #wkTaskModal .modal-body { background: #f8fafc; padding: 1rem 1.25rem; }
+        #wkTaskModal .modal-footer { background: #f8fafc; border-top: 1px solid #e5e7eb; }
+        .wk-modal-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 1px 2px rgba(15,31,61,0.02); margin-bottom: 1rem; overflow: hidden; }
+        .wk-modal-section-header { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.9rem; background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%); border-bottom: 1px solid #e5e7eb; }
+        .wk-modal-section-title { font-weight: 700; color: #0f1f3d; font-size: 0.95rem; }
+        .wk-modal-section-body { padding: 0.8rem 0.9rem; }
+        .wk-modal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.6rem 0.9rem; }
+        .wk-modal-field { display: flex; flex-direction: column; gap: 0.25rem; }
+        .wk-modal-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
+        .wk-modal-value { font-weight: 600; color: #111827; }
+        .wk-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+        .wk-badge-pending { background: #f3f4f6; color: #374151; }
+        .wk-badge-inprogress { background: #e8f4ff; color: #1d4ed8; }
+        .wk-badge-completed { background: #ecfdf5; color: #047857; }
+        .wk-badge-overdue { background: #fef2f2; color: #b91c1c; }
+        .wk-timeline { display: flex; flex-direction: column; gap: 0.6rem; max-height: 220px; overflow-y: auto; }
+        .wk-timeline-item { display: grid; grid-template-columns: 10px 1fr; gap: 0.7rem; align-items: start; }
+        .wk-timeline-dot { width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; margin-top: 0.35rem; }
+        .wk-timeline-content { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.5rem 0.7rem; }
+        .wk-timeline-title { font-weight: 600; color: #111827; }
+        .wk-timeline-meta { font-size: 0.8rem; color: #6b7280; }
+        @media (max-width: 768px) {
+            #wkTaskModal .modal-dialog { margin: 0.5rem; }
+            #wkTaskModal .modal-body { padding: 0.75rem; }
+        }
+    </style>
+@endpush
+
+@push('scripts')
+<script>
+(function () {
+    'use strict';
+
+    /* Guards the tracker's inline action forms (Start, etc.) against a double
+       click posting the same action twice. Filters and links are unaffected. */
+    document.querySelectorAll('form.d-inline').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var button = form.querySelector('button[type="submit"]:not([disabled])');
+            if (button) {
+                button.disabled = true;
+            }
+        });
+    });
+})();
+</script>
 @endpush

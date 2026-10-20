@@ -840,6 +840,32 @@ class WeeklyBookkeepingComparisonTest extends TestCase
         $this->assertTrue($adminHistory->count() > $juanHistory->count());
     }
 
+    public function test_the_history_page_hides_other_peoples_events_from_plain_staff_in_the_rendered_html(): void
+    {
+        $admin = $this->admin();
+        $plan = $this->planScenarioWeek($admin);
+        $juan = User::query()->where('name', 'Juan Dela Cruz')->firstOrFail();
+
+        // Juan records his own work, which his trail must keep showing.
+        $juanTarget = $this->targetsFor($juan)->first();
+        $this->actingAs($juan)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $juanTarget]))
+            ->assertRedirect();
+
+        $this->actingAs($juan)
+            ->get(route('admin.weekly-bookkeeping.history', $plan))
+            ->assertOk()
+            ->assertSee('Actual work started')
+            // The admin-authored plan save names no client, so it never matches
+            // Juan's tasks and must not appear in his rendered timeline.
+            ->assertDontSee('Targets saved');
+
+        $this->actingAs($admin)
+            ->get(route('admin.weekly-bookkeeping.history', $plan))
+            ->assertOk()
+            ->assertSee('Targets saved');
+    }
+
     public function test_printable_report_mirrors_the_comparison_sheet(): void
     {
         $this->planScenarioWeek($this->admin());
@@ -858,6 +884,24 @@ class WeeklyBookkeepingComparisonTest extends TestCase
             ->assertSee('Uncollected / Unfinished')
             ->assertSee('Unpaid')
             ->assertSee('Print / Save as PDF');
+    }
+
+    public function test_the_printable_report_forces_itself_visible_when_printing(): void
+    {
+        $admin = $this->admin();
+        $this->planScenarioWeek($admin);
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.weekly-bookkeeping.report', ['week_start' => self::WEEK]))
+            ->assertOk()
+            ->getContent();
+
+        /* dashboard.css hides everything except billing statements under
+           @media print, which used to render this report as a blank page.
+           The report must re-show itself, scoped to its own container. */
+        $this->assertStringContainsString('body * { visibility: hidden; }', $html);
+        $this->assertStringContainsString('.wk-report, .wk-report * { visibility: visible; }', $html);
+        $this->assertStringContainsString('.wk-report { position: absolute; left: 0; top: 0; width: 100%;', $html);
     }
 
     public function test_report_respects_staff_scoping(): void

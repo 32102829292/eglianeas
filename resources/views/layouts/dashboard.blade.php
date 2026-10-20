@@ -153,14 +153,17 @@
         </script>
 
         <main class="dash-main">
+            {{-- role/status + role/alert let screen readers announce flash messages
+                 (and validation errors) without moving focus. Approved scope:
+                 shared layout, markup only — no other change to these blocks. --}}
             @if (session('status'))
-                <div class="alert alert-success">{{ session('status') }}</div>
+                <div class="alert alert-success" role="status">{{ session('status') }}</div>
             @endif
             @if (session('error'))
-                <div class="alert alert-error">{{ session('error') }}</div>
+                <div class="alert alert-error" role="alert">{{ session('error') }}</div>
             @endif
             @if ($errors->any())
-                <div class="alert alert-error">
+                <div class="alert alert-error" role="alert">
                     @foreach ($errors->all() as $error)
                         <div>{{ $error }}</div>
                     @endforeach

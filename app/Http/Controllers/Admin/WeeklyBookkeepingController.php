@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -950,6 +951,98 @@ class WeeklyBookkeepingController extends Controller
             ->with('status', $message);
     }
 
+    public function showTask(WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): \Illuminate\Http\JsonResponse
+    {
+        $this->authorizeManageTarget($target);
+
+        if ($target->weekly_bookkeeping_id !== $bookkeeping->id) {
+            abort(404);
+        }
+
+        $target->loadMissing(['client', 'assignedStaff', 'performedBy', 'weeklyBookkeeping']);
+
+        $user = auth()->user();
+        $isOversight = $user->isAdmin() || $user->isSupervisor();
+        $isOwnTask = $target->isAssignedTo($user);
+        $canManage = $isOversight || $bookkeeping->isOwnedBy($user) || $isOwnTask;
+
+        $history = $bookkeeping->history()
+            ->with('user')
+            ->latest()
+            ->get()
+            ->filter(function ($entry) use ($target) {
+                $desc = (string) $entry->description;
+
+                return str_contains($desc, $target->displayClientName())
+                    || str_contains($desc, $target->taskLabel());
+            })
+            ->values()
+            ->map(function ($entry) {
+                return [
+                    'id' => $entry->id,
+                    'action' => $entry->action,
+                    'description' => $entry->description,
+                    'user_name' => $entry->user?->name,
+                    'created_at' => $entry->created_at?->format('M j, Y g:i A'),
+                ];
+            });
+
+        $evidence = null;
+        if ($target->attachment_path) {
+            $evidence = [
+                'name' => $target->attachment_name,
+                'has' => true,
+                'view_url' => route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]),
+                'download_url' => route('admin.weekly-bookkeeping.download-attachment', [$bookkeeping, $target]),
+            ];
+        }
+
+        return response()->json([
+            'target' => [
+                'id' => $target->id,
+                'bookkeeping_id' => $bookkeeping->id,
+                'client_name' => $target->displayClientName(),
+                'task_type' => $target->task_type,
+                'task_label' => $target->taskLabel(),
+                'assigned_staff' => $target->assignedStaffDisplayName() ?: null,
+                'target_date' => $target->target_date?->format('Y-m-d'),
+                'target_date_label' => $target->target_date?->format('M j, Y'),
+                'date_auto' => $target->dateIsAutomatic(),
+                'status' => $target->actual_status,
+                'status_label' => $target->effectiveStatusLabel(),
+                'notes' => $target->notes,
+                'started_at' => $target->started_at?->format('M j, Y g:i A'),
+                'ended_at' => $target->ended_at?->format('M j, Y g:i A'),
+                'performed_by' => $target->performedByDisplayName() ?: null,
+                'performed_by_role' => $target->performed_by_role,
+                'duration' => $target->durationHuman(),
+                'timing_label' => $target->timingLabel(),
+                'is_pending' => $target->isPending(),
+                'is_in_progress' => $target->isInProgress(),
+                'is_completed' => $target->isCompleted(),
+                'is_payment' => $target->task_type === 'payment',
+                'payment_method' => $target->payment_method,
+                'payment_at' => $target->payment_at?->format('Y-m-d'),
+                'payment_at_label' => $target->payment_at?->format('M j, Y'),
+                'payment_label' => $target->paymentLabel(),
+                'payment_detail' => $target->paymentDetail(),
+                'can_manage' => $canManage,
+                'can_reassign' => $isOversight,
+            ],
+            'evidence' => $evidence,
+            'history' => $history,
+            'routes' => [
+                'start' => $target->isPending() && $canManage ? route('admin.weekly-bookkeeping.start-target', [$bookkeeping, $target]) : null,
+                'complete' => $target->isInProgress() && $canManage ? route('admin.weekly-bookkeeping.complete-target', [$bookkeeping, $target]) : null,
+                'update_target' => $canManage ? route('admin.weekly-bookkeeping.update-target', [$bookkeeping, $target]) : null,
+                'reassign' => $isOversight ? route('admin.weekly-bookkeeping.reassign-target', [$bookkeeping, $target]) : null,
+                'upload' => $canManage && $target->isInProgress() ? route('admin.weekly-bookkeeping.upload-attachment', [$bookkeeping, $target]) : null,
+            ],
+            'payment_methods' => WeeklyBookkeepingTarget::PAYMENT_METHODS,
+            'assignable_staff' => $isOversight ? $this->assignableStaff()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values() : [],
+        ]);
+    }
+
     public function show(WeeklyBookkeeping $bookkeeping): View
     {
         $this->authorizeManage($bookkeeping);
@@ -1223,7 +1316,12 @@ class WeeklyBookkeepingController extends Controller
 
         if ($request->hasFile('attachment')) {
             $file = $request->file('attachment');
-            $this->validateAttachment($file, $target->task_type);
+
+            try {
+                $this->validateAttachment($file, $target->task_type);
+            } catch (\InvalidArgumentException $e) {
+                throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
+            }
 
             $path = $file->store("weekly-bookkeeping/{$target->task_type}", 'supabase');
 
@@ -1327,7 +1425,15 @@ class WeeklyBookkeepingController extends Controller
         ]);
 
         $file = $validated['attachment'];
-        $this->validateAttachment($file, $target->task_type);
+
+        /* A disallowed type used to escape validateAttachment() as an
+           InvalidArgumentException and surface as a 500. Turn it back into a
+           field-level validation error so the user just picks another file. */
+        try {
+            $this->validateAttachment($file, $target->task_type);
+        } catch (\InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
+        }
 
         $path = $file->store("weekly-bookkeeping/{$target->task_type}", 'supabase');
 
@@ -1361,7 +1467,11 @@ class WeeklyBookkeepingController extends Controller
         ]);
 
         $file = $validated['attachment'];
-        $this->validateAttachment($file, $target->task_type);
+        try {
+            $this->validateAttachment($file, $target->task_type);
+        } catch (\InvalidArgumentException $e) {
+            throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
+        }
 
         if ($target->attachment_path) {
             Storage::disk('supabase')->delete($target->attachment_path);

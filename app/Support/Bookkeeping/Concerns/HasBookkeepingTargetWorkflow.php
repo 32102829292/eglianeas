@@ -2,6 +2,7 @@
 
 namespace App\Support\Bookkeeping\Concerns;
 
+use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -224,6 +225,63 @@ trait HasBookkeepingTargetWorkflow
         }
 
         return $refreshed;
+    }
+
+    /**
+     * The task type that follows this one in the Pick-Up → Record → Return →
+     * Payment sequence, or null when this is the final stage.
+     */
+    public function nextStage(): ?string
+    {
+        if (! isset(static::SEQUENCE_OFFSETS[$this->task_type])) {
+            return null;
+        }
+
+        $ordered = array_keys(static::SEQUENCE_OFFSETS);
+        $index = array_search($this->task_type, $ordered, true);
+
+        return $ordered[$index + 1] ?? null;
+    }
+
+    /**
+     * Start the next stage automatically once this one is closed out, so the
+     * Pick-Up → Record → Return → Payment chain keeps moving without anyone
+     * pressing Start on each following task.
+     *
+     * The transition is deliberately conservative:
+     *
+     *  - it only ever moves a sibling from Pending to In Progress, never to a
+     *    completed outcome, so a person still records the actual result;
+     *  - it never rewrites a sibling that has already started or finished, so
+     *    re-completing an earlier stage cannot reset later work;
+     *  - it is idempotent: starting an already-started sibling is a no-op, so
+     *    retries and duplicate submits leave the sequence unchanged.
+     *
+     * @return string|null the task type that was started, or null if none was
+     */
+    public function startNextStage(?User $user = null): ?string
+    {
+        $nextType = $this->nextStage();
+
+        if ($nextType === null) {
+            return null;
+        }
+
+        $foreignKey = static::planForeignKey();
+
+        $next = static::query()
+            ->where($foreignKey, $this->{$foreignKey})
+            ->where('client_id', $this->client_id)
+            ->where('task_type', $nextType)
+            ->first();
+
+        if ($next === null || ! $next->isPending()) {
+            return null;
+        }
+
+        $next->startProcessing($user);
+
+        return $nextType;
     }
 
     public function hasBalance(): bool

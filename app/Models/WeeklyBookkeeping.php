@@ -143,7 +143,13 @@ class WeeklyBookkeeping extends Model
             return $this->isDone() ? 100 : 0;
         }
 
-        $done = $this->targets->where('actual_status', WeeklyBookkeepingTarget::ACTUAL_STATUS_COMPLETED)->count();
+        /*
+         * A task is done when it reached its task-specific outcome, not only
+         * when it happens to read "completed": Pick-Up closes as On Time,
+         * Return as Returned and Billing as Paid. Same rule the shared
+         * bookkeeping plan trait applies for monthly and quarterly plans.
+         */
+        $done = $this->targets->filter(fn (WeeklyBookkeepingTarget $t) => $t->isCompleted())->count();
 
         return (int) round(($done / $total) * 100);
     }

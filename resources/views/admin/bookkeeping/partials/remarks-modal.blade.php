@@ -57,12 +57,21 @@
             if (label) {
                 var row = button.closest('tr');
                 var titleCell = row ? row.querySelector('[data-bk-task-title]') : null;
-                label.textContent = titleCell ? titleCell.textContent.trim() : '';
+                var title = titleCell ? titleCell.textContent.trim() : (button.getAttribute('data-bk-task-title') || '');
+                label.textContent = title;
             }
         });
     });
 
-    form.addEventListener('submit', function () {
+    form.addEventListener('submit', function (event) {
+        /* The action carries a placeholder until an opener fills in the real
+           target id. Refuse to post the placeholder rather than hitting a
+           404/route error. */
+        if (form.action.indexOf('__BK_TARGET_ID__') !== -1) {
+            event.preventDefault();
+            return;
+        }
+
         var submitButton = form.querySelector('button[type="submit"]');
         submitButton.disabled = true;
         submitButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
