@@ -1844,14 +1844,36 @@ abstract class PeriodBookkeepingTestCase extends TestCase
         $staff = $this->staff();
         $client = $this->client();
 
-        $this->actingAs($staff)
+        $response = $this->actingAs($staff)
             ->get($this->url('create'))
-            ->assertOk()
-            ->assertSee('bk-t-chips', false)
+            ->assertOk();
+
+        $response->assertSee('bk-t-chips', false)
             ->assertSee('bk-t-staff', false)
             ->assertSee('name="tasks['.$client->id.'][]"', false)
             ->assertSee('name="assignee['.$client->id.'][pickup]"', false)
             ->assertSee('name="target_date['.$client->id.']"', false);
+
+        // Same bulk selection tooling and live counts as the weekly planner.
+        $response->assertSee('id="clientSearch"', false)
+            ->assertSee('id="clientFilter"', false)
+            ->assertSee('id="selectAllToggle"', false)
+            ->assertSee('id="selectAllVisible"', false)
+            ->assertSee('id="clearSelection"', false)
+            ->assertSee('id="selectedCount"', false)
+            ->assertSee('id="summaryClients"', false)
+            ->assertSee('id="summaryTasks"', false)
+            ->assertSee('id="summarySaved"', false)
+            ->assertSee('id="summaryRemovals"', false)
+            ->assertSee('Select all visible')
+            ->assertSee('Clear selection')
+            ->assertSee('Selected clients')
+            ->assertSee('Planned targets')
+            ->assertSee('Already saved');
+
+        // Primary action + compact secondary action, phrased for this module.
+        $response->assertSee('Save '.$this->nounTitle().'s')
+            ->assertSee('Back to tracker');
     }
 
     public function test_target_planner_pages_render(): void
@@ -1879,6 +1901,97 @@ abstract class PeriodBookkeepingTestCase extends TestCase
             ->assertOk()
             ->assertSee($period->rangeLabel())
             ->assertSee($client->business_name);
+    }
+
+    public function test_index_renders_the_unified_bookkeeping_sheet(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Alpha Client');
+        $period = $this->currentPeriod();
+
+        $this->createPlan($staff, [$client->id => ['tasks' => ['pickup', 'record', 'return', 'payment']]], $period);
+
+        $response = $this->actingAs($staff)
+            ->get($this->url('index', [$this->queryKey() => $period->key()]))
+            ->assertOk();
+
+        /* Same workbook columns the Weekly Bookkeeping sheet shows, so all three
+           modules read as one feature. */
+        foreach ([
+            'Target Date',
+            'Task Type',
+            'Client Name',
+            'Assigned Staff',
+            'Pick-Up',
+            'Record',
+            'Return',
+            'Billing',
+            'Payment Date',
+            'Actions',
+        ] as $header) {
+            $response->assertSee($header);
+        }
+
+        /* The sheet is the primary view; the summary folds into a collapsible
+           "at a glance" block rather than leading the page. */
+        $response->assertSee('Bookkeeping Sheet');
+        $response->assertSee('at a Glance');
+
+        // Period navigation and the period's own range stay on the page.
+        $response->assertSee($period->rangeLabel());
+        $response->assertSee($client->business_name);
+    }
+
+    /**
+     * The sheet groups rows by the module's own target date, then by task type
+     * in the workbook sequence (Pick-Up, Record, Return / Collect, Billing /
+     * Payment), so every client of a task type stays consecutive — never
+     * grouped by client and never mixing task types.
+     */
+    public function test_sheet_orders_task_types_in_workbook_sequence_within_each_date(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $period = $this->currentPeriod();
+
+        // Two clients on the same date, deliberately configured so insertion
+        // order and name order differ from the workbook task-type sequence.
+        $alpha = $this->client('Alpha Client');
+        $bravo = $this->client('Bravo Client');
+
+        $this->createPlan($staff, [
+            $alpha->id => ['tasks' => ['pickup', 'record'], 'date' => $period->startDate()],
+            $bravo->id => ['tasks' => ['record', 'pickup'], 'date' => $period->startDate()],
+        ], $period);
+
+        $html = $this->actingAs($staff)
+            ->get($this->url('index', [$this->queryKey() => $period->key()]))
+            ->assertOk()
+            ->getContent();
+
+        // Both task types render as group headings.
+        foreach (['Pick-Up', 'Record'] as $label) {
+            $this->assertStringContainsString(
+                '<span class="wk-taskhead-name">'.$label.'</span>',
+                $html,
+                "The sheet must show a {$label} group heading."
+            );
+        }
+
+        $pickupPos = strpos($html, '<span class="wk-taskhead-name">Pick-Up</span>');
+        $recordPos = strpos($html, '<span class="wk-taskhead-name">Record</span>');
+
+        $this->assertTrue($pickupPos < $recordPos, 'Pick-Up must precede Record.');
+
+        // Pick-Up holds both pickup clients and no Record client.
+        $pickupSlice = substr($html, $pickupPos, $recordPos - $pickupPos);
+        $this->assertStringContainsString('Alpha Client', $pickupSlice);
+        $this->assertStringContainsString('Bravo Client', $pickupSlice);
+
+        // The Record group follows with both record clients, proving one task
+        // type is never interrupted by the other.
+        $recordSlice = substr($html, $recordPos);
+        $this->assertStringContainsString('Alpha Client', $recordSlice);
+        $this->assertStringContainsString('Bravo Client', $recordSlice);
     }
 
     public function test_report_page_renders_with_period_summary(): void
@@ -2326,5 +2439,28 @@ abstract class PeriodBookkeepingTestCase extends TestCase
         $this->assertSame(1, substr_count($html, 'Client-by-client planner'));
         $this->assertStringContainsString('<details class="bk-t-adv">', $html);
         $this->assertStringNotContainsString('<details class="bk-t-adv" open', $html);
+    }
+
+    public function test_newly_selected_clients_default_to_pickup_return_and_payment(): void
+    {
+        $staff = $this->staff('Angeli');
+        $client = $this->client('Client A');
+        $url = $this->url('create', [$this->queryKey() => $this->currentPeriod()->key()]);
+
+        $this->actingAs($staff)
+            ->get($url)
+            ->assertOk()
+            ->assertSee("var DEFAULT_TASKS = ['pickup', 'return', 'payment'];", false);
+
+        /* Each row also renders the saved task set it restores on re-tick, so a
+           client with existing targets is never re-defaulted from scratch. */
+        $this->createPlan($staff, [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insidePeriod(2)],
+        ], $this->currentPeriod());
+
+        $this->actingAs($staff)
+            ->get($url)
+            ->assertOk()
+            ->assertSee('data-existing="record"', false);
     }
 }

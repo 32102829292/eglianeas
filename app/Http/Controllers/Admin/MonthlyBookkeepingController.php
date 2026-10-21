@@ -113,6 +113,11 @@ class MonthlyBookkeepingController extends Controller
         return $this->deletePlan($bookkeeping);
     }
 
+    public function showTask(MonthlyBookkeeping $bookkeeping, MonthlyBookkeepingTarget $target): \Illuminate\Http\JsonResponse
+    {
+        return $this->showTask($bookkeeping, $target);
+    }
+
     /** @return class-string<MonthlyBookkeeping> */
     protected function planClass(): string
     {

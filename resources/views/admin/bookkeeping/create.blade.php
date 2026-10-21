@@ -14,8 +14,8 @@
         <div>
             <h1>Set {{ $config['noun_title'] }}</h1>
             <p>
-                Select as many clients as you will handle this {{ strtolower($config['unit']) }}, choose the task(s) for each,
-                and assign a target day inside {{ $period->shortRangeLabel() }}.
+                Tick the clients you will handle this {{ strtolower($config['unit']) }}, set their tasks and target days,
+                then save. Newly selected clients start with Pick-Up, Return and Billing ticked.
             </p>
         </div>
         <div class="page-head-actions">
@@ -213,7 +213,7 @@ in step and the month/quarter is still the organising unit. Built from the
         <div class="card">
             <div class="card-head">
                 <h2 class="card-title">Current Assignments</h2>
-                <span class="form-hint">{{ $assignRoster->count() }} batch{{ $assignRoster->count() === 1 ? '' : 'es' }} this {{ strtolower($config['unit']) }}</span>
+                <span class="form-hint">{{ $assignRoster->count() }} group{{ $assignRoster->count() === 1 ? '' : 's' }} this {{ strtolower($config['unit']) }}</span>
             </div>
 
             <div class="table-wrap">
@@ -236,7 +236,7 @@ in step and the month/quarter is still the organising unit. Built from the
                                 <td>{{ $rosterRow['clients']->join(', ') }}</td>
                                 <td>
                                     @if ($rosterRow['statuses']->count() === 1)
-                                        <span class="bk-pill bk-pill-{{ $assignPillClass($rosterRow['statuses']->first()) }}">
+                                        <span class="wk-pill wk-pill-{{ $assignPillClass($rosterRow['statuses']->first()) }}">
                                             {{ $rosterRow['status_label']->first() }}
                                         </span>
                                     @else
@@ -250,186 +250,6 @@ in step and the month/quarter is still the organising unit. Built from the
             </div>
         </div>
     @endif
-
-    {{-- The client matrix is the original client-centered planner. It posts the
-         same targets and stays on the page, but folded away by default so the
-         staff-centered panel above is the one assignment section in view. --}}
-    <details class="bk-t-adv">
-        <summary class="bk-t-adv-head">
-            <span class="bk-t-adv-caret" aria-hidden="true"></span>
-            <span class="bk-t-adv-name">Client-by-client planner</span>
-            <span class="bk-t-adv-count">Per-client target dates, tasks and staff</span>
-        </summary>
-
-    <form method="POST" action="{{ route($prefix.'.store') }}" id="targetForm">
-        @csrf
-        <input type="hidden" name="{{ $startField }}" value="{{ $periodStart }}">
-
-        <div class="bk-t-layout">
-            <div class="card bk-t-client-card">
-                <div class="card-head bk-t-card-head">
-                    <h2 class="card-title">Select Clients</h2>
-                    <div class="bk-t-card-head-tools">
-                        <label class="bk-t-master-pick" for="selectAllToggle">
-                            <input type="checkbox" id="selectAllToggle">
-                            <span>All</span>
-                        </label>
-                        <span class="bk-t-selected-wrap">
-                            <b id="selectedCount" class="bk-t-selected">0</b>
-                            <span class="bk-t-selected-label">selected</span>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="bk-t-tools">
-                    <input type="search" id="clientSearch" class="form-control" placeholder="Search client&hellip;" aria-label="Search client">
-                    <select id="clientFilter" class="form-control" aria-label="Filter clients">
-                        <option value="all">All clients</option>
-                        <option value="selected">Selected only</option>
-                        @if ($plan)
-                            <option value="targeted">Already targeted this {{ strtolower($config['unit']) }}</option>
-                        @endif
-                    </select>
-                    <button type="button" class="btn btn-outline btn-sm" id="selectAllVisible">Select all visible</button>
-                    <button type="button" class="btn btn-outline btn-sm" id="clearSelection">Clear selection</button>
-                </div>
-
-                <div class="bk-t-list" id="clientRows">
-                    @forelse ($clients as $client)
-                        @php
-                            $clientExisting = $existingByClient->get($client->id, collect());
-                        @endphp
-                        <div class="bk-t-row" data-name="{{ strtolower($client->name) }}" data-business="{{ strtolower($client->business_name ?? '') }}">
-                            <label class="bk-t-pick">
-                                <input type="checkbox" class="bk-t-client-check"
-                                       name="clients[]" value="{{ $client->id }}"
-                                       data-client-id="{{ $client->id }}"
-                                       aria-label="Select {{ $client->name }}"
-                                       @checked($clientExisting->isNotEmpty())>
-                            </label>
-
-                            <div class="bk-t-id">
-                                @if ($client->profile_image_path)
-                                    <img src="{{ $client->photoUrl() }}" alt="" class="bk-t-photo">
-                                @else
-                                    <span class="bk-t-avatar">{{ mb_strtoupper(mb_substr($client->name, 0, 1)) }}</span>
-                                @endif
-                                <div class="bk-t-id-text">
-                                    <span class="bk-t-id-name">{{ $client->business_name ?: $client->name }}</span>
-                                    @if ($client->business_name)
-                                        <span class="bk-t-id-sub">{{ $client->name }}</span>
-                                    @endif
-                                </div>
-                            </div>
-
-                            <div class="bk-t-target">
-                                <span class="bk-t-field-label">Target Date</span>
-                                <input type="date" class="bk-t-date"
-                                       name="target_date[{{ $client->id }}]"
-                                       min="{{ $periodStart }}" max="{{ $periodEnd }}"
-                                       value="{{ $clientExisting->flatten()->first()?->target_date?->format('Y-m-d') ?? '' }}"
-                                       aria-label="Target date for {{ $client->name }}">
-                                {{-- One date here seeds the whole schedule. On the plan page this
-                                     date becomes Pick-Up, and Record, Return and Payment follow one
-                                     day apart unless someone edits them by hand. --}}
-                                <small class="schedule-seed-hint">
-                                    Seeds the schedule: Record +1, Return +2, Payment +3 days. Adjust any stage on the plan page.
-                                </small>
-                            </div>
-
-                            <div class="bk-t-tasks">
-                                <span class="bk-t-field-label">Target Tasks</span>
-                                <div class="bk-t-chips">
-                                    @foreach ($taskTypes as $key => $label)
-                                        @php
-                                            $existingTask = $clientExisting->get($key)?->first();
-                                            $checked = $existingTask !== null;
-                                        @endphp
-                                        {{-- Each task carries its own assignee, matching the
-                                             workbook where a client can have different staff
-                                             for Pick-Up, Record, Return and Billing. --}}
-                                        <span class="bk-t-unit" data-task-unit="{{ $key }}">
-                                            <label class="bk-t-chip">
-                                                <input type="checkbox" class="bk-t-task-check"
-                                                       name="tasks[{{ $client->id }}][]" value="{{ $key }}"
-                                                       data-client-id="{{ $client->id }}"
-                                                       @checked($checked)>
-                                                <span>{{ $label }}</span>
-                                            </label>
-                                            <select class="bk-t-staff"
-                                                    name="assignee[{{ $client->id }}][{{ $key }}]"
-                                                    aria-label="Assigned staff for {{ $label }} — {{ $client->name }}"
-                                                    @disabled(! $checked)>
-                                                <option value="">—</option>
-                                                @foreach ($assignableStaff as $staffMember)
-                                                    <option value="{{ $staffMember->id }}"
-                                                            @selected($existingTask && $existingTask->assigned_staff_id === $staffMember->id)>
-                                                        {{ $staffMember->name }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </span>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-                    @empty
-                        <div class="bk-t-empty">No clients are available yet.</div>
-                    @endforelse
-
-                    <div class="bk-t-empty" id="clientEmpty" hidden>No clients match your search or filter.</div>
-                </div>
-            </div>
-
-            <aside class="card bk-t-summary-card">
-                <div class="card-head bk-t-card-head">
-                    <h2 class="card-title">Summary</h2>
-                </div>
-                <div class="bk-t-summary">
-                    <div class="bk-t-summary-row">
-                        <span>{{ $config['unit'] }}</span>
-                        <b>{{ $period->shortLabel() }}</b>
-                    </div>
-                    <div class="bk-t-summary-row">
-                        <span>Period</span>
-                        <b>{{ $period->shortRangeLabel() }}</b>
-                    </div>
-                    <div class="bk-t-summary-row">
-                        <span>Staff / Supervisor</span>
-                        <b>{{ auth()->user()->name }}</b>
-                    </div>
-                    <div class="bk-t-summary-row">
-                        <span>Selected clients</span>
-                        <b id="summaryClients">0</b>
-                    </div>
-                    <div class="bk-t-summary-row">
-                        <span>Selected tasks</span>
-                        <b id="summaryTasks">0</b>
-                    </div>
-                    <div class="bk-t-note">
-                        Target dates must fall inside {{ $period->shortRangeLabel() }}, and targets lock once actual work starts,
-                        so you can keep adjusting them until then.
-                    </div>
-                    <button type="submit" id="saveTargetsBtn" class="btn btn-primary bk-t-save" disabled>
-                        Save {{ $config['noun_title'] }}s
-                    </button>
-                    @error('clients')
-                        <div class="form-error">{{ $message }}</div>
-                    @enderror
-                    @error($startField)
-                        <div class="form-error">{{ $message }}</div>
-                    @enderror
-                    @error('tasks')
-                        <div class="form-error">{{ $message }}</div>
-                    @enderror
-                    @error('target_date')
-                        <div class="form-error">{{ $message }}</div>
-                    @enderror
-                </div>
-            </aside>
-        </div>
-    </form>
-    </details>
 @endsection
 
 @push('styles')
@@ -460,51 +280,7 @@ in step and the month/quarter is still the organising unit. Built from the
     }
     .bk-t-picker-range { font-size: var(--text-sm); color: var(--muted-text); }
 
-    /* Folded client matrix. Same disclosure the tracker already uses for its
-       client cards: white surface, subtle border, rotating caret. */
-    .bk-t-adv {
-        background: var(--surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-sm);
-        margin-bottom: 20px;
-        overflow: hidden;
-    }
-    .bk-t-adv[open] { box-shadow: var(--shadow-sm); }
-    .bk-t-adv-head {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        padding: 12px 14px;
-        min-height: 48px;
-        cursor: pointer;
-        list-style: none;
-    }
-    .bk-t-adv-head::-webkit-details-marker { display: none; }
-    .bk-t-adv-head::marker { content: ''; }
-    .bk-t-adv-caret {
-        width: 0;
-        height: 0;
-        flex: 0 0 auto;
-        border-left: 6px solid var(--muted-text);
-        border-top: 5px solid transparent;
-        border-bottom: 5px solid transparent;
-        transition: transform var(--transition-fast);
-    }
-    .bk-t-adv[open] .bk-t-adv-caret { transform: rotate(90deg); }
-    .bk-t-adv-name {
-        font-family: var(--font-head);
-        font-size: var(--text-base);
-        color: var(--navy);
-    }
-    .bk-t-adv-count {
-        margin-left: auto;
-        font-size: var(--text-xs);
-        color: var(--muted-text);
-        white-space: nowrap;
-    }
-    .bk-t-adv[open] .bk-t-adv-head { border-bottom: 1px solid var(--border-subtle); }
-    .bk-t-adv .bk-t-layout { padding: 14px; }
+    /* Planner styles removed - client-by-client planner no longer used */
 
     /* Layout: client list gets the width, summary stays narrow */
     .bk-t-layout {
@@ -766,6 +542,12 @@ in step and the month/quarter is still the organising unit. Built from the
     .bk-t-summary-row:last-of-type { border-bottom: 0; }
     .bk-t-summary-row span { color: var(--muted-text); }
     .bk-t-summary-row b { color: var(--navy); text-align: right; }
+    .bk-t-removals {
+        margin: 8px 0 0;
+        font-size: var(--text-xs);
+        line-height: 1.45;
+        color: var(--warning);
+    }
     .bk-t-note {
         margin: 10px 0 12px;
         padding: 8px 10px;
@@ -825,7 +607,7 @@ in step and the month/quarter is still the organising unit. Built from the
     .schedule-seed-hint {
         display: block;
         margin-top: 3px;
-        max-width: 210px;
+        max-width: 190px;
         font-size: 11px;
         line-height: 1.35;
         color: var(--muted);
@@ -1012,17 +794,88 @@ in step and the month/quarter is still the organising unit. Built from the
         }).length;
     }
 
-    function taskCount() {
-        return rows.reduce(function (acc, row) {
-            return acc + row.querySelectorAll('.bk-t-task-check:checked').length;
-        }, 0);
+    /* Task types a client starts with when newly ticked. Record is deliberately
+       left out: it is the one stage staff usually schedule by hand. */
+    var DEFAULT_TASKS = ['pickup', 'return', 'payment'];
+
+    /* The saved task set rendered for this client at load, used to restore the
+       exact chips on re-tick instead of re-applying the defaults. */
+    function existingTasks(row) {
+        return (row.getAttribute('data-existing') || '').split(',').filter(Boolean);
+    }
+
+    /* { pairs, saved, removals } — pairs is every ticked client×task, saved is
+       how many of those already exist for this period, removals is how many
+       existing targets are currently unticked and will be deleted on save. */
+    function plannedCounts() {
+        var pairs = 0;
+        var saved = 0;
+        var removals = 0;
+
+        rows.forEach(function (row) {
+            var existing = existingTasks(row);
+            var checkedKeys = Array.prototype.map.call(
+                row.querySelectorAll('.bk-t-task-check:checked'),
+                function (input) { return input.value; }
+            );
+
+            pairs += checkedKeys.length;
+            saved += checkedKeys.filter(function (key) { return existing.indexOf(key) !== -1; }).length;
+            removals += existing.filter(function (key) { return checkedKeys.indexOf(key) === -1; }).length;
+        });
+
+        return { pairs: pairs, saved: saved, removals: removals };
     }
 
     function updateSummary() {
-        document.getElementById('selectedCount').textContent = selectedCount();
-        document.getElementById('summaryClients').textContent = selectedCount();
-        document.getElementById('summaryTasks').textContent = taskCount();
-        document.getElementById('saveTargetsBtn').disabled = selectedCount() === 0;
+        var clients = selectedCount();
+        var counts = plannedCounts();
+        var removalNote = document.getElementById('summaryRemovals');
+
+        document.getElementById('selectedCount').textContent = clients;
+        document.getElementById('summaryClients').textContent = clients;
+        document.getElementById('summaryTasks').textContent = counts.pairs;
+        document.getElementById('summarySaved').textContent = counts.saved;
+        document.getElementById('saveTargetsBtn').disabled = clients === 0;
+
+        if (removalNote) {
+            removalNote.hidden = counts.removals === 0;
+            removalNote.textContent = counts.removals + ' saved target' + (counts.removals === 1 ? '' : 's')
+                + ' will be removed when you save unless still ticked.';
+        }
+    }
+
+    /* Newly ticking a client preloads the usual period: Pick-Up, Return and
+       Billing. A client that already holds saved targets keeps them exactly as
+       rendered — re-ticking restores that saved set, never the defaults, so an
+       existing assignment is never reset by a selection change. */
+    function applyTaskDefaults(row) {
+        var existing = existingTasks(row);
+        var chips = Array.prototype.slice.call(row.querySelectorAll('.bk-t-task-check'));
+
+        chips.forEach(function (chip) {
+            if (existing.length) {
+                chip.checked = existing.indexOf(chip.value) !== -1;
+            } else if (DEFAULT_TASKS.indexOf(chip.value) !== -1) {
+                chip.checked = true;
+            }
+        });
+
+        syncRow(row);
+    }
+
+    function setClientChecked(row, checked) {
+        var check = row.querySelector('.bk-t-client-check');
+
+        if (check.checked !== checked) {
+            check.checked = checked;
+        }
+
+        syncRow(row);
+
+        if (checked) {
+            applyTaskDefaults(row);
+        }
     }
 
     function visibleRows() {
@@ -1061,6 +914,39 @@ in step and the month/quarter is still the organising unit. Built from the
         selectAllToggle.indeterminate = checkedVisible.length > 0 && checkedVisible.length < visible.length;
     }
 
+    /* Pick-Up drives the shared default: picking the Pick-Up staff member fills
+       Return and Billing for that client unless either was set by hand. Record
+       stays independent, and each client's selectors only ever touch their own
+       row, so one client's change never reaches another. */
+    function bindStaffAutoFill(row) {
+        Array.prototype.slice.call(row.querySelectorAll('.bk-t-staff')).forEach(function (staffSel) {
+            if (staffSel.dataset.autoBound) return;
+            staffSel.dataset.autoBound = '1';
+            staffSel.addEventListener('change', function () {
+                var unit = staffSel.closest('.bk-t-unit');
+                var taskKey = unit ? unit.getAttribute('data-task-unit') : null;
+                if (!taskKey) return;
+                var key = taskKey.toLowerCase();
+                if (key === 'pickup') {
+                    var val = staffSel.value;
+                    if (!val) return;
+                    var returnSel = row.querySelector('.bk-t-unit[data-task-unit="return"] .bk-t-staff');
+                    var paySel = row.querySelector('.bk-t-unit[data-task-unit="payment"] .bk-t-staff');
+                    if (returnSel && !returnSel.disabled && (!returnSel.dataset.userChanged || returnSel.dataset.userChanged === 'auto')) {
+                        returnSel.value = val;
+                        returnSel.dataset.userChanged = 'auto';
+                    }
+                    if (paySel && !paySel.disabled && (!paySel.dataset.userChanged || paySel.dataset.userChanged === 'auto')) {
+                        paySel.value = val;
+                        paySel.dataset.userChanged = 'auto';
+                    }
+                } else if (key === 'return' || key === 'payment') {
+                    staffSel.dataset.userChanged = 'manual';
+                }
+            });
+        });
+    }
+
     // Per-client task/date/staff enablement
     function syncRow(row) {
         var check = row.querySelector('.bk-t-client-check');
@@ -1075,14 +961,17 @@ in step and the month/quarter is still the organising unit. Built from the
         if (!check.checked) date.value = '';
 
         // A staff selector is only meaningful for a task that is actually
-        // targeted in this period, so it enables with its own task chip.
+        // targeted in this period, so it enables with its own task chip. The
+        // chosen name is kept on re-tick so an existing assignment is never
+        // silently blanked by unticking and re-ticking the client.
         Array.prototype.slice.call(row.querySelectorAll('.bk-t-unit')).forEach(function (unit) {
             var input = unit.querySelector('.bk-t-task-check');
             var staff = unit.querySelector('.bk-t-staff');
             if (!staff) return;
             staff.disabled = !input.checked || input.disabled;
-            if (staff.disabled) staff.value = '';
         });
+
+        bindStaffAutoFill(row);
 
         var anyTask = taskInputs.some(function (input) { return input.checked; });
         row.classList.toggle('is-selected', check.checked);
@@ -1094,24 +983,22 @@ in step and the month/quarter is still the organising unit. Built from the
 
     rows.forEach(function (row) {
         var check = row.querySelector('.bk-t-client-check');
-        check.addEventListener('change', function () { syncRow(row); });
+        check.addEventListener('change', function () { setClientChecked(row, check.checked); });
         Array.prototype.slice.call(row.querySelectorAll('.bk-t-task-check')).forEach(function (input) {
             input.addEventListener('change', function () { syncRow(row); });
         });
     });
 
     selectAllToggle.addEventListener('change', function () {
-        var check = this.checked;
+        var checked = this.checked;
         visibleRows().forEach(function (row) {
-            row.querySelector('.bk-t-client-check').checked = check;
-            syncRow(row);
+            setClientChecked(row, checked);
         });
     });
 
     document.getElementById('selectAllVisible').addEventListener('click', function () {
         visibleRows().forEach(function (row) {
-            row.querySelector('.bk-t-client-check').checked = true;
-            syncRow(row);
+            setClientChecked(row, true);
         });
     });
 
@@ -1125,17 +1012,52 @@ in step and the month/quarter is still the organising unit. Built from the
     searchInput.addEventListener('input', applyFilters);
     filterSelect.addEventListener('change', applyFilters);
 
-    // Prevent submitting a client with no task selected.
+    // Prevent submitting a client with no task selected. The message is shown
+    // inline next to the Save button instead of a blocking browser alert.
+    var formError = document.getElementById('targetFormError');
+
+    form.addEventListener('change', function () {
+        if (formError) {
+            formError.hidden = true;
+        }
+    });
+
     form.addEventListener('submit', function (e) {
-        var anyInvalid = rows.some(function (row) {
+        var firstInvalid = null;
+
+        rows.some(function (row) {
             var check = row.querySelector('.bk-t-client-check');
             if (!check.checked) return false;
-            return row.querySelectorAll('.bk-t-task-check:checked').length === 0;
+            if (row.querySelectorAll('.bk-t-task-check:checked').length === 0) {
+                firstInvalid = row;
+                return true;
+            }
+            return false;
         });
-        if (anyInvalid) {
+
+        if (firstInvalid) {
             e.preventDefault();
-            alert('Each selected client needs at least one target task.');
+
+            if (formError) {
+                var nameEl = firstInvalid.querySelector('.bk-t-id-name');
+                var name = nameEl ? nameEl.textContent.trim() : '';
+                formError.textContent = name
+                    ? 'Each selected client needs at least one target task. Tick a task for ' + name + ', or untick the client.'
+                    : 'Each selected client needs at least one target task.';
+                formError.hidden = false;
+                formError.scrollIntoView({ block: 'nearest' });
+            }
+
+            return;
         }
+
+        if (formError) {
+            formError.hidden = true;
+        }
+
+        var saveBtn = document.getElementById('saveTargetsBtn');
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
     });
 
     rows.forEach(function (row) { syncRow(row); });

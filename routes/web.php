@@ -294,6 +294,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/weekly-bookkeeping/create', [AdminWeeklyBookkeepingController::class, 'create'])->name('weekly-bookkeeping.create');
     Route::get('/weekly-bookkeeping-report', [AdminWeeklyBookkeepingController::class, 'report'])->name('weekly-bookkeeping.report');
     Route::post('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'store'])->name('weekly-bookkeeping.store');
+    Route::post('/weekly-bookkeeping/assign', [AdminWeeklyBookkeepingController::class, 'bulkAssign'])->name('weekly-bookkeeping.bulk-assign');
     Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
     Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
     Route::get('/weekly-bookkeeping/{bookkeeping}/task/{target}', [AdminWeeklyBookkeepingController::class, 'showTask'])->name('weekly-bookkeeping.task');
@@ -338,6 +339,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
         Route::post("/{$bookkeepingSlug}/assign", [$bookkeepingController, 'bulkAssign'])->name("{$bookkeepingSlug}.bulk-assign");
         Route::get("/{$bookkeepingSlug}/{bookkeeping}", [$bookkeepingController, 'show'])->name("{$bookkeepingSlug}.show");
         Route::get("/{$bookkeepingSlug}/{bookkeeping}/history", [$bookkeepingController, 'history'])->name("{$bookkeepingSlug}.history");
+        Route::get("/{$bookkeepingSlug}/{bookkeeping}/task/{target}", [$bookkeepingController, 'showTask'])->name("{$bookkeepingSlug}.task");
         Route::post("/{$bookkeepingSlug}/{bookkeeping}/owner", [$bookkeepingController, 'updateOwner'])->name("{$bookkeepingSlug}.update-owner");
         Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/start", [$bookkeepingController, 'startTarget'])->name("{$bookkeepingSlug}.start-target");
         Route::post("/{$bookkeepingSlug}/{bookkeeping}/target/{target}/complete", [$bookkeepingController, 'completeTarget'])->name("{$bookkeepingSlug}.complete-target");

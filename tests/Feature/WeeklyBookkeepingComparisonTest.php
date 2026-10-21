@@ -429,6 +429,54 @@ class WeeklyBookkeepingComparisonTest extends TestCase
                 && $summary['attention'] === 1);
     }
 
+    /**
+     * The sheet is grouped by day, then by task type in the workbook's own
+     * sequence (Pick-Up, Record, Return / Collect, Billing / Payment), with
+     * every client of a task type sitting together — never grouped by client.
+     */
+    public function test_sheet_orders_task_types_in_workbook_sequence_within_each_day(): void
+    {
+        $this->planScenarioWeek($this->admin());
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('admin.weekly-bookkeeping.index', ['week_start' => self::WEEK]))
+            ->assertOk()
+            ->getContent();
+
+        // Every task type of the scenario appears as a group heading, once, in
+        // the canonical order: Pick-Up before Record before Return before Billing.
+        foreach (['Pick-Up', 'Record', 'Return / Collect', 'Billing / Payment'] as $label) {
+            $this->assertStringContainsString(
+                '<span class="wk-taskhead-name">'.$label.'</span>',
+                $html,
+                "The sheet must show a {$label} group heading."
+            );
+        }
+
+        $pickupPos = strpos($html, '<span class="wk-taskhead-name">Pick-Up</span>');
+        $recordPos = strpos($html, '<span class="wk-taskhead-name">Record</span>');
+        $returnPos = strpos($html, '<span class="wk-taskhead-name">Return / Collect</span>');
+        $billingPos = strpos($html, '<span class="wk-taskhead-name">Billing / Payment</span>');
+
+        $this->assertTrue($pickupPos < $recordPos, 'Pick-Up must precede Record.');
+        $this->assertTrue($recordPos < $returnPos, 'Record must precede Return / Collect.');
+        $this->assertTrue($returnPos < $billingPos, 'Return / Collect must precede Billing / Payment.');
+
+        // Within the Pick-Up group the two Pick-Up clients sit together, and no
+        // Record client intrudes before the Record heading.
+        $pickupSlice = substr($html, $pickupPos, $recordPos - $pickupPos);
+        $this->assertStringContainsString('Client A', $pickupSlice);
+        $this->assertStringContainsString('Client B', $pickupSlice);
+        $this->assertStringNotContainsString('Client C', $pickupSlice, 'Client C has no Pick-Up task and must not appear in the Pick-Up group.');
+
+        // The Record group carries all three clients (A, B and C), showing the
+        // same task type stays consecutive across clients.
+        $recordSlice = substr($html, $recordPos, $returnPos - $recordPos);
+        $this->assertStringContainsString('Client A', $recordSlice);
+        $this->assertStringContainsString('Client B', $recordSlice);
+        $this->assertStringContainsString('Client C', $recordSlice);
+    }
+
     public function test_task_list_groups_tasks_by_client_with_real_counts(): void
     {
         $this->planScenarioWeek($this->admin());

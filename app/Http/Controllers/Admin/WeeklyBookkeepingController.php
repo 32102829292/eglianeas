@@ -10,6 +10,7 @@ use App\Models\WeeklyBookkeepingTarget;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -111,8 +112,21 @@ class WeeklyBookkeepingController extends Controller
             $allTargets = $allTargets->filter(fn ($t) => $t->isCompleted());
         }
 
+        /* Display order matches the workbook: day first, then task type in its
+           canonical sequence (Pick-Up, Record, Return / Collect, Billing /
+           Payment), then the clients within that task type. TASK_TYPES already
+           declares that order, so its key position is used as the priority rank
+           — never alphabetical. Clients keep their existing display-name order
+           inside each task type; same-task rows therefore always stay
+           consecutive. Presentation only: no records are reordered or stored. */
+        $taskTypePriority = array_flip(array_keys(WeeklyBookkeeping::TASK_TYPES));
+
         $rows = $this->buildGridRows($allTargets->sortBy(
-            fn ($t) => [$t->target_date?->format('Y-m-d') ?? '9999', $t->displayClientName(), $t->task_type]
+            fn ($t) => [
+                $t->target_date?->format('Y-m-d') ?? '9999',
+                $taskTypePriority[$t->task_type] ?? 99,
+                $t->displayClientName(),
+            ]
         )->values());
 
         // Side columns from the workbook: work not finished, and billing not paid.
@@ -532,6 +546,14 @@ class WeeklyBookkeepingController extends Controller
         $dates = $request->input('target_date', []);
         $assigneeInput = $request->input('assignee', []);
 
+        /* Reject the whole submission before anything is written when a selected
+           client is incomplete. Client-side checks can be bypassed, so every
+           client × task the request claims to schedule is validated here: the
+           account must be a client, it must carry at least one task, and every
+           task must name a staff member who is allowed to own it. One bad row
+           fails the entire request rather than saving the valid portion. */
+        $this->assertSelectionIsComplete($selectedClientIds, $tasks, $assigneeInput);
+
         /* Resolve and range-check every date up front. The plan row is created
            below, and a rejected date must not leave a half-built week behind. */
         $resolvedDates = [];
@@ -550,139 +572,167 @@ class WeeklyBookkeepingController extends Controller
             }
         }
 
-        $plan = WeeklyBookkeeping::query()
-            ->whereDate('week_start', $weekStart->format('Y-m-d'))
-            ->first();
+        /* Every write for this submission — the plan row, each target upsert,
+           the removals and the overall status — happens inside one transaction
+           so a failure halfway through cannot leave a partially saved week. */
+        $result = DB::transaction(function () use (
+            $weekStart,
+            $weekEnd,
+            $user,
+            $selectedClientIds,
+            $tasks,
+            $assigneeInput,
+            $resolvedDates
+        ) {
+            $plan = WeeklyBookkeeping::query()
+                ->whereDate('week_start', $weekStart->format('Y-m-d'))
+                ->first();
 
-        $wasNew = $plan === null;
-        if ($plan === null) {
-            $plan = WeeklyBookkeeping::query()->create([
-                'staff_id' => $user->id,
-                'week_start' => $weekStart->format('Y-m-d'),
-                'week_end' => $weekEnd->format('Y-m-d'),
-                'status' => WeeklyBookkeeping::STATUS_NOT_STARTED,
-            ]);
-        } else {
-            $plan->update(['week_end' => $weekEnd->format('Y-m-d')]);
-        }
+            $wasNew = $plan === null;
+            if ($plan === null) {
+                $plan = WeeklyBookkeeping::query()->create([
+                    'staff_id' => $user->id,
+                    'week_start' => $weekStart->format('Y-m-d'),
+                    'week_end' => $weekEnd->format('Y-m-d'),
+                    'status' => WeeklyBookkeeping::STATUS_NOT_STARTED,
+                ]);
+            } else {
+                $plan->update(['week_end' => $weekEnd->format('Y-m-d')]);
+            }
 
-        // Only operational accounts may own a task; a Record-only bookkeeper
-        // and a Pick-Up/Return/Payment bookkeeper are both valid assignees.
-        $assignableIds = $this->assignableStaff()->pluck('id')->map('intval')->all();
-        $assignableNames = $this->assignableStaff()->pluck('name', 'id');
+            // Only operational accounts may own a task; a Record-only bookkeeper
+            // and a Pick-Up/Return/Payment bookkeeper are both valid assignees.
+            $assignableIds = $this->assignableStaff()->pluck('id')->map('intval')->all();
+            $assignableNames = $this->assignableStaff()->pluck('name', 'id');
 
-        $newTargets = 0;
-        $updatedTargets = 0;
-        $reassigned = 0;
-        $keepKeys = [];
+            $newTargets = 0;
+            $updatedTargets = 0;
+            $reassigned = 0;
+            $keepKeys = [];
 
-        foreach ($selectedClientIds as $clientId) {
-            $clientTasks = $tasks[$clientId] ?? [];
+            foreach ($selectedClientIds as $clientId) {
+                $clientTasks = $tasks[$clientId] ?? [];
 
-            foreach ($clientTasks as $taskType) {
-                $date = $resolvedDates[$clientId][$taskType] ?? null;
+                foreach ($clientTasks as $taskType) {
+                    $date = $resolvedDates[$clientId][$taskType] ?? null;
 
-                $keepKeys[] = $clientId.':'.$taskType;
+                    $keepKeys[] = $clientId.':'.$taskType;
 
-                $rawAssignee = $assigneeInput[$clientId][$taskType] ?? null;
-                $assigneeId = ($rawAssignee !== null && $rawAssignee !== '' && in_array((int) $rawAssignee, $assignableIds, true))
-                    ? (int) $rawAssignee
-                    : null;
+                    $rawAssignee = $assigneeInput[$clientId][$taskType] ?? null;
+                    $assigneeId = ($rawAssignee !== null && $rawAssignee !== '' && in_array((int) $rawAssignee, $assignableIds, true))
+                        ? (int) $rawAssignee
+                        : null;
 
-                $target = $plan->targets()->where('client_id', $clientId)
-                    ->where('task_type', $taskType)
-                    ->first();
+                    $target = $plan->targets()->where('client_id', $clientId)
+                        ->where('task_type', $taskType)
+                        ->first();
 
-                if ($target) {
-                    $target->target_date = $date;
+                    if ($target) {
+                        $target->target_date = $date;
 
-                    if ($target->assigned_staff_id !== $assigneeId) {
-                        $previous = $target->assignedStaffDisplayName();
-                        $target->assigned_staff_id = $assigneeId;
-                        $target->assigned_staff_name = $assigneeId ? $assignableNames[$assigneeId] : null;
-                        $reassigned++;
+                        if ($target->assigned_staff_id !== $assigneeId) {
+                            $previous = $target->assignedStaffDisplayName();
+                            $target->assigned_staff_id = $assigneeId;
+                            $target->assigned_staff_name = $assigneeId ? $assignableNames[$assigneeId] : null;
+                            $reassigned++;
 
-                        if (! $target->isPending()) {
-                            ActivityLog::record(
-                                $user,
-                                'weekly_bookkeeping.target.reassigned',
-                                sprintf(
-                                    '%s for %s reassigned from %s to %s.',
-                                    $target->taskLabel(),
-                                    $target->displayClientName(),
-                                    $previous !== '' ? $previous : 'Unassigned',
-                                    $assigneeId ? $assignableNames[$assigneeId] : 'Unassigned'
-                                ),
-                                instance: null,
-                                bookkeeping: $plan
-                            );
+                            if (! $target->isPending()) {
+                                ActivityLog::record(
+                                    $user,
+                                    'weekly_bookkeeping.target.reassigned',
+                                    sprintf(
+                                        '%s for %s reassigned from %s to %s.',
+                                        $target->taskLabel(),
+                                        $target->displayClientName(),
+                                        $previous !== '' ? $previous : 'Unassigned',
+                                        $assigneeId ? $assignableNames[$assigneeId] : 'Unassigned'
+                                    ),
+                                    instance: null,
+                                    bookkeeping: $plan
+                                );
+                            }
                         }
-                    }
 
-                    $target->saveQuietly();
-                    $updatedTargets++;
-                } else {
-                    $plan->targets()->create([
-                        'client_id' => $clientId,
-                        'task_type' => $taskType,
-                        'target_date' => $date,
-                        'assigned_staff_id' => $assigneeId,
-                        'assigned_staff_name' => $assigneeId ? $assignableNames[$assigneeId] : null,
-                        'actual_status' => WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING,
-                    ]);
-                    $newTargets++;
+                        $target->saveQuietly();
+                        $updatedTargets++;
+                    } else {
+                        $plan->targets()->create([
+                            'client_id' => $clientId,
+                            'task_type' => $taskType,
+                            'target_date' => $date,
+                            'assigned_staff_id' => $assigneeId,
+                            'assigned_staff_name' => $assigneeId ? $assignableNames[$assigneeId] : null,
+                            'actual_status' => WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING,
+                        ]);
+                        $newTargets++;
+
+                        ActivityLog::record(
+                            $user,
+                            'weekly_bookkeeping.target_added',
+                            sprintf(
+                                'Target added: %s — %s (Target date: %s%s).',
+                                $this->clientName($clientId),
+                                WeeklyBookkeepingTarget::TASK_TYPES[$taskType] ?? $taskType,
+                                $date ? Carbon::parse($date)->format('M j, Y') : 'Any day',
+                                $assigneeId ? ', assigned to '.$assignableNames[$assigneeId] : ''
+                            ),
+                            instance: null,
+                            bookkeeping: $plan
+                        );
+                    }
+                }
+            }
+
+            $removed = 0;
+            foreach ($plan->targets as $target) {
+                $key = $target->client_id.':'.$target->task_type;
+                if (in_array($key, $keepKeys, true)) {
+                    continue;
+                }
+
+                if ($target->actual_status === WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING) {
+                    $target->delete();
+                    $removed++;
 
                     ActivityLog::record(
                         $user,
-                        'weekly_bookkeeping.target_added',
+                        'weekly_bookkeeping.target_removed',
+                        sprintf('Target removed: %s — %s.', $this->clientName($target->client_id), $target->taskLabel()),
+                        instance: null,
+                        bookkeeping: $plan
+                    );
+                } else {
+                    ActivityLog::record(
+                        $user,
+                        'weekly_bookkeeping.target_removed',
                         sprintf(
-                            'Target added: %s — %s (Target date: %s%s).',
-                            $this->clientName($clientId),
-                            WeeklyBookkeepingTarget::TASK_TYPES[$taskType] ?? $taskType,
-                            $date ? Carbon::parse($date)->format('M j, Y') : 'Any day',
-                            $assigneeId ? ', assigned to '.$assignableNames[$assigneeId] : ''
+                            'Target removed from weekly list: %s — %s (work already recorded, history preserved).',
+                            $this->clientName($target->client_id),
+                            $target->taskLabel()
                         ),
                         instance: null,
                         bookkeeping: $plan
                     );
                 }
             }
-        }
 
-        $removed = 0;
-        foreach ($plan->targets as $target) {
-            $key = $target->client_id.':'.$target->task_type;
-            if (in_array($key, $keepKeys, true)) {
-                continue;
-            }
+            $plan->syncOverallStatus();
 
-            if ($target->actual_status === WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING) {
-                $target->delete();
-                $removed++;
+            return [
+                'plan' => $plan,
+                'wasNew' => $wasNew,
+                'newTargets' => $newTargets,
+                'updatedTargets' => $updatedTargets,
+                'reassigned' => $reassigned,
+                'removed' => $removed,
+                'keepKeys' => $keepKeys,
+            ];
+        });
 
-                ActivityLog::record(
-                    $user,
-                    'weekly_bookkeeping.target_removed',
-                    sprintf('Target removed: %s — %s.', $this->clientName($target->client_id), $target->taskLabel()),
-                    instance: null,
-                    bookkeeping: $plan
-                );
-            } else {
-                ActivityLog::record(
-                    $user,
-                    'weekly_bookkeeping.target_removed',
-                    sprintf(
-                        'Target removed from weekly list: %s — %s (work already recorded, history preserved).',
-                        $this->clientName($target->client_id),
-                        $target->taskLabel()
-                    ),
-                    instance: null,
-                    bookkeeping: $plan
-                );
-            }
-        }
-
-        $plan->syncOverallStatus();
+        $plan = $result['plan'];
+        $wasNew = $result['wasNew'];
+        $reassigned = $result['reassigned'];
+        $keepKeys = $result['keepKeys'];
 
         $activity = sprintf(
             'Weekly target saved for %s – %s (%d client%s, %d task%s, %d reassigned).',
@@ -754,6 +804,73 @@ class WeeklyBookkeepingController extends Controller
         }
 
         return $date->format('Y-m-d');
+    }
+
+    /**
+     * Verifies that every client and task in a client-matrix submission is
+     * complete before any of it is written.
+     *
+     * One invalid client, or a single task missing its staff member, throws and
+     * fails the entire request: the planner never saves only the valid rows.
+     * The error keys match the field names the form posts, so the messages land
+     * against the offending client's row.
+     *
+     * @param  list<int>  $selectedClientIds
+     * @param  array<int|string, array<int, string>>  $tasks
+     * @param  array<int|string, array<string, mixed>>  $assigneeInput
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    private function assertSelectionIsComplete(array $selectedClientIds, array $tasks, array $assigneeInput): void
+    {
+        $allowedTaskTypes = array_keys(WeeklyBookkeepingTarget::TASK_TYPES);
+        $assignableIds = $this->assignableStaff()->pluck('id')->map('intval')->all();
+
+        /* Only real client accounts may carry bookkeeping work, so an id that
+           resolves to a staff or admin account is rejected rather than saved. */
+        $clientIds = User::query()
+            ->whereIn('id', $selectedClientIds)
+            ->where('role', User::ROLE_CLIENT)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        foreach ($selectedClientIds as $clientId) {
+            if (! in_array($clientId, $clientIds, true)) {
+                throw ValidationException::withMessages([
+                    'clients' => 'One or more selected accounts are not clients.',
+                ]);
+            }
+        }
+
+        foreach ($selectedClientIds as $clientId) {
+            $clientTasks = $tasks[$clientId] ?? [];
+
+            if (! is_array($clientTasks) || $clientTasks === []) {
+                throw ValidationException::withMessages([
+                    'tasks.'.$clientId => 'Every selected client needs at least one target task.',
+                ]);
+            }
+
+            foreach (array_values(array_unique($clientTasks)) as $taskType) {
+                if (! is_string($taskType) || ! in_array($taskType, $allowedTaskTypes, true)) {
+                    throw ValidationException::withMessages([
+                        'tasks.'.$clientId => 'One or more selected tasks are not valid task types.',
+                    ]);
+                }
+
+                $rawAssignee = $assigneeInput[$clientId][$taskType] ?? null;
+
+                if ($rawAssignee === null || $rawAssignee === ''
+                    || ! in_array((int) $rawAssignee, $assignableIds, true)) {
+                    throw ValidationException::withMessages([
+                        'assignee.'.$clientId.'.'.$taskType => 'The '
+                            .(WeeklyBookkeepingTarget::TASK_TYPES[$taskType] ?? $taskType)
+                            .' task for this client needs a staff member who can own it.',
+                    ]);
+                }
+            }
+        }
     }
 
     /**

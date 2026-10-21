@@ -206,8 +206,22 @@ trait HandlesBookkeepingWorkflow
             $allTargets = $allTargets->filter(fn ($t) => $t->isCompleted());
         }
 
+        /* Display order matches the workbook: period target date first, then
+           task type in its canonical sequence (Pick-Up, Record, Return /
+           Collect, Billing / Payment), then the clients within that task type.
+           TASK_TYPES already declares that order, so its key position is used
+           as the priority rank — never alphabetical. Clients keep their existing
+           display-name order inside each task type, so same-task rows always
+           stay consecutive. Presentation only: no records are reordered or
+           stored. */
+        $taskTypePriority = array_flip(array_keys($planClass::TASK_TYPES));
+
         $rows = $this->buildGridRows($allTargets->sortBy(
-            fn ($t) => [$t->target_date?->format('Y-m-d') ?? '9999', $t->displayClientName(), $t->task_type]
+            fn ($t) => [
+                $t->target_date?->format('Y-m-d') ?? '9999',
+                $taskTypePriority[$t->task_type] ?? 99,
+                $t->displayClientName(),
+            ]
         )->values());
 
         // Side columns from the workbook: work not finished, and billing not paid.
@@ -1808,6 +1822,102 @@ trait HandlesBookkeepingWorkflow
         );
 
         $this->authorizeManage($bookkeeping);
+    }
+
+    /**
+     * Return task details as JSON for the modal.
+     *
+     * @param  Model  $bookkeeping
+     * @param  Model  $target
+     */
+    public function showTask(Model $bookkeeping, Model $target): \Illuminate\Http\JsonResponse
+    {
+        $this->authorizeTarget($bookkeeping, $target);
+
+        $target->loadMissing(['client', 'assignedStaff', 'performedBy', 'bookkeeping']);
+
+        $user = auth()->user();
+        $isOversight = $user->isAdmin() || $user->isSupervisor();
+        $isOwnTask = $target->isAssignedTo($user);
+        $canManage = $isOversight || $bookkeeping->isOwnedBy($user) || $isOwnTask;
+
+        $history = $bookkeeping->history()
+            ->with('user')
+            ->latest()
+            ->get()
+            ->filter(function ($entry) use ($target) {
+                $desc = (string) $entry->description;
+
+                return str_contains($desc, $target->displayClientName())
+                    || str_contains($desc, $target->taskLabel());
+            })
+            ->values()
+            ->map(function ($entry) {
+                return [
+                    'id' => $entry->id,
+                    'action' => $entry->action,
+                    'description' => $entry->description,
+                    'user_name' => $entry->user?->name,
+                    'created_at' => $entry->created_at?->format('M j, Y g:i A'),
+                ];
+            });
+
+        $evidence = null;
+        if ($target->attachment_path) {
+            $evidence = [
+                'name' => $target->attachment_name,
+                'has' => true,
+                'view_url' => route($this->bookkeepingConfig()['route_prefix'].'.view-attachment', [$bookkeeping, $target]),
+                'download_url' => route($this->bookkeepingConfig()['route_prefix'].'.download-attachment', [$bookkeeping, $target]),
+            ];
+        }
+
+        $prefix = $this->bookkeepingConfig()['route_prefix'];
+
+        return response()->json([
+            'target' => [
+                'id' => $target->id,
+                'bookkeeping_id' => $bookkeeping->id,
+                'client_name' => $target->displayClientName(),
+                'task_type' => $target->task_type,
+                'task_label' => $target->taskLabel(),
+                'assigned_staff' => $target->assignedStaffDisplayName() ?: null,
+                'target_date' => $target->target_date?->format('Y-m-d'),
+                'target_date_label' => $target->target_date?->format('M j, Y'),
+                'date_auto' => $target->dateIsAutomatic(),
+                'status' => $target->actual_status,
+                'status_label' => $target->effectiveStatusLabel(),
+                'notes' => $target->notes,
+                'started_at' => $target->started_at?->format('M j, Y g:i A'),
+                'ended_at' => $target->ended_at?->format('M j, Y g:i A'),
+                'performed_by' => $target->performedByDisplayName() ?: null,
+                'performed_by_role' => $target->performed_by_role,
+                'duration' => $target->durationHuman(),
+                'timing_label' => $target->timingLabel(),
+                'is_pending' => $target->isPending(),
+                'is_in_progress' => $target->isInProgress(),
+                'is_completed' => $target->isCompleted(),
+                'is_payment' => $target->task_type === 'payment',
+                'payment_method' => $target->payment_method,
+                'payment_at' => $target->payment_at?->format('Y-m-d'),
+                'payment_at_label' => $target->payment_at?->format('M j, Y'),
+                'payment_label' => $target->paymentLabel(),
+                'payment_detail' => $target->paymentDetail(),
+                'can_manage' => $canManage,
+                'can_reassign' => $isOversight,
+            ],
+            'evidence' => $evidence,
+            'history' => $history,
+            'routes' => [
+                'start' => $target->isPending() && $canManage ? route($prefix.'.start-target', [$bookkeeping, $target]) : null,
+                'complete' => $target->isInProgress() && $canManage ? route($prefix.'.complete-target', [$bookkeeping, $target]) : null,
+                'update_target' => $canManage ? route($prefix.'.update-target', [$bookkeeping, $target]) : null,
+                'reassign' => $isOversight ? route($prefix.'.reassign-target', [$bookkeeping, $target]) : null,
+                'upload' => $canManage && $target->isInProgress() ? route($prefix.'.upload-attachment', [$bookkeeping, $target]) : null,
+            ],
+            'payment_methods' => $target::PAYMENT_METHODS ?? [],
+            'assignable_staff' => $isOversight ? $this->assignableStaff()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values() : [],
+        ]);
     }
 
     /**
