@@ -105,17 +105,20 @@ class UserController extends Controller
 
     public function photo(User $user)
     {
-        abort_unless(
-            $user->profile_image_path && Storage::disk('supabase')->exists($user->profile_image_path),
-            404
-        );
+        if (! $user->profile_image_path || ! Storage::disk('supabase')->exists($user->profile_image_path)) {
+            abort(404);
+        }
 
-        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($user->profile_image_path, now()->addMinutes(30));
+        try {
+            $temporaryUrl = Storage::disk('supabase')->temporaryUrl($user->profile_image_path, now()->addMinutes(30));
 
-        return redirect($temporaryUrl)->withHeaders([
-            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-        ]);
+            return redirect($temporaryUrl)->withHeaders([
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+            ]);
+        } catch (\Throwable $e) {
+            abort(404);
+        }
     }
 
     public function destroy(User $user): RedirectResponse

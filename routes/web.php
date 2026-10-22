@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\BillingController;
 use App\Http\Controllers\Admin\BillingController as AdminBillingController;
 use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\BirFormTypeController;
+use App\Http\Controllers\Admin\CashDailyPositionController as AdminCashDailyPositionController;
 use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
@@ -360,6 +361,20 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/bir-forms/export/xlsx', [AdminBirFormsController::class, 'exportXlsx'])->name('bir-forms.exportXlsx');
 
     Route::get('/bir-forms/export/pdf', [AdminBirFormsController::class, 'exportPdf'])->name('bir-forms.exportPdf');
+
+    // Cash Daily Position Report
+    Route::get('/cash-daily-position', [AdminCashDailyPositionController::class, 'index'])->name('cash-daily-position.index');
+    Route::get('/cash-daily-position/create', [AdminCashDailyPositionController::class, 'create'])->name('cash-daily-position.create');
+    Route::get('/cash-daily-position/show', [AdminCashDailyPositionController::class, 'show'])->name('cash-daily-position.show');
+    Route::post('/cash-daily-position/store-daily', [AdminCashDailyPositionController::class, 'storeDaily'])->name('cash-daily-position.store-daily');
+    Route::get('/cash-daily-position/clients', [AdminCashDailyPositionController::class, 'clientsJson'])->name('cash-daily-position.clients.json');
+    Route::get('/cash-daily-position/staff', [AdminCashDailyPositionController::class, 'staffJson'])->name('cash-daily-position.staff.json');
+    Route::post('/cash-daily-position/position', [AdminCashDailyPositionController::class, 'storePosition'])->name('cash-daily-position.position.store');
+    Route::post('/cash-daily-position/lines', [AdminCashDailyPositionController::class, 'storeLine'])->name('cash-daily-position.lines.store');
+    Route::delete('/cash-daily-position/lines/{line}', [AdminCashDailyPositionController::class, 'destroyLine'])->name('cash-daily-position.lines.destroy');
+    Route::post('/cash-daily-position/payments', [AdminCashDailyPositionController::class, 'recordPayment'])->name('cash-daily-position.payments.store');
+    Route::post('/cash-daily-position/reports', [AdminCashDailyPositionController::class, 'storeReport'])->name('cash-daily-position.reports.store');
+    Route::delete('/cash-daily-position/reports/{report}', [AdminCashDailyPositionController::class, 'destroyReport'])->name('cash-daily-position.reports.destroy');
 
     // BIR Form Types (master list management)
     Route::post('/bir-form-types', [BirFormTypeController::class, 'store'])->name('bir-form-types.store');

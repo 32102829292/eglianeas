@@ -91,6 +91,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         BIR Forms
     </a>
+    <a href="{{ route('admin.cash-daily-position.index') }}" class="{{ $active('admin.cash-daily-position') }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 7h10"/><path d="M7 12h10"/><path d="M7 17h6"/></svg>
+        Cash Daily Position
+    </a>
 
     <div class="dash-nav-head">Other Services</div>
     <a href="{{ route('admin.other-services.fill-up') }}" class="{{ $active('admin.other-services.fill-up') }}">
@@ -132,7 +136,7 @@
         Priority List / To-Do List
     </a>
 
-    @if ($user->isOperational())
+@if ($user->isOperational())
         <a href="{{ route('admin.weekly-bookkeeping.index') }}" class="{{ $active('admin.weekly-bookkeeping') }}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h1M8 18h1M12 14h1M12 18h1M16 14h1M16 18h1"/></svg>
             Weekly Bookkeeping
