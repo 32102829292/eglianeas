@@ -293,6 +293,29 @@
             </div>
 
             {{-- Minimal sheet info for tests (legacy path) --}}
+            @push('styles')
+            <style>
+                .cdp-dow {
+                    display: inline-block;
+                    margin-right: 6px;
+                    padding: 1px 6px;
+                    border-radius: 999px;
+                    background: #e7f2fd;
+                    color: var(--navy);
+                    font-size: 11px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.06em;
+                }
+                .cdp-fold {
+                    display: block;
+                    margin-top: 2px;
+                    font-size: 11px;
+                    font-style: italic;
+                    color: var(--muted-text);
+                }
+            </style>
+            @endpush
             <div class="cdp-sheet">
                 <div class="cdp-sheet-head">
                     <h3>{{ $period->label() }} &middot; {{ $period->rangeLabel() }}</h3>
@@ -313,16 +336,34 @@
                     </thead>
                     <tbody>
                         @foreach ($days as $day)
+                            @php
+                                $dayDate = $day['date'] ?? null;
+                                $isCarbonDate = $dayDate instanceof \Illuminate\Support\Carbon;
+                                // Null actual cash means the day has not been counted yet;
+                                // null over/short follows from it.
+                                $actualCash = array_key_exists('actual_cash', $day) ? $day['actual_cash'] : null;
+                                $overShort = array_key_exists('over_short', $day) ? $day['over_short'] : null;
+                            @endphp
                             <tr>
-                                <td>{{ isset($day['date']) && $day['date'] instanceof \Illuminate\Support\Carbon ? $day['date']->format('M d, Y') : ($day['date'] ?? '') }}</td>
+                                <td>
+                                    @if ($isCarbonDate)
+                                        <span class="cdp-dow">{{ $dayDate->format('D') }}</span>
+                                        {{ $dayDate->format('M d, Y') }}
+                                    @else
+                                        {{ $dayDate ?? '' }}
+                                    @endif
+                                    @if (! empty($day['has_weekend_fold']))
+                                        <span class="cdp-fold">Includes weekend activity folded in</span>
+                                    @endif
+                                </td>
                                 <td class="num">{{ number_format($day['beginning_balance'] ?? $day['beginning'] ?? 0, 2) }}</td>
                                 <td class="num">{{ number_format($day['additions'] ?? $day['collected'] ?? 0, 2) }}</td>
                                 <td class="num">{{ number_format($day['salaries'] ?? 0, 2) }}</td>
                                 <td class="num">{{ number_format($day['expenses'] ?? 0, 2) }}</td>
                                 <td class="num">{{ number_format($day['less'] ?? (($day['salaries'] ?? 0) + ($day['expenses'] ?? 0)), 2) }}</td>
                                 <td class="num">{{ number_format($day['ending_balance'] ?? $day['budget'] ?? 0, 2) }}</td>
-                                <td class="num">{{ number_format($day['actual_cash'] ?? 0, 2) }}</td>
-                                <td class="num">{{ number_format($day['over_short'] ?? 0, 2) }}</td>
+                                <td class="num">{{ $actualCash === null ? 'Not counted yet' : number_format((float) $actualCash, 2) }}</td>
+                                <td class="num">{{ $overShort === null ? '&mdash;' : number_format((float) $overShort, 2) }}</td>
                             </tr>
                         @endforeach
                     </tbody>
@@ -342,5 +383,137 @@
                 </table>
             </div>
         @endif
+    @endif
+
+    {{-- Saved (frozen) Cash Daily Position Reports: overview list + one
+         details modal per report. Everything shown here is the stored snapshot,
+         never a recalculation from live records. --}}
+    @if (! empty($savedReports))
+        <div class="cdp-reports">
+            <h2 class="cdp-reports-title">Recorded Cash Daily Position Reports</h2>
+
+            <div class="cdp-reports-grid">
+                @foreach ($savedReports as $savedReport)
+                    @php $savedModalId = 'cdpReportModal'.$savedReport->id; @endphp
+                    <div class="cdp-report-card">
+                        <div class="cdp-report-card-head">
+                            <strong>{{ $savedReport->client?->name ?? 'Client #'.$savedReport->client_id }}</strong>
+                            <span class="cdp-report-period">{{ $savedReport->periodLabel() }}</span>
+                        </div>
+                        <div class="cdp-report-card-totals">
+                            <span>Cash received <b>{{ number_format((float) $savedReport->total_collected, 2) }}</b></span>
+                            <span>Total LESS <b>{{ number_format((float) $savedReport->total_less, 2) }}</b></span>
+                        </div>
+                        <div class="cdp-report-card-actions">
+                            <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#{{ $savedModalId }}">View Report</button>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        @foreach ($savedReports as $savedReport)
+            @php $savedModalId = 'cdpReportModal'.$savedReport->id; @endphp
+            <div class="modal fade" id="{{ $savedModalId }}" tabindex="-1" aria-hidden="true" aria-labelledby="{{ $savedModalId }}Label">
+                <div class="modal-dialog modal-dialog-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="{{ $savedModalId }}Label">
+                                {{ $savedReport->client?->name ?? 'Client #'.$savedReport->client_id }} — {{ $savedReport->periodLabel() }}
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="cdp-report-totals">
+                                <div><span>Cash received (ADD)</span><strong>{{ number_format((float) $savedReport->total_collected, 2) }}</strong></div>
+                                <div><span>Salaries</span><strong>{{ number_format((float) $savedReport->total_salaries, 2) }}</strong></div>
+                                <div><span>Expenses</span><strong>{{ number_format((float) $savedReport->total_expenses, 2) }}</strong></div>
+                                <div><span>Total LESS</span><strong>{{ number_format((float) $savedReport->total_less, 2) }}</strong></div>
+                                <div><span>Budget</span><strong>{{ number_format((float) $savedReport->total_budget, 2) }}</strong></div>
+                                <div><span>Over/(Short)</span><strong>{{ number_format((float) $savedReport->total_over_short, 2) }}</strong></div>
+                            </div>
+
+                            <table class="cdp-report-days">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Beginning balance</th>
+                                        <th>Cash received</th>
+                                        <th>Salaries</th>
+                                        <th>Expenses</th>
+                                        <th>Total LESS</th>
+                                        <th>Ending balance</th>
+                                        <th>Actual cash</th>
+                                        <th>Over/(Short)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($savedReport->days as $savedDay)
+                                        <tr>
+                                            <td>
+                                                <span class="cdp-dow">{{ $savedDay->report_date->format('D') }}</span>
+                                                {{ $savedDay->report_date->format('M d, Y') }}
+                                            </td>
+                                            <td class="num">{{ number_format((float) $savedDay->beginning_balance, 2) }}</td>
+                                            <td class="num">{{ number_format((float) $savedDay->collected, 2) }}</td>
+                                            <td class="num">{{ number_format((float) $savedDay->salaries, 2) }}</td>
+                                            <td class="num">{{ number_format((float) $savedDay->expenses, 2) }}</td>
+                                            <td class="num">{{ number_format((float) $savedDay->less, 2) }}</td>
+                                            <td class="num">{{ number_format((float) $savedDay->ending_balance, 2) }}</td>
+                                            <td class="num">{{ $savedDay->actual_cash === null ? 'Not counted yet' : number_format((float) $savedDay->actual_cash, 2) }}</td>
+                                            <td class="num">{{ $savedDay->actual_cash === null ? '&mdash;' : number_format((float) $savedDay->over_short, 2) }}</td>
+                                        </tr>
+                                        @foreach ($savedDay->lines as $savedLine)
+                                            <tr class="cdp-report-detail">
+                                                <td colspan="9">{{ $savedLine->typeLabel() }}: {{ $savedLine->label }} — {{ number_format((float) $savedLine->amount, 2) }}</td>
+                                            </tr>
+                                        @endforeach
+                                        @foreach ($savedDay->payments as $savedPayment)
+                                            <tr class="cdp-report-detail">
+                                                <td colspan="9">Payment on {{ $savedPayment->paid_on?->format('M d, Y') }} — {{ number_format((float) $savedPayment->amount, 2) }} ({{ $savedPayment->statusLabel() }})</td>
+                                            </tr>
+                                        @endforeach
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="modal-footer">
+                            <form method="POST" action="{{ route('admin.cash-daily-position.reports.destroy', $savedReport) }}" onsubmit="return confirm('Delete this saved Cash Daily Position Report?')">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit" class="btn btn-danger btn-sm">Delete Report</button>
+                            </form>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+
+        @push('styles')
+        <style>
+            .cdp-reports { margin-top: 26px; }
+            .cdp-reports-title { font-size: 17px; color: var(--navy); margin-bottom: 12px; }
+            .cdp-reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+            .cdp-report-card {
+                display: flex; flex-direction: column; gap: 8px;
+                padding: 14px 16px;
+                border: 1px solid var(--border-subtle);
+                border-radius: var(--radius-card);
+                background: var(--surface);
+            }
+            .cdp-report-card-head { display: flex; flex-direction: column; gap: 2px; }
+            .cdp-report-period { font-size: 12px; color: var(--muted-text); }
+            .cdp-report-card-totals { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--muted-text); }
+            .cdp-report-card-totals b { color: var(--navy); }
+            .cdp-report-totals { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 14px; }
+            .cdp-report-totals span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-text); }
+            .cdp-report-totals strong { font-size: 15px; color: var(--navy); }
+            .cdp-report-days { width: 100%; border-collapse: collapse; font-size: 13px; }
+            .cdp-report-days th, .cdp-report-days td { padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
+            .cdp-report-days td.num { text-align: right; }
+            .cdp-report-detail td { font-size: 12px; color: var(--muted-text); border-bottom-style: dashed; }
+        </style>
+        @endpush
     @endif
 @endsection
