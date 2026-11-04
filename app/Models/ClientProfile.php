@@ -109,6 +109,10 @@ class ClientProfile extends Model
         'tin_no',
         'tin_document_path',
         'valid_id_document_path',
+        'cor_document_path',
+        'cor_document_name',
+        'cor_document_mime',
+        'cor_document_uploaded_at',
         'mother_maiden_name',
         'father_name',
         'status',
@@ -122,6 +126,7 @@ class ClientProfile extends Model
         return [
             'birth_date' => 'date',
             'date_started' => 'date',
+            'cor_document_uploaded_at' => 'datetime',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
         ];

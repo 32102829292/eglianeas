@@ -198,6 +198,54 @@
 
         <div class="card">
             <div class="card-head d-flex align-items-center justify-content-between">
+                <h3 class="card-title mb-0">Certificate of Registration</h3>
+                @if ($profile->cor_document_path && $canManageCor)
+                    <a href="{{ route('admin.clients.cor.download', $client) }}" class="link">Download</a>
+                @endif
+            </div>
+            <div class="form-hint mb-2">The Certificate of Registration is stored separately from BIR forms, billings, and other client records.</div>
+            @if ($profile->cor_document_path)
+                <div class="profile-grid">
+                    <div class="profile-row">
+                        <span class="profile-k">Status</span>
+                        <span class="profile-v"><span class="badge badge-success">Available</span></span>
+                    </div>
+                    <div class="profile-row">
+                        <span class="profile-k">File</span>
+                        <span class="profile-v">{{ $profile->cor_document_name ?: basename($profile->cor_document_path) }}</span>
+                    </div>
+                    <div class="profile-row">
+                        <span class="profile-k">Uploaded</span>
+                        <span class="profile-v">{{ $profile->cor_document_uploaded_at?->format('M j, Y g:i A') ?? '—' }}</span>
+                    </div>
+                </div>
+                @if ($canManageCor)
+                    <div class="btn-row mt-2">
+                        <a href="{{ route('admin.clients.cor.view', $client) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">View</a>
+                        <a href="{{ route('admin.clients.cor.download', $client) }}" class="btn btn-outline btn-sm">Download</a>
+                    </div>
+                @endif
+            @else
+                <p class="form-hint">No Certificate of Registration uploaded.</p>
+            @endif
+            @if ($canManageCor)
+                <form method="POST" action="{{ route('admin.clients.cor.upload', $client) }}" enctype="multipart/form-data" class="mt-2">
+                    @csrf
+                    <div class="form-grid two">
+                        <div class="form-group">
+                            <label class="form-label" for="certificate_of_registration">{{ $profile->cor_document_path ? 'Replace Certificate' : 'Upload Certificate' }}</label>
+                            <input class="form-control" id="certificate_of_registration" name="certificate_of_registration" type="file" accept=".pdf,image/jpeg,image/png" required>
+                            <div class="form-hint">PDF, JPG, or PNG; maximum 10 MB. Files are stored privately.</div>
+                            @error('certificate_of_registration')<div class="form-error">{{ $message }}</div>@enderror
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm">{{ $profile->cor_document_path ? 'Replace Certificate' : 'Upload Certificate' }}</button>
+                </form>
+            @endif
+        </div>
+
+        <div class="card">
+            <div class="card-head d-flex align-items-center justify-content-between">
                 <h3 class="card-title mb-0">BIR forms</h3>
                 @if ($canManage)
                     <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addBirFormModal">

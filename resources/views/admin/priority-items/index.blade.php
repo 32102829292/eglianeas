@@ -257,10 +257,11 @@
                             </td>
                             <td data-col="Assigned Staff" class="priority-cell-by">
                                 @if ($item->assignedStaff)
-                                    {{ $item->assignedStaff->name }}
+                                    <div>{{ $item->assignedStaff->name }}</div>
                                 @else
                                     <span class="badge badge-info">Unassigned</span>
                                 @endif
+                                @include('admin.priority-items.partials.assign-form', ['item' => $item])
                             </td>
                             <td data-col="Status">
                                 <span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span>
@@ -356,6 +357,7 @@
                                 <a href="{{ route('admin.priority-items.edit', $item) }}" class="btn btn-outline btn-sm">Edit</a>
                                 <form method="POST" action="{{ route('admin.priority-items.destroy', $item) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this item?', message: 'This item will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
                             @endif
+                            @include('admin.priority-items.partials.assign-form', ['item' => $item])
                         </div>
                     </div>
                 @empty

@@ -2414,7 +2414,8 @@ form.filter-bar.log-search-bar { width: 100%; max-width: 560px; --search-h: 40px
 .clients-table .col-status, .clients-table .col-payment { width: 8%; }
 .clients-table .col-outstanding { width: 11%; }
 .clients-table .col-since { width: 7%; }
-.clients-table .col-actions { width: 32%; }
+.clients-table .col-cor { width: 9%; }
+.clients-table .col-actions { width: 23%; }
 
 @media (max-width: 768px) {
   .client-actions { gap: 6px; }

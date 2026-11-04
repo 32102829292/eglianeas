@@ -60,6 +60,32 @@ trait HandlesBookkeepingWorkflow
         return $this->planClass()::STORAGE_PREFIX;
     }
 
+    protected function evidenceDisk(): string
+    {
+        return (string) config('filesystems.evidence_disk', 'local');
+    }
+
+    protected function storeEvidence(UploadedFile $file, string $taskType): string
+    {
+        try {
+            $path = $file->store(
+                $this->storagePrefix()."/{$taskType}",
+                $this->evidenceDisk()
+            );
+        } catch (\Throwable $e) {
+            report($e);
+            $path = false;
+        }
+
+        if ($path === false) {
+            throw ValidationException::withMessages([
+                'attachment' => 'Evidence could not be uploaded. Please try again.',
+            ]);
+        }
+
+        return $path;
+    }
+
     protected function periodKind(): string
     {
         return $this->planClass()::PERIOD_KIND;
@@ -1510,10 +1536,14 @@ trait HandlesBookkeepingWorkflow
             $file = $request->file('attachment');
             $this->validateAttachment($file, $target->task_type);
 
-            $path = $file->store($this->storagePrefix()."/{$target->task_type}", 'supabase');
+            $path = $this->storeEvidence($file, $target->task_type);
 
             if ($target->attachment_path) {
-                Storage::disk('supabase')->delete($target->attachment_path);
+                try {
+                    Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
 
             $target->attachment_path = $path;
@@ -1622,10 +1652,14 @@ trait HandlesBookkeepingWorkflow
         $file = $validated['attachment'];
         $this->validateAttachment($file, $target->task_type);
 
-        $path = $file->store($this->storagePrefix()."/{$target->task_type}", 'supabase');
+        $path = $this->storeEvidence($file, $target->task_type);
 
         if ($target->attachment_path) {
-            Storage::disk('supabase')->delete($target->attachment_path);
+            try {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         $target->update([
@@ -1659,11 +1693,15 @@ trait HandlesBookkeepingWorkflow
         $file = $validated['attachment'];
         $this->validateAttachment($file, $target->task_type);
 
-        if ($target->attachment_path) {
-            Storage::disk('supabase')->delete($target->attachment_path);
-        }
+        $path = $this->storeEvidence($file, $target->task_type);
 
-        $path = $file->store($this->storagePrefix()."/{$target->task_type}", 'supabase');
+        if ($target->attachment_path) {
+            try {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
         $target->update([
             'attachment_path' => $path,
@@ -1690,23 +1728,33 @@ trait HandlesBookkeepingWorkflow
         $this->authorizeTarget($bookkeeping, $target);
 
         abort_unless($target->attachment_path, 404);
-        abort_unless(Storage::disk('supabase')->exists($target->attachment_path), 404);
+        abort_unless(Storage::disk($this->evidenceDisk())->exists($target->attachment_path), 404);
 
-        return Storage::disk('supabase')->download($target->attachment_path, $target->attachment_name);
+        return Storage::disk($this->evidenceDisk())->download($target->attachment_path, $target->attachment_name);
     }
 
     /**
      * @param  Model  $bookkeeping
      * @param  Model  $target
      */
-    public function handleViewAttachment(Model $bookkeeping, Model $target): RedirectResponse
+    public function handleViewAttachment(Model $bookkeeping, Model $target): RedirectResponse|StreamedResponse
     {
         $this->authorizeTarget($bookkeeping, $target);
 
         abort_unless($target->attachment_path, 404);
-        abort_unless(Storage::disk('supabase')->exists($target->attachment_path), 404);
 
-        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($target->attachment_path, now()->addMinutes(30));
+        $disk = Storage::disk($this->evidenceDisk());
+
+        abort_unless($disk->exists($target->attachment_path), 404);
+
+        if (config("filesystems.disks.{$this->evidenceDisk()}.driver") === 'local') {
+            return $disk->response($target->attachment_path, $target->attachment_name, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+            ]);
+        }
+
+        $temporaryUrl = $disk->temporaryUrl($target->attachment_path, now()->addMinutes(30));
 
         return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
@@ -1726,8 +1774,8 @@ trait HandlesBookkeepingWorkflow
             return back()->withErrors(['action' => 'Cannot delete a target with actual work recorded. Remove it from the '.$this->bookkeepingConfig()['unit'].' target list instead (history is preserved).']);
         }
 
-        if ($target->attachment_path && Storage::disk('supabase')->exists($target->attachment_path)) {
-            Storage::disk('supabase')->delete($target->attachment_path);
+        if ($target->attachment_path && Storage::disk($this->evidenceDisk())->exists($target->attachment_path)) {
+            Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
         }
 
         $clientName = $target->displayClientName();
@@ -1756,8 +1804,8 @@ trait HandlesBookkeepingWorkflow
         abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can delete targets.');
 
         foreach ($bookkeeping->targets as $target) {
-            if ($target->attachment_path && Storage::disk('supabase')->exists($target->attachment_path)) {
-                Storage::disk('supabase')->delete($target->attachment_path);
+            if ($target->attachment_path && Storage::disk($this->evidenceDisk())->exists($target->attachment_path)) {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
             }
         }
 

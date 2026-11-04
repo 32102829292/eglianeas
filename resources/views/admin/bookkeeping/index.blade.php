@@ -400,7 +400,7 @@
                                             @endif
                                         </td>
                                         <td class="wk-col-actions">
-                                            <button type="button" class="btn btn-ghost btn-sm wk-open" data-bs-toggle="modal" data-bs-target="#bkTaskModal" data-bk-task-id="{{ $t->id }}" data-bk-booking-id="{{ $t->{$planFk} }}">Open</button>
+                                            <button type="button" class="btn btn-ghost btn-sm wk-open" data-bs-toggle="modal" data-bs-target="#bkTaskModal" data-bk-task-id="{{ $t->id }}" data-bk-booking-id="{{ $t->{$planFk} }}" data-bk-task-url="{{ route($prefix.'.task', [$t->{$planFk}, $t->id]) }}">Open</button>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -779,12 +779,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     modalEl.addEventListener('show.bs.modal', function (event) {
         const btn = event.relatedTarget;
-        const taskId = btn.getAttribute('data-bk-task-id');
-        const bookingId = btn.getAttribute('data-bk-booking-id');
-        const prefix = '{{ $prefix }}';
+        const taskUrl = btn.getAttribute('data-bk-task-url');
         title.textContent = 'Task Details';
         body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 small text-muted">Loading task details...</div></div>';
-        fetch('/admin/' + prefix + '/' + bookingId + '/task/' + taskId, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+        fetch(taskUrl, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
             .then(r => {
                 if(!r.ok){
                     throw new Error('Request failed: ' + r.status);
@@ -832,7 +830,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     html += '    <span class="text-muted">No evidence submitted yet</span>';
                 }
                 if(t.can_manage && routes.upload){
-                    html += '    <form method="POST" action="'+routes.upload+'" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="evidence" class="form-control form-control-sm" required></div><div class="col-auto"><button class="btn btn-sm btn-outline-primary">Upload Evidence</button></div></form>';
+                    html += '    <form method="POST" action="'+routes.upload+'" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="attachment" class="form-control form-control-sm" required></div><div class="col-auto"><button class="btn btn-sm btn-outline-primary">Upload Evidence</button></div></form>';
                 }
                 html += '  </div>';
                 html += '</div>';

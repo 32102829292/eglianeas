@@ -590,6 +590,23 @@
 .kaizen-impl-value { font-weight: 700; color: #196F3D; white-space: nowrap; }
 .kaizen-cell-actions { white-space: nowrap; }
 .kaizen-cell-actions .btn + .btn { margin-left: 6px; }
+.inline-assign-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 4px;
+}
+.inline-assign-form .form-control-sm {
+  width: auto;
+  min-width: 120px;
+  max-width: 150px;
+}
+.kaizen-cell-actions .inline-assign-form,
+.cv-card-actions .inline-assign-form {
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* Subtle distinction for finished improvements: a green rail plus a faint
    tint, so a completed row is identifiable without reading the Status cell. */

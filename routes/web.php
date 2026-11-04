@@ -198,6 +198,13 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+        Route::post('/clients/{client}/certificate-of-registration', [AdminClientController::class, 'uploadCertificateOfRegistration'])
+            ->name('clients.cor.upload');
+        Route::get('/clients/{client}/certificate-of-registration/view', [AdminClientController::class, 'viewCertificateOfRegistration'])
+            ->name('clients.cor.view');
+        Route::get('/clients/{client}/certificate-of-registration/download', [AdminClientController::class, 'downloadCertificateOfRegistration'])
+            ->name('clients.cor.download');
     });
     Route::middleware('role:admin')->group(function () {
         Route::get('/activity-logs', [ActivityLogController::class, 'index'])->name('activity-logs');
@@ -418,6 +425,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'show'])->name('kaizen-concerns.show');
     Route::get('/kaizen-concerns/{concern}/edit', [KaizenConcernController::class, 'edit'])->name('kaizen-concerns.edit');
     Route::put('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'update'])->name('kaizen-concerns.update');
+    Route::post('/kaizen-concerns/{concern}/assign-staff', [KaizenConcernController::class, 'assignStaff'])->name('kaizen-concerns.assign-staff');
     Route::post('/kaizen-concerns/{concern}/implement', [KaizenConcernController::class, 'implement'])->name('kaizen-concerns.implement');
     Route::delete('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'destroy'])->name('kaizen-concerns.destroy');
     Route::post('/kaizen-concerns/{concern}/checklist/toggle', [KaizenConcernController::class, 'toggleChecklistItem'])->name('kaizen-concerns.checklist.toggle');
@@ -436,6 +444,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/priority-items/{item}', [PriorityItemController::class, 'show'])->name('priority-items.show');
     Route::get('/priority-items/{item}/edit', [PriorityItemController::class, 'edit'])->name('priority-items.edit');
     Route::put('/priority-items/{item}', [PriorityItemController::class, 'update'])->name('priority-items.update');
+    Route::post('/priority-items/{item}/assign-staff', [PriorityItemController::class, 'assignStaff'])->name('priority-items.assign-staff');
     Route::delete('/priority-items/{item}', [PriorityItemController::class, 'destroy'])->name('priority-items.destroy');
     Route::post('/priority-items/{item}/checklist/toggle', [PriorityItemController::class, 'toggleChecklistItem'])->name('priority-items.checklist.toggle');
     Route::post('/priority-items/{item}/checklist/add', [PriorityItemController::class, 'addChecklistItem'])->name('priority-items.checklist.add');

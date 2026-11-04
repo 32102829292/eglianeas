@@ -22,6 +22,7 @@ class WeeklyBookkeepingTest extends TestCase
     {
         parent::setUp();
         Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
     }
 
     private function admin(): User
@@ -1520,6 +1521,46 @@ class WeeklyBookkeepingTest extends TestCase
         $this->assertTrue(ActivityLog::query()->where('weekly_bookkeeping_id', $plan->id)->where('action', 'weekly_bookkeeping.attachment_uploaded')->exists());
     }
 
+    public function test_evidence_upload_returns_json_for_the_task_modal(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [$client->id => ['tasks' => ['record']]]);
+        $plan = $this->findPlan($staff, $week);
+        $target = $plan->targets()->first();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $target]));
+
+        $this->actingAs($staff)
+            ->post(
+                route('admin.weekly-bookkeeping.upload-attachment', [$plan, $target]),
+                ['attachment' => UploadedFile::fake()->create('modal-proof.pdf', 1024, 'application/pdf')],
+                ['Accept' => 'application/json']
+            )
+            ->assertOk()
+            ->assertJsonPath('message', 'Evidence uploaded.')
+            ->assertJsonPath('evidence.has', true)
+            ->assertJsonPath('evidence.name', 'modal-proof.pdf');
+
+        $this->assertNotNull($target->fresh()->attachment_path);
+    }
+
+    public function test_task_modal_uses_the_attachment_field_and_an_ajax_upload_form(): void
+    {
+        $html = $this->actingAs($this->staff())
+            ->get(route('admin.weekly-bookkeeping.index'))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('id="bkEvidenceForm"', $html);
+        $this->assertStringContainsString('name="attachment"', $html);
+        $this->assertStringContainsString('new FormData(form)', $html);
+        $this->assertStringNotContainsString('name="evidence"', $html);
+    }
+
     private function planWithEvidence(User $owner, string $taskType = 'pickup'): array
     {
         $client = $this->client('Client A');
@@ -1569,6 +1610,28 @@ class WeeklyBookkeepingTest extends TestCase
         }
 
         $this->assertStringStartsWith('https://signed.example.test/', (string) $response->headers->get('Location'));
+    }
+
+    public function test_evidence_uses_the_local_disk_when_no_remote_disk_is_configured(): void
+    {
+        config(['filesystems.evidence_disk' => 'local']);
+        Storage::fake('local');
+
+        $staff = $this->staff('Maria Santos');
+        [$plan, $target] = $this->planWithEvidence($staff);
+
+        $this->assertNotNull($target->attachment_path);
+        Storage::disk('local')->assertExists($target->attachment_path);
+
+        $response = $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.view-attachment', [$plan, $target]));
+
+        $response->assertOk();
+        $this->assertInstanceOf(
+            \Symfony\Component\HttpFoundation\StreamedResponse::class,
+            $response->baseResponse
+        );
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
     }
 
     public function test_evidence_download_returns_the_file(): void

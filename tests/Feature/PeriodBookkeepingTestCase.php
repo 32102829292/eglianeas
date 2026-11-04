@@ -39,6 +39,7 @@ abstract class PeriodBookkeepingTestCase extends TestCase
         parent::setUp();
 
         Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
     }
 
     // -----------------------------------------------------------------
@@ -1775,6 +1776,39 @@ abstract class PeriodBookkeepingTestCase extends TestCase
             ->assertRedirect();
     }
 
+    public function test_evidence_uses_the_local_disk_when_no_remote_disk_is_configured(): void
+    {
+        config(['filesystems.evidence_disk' => 'local']);
+        Storage::fake('local');
+
+        $staff = $this->staff();
+        $client = $this->client();
+        $plan = $this->createPlan($staff, [$client->id => ['tasks' => ['pickup']]]);
+        $target = $this->target($plan);
+
+        $this->actingAs($staff)->post($this->url('start-target', [$plan, $target]));
+
+        $this->actingAs($staff)
+            ->post($this->url('upload-attachment', [$plan, $target]), [
+                'attachment' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $target->refresh();
+        $this->assertNotNull($target->attachment_path);
+        Storage::disk('local')->assertExists($target->attachment_path);
+
+        $response = $this->actingAs($staff)
+            ->get($this->url('view-attachment', [$plan, $target]));
+
+        $response->assertOk();
+        $this->assertInstanceOf(
+            \Symfony\Component\HttpFoundation\StreamedResponse::class,
+            $response->baseResponse
+        );
+        $this->assertStringContainsString('no-store', (string) $response->headers->get('Cache-Control'));
+    }
+
     public function test_evidence_download_returns_the_file(): void
     {
         $staff = $this->staff();
@@ -1838,6 +1872,72 @@ abstract class PeriodBookkeepingTestCase extends TestCase
     // -----------------------------------------------------------------
     // Screens
     // -----------------------------------------------------------------
+
+    public function test_task_details_button_uses_the_registered_task_route(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client('Alpha Client');
+        $period = $this->currentPeriod();
+        $plan = $this->createPlan($staff, [$client->id => ['tasks' => ['pickup']]], $period);
+        $target = $this->target($plan);
+
+        $taskUrl = $this->url('task', [$plan, $target]);
+
+        $html = $this->actingAs($staff)
+            ->get($this->url('index', [$this->queryKey() => $period->key()]))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('data-bk-task-url="'.e($taskUrl).'"', $html);
+        $this->assertStringContainsString('btn.getAttribute(\'data-bk-task-url\')', $html);
+        $this->assertStringNotContainsString('/admin/admin/', $html);
+    }
+
+    public function test_task_details_endpoint_returns_the_task_and_its_routes(): void
+    {
+        $staff = $this->staff();
+        $client = $this->client('Alpha Client');
+        $plan = $this->createPlan($staff, [$client->id => ['tasks' => ['pickup']]]);
+        $target = $this->target($plan);
+
+        $this->actingAs($staff)
+            ->getJson($this->url('task', [$plan, $target]))
+            ->assertOk()
+            ->assertJsonPath('target.id', $target->id)
+            ->assertJsonPath('target.client_name', $client->business_name)
+            ->assertJsonPath('target.task_type', 'pickup')
+            ->assertJsonPath('routes.update_target', $this->url('update-target', [$plan, $target]))
+            ->assertJsonPath('routes.start', $this->url('start-target', [$plan, $target]));
+    }
+
+    public function test_task_details_endpoint_rejects_a_task_from_another_plan(): void
+    {
+        $admin = $this->admin();
+        $staff = $this->staff();
+        $clientA = $this->client('Alpha Client');
+        $clientB = $this->client('Beta Client');
+
+        $planA = $this->createPlan($staff, [$clientA->id => ['tasks' => ['pickup']]], $this->currentPeriod());
+        $planB = $this->createPlan($staff, [$clientB->id => ['tasks' => ['pickup']]], $this->previousPeriod());
+        $targetB = $this->target($planB);
+
+        $this->actingAs($admin)
+            ->getJson($this->url('task', [$planA, $targetB]))
+            ->assertNotFound();
+    }
+
+    public function test_task_details_endpoint_is_forbidden_to_unrelated_staff(): void
+    {
+        $owner = $this->staff('Plan Owner');
+        $outsider = $this->staff('Unrelated Staff');
+        $client = $this->client();
+        $plan = $this->createPlan($owner, [$client->id => ['tasks' => ['pickup']]]);
+        $target = $this->target($plan);
+
+        $this->actingAs($outsider)
+            ->getJson($this->url('task', [$plan, $target]))
+            ->assertForbidden();
+    }
 
     public function test_target_planner_uses_compact_task_controls(): void
     {

@@ -32,6 +32,7 @@ class WeeklyBookkeepingComparisonTest extends TestCase
     {
         parent::setUp();
         Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
         $this->travelTo(\Illuminate\Support\Carbon::parse(self::TODAY)->setTime(10, 0));
     }
 

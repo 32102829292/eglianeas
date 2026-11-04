@@ -37,7 +37,7 @@
         <div class="form-group">
             <label class="form-label" for="assigned_staff_id">Assigned To</label>
             <select class="form-control" id="assigned_staff_id" name="assigned_staff_id">
-                <option value="">— Unassigned (visible to all staff & supervisors) —</option>
+                <option value="">— Unassigned (Admin only until assigned) —</option>
                 @foreach ($staffAccounts as $staff)
                     <option value="{{ $staff->id }}" @selected(old('assigned_staff_id') == $staff->id)>{{ $staff->name }}</option>
                 @endforeach

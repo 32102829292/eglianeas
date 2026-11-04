@@ -1413,17 +1413,67 @@ class KaizenEmployeeSuggestionTest extends TestCase
         $this->assertNull($legacy->fresh()->type);
     }
 
-    public function test_only_admins_may_open_the_admin_concerns_board(): void
+    public function test_admin_concerns_are_assigned_only_for_staff_and_supervisors(): void
     {
-        foreach ([User::ROLE_STAFF, User::ROLE_SUPERVISOR, User::ROLE_CLIENT] as $role) {
-            $this->actingAs($this->user($role))
-                ->get(route('admin.kaizen-concerns.admin-concerns.index'))
-                ->assertForbidden();
-        }
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Assigned Staff');
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Assigned Supervisor');
 
-        $this->actingAs($this->user(User::ROLE_ADMIN))
+        $staffConcern = $this->createAdminConcern($admin, 'Admin raised: assigned to staff');
+        $staffConcern->update(['assigned_staff_id' => $staff->id]);
+
+        $supervisorConcern = $this->createAdminConcern($admin, 'Admin raised: assigned to supervisor');
+        $supervisorConcern->update(['assigned_staff_id' => $supervisor->id]);
+
+        $this->createAdminConcern($admin, 'Admin raised: nobody owns this');
+
+        $staffBoard = $this->actingAs($staff)
             ->get(route('admin.kaizen-concerns.admin-concerns.index'))
-            ->assertOk();
+            ->assertOk()
+            ->assertSee('Admin raised: assigned to staff')
+            ->assertDontSee('Admin raised: assigned to supervisor')
+            ->assertDontSee('Admin raised: nobody owns this')
+            ->getContent();
+
+        // The assignee filter is redundant when the board only shows the viewer's
+        // own records, so it is hidden for Staff and Supervisors.
+        $this->assertStringNotContainsString('filter_assigned_staff_id', $staffBoard);
+
+        $this->actingAs($supervisor)
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('Admin raised: assigned to supervisor')
+            ->assertDontSee('Admin raised: assigned to staff')
+            ->assertDontSee('Admin raised: nobody owns this');
+
+        $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertOk()
+            ->assertSee('Admin raised: assigned to staff')
+            ->assertSee('Admin raised: assigned to supervisor')
+            ->assertSee('Admin raised: nobody owns this');
+
+        // Direct access follows the same rule as the board listing.
+        $this->actingAs($staff)
+            ->get(route('admin.kaizen-concerns.show', $supervisorConcern))
+            ->assertForbidden();
+
+        $this->actingAs($this->user(User::ROLE_CLIENT))
+            ->get(route('admin.kaizen-concerns.admin-concerns.index'))
+            ->assertForbidden();
+    }
+
+    public function test_unassigned_employee_suggestions_stay_visible_to_the_team(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->concern($admin, KaizenConcern::STATUS_PENDING);
+
+        foreach ([User::ROLE_STAFF, User::ROLE_SUPERVISOR] as $role) {
+            $this->actingAs($this->user($role))
+                ->get(route('admin.kaizen-concerns.index'))
+                ->assertOk()
+                ->assertSee('Client documents arrive without a checklist.');
+        }
     }
 
     public function test_the_two_boards_keep_their_own_filters(): void
@@ -1451,27 +1501,20 @@ class KaizenEmployeeSuggestionTest extends TestCase
         );
     }
 
-    public function test_the_admin_concerns_board_is_linked_from_the_navigation_for_admins_only(): void
+    public function test_the_admin_concerns_board_is_linked_from_the_navigation_for_all_operational_roles(): void
     {
-        $adminNav = $this->actingAs($this->user(User::ROLE_ADMIN))
-            ->get(route('admin.kaizen-concerns.index'))
-            ->assertOk()
-            ->getContent();
+        foreach ([User::ROLE_ADMIN, User::ROLE_STAFF, User::ROLE_SUPERVISOR] as $role) {
+            $nav = $this->actingAs($this->user($role))
+                ->get(route('admin.kaizen-concerns.index'))
+                ->assertOk()
+                ->getContent();
 
-        $this->assertStringContainsString(
-            route('admin.kaizen-concerns.admin-concerns.index'),
-            $adminNav
-        );
-
-        $staffNav = $this->actingAs($this->user(User::ROLE_STAFF))
-            ->get(route('admin.kaizen-concerns.index'))
-            ->assertOk()
-            ->getContent();
-
-        $this->assertStringNotContainsString(
-            route('admin.kaizen-concerns.admin-concerns.index'),
-            $staffNav
-        );
+            $this->assertStringContainsString(
+                route('admin.kaizen-concerns.admin-concerns.index'),
+                $nav,
+                "The Admin Concerns link must be available to {$role} users."
+            );
+        }
     }
 
     public function test_the_admin_concerns_route_is_not_shadowed_by_the_concern_id_route(): void

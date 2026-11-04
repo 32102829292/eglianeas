@@ -3,6 +3,7 @@
 @section('title', 'Clients — Egliane Accounting Services')
 
 @php
+    $canManageCor = auth()->user()->isAdmin() || auth()->user()->isSupervisor();
     $maskTin = function (?string $value): string {
         if (! $value) { return ''; }
         $clean = preg_replace('/\D/', '', $value) ?? '';
@@ -153,6 +154,7 @@
                 <colgroup>
                     <col class="col-business">
                     <col class="col-bir">
+                    <col class="col-cor">
                     <col class="col-contact">
                     <col class="col-status">
                     <col class="col-payment">
@@ -164,6 +166,7 @@
                     <tr>
                         <th>Business</th>
                         <th>BIR Codes</th>
+                        <th>COR</th>
                         <th>Contact</th>
                         <th class="text-center">Status</th>
                         <th class="text-center">Payment</th>
@@ -192,6 +195,16 @@
                                     </div>
                                 @else
                                     <span class="muted">&mdash;</span>
+                                @endif
+                            </td>
+                            <td data-col="Certificate of Registration">
+                                @if ($entry['has_cor'])
+                                    <span class="badge badge-success">Available</span>
+                                    @if ($canManageCor)
+                                        <a href="{{ route('admin.clients.cor.view', $client) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm ms-1">View</a>
+                                    @endif
+                                @else
+                                    <span class="muted">Not uploaded</span>
                                 @endif
                             </td>
                             <td data-col="Contact">
@@ -256,7 +269,7 @@
                         </tr>
                     @empty
                         <tr>
-                                <td colspan="8" class="empty-cell">
+                                <td colspan="9" class="empty-cell">
                                     @if ($hasActiveFilters)
                                         No clients match the current filters.
                                         <a href="{{ $resetUrl }}" class="btn btn-outline btn-sm">Clear filters</a>
@@ -284,6 +297,7 @@
                             <div class="cv-pair"><span class="cv-label">Contact</span><span class="cv-value">{{ $client->name }}<br><a href="mailto:{{ $client->email }}" class="contact-link">{{ $client->email }}</a>@if ($entry['profile']?->contact_no_tel)<br><a href="tel:{{ $entry['profile']->contact_no_tel }}" class="contact-link">{{ $entry['profile']->contact_no }}</a>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">BIR Codes</span><span class="cv-value">@if ($entry['bir_codes'])<div class="bir-chips">@foreach ($entry['bir_codes'] as $entryBirCode)<span class="bir-chip bir-chip-{{ $entryBirCode['status'] }}" title="{{ $entryBirCode['label'] }}">{{ $entryBirCode['code'] }}</span>@endforeach</div>@else<span class="muted">&mdash;</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Payment</span><span class="cv-value">@if ($entry['payment_status'])@php($p = $entry['payment_status'])<span class="badge @if($p==='paid') badge-success @elseif($p==='unpaid') badge-danger @elseif($p==='partial') badge-warn @else badge-neutral @endif">{{ ucfirst($p) }}</span>@else<span class="muted">—</span>@endif</span></div>
+                            <div class="cv-pair"><span class="cv-label">Certificate of Registration</span><span class="cv-value">@if ($entry['has_cor'])<span class="badge badge-success">Available</span>@if ($canManageCor)<a href="{{ route('admin.clients.cor.view', $client) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm ms-1">View</a>@endif @else<span class="muted">Not uploaded</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Outstanding</span><span class="cv-value">@if ($entry['outstanding'] > 0)<span class="text-danger fw-semibold">₱{{ number_format($entry['outstanding'], 2) }}</span>@else<span class="muted">—</span>@endif</span></div>
                             <div class="cv-pair"><span class="cv-label">Since</span><span class="cv-value">{{ $entry['profile']?->date_started?->format('M j, Y') ?? '—' }}</span></div>
                         </div>

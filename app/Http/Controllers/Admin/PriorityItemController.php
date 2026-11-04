@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -106,7 +107,7 @@ class PriorityItemController extends Controller
             'type' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::TYPES))],
             'description' => ['nullable', 'string', 'max:5000'],
             'priority' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::PRIORITIES))],
-            'assigned_staff_id' => ['nullable', 'exists:users,id'],
+            'assigned_staff_id' => $this->assignmentRules(),
             'due_date' => ['nullable', 'date'],
             'status' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::STATUSES))],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -143,6 +144,7 @@ class PriorityItemController extends Controller
 
         return view('admin.priority-items.show', [
             'item' => $item,
+            'staffAccounts' => $this->staffAccounts(),
         ]);
     }
 
@@ -174,7 +176,7 @@ class PriorityItemController extends Controller
             'type' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::TYPES))],
             'description' => ['nullable', 'string', 'max:5000'],
             'priority' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::PRIORITIES))],
-            'assigned_staff_id' => ['nullable', 'exists:users,id'],
+            'assigned_staff_id' => $this->assignmentRules(),
             'due_date' => ['nullable', 'date'],
             'status' => ['required', 'string', 'in:'.implode(',', array_keys(PriorityItem::STATUSES))],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -215,6 +217,43 @@ class PriorityItemController extends Controller
         }
 
         return back()->with('status', 'Priority item updated.');
+    }
+
+    public function assignStaff(Request $request, PriorityItem $item): RedirectResponse
+    {
+        abort_unless($item->canAssignStaff(auth()->user()), 403, 'Only admins and supervisors can assign staff.');
+
+        $validated = $request->validate([
+            'assigned_staff_id' => $this->assignmentRules(),
+        ]);
+
+        $previous = $item->assigned_staff_id;
+        $assignedId = $validated['assigned_staff_id'] ?? null;
+        $item->update(['assigned_staff_id' => $assignedId]);
+
+        if ((int) $previous !== (int) $assignedId) {
+            if ($assignedId) {
+                $this->notifyAssignment($item);
+            }
+
+            $action = ! $assignedId
+                ? 'admin.priority_staff_unassigned'
+                : ($previous ? 'admin.priority_staff_reassigned' : 'admin.priority_staff_assigned');
+            $description = ! $assignedId
+                ? "Cleared the staff assignment for Priority item #{$item->id}."
+                : ($previous
+                    ? "Reassigned Priority item #{$item->id} from staff #{$previous} to staff #{$assignedId}."
+                    : "Assigned Priority item #{$item->id} to staff #{$assignedId}.");
+
+            ActivityLog::record(auth()->user(), $action, $description);
+        }
+
+        $message = $assignedId ? 'Staff assignment saved.' : 'Staff assignment cleared.';
+        $response = $item->isVisibleTo(auth()->user())
+            ? back()
+            : redirect()->route('admin.priority-items.index');
+
+        return $response->with('status', $message);
     }
 
     public function destroy(PriorityItem $item): RedirectResponse
@@ -418,14 +457,26 @@ class PriorityItemController extends Controller
         ];
     }
 
+    private function assignmentRules(): array
+    {
+        return [
+            'nullable',
+            'integer',
+            Rule::exists('users', 'id')->where(function ($query) {
+                $query->whereIn('role', [User::ROLE_STAFF, User::ROLE_SUPERVISOR])
+                    ->whereNull('deleted_at');
+            }),
+        ];
+    }
+
     /**
-     * Staff accounts offered in the assignment select. Shared by the list
-     * filter, the create form and the edit form so all three stay in sync.
+     * Operational accounts offered in the assignment select. Shared by the
+     * list filter, the create form and the edit form so all three stay in sync.
      */
     private function staffAccounts(): Collection
     {
         return User::query()
-            ->where('role', User::ROLE_STAFF)
+            ->whereIn('role', [User::ROLE_STAFF, User::ROLE_SUPERVISOR])
             ->whereNull('deleted_at')
             ->orderBy('name')
             ->get(['id', 'name']);

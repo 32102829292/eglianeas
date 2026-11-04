@@ -209,6 +209,11 @@ class KaizenConcern extends Model
         return $this->assigned_staff_id === null;
     }
 
+    /**
+     * Admin Concerns are need-to-know: outside Admin, a record is only visible
+     * to the person it is assigned to. Employee Suggestions keep the original
+     * operational rule so unassigned ideas stay open to the team.
+     */
     public function isVisibleTo(User $user): bool
     {
         if ($user->isAdmin()) {
@@ -217,6 +222,10 @@ class KaizenConcern extends Model
 
         if ($this->isAssignedTo($user)) {
             return true;
+        }
+
+        if ($this->isAdminConcern()) {
+            return false;
         }
 
         if ($this->isUnassigned() && $user->isOperational()) {
@@ -236,7 +245,11 @@ class KaizenConcern extends Model
             $q->where("assigned_staff_id", $user->id)
               ->orWhere(function ($q2) {
                   $q2->whereNull("assigned_staff_id")
-                     ->whereIn("status", [self::STATUS_PENDING, self::STATUS_IN_PROGRESS]);
+                     ->whereIn("status", [self::STATUS_PENDING, self::STATUS_IN_PROGRESS])
+                     ->where(function ($q3) {
+                         $q3->where("type", self::TYPE_EMPLOYEE_SUGGESTION)
+                            ->orWhereNull("type");
+                     });
               });
         });
     }
@@ -248,6 +261,15 @@ class KaizenConcern extends Model
     public function canManageChecklist(User $user): bool
     {
         return ($user->isAdmin() || $user->isSupervisor()) && $this->isVisibleTo($user);
+    }
+
+    public function canAssignStaff(User $user): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->isSupervisor() && $this->isVisibleTo($user);
     }
 
     /**

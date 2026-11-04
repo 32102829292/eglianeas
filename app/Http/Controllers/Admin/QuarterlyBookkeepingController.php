@@ -98,7 +98,7 @@ class QuarterlyBookkeepingController extends Controller
         return $this->handleDownloadAttachment($bookkeeping, $target);
     }
 
-    public function viewAttachment(QuarterlyBookkeeping $bookkeeping, QuarterlyBookkeepingTarget $target): RedirectResponse
+    public function viewAttachment(QuarterlyBookkeeping $bookkeeping, QuarterlyBookkeepingTarget $target): RedirectResponse|StreamedResponse
     {
         return $this->handleViewAttachment($bookkeeping, $target);
     }
@@ -199,7 +199,7 @@ class QuarterlyBookkeepingController extends Controller
                 'upload' => $canManage && $target->isInProgress() ? route($prefix.'.upload-attachment', [$bookkeeping, $target]) : null,
             ],
             'payment_methods' => $target::PAYMENT_METHODS ?? [],
-            'assignable_staff' => $isOversight ? \App\Models\User::query()->whereIn('role', ['staff', 'admin'])->orderBy('name')->get()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values() : [],
+            'assignable_staff' => $isOversight ? \App\Models\User::query()->whereIn('role', ['staff', 'supervisor', 'admin'])->whereNull('deleted_at')->orderBy('name')->get()->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])->values() : [],
         ]);
     }
 

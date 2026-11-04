@@ -737,6 +737,80 @@ document.addEventListener('DOMContentLoaded', function () {
     const modal = new bootstrap.Modal(modalEl);
     const body = document.getElementById('bkTaskModalBody');
     const title = document.getElementById('bkTaskModalTitle');
+    let currentTask = null;
+    let currentRoutes = null;
+
+    function evidencePanelHtml(data, task, routes) {
+        let html = '';
+        if (data.evidence && data.evidence.has) {
+            html += '<div class="d-flex flex-wrap align-items-center gap-2"><span class="bk-badge bk-badge-inprogress">Evidence Submitted</span><a class="btn btn-sm btn-outline-primary" href="' + data.evidence.view_url + '" target="_blank" rel="noopener">View</a><a class="btn btn-sm btn-outline-secondary" href="' + data.evidence.download_url + '" download>Download</a>' + (data.evidence.name ? '<span class="small text-muted">' + data.evidence.name + '</span>' : '') + '</div>';
+        } else {
+            html += '<span class="text-muted">No evidence submitted yet</span>';
+        }
+        if (task.can_manage && routes.upload) {
+            html += '<form id="bkEvidenceForm" method="POST" action="' + routes.upload + '" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="attachment" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" required></div><div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-primary">Upload Evidence</button></div><div class="col-12" data-bk-evidence-error></div></form>';
+        }
+        return html;
+    }
+
+    body.addEventListener('submit', function (event) {
+        const form = event.target;
+        if (!form || form.id !== 'bkEvidenceForm') return;
+        event.preventDefault();
+
+        const button = form.querySelector('button[type="submit"]');
+        const errorBox = form.querySelector('[data-bk-evidence-error]');
+        const tokenInput = form.querySelector('input[name="_token"]');
+        const originalLabel = button ? button.textContent : '';
+
+        if (errorBox) errorBox.textContent = '';
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Uploading...';
+        }
+
+        const headers = { 'Accept': 'application/json' };
+        if (tokenInput) headers['X-CSRF-TOKEN'] = tokenInput.value;
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: headers,
+            body: new FormData(form),
+            credentials: 'same-origin',
+            cache: 'no-store'
+        })
+            .then(function (response) {
+                return response.json().catch(function () { return {}; }).then(function (data) {
+                    if (!response.ok) {
+                        throw { data: data, status: response.status };
+                    }
+                    return data;
+                });
+            })
+            .then(function (data) {
+                const panel = body.querySelector('[data-bk-evidence]');
+                if (panel && currentTask && currentRoutes) {
+                    panel.innerHTML = evidencePanelHtml({ evidence: data.evidence }, currentTask, currentRoutes);
+                    const flash = document.createElement('div');
+                    flash.className = 'alert alert-success py-1 px-2 small mb-2';
+                    flash.textContent = data.message || 'Evidence uploaded.';
+                    panel.insertBefore(flash, panel.firstChild);
+                }
+            })
+            .catch(function (error) {
+                const data = error && error.data ? error.data : {};
+                const fieldError = data.errors && data.errors.attachment ? data.errors.attachment[0] : null;
+                const message = fieldError || data.message || 'Evidence upload failed. Please try again.';
+                if (errorBox) {
+                    errorBox.textContent = message;
+                    errorBox.className = 'col-12 text-danger small';
+                }
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                }
+            });
+    });
 
     modalEl.addEventListener('show.bs.modal', function (event) {
         const btn = event.relatedTarget;
@@ -744,6 +818,8 @@ document.addEventListener('DOMContentLoaded', function () {
         const bookingId = btn.getAttribute('data-bk-booking-id');
         const prefix = '{{ $prefix }}';
         title.textContent = 'Task Details';
+        currentTask = null;
+        currentRoutes = null;
         body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 small text-muted">Loading task details...</div></div>';
         fetch('/admin/' + prefix + '/' + bookingId + '/task/' + taskId, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
             .then(r => {
@@ -786,15 +862,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 html += '<div class="bk-modal-section">';
                 html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Evidence</div></div>';
-                html += '  <div class="bk-modal-section-body">';
-                if(data.evidence && data.evidence.has){
-                    html += '    <div class="d-flex flex-wrap align-items-center gap-2"><span class="bk-badge bk-badge-inprogress">Evidence Submitted</span><a class="btn btn-sm btn-outline-primary" href="'+data.evidence.view_url+'" target="_blank" rel="noopener">View</a><a class="btn btn-sm btn-outline-secondary" href="'+data.evidence.download_url+'" download>Download</a>'+(data.evidence.name? '<span class="small text-muted">'+data.evidence.name+'</span>':'')+'</div>';
-                } else {
-                    html += '    <span class="text-muted">No evidence submitted yet</span>';
-                }
-                if(t.can_manage && routes.upload){
-                    html += '    <form method="POST" action="'+routes.upload+'" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="evidence" class="form-control form-control-sm" required></div><div class="col-auto"><button class="btn btn-sm btn-outline-primary">Upload Evidence</button></div></form>';
-                }
+                html += '  <div class="bk-modal-section-body" data-bk-evidence>';
+                html += evidencePanelHtml(data, t, routes);
                 html += '  </div>';
                 html += '</div>';
 
@@ -835,6 +904,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     html += '</div>';
                 }
                 body.innerHTML = html;
+                currentTask = t;
+                currentRoutes = routes;
             })
             .catch(() => { body.innerHTML = '<div class="text-center text-danger py-4">Failed to load task details.<br><button class="btn btn-sm btn-outline-secondary mt-2" onclick="location.reload()">Reload Page</button></div>'; });
     });

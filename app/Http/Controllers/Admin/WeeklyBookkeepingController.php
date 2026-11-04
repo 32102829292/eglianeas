@@ -9,6 +9,7 @@ use App\Models\WeeklyBookkeeping;
 use App\Models\WeeklyBookkeepingTarget;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -1440,10 +1441,14 @@ class WeeklyBookkeepingController extends Controller
                 throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
             }
 
-            $path = $file->store("weekly-bookkeeping/{$target->task_type}", 'supabase');
+            $path = $this->storeEvidence($file, $target->task_type);
 
             if ($target->attachment_path) {
-                Storage::disk('supabase')->delete($target->attachment_path);
+                try {
+                    Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
             }
 
             $target->attachment_path = $path;
@@ -1529,11 +1534,18 @@ class WeeklyBookkeepingController extends Controller
         return back()->with('status', "{$target->taskLabel()} reassigned to ".($newAssignee?->name ?? 'Unassigned').'.');
     }
 
-    public function uploadAttachment(Request $request, WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse
+    public function uploadAttachment(Request $request, WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse|JsonResponse
     {
         $this->authorizeManageTarget($target);
 
         if ($target->isCompleted()) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Cannot upload evidence to a completed task.',
+                    'errors' => ['attachment' => ['Cannot upload evidence to a completed task.']],
+                ], 422);
+            }
+
             return back()->withErrors(['action' => 'Cannot upload evidence to a completed task.']);
         }
 
@@ -1552,10 +1564,14 @@ class WeeklyBookkeepingController extends Controller
             throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
         }
 
-        $path = $file->store("weekly-bookkeeping/{$target->task_type}", 'supabase');
+        $path = $this->storeEvidence($file, $target->task_type);
 
         if ($target->attachment_path) {
-            Storage::disk('supabase')->delete($target->attachment_path);
+            try {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
         }
 
         $target->update([
@@ -1571,6 +1587,27 @@ class WeeklyBookkeepingController extends Controller
             instance: null,
             bookkeeping: $bookkeeping
         );
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Evidence uploaded.',
+                'status' => 'Evidence uploaded.',
+                'evidence' => [
+                    'name' => $target->attachment_name,
+                    'has' => true,
+                    'view_url' => route('admin.weekly-bookkeeping.view-attachment', [$bookkeeping, $target]),
+                    'download_url' => route('admin.weekly-bookkeeping.download-attachment', [$bookkeeping, $target]),
+                ],
+                'target' => [
+                    'id' => $target->id,
+                    'is_pending' => $target->isPending(),
+                    'is_in_progress' => $target->isInProgress(),
+                    'is_completed' => $target->isCompleted(),
+                    'status' => $target->actual_status,
+                    'status_label' => $target->effectiveStatusLabel(),
+                ],
+            ]);
+        }
 
         return back()->with('status', 'Evidence uploaded.');
     }
@@ -1590,11 +1627,15 @@ class WeeklyBookkeepingController extends Controller
             throw ValidationException::withMessages(['attachment' => $e->getMessage()]);
         }
 
-        if ($target->attachment_path) {
-            Storage::disk('supabase')->delete($target->attachment_path);
-        }
+        $path = $this->storeEvidence($file, $target->task_type);
 
-        $path = $file->store("weekly-bookkeeping/{$target->task_type}", 'supabase');
+        if ($target->attachment_path) {
+            try {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
 
         $target->update([
             'attachment_path' => $path,
@@ -1618,19 +1659,29 @@ class WeeklyBookkeepingController extends Controller
         $this->authorizeManageTarget($target);
 
         abort_unless($target->attachment_path, 404);
-        abort_unless(Storage::disk('supabase')->exists($target->attachment_path), 404);
+        abort_unless(Storage::disk($this->evidenceDisk())->exists($target->attachment_path), 404);
 
-        return Storage::disk('supabase')->download($target->attachment_path, $target->attachment_name);
+        return Storage::disk($this->evidenceDisk())->download($target->attachment_path, $target->attachment_name);
     }
 
-    public function viewAttachment(WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse
+    public function viewAttachment(WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse|StreamedResponse
     {
         $this->authorizeManageTarget($target);
 
         abort_unless($target->attachment_path, 404);
-        abort_unless(Storage::disk('supabase')->exists($target->attachment_path), 404);
 
-        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($target->attachment_path, now()->addMinutes(30));
+        $disk = Storage::disk($this->evidenceDisk());
+
+        abort_unless($disk->exists($target->attachment_path), 404);
+
+        if (config("filesystems.disks.{$this->evidenceDisk()}.driver") === 'local') {
+            return $disk->response($target->attachment_path, $target->attachment_name, [
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+            ]);
+        }
+
+        $temporaryUrl = $disk->temporaryUrl($target->attachment_path, now()->addMinutes(30));
 
         return redirect($temporaryUrl)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
@@ -1646,8 +1697,8 @@ class WeeklyBookkeepingController extends Controller
             return back()->withErrors(['action' => 'Cannot delete a target with actual work recorded. Remove it from the weekly target list instead (history is preserved).']);
         }
 
-        if ($target->attachment_path && Storage::disk('supabase')->exists($target->attachment_path)) {
-            Storage::disk('supabase')->delete($target->attachment_path);
+        if ($target->attachment_path && Storage::disk($this->evidenceDisk())->exists($target->attachment_path)) {
+            Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
         }
 
         $clientName = $target->displayClientName();
@@ -1672,8 +1723,8 @@ class WeeklyBookkeepingController extends Controller
         abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can delete weekly targets.');
 
         foreach ($bookkeeping->targets as $target) {
-            if ($target->attachment_path && Storage::disk('supabase')->exists($target->attachment_path)) {
-                Storage::disk('supabase')->delete($target->attachment_path);
+            if ($target->attachment_path && Storage::disk($this->evidenceDisk())->exists($target->attachment_path)) {
+                Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
             }
         }
 
@@ -1782,6 +1833,29 @@ class WeeklyBookkeepingController extends Controller
         $client = User::query()->whereKey($clientId)->first(['id', 'name', 'business_name']);
 
         return $client?->business_name ?: $client?->name ?: 'Client #'.$clientId;
+    }
+
+    private function evidenceDisk(): string
+    {
+        return (string) config('filesystems.evidence_disk', 'local');
+    }
+
+    private function storeEvidence(\Illuminate\Http\UploadedFile $file, string $taskType): string
+    {
+        try {
+            $path = $file->store("weekly-bookkeeping/{$taskType}", $this->evidenceDisk());
+        } catch (\Throwable $e) {
+            report($e);
+            $path = false;
+        }
+
+        if ($path === false) {
+            throw ValidationException::withMessages([
+                'attachment' => 'Evidence could not be uploaded. Please try again.',
+            ]);
+        }
+
+        return $path;
     }
 
     private function validateAttachment(\Illuminate\Http\UploadedFile $file, string $taskType): void

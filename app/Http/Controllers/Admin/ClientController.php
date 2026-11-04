@@ -86,6 +86,7 @@ class ClientController extends Controller
                     'payment_status' => $profile?->payment_status,
                     'outstanding' => (float) $client->billings_sum_total,
                     'bir_codes' => $this->birCodesFor($client),
+                    'has_cor' => filled($profile?->cor_document_path),
                 ];
             });
 
@@ -478,6 +479,7 @@ class ClientController extends Controller
             ],
             'documentCount' => $client->documents()->count(),
             'requirementUrls' => $this->requirementUrls($client, $profile),
+            'canManageCor' => auth()->user()->isAdmin() || auth()->user()->isSupervisor(),
         ]);
     }
 
@@ -521,6 +523,92 @@ class ClientController extends Controller
             'Pragma' => 'no-cache',
             'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    public function uploadCertificateOfRegistration(Request $request, User $client): RedirectResponse
+    {
+        $this->authorizeCertificateOfRegistration($client);
+
+        $request->validate([
+            'certificate_of_registration' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ]);
+
+        $file = $request->file('certificate_of_registration');
+        $profile = $client->getClientProfile();
+        $hadCertificate = filled($profile->cor_document_path);
+        $newPath = $file->store("client-certificate-of-registration/{$client->id}", 'local');
+
+        if ($profile->cor_document_path) {
+            Storage::disk('local')->delete($profile->cor_document_path);
+        }
+
+        $originalName = trim((string) preg_replace('/[\x00-\x1F\x7F]/u', '', basename($file->getClientOriginalName())));
+
+        $profile->fill([
+            'cor_document_path' => $newPath,
+            'cor_document_name' => $originalName !== '' ? mb_substr($originalName, 0, 255) : 'certificate-of-registration.'.$file->extension(),
+            'cor_document_mime' => $file->getMimeType(),
+            'cor_document_uploaded_at' => now(),
+        ])->save();
+
+        $displayName = $client->business_name ?: $client->name;
+        ActivityLog::record(
+            auth()->user(),
+            $hadCertificate ? 'admin.client_cor_replaced' : 'admin.client_cor_uploaded',
+            ($hadCertificate ? 'Replaced' : 'Uploaded')." the Certificate of Registration for {$displayName}."
+        );
+
+        return redirect()
+            ->route('admin.clients.show', $client)
+            ->with('status', $hadCertificate ? 'Certificate of Registration replaced.' : 'Certificate of Registration uploaded.');
+    }
+
+    public function viewCertificateOfRegistration(User $client): Response
+    {
+        $this->authorizeCertificateOfRegistration($client);
+
+        return $this->certificateOfRegistrationResponse($client, false);
+    }
+
+    public function downloadCertificateOfRegistration(User $client): Response
+    {
+        $this->authorizeCertificateOfRegistration($client);
+
+        return $this->certificateOfRegistrationResponse($client, true);
+    }
+
+    private function authorizeCertificateOfRegistration(User $client): void
+    {
+        abort_unless($client->role === User::ROLE_CLIENT, 404);
+        abort_unless(auth()->user()->isAdmin() || auth()->user()->isSupervisor(), 403);
+    }
+
+    private function certificateOfRegistrationResponse(User $client, bool $download): Response
+    {
+        $profile = $client->getClientProfile();
+
+        abort_unless(
+            $profile->cor_document_path && Storage::disk('local')->exists($profile->cor_document_path),
+            404
+        );
+
+        $name = trim((string) $profile->cor_document_name) ?: basename($profile->cor_document_path);
+        $name = trim((string) preg_replace('/[\x00-\x1F\x7F]/u', '', basename($name)));
+        $name = $name !== '' ? $name : 'certificate-of-registration';
+
+        $headers = [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
+        if ($profile->cor_document_mime) {
+            $headers['Content-Type'] = $profile->cor_document_mime;
+        }
+
+        return $download
+            ? Storage::disk('local')->download($profile->cor_document_path, $name, $headers)
+            : Storage::disk('local')->response($profile->cor_document_path, $name, $headers);
     }
 
     public function update(Request $request, User $client): RedirectResponse

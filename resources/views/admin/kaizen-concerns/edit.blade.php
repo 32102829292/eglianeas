@@ -64,7 +64,7 @@
 
                     <div class="form-grid two">
                         <div class="form-group">
-                            <label class="form-label" for="assigned_staff_id">Assigned Staff</label>
+                            <label class="form-label" for="assigned_staff_id">{{ $concern->isAdminConcern() ? 'Assigned To' : 'Assigned Staff' }}</label>
                             <select class="form-control" id="assigned_staff_id" name="assigned_staff_id">
                                 <option value="">— Unassigned —</option>
                                 @foreach ($staffAccounts as $staff)
@@ -75,7 +75,11 @@
                             @error('assigned_staff_id')<div class="form-error">{{ $message }}</div>@enderror
                             <div class="form-note">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                                <span>Unassigned — visible to all staff &amp; supervisors. Assign a staff member to notify only that person.</span>
+                                <span>@if ($concern->isAdminConcern())
+                                    Unassigned — only admins can see this concern until it is assigned. Assign a staff member or supervisor to notify them.
+                                @else
+                                    Unassigned — visible to all staff &amp; supervisors. Assign a staff member to notify only that person.
+                                @endif</span>
                             </div>
                         </div>
                     </div>

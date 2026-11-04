@@ -14,7 +14,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -33,7 +35,8 @@ class KaizenConcernController extends Controller
         return $this->concernBoard(
             $request,
             fn (Builder $query) => $query->employeeSuggestions(),
-            'admin.kaizen-concerns.index'
+            'admin.kaizen-concerns.index',
+            KaizenConcern::TYPE_EMPLOYEE_SUGGESTION
         );
     }
 
@@ -46,18 +49,17 @@ class KaizenConcernController extends Controller
      * selected purely by `type` — who created a record (an admin can submit an
      * Employee Suggestion too) never decides where it appears.
      *
-     * Admin only: this is the administrative view of admin-raised records, and
-     * nothing here widens what any other role can reach. Per-record access is
-     * still decided by the unchanged isVisibleTo()/visibleTo() rules below.
+     * Admin Concerns are need-to-know: Admins see every record, while Staff and
+     * Supervisors only see the records assigned to them. That filtering happens
+     * through the shared concernBoard()/visibleTo() rules below.
      */
     public function adminConcerns(Request $request): View
     {
-        abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can view the Admin Concerns list.');
-
         return $this->concernBoard(
             $request,
             fn (Builder $query) => $query->adminConcerns(),
-            'admin.kaizen-concerns.admin-concerns'
+            'admin.kaizen-concerns.admin-concerns',
+            KaizenConcern::TYPE_ADMIN_CONCERN
         );
     }
 
@@ -70,9 +72,10 @@ class KaizenConcernController extends Controller
      *
      * @param  Closure(Builder): Builder  $typeScope
      */
-    private function concernBoard(Request $request, Closure $typeScope, string $view): View
+    private function concernBoard(Request $request, Closure $typeScope, string $view, ?string $type = null): View
     {
         $user = auth()->user();
+        $type ??= KaizenConcern::TYPE_EMPLOYEE_SUGGESTION;
         $q = trim((string) $request->get('q'));
         $status = $request->get('status');
         $assignedStaffId = $request->get('assigned_staff_id');
@@ -107,7 +110,7 @@ class KaizenConcernController extends Controller
 
         return view($view, [
             'concerns' => $concerns,
-            'staffAccounts' => $this->staffAccounts(),
+            'staffAccounts' => $this->assignableAccounts($type),
             'statuses' => KaizenConcern::STATUSES,
             'q' => $q,
             'activeStatus' => $status,
@@ -121,7 +124,7 @@ class KaizenConcernController extends Controller
         abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can create Kaizen concerns.');
 
         return view('admin.kaizen-concerns.create', [
-            'staffAccounts' => $this->staffAccounts(),
+            'staffAccounts' => $this->assignableAccounts(KaizenConcern::TYPE_ADMIN_CONCERN),
             'statuses' => KaizenConcern::STATUSES,
         ]);
     }
@@ -184,7 +187,7 @@ class KaizenConcernController extends Controller
             'recommended_solution' => ['required', 'string', 'max:5000'],
             'target_date' => ['nullable', 'date'],
             'implementation_date' => ['nullable', 'date'],
-            'assigned_staff_id' => ['nullable', 'exists:users,id'],
+            'assigned_staff_id' => $this->assignmentRules(KaizenConcern::TYPE_ADMIN_CONCERN),
             'status' => ['required', 'string', 'in:'.implode(',', array_keys(KaizenConcern::STATUSES))],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -208,6 +211,7 @@ class KaizenConcernController extends Controller
 
         return view('admin.kaizen-concerns.show', [
             'concern' => $concern,
+            'staffAccounts' => $this->assignableAccounts($concern->type ?? KaizenConcern::TYPE_EMPLOYEE_SUGGESTION),
         ]);
     }
 
@@ -220,7 +224,7 @@ class KaizenConcernController extends Controller
            it has to be handed to the view explicitly. */
         return view('admin.kaizen-concerns.edit', [
             'concern' => $concern,
-            'staffAccounts' => $this->staffAccounts(),
+            'staffAccounts' => $this->assignableAccounts($concern->type ?? KaizenConcern::TYPE_EMPLOYEE_SUGGESTION),
             'statuses' => KaizenConcern::STATUSES,
         ]);
     }
@@ -237,7 +241,7 @@ class KaizenConcernController extends Controller
             'recommended_solution' => ['required', 'string', 'max:5000'],
             'target_date' => ['nullable', 'date'],
             'implementation_date' => ['nullable', 'date'],
-            'assigned_staff_id' => ['nullable', 'exists:users,id'],
+            'assigned_staff_id' => $this->assignmentRules($concern->type ?? KaizenConcern::TYPE_EMPLOYEE_SUGGESTION),
             'status' => ['nullable', 'string', 'in:'.implode(',', array_keys(KaizenConcern::STATUSES))],
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -275,6 +279,45 @@ class KaizenConcernController extends Controller
         }
 
         return back()->with('status', 'Kaizen concern updated.');
+    }
+
+    public function assignStaff(Request $request, KaizenConcern $concern): RedirectResponse
+    {
+        abort_unless($concern->canAssignStaff(auth()->user()), 403, 'Only admins and supervisors can assign staff.');
+
+        $validated = $request->validate([
+            'assigned_staff_id' => $this->assignmentRules($concern->type ?? KaizenConcern::TYPE_EMPLOYEE_SUGGESTION),
+        ]);
+
+        $previous = $concern->assigned_staff_id;
+        $assignedId = $validated['assigned_staff_id'] ?? null;
+        $concern->update(['assigned_staff_id' => $assignedId]);
+
+        if ((int) $previous !== (int) $assignedId) {
+            if ($assignedId) {
+                $this->notifyAssignment($concern);
+            }
+
+            $action = ! $assignedId
+                ? 'admin.kaizen_staff_unassigned'
+                : ($previous ? 'admin.kaizen_staff_reassigned' : 'admin.kaizen_staff_assigned');
+            $description = ! $assignedId
+                ? "Cleared the staff assignment for Kaizen concern #{$concern->id}."
+                : ($previous
+                    ? "Reassigned Kaizen concern #{$concern->id} from staff #{$previous} to staff #{$assignedId}."
+                    : "Assigned Kaizen concern #{$concern->id} to staff #{$assignedId}.");
+
+            ActivityLog::record(auth()->user(), $action, $description);
+        }
+
+        $message = $assignedId ? 'Staff assignment saved.' : 'Staff assignment cleared.';
+        $response = $concern->isVisibleTo(auth()->user())
+            ? back()
+            : redirect()->route($concern->isAdminConcern()
+                ? 'admin.kaizen-concerns.admin-concerns.index'
+                : 'admin.kaizen-concerns.index');
+
+        return $response->with('status', $message);
     }
 
     public function destroy(KaizenConcern $concern): RedirectResponse
@@ -496,16 +539,44 @@ class KaizenConcernController extends Controller
     }
 
     /**
-     * Staff accounts offered in the assignment select. Shared by the list
-     * filter, the create form and the edit form so all three stay in sync.
+     * Admin Concerns may be owned by a Staff member or a Supervisor; Employee
+     * Suggestions stay on the original staff-only list.
      */
-    private function staffAccounts(): \Illuminate\Support\Collection
+    private function assignmentRules(string $type): array
+    {
+        return [
+            'nullable',
+            'integer',
+            Rule::exists('users', 'id')->where(function ($query) use ($type) {
+                $query->whereIn('role', $this->assignableRoles($type))
+                    ->whereNull('deleted_at');
+            }),
+        ];
+    }
+
+    /**
+     * Accounts offered in the assignment select. Shared by the list filter, the
+     * create form and the detail form so all three stay in sync.
+     */
+    private function assignableAccounts(string $type): Collection
     {
         return User::query()
-            ->where('role', User::ROLE_STAFF)
+            ->whereIn('role', $this->assignableRoles($type))
             ->whereNull('deleted_at')
             ->orderBy('name')
             ->get(['id', 'name']);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function assignableRoles(string $type): array
+    {
+        if ($type === KaizenConcern::TYPE_ADMIN_CONCERN) {
+            return [User::ROLE_STAFF, User::ROLE_SUPERVISOR];
+        }
+
+        return [User::ROLE_STAFF];
     }
 
     private function notifyAssignment(KaizenConcern $concern): void
@@ -544,7 +615,7 @@ class KaizenConcernController extends Controller
         ActivityLog::record(
             auth()->user(),
             $action,
-            $description . " (Challenge: {$concern->challenge})"
+            $description." (Challenge: {$concern->challenge})"
         );
     }
 }

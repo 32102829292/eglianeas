@@ -130,15 +130,25 @@
                     </span>
                 </li>
                 <li>
-                    <span class="k">Assigned Staff</span>
+                    <span class="k">{{ $concern->isAdminConcern() ? 'Assigned To' : 'Assigned Staff' }}</span>
                     <span class="v">
                         @if ($concern->assignedStaff)
                             {{ $concern->assignedStaff->name }}
+                        @elseif ($concern->isAdminConcern())
+                            <span class="badge badge-info">Unassigned</span>
                         @else
                             <span class="badge badge-info">Unassigned (visible to all staff &amp; supervisors)</span>
                         @endif
                     </span>
                 </li>
+                @if ($concern->canAssignStaff(auth()->user()))
+                    <li>
+                        <span class="k">Change Assignment</span>
+                        <div class="v">
+                            @include('admin.kaizen-concerns.partials.assign-form', ['concern' => $concern])
+                        </div>
+                    </li>
+                @endif
                 <li>
                     <span class="k">Status</span>
                     <span class="v">

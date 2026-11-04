@@ -17,6 +17,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Bookkeeping Evidence Disk
+    |--------------------------------------------------------------------------
+    |
+    | Weekly, monthly and quarterly bookkeeping evidence prefers the Supabase
+    | bucket when its S3 credentials are configured, and otherwise falls back to
+    | the private local disk so uploads never fail on machines without them.
+    |
+    */
+
+    'evidence_disk' => env('EVIDENCE_DISK', (
+        env('SUPABASE_S3_ACCESS_KEY')
+        && env('SUPABASE_S3_SECRET_KEY')
+        && env('SUPABASE_S3_ENDPOINT')
+    ) ? 'supabase' : 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

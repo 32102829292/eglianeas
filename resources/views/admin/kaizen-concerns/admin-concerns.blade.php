@@ -4,9 +4,9 @@
 
 @section('content')
     @php
-        // The shared board partial reads this to decide whether to offer the
-        // "Assigned Staff" filter. Always false here: this page is admin only.
-        $isStaffView = false;
+        // Admins can filter the whole board; Staff and Supervisors only ever see
+        // their own assigned records, so the assignee filter is redundant there.
+        $isStaffView = ! auth()->user()->isAdmin();
     @endphp
 
     {{--

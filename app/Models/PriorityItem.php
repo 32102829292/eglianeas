@@ -517,4 +517,9 @@ class PriorityItem extends Model
     {
         return ($user->isAdmin() || $user->isSupervisor()) && $this->isVisibleTo($user);
     }
+
+    public function canAssignStaff(User $user): bool
+    {
+        return ($user->isAdmin() || $user->isSupervisor()) && $this->isVisibleTo($user);
+    }
 }

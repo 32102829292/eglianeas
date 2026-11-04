@@ -54,7 +54,7 @@
             </div>
             @unless ($isStaffView)
             <div class="form-group">
-                <label class="form-label" for="filter_assigned_staff_id">Assigned Staff</label>
+                <label class="form-label" for="filter_assigned_staff_id">{{ $showAssigned ? 'Assigned To' : 'Assigned Staff' }}</label>
                 <select class="form-control" id="filter_assigned_staff_id" name="assigned_staff_id">
                     <option value="">All</option>
                     <option value="unassigned" @selected($activeAssignedStaffId === 'unassigned')>Unassigned</option>
@@ -150,6 +150,7 @@
                             @if (auth()->user()->isAdmin())
                                 <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
                             @endif
+                            @include('admin.kaizen-concerns.partials.assign-form', ['concern' => $concern])
                         </td>
                     </tr>
                 @empty
@@ -183,7 +184,7 @@
                     <div class="cv-card-body">
                         <div class="cv-pair cv-full"><span class="cv-label">Suggested Solution</span><span class="cv-value">@if ($concern->recommended_solution){{ $concern->recommended_solution }}@else<span class="muted">—</span>@endif</span></div>
                         <div class="cv-pair"><span class="cv-label">Submitted By</span><span class="cv-value">{{ $concern->creator->name ?? '—' }}</span></div>
-                        <div class="cv-pair"><span class="cv-label">Assigned Staff</span><span class="cv-value">{{ $concern->assignedStaff?->name ?? 'Unassigned' }}</span></div>
+                        <div class="cv-pair"><span class="cv-label">{{ $showAssigned ? 'Assigned To' : 'Assigned Staff' }}</span><span class="cv-value">{{ $concern->assignedStaff?->name ?? 'Unassigned' }}</span></div>
                         <div class="cv-pair"><span class="cv-label">Target Date</span><span class="cv-value">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</span></div>
                         <div class="cv-pair">
                             <span class="cv-label">Implementation</span>
@@ -217,6 +218,7 @@
                             <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
                             <form method="POST" action="{{ route('admin.kaizen-concerns.destroy', $concern) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this {{ \Illuminate\Support\Str::singular($pluralUnit) }}?', message: 'This {{ \Illuminate\Support\Str::singular($pluralUnit) }} will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
                         @endif
+                        @include('admin.kaizen-concerns.partials.assign-form', ['concern' => $concern])
                     </div>
                 </div>
             @empty

@@ -113,6 +113,14 @@
                         @endif
                     </span>
                 </li>
+                @if ($item->canAssignStaff(auth()->user()))
+                    <li>
+                        <span class="k">Change Assignment</span>
+                        <div class="v">
+                            @include('admin.priority-items.partials.assign-form', ['item' => $item])
+                        </div>
+                    </li>
+                @endif
                 <li class="{{ $item->isCompleted() ? 'priority-detail-completed' : '' }}">
                     <span class="k">Status</span>
                     <span class="v">
