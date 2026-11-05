@@ -537,6 +537,8 @@ class WeeklyBookkeepingController extends Controller
             'assignee' => ['nullable', 'array'],
             'assignee.*' => ['array'],
             'assignee.*.*' => ['nullable', 'integer', 'exists:users,id'],
+            'selected_date' => ['nullable', 'date'],
+            'priority' => ['nullable', 'string', 'in:low,medium,high'],
         ]);
 
         $weekStart = Carbon::parse($validated['week_start'])->startOfWeek();
@@ -807,6 +809,21 @@ class WeeklyBookkeepingController extends Controller
         return $date->format('Y-m-d');
     }
 
+    private function computeTargetDate(?Carbon $selectedDate, ?string $priority): ?Carbon
+    {
+        if (! $selectedDate || ! $priority) return null;
+
+        $selected = Carbon::createFromFormat('Y-m-d', $selectedDate->format('Y-m-d'))->startOfDay();
+        $offset   = match ($priority) {
+            'low'   => 0,
+            'medium'=> 1,
+            'high'  => 2,
+            default => 1,
+        };
+
+        return $selected->copy()->addDays($offset)->startOfDay();
+    }
+
     /**
      * Verifies that every client and task in a client-matrix submission is
      * complete before any of it is written.
@@ -895,15 +912,32 @@ class WeeklyBookkeepingController extends Controller
         $weekStart = Carbon::parse((string) $request->input('week_start'))->startOfWeek();
         $weekEnd = $weekStart->copy()->endOfWeek();
 
+        $selectedDate = $request->filled('selected_date')
+            ? Carbon::parse($request->input('selected_date'))->startOfDay()
+            : null;
+
+        $priority = $request->input('priority');
+
         $validated = $request->validate([
             'week_start' => ['required', 'date'],
             'assigned_staff_id' => ['required', 'integer', 'exists:users,id'],
             'task_type' => ['required', 'in:pickup,record,return,payment'],
             'target_date' => [
-                'required',
+                'sometimes',
                 'date',
                 'after_or_equal:'.$weekStart->format('Y-m-d'),
                 'before_or_equal:'.$weekEnd->format('Y-m-d'),
+            ],
+            'selected_date' => [
+                'nullable',
+                'date',
+                'after_or_equal:'.$weekStart->format('Y-m-d'),
+                'before_or_equal:'.$weekEnd->format('Y-m-d'),
+            ],
+            'priority' => [
+                'nullable',
+                'string',
+                'in:low,medium,high',
             ],
             'client_ids' => ['required', 'array', 'min:1'],
             'client_ids.*' => ['required', 'integer', 'exists:users,id'],
@@ -955,7 +989,23 @@ class WeeklyBookkeepingController extends Controller
 
         $taskType = $validated['task_type'];
         $taskLabel = WeeklyBookkeepingTarget::TASK_TYPES[$taskType] ?? $taskType;
-        $targetDate = Carbon::parse($validated['target_date'])->format('Y-m-d');
+
+/* Compute the effective target_date:
+ * - For 'record' task type: if both selected_date and priority are present,
+ *   use computeTargetDate(); otherwise fall back to validated target_date if
+ *   provided, otherwise use null (legacy compatibility).
+ * - For all other task types: use the validated target_date if provided,
+ *   otherwise preserve the existing target_date unchanged (backward compatible,
+ *   no new deadline calculation). */
+$validatedTargetDate = data_get($validated, 'target_date');
+
+$targetDate = match ($taskType) {
+    'record' => $this->computeTargetDate(
+        $selectedDate,
+        $validated['priority'] ?? null
+    ) ?? ($validatedTargetDate ? Carbon::parse($validatedTargetDate)->format('Y-m-d') : null),
+    default => ($validatedTargetDate ? Carbon::parse($validatedTargetDate)->format('Y-m-d') : null),
+};
 
         $added = 0;
         $updated = 0;
@@ -1140,8 +1190,10 @@ class WeeklyBookkeepingController extends Controller
                 'is_completed' => $target->isCompleted(),
                 'is_payment' => $target->task_type === 'payment',
                 'payment_method' => $target->payment_method,
+                'payment_method_label' => $target->paymentMethodLabel(),
                 'payment_at' => $target->payment_at?->format('Y-m-d'),
                 'payment_at_label' => $target->payment_at?->format('M j, Y'),
+                'payment_reference' => $target->payment_reference,
                 'payment_label' => $target->paymentLabel(),
                 'payment_detail' => $target->paymentDetail(),
                 'can_manage' => $canManage,
@@ -1321,16 +1373,52 @@ class WeeklyBookkeepingController extends Controller
             return back()->withErrors(['action' => 'This task is finalized, so its remarks are read-only.']);
         }
 
-        /* Balance columns are validated inside `targetWorkflowAttributes`, and
-           only when the submitted form actually carried them. */
-        $validated = $request->validate([
-            'target_date' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
+/* Balance columns are validated inside `targetWorkflowAttributes`, and
+       only when the submitted form actually carried them. */
+      $validated = $request->validate([
+          'target_date' => ['nullable', 'date'],
+          'notes' => ['nullable', 'string', 'max:1000'],
+          'selected_date' => ['nullable', 'date'],
+          'priority' => ['nullable', 'string', 'in:low,medium,high'],
+      ]);
 
-        /* The submitted date, falling back to what is already stored so a
-           remarks-only save never blanks the deadline. */
-        $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
+/* The submitted date, falling back to what is already stored so a
+       remarks-only save never blanks the deadline. */
+      $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
+
+/* If selected_date and priority were both submitted and differ from what's
+       already on the target, recompute the deadline — but only for 'record'
+       task type. For other task types: use the submitted target_date if provided,
+       otherwise preserve the existing target_date. */
+      $submittedSelected = $validated['selected_date'] ?? null;
+      $submittedPriority = $validated['priority'] ?? null;
+
+      $taskType = $validated['task_type'] ?? '';
+      $isRecord = $taskType === 'record';
+
+      $currentSelected = $target->selected_date;
+      $currentPriority = $target->priority;
+
+      $hasNewSelected = $submittedSelected !== null && $submittedSelected !== '';
+      $hasNewPriority = $submittedPriority !== null && $submittedPriority !== '';
+
+      if ($isRecord && $hasNewSelected && $hasNewPriority) {
+          $computed = $this->computeTargetDate(
+              \Carbon::parse($submittedSelected),
+              $submittedPriority
+          );
+          if ($computed) {
+              $targetDate = $computed->format('Y-m-d');
+          }
+      } elseif (!$isRecord) {
+          /* For non-record tasks, use the submitted target_date if provided,
+             otherwise preserve the existing target_date. */
+          $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
+      } elseif ($valuesChanged && $isRecord) {
+          /* For record, if only one of selected_date/priority changed,
+             keep existing target_date for legacy compatibility. */
+          $targetDate = $target->target_date?->format('Y-m-d') ?? $targetDate;
+      }
 
         /* A target date may only move inside the plan's own week, so a week can
            never end up holding work that belongs to another one. */
@@ -1430,6 +1518,7 @@ class WeeklyBookkeepingController extends Controller
         $validated = $request->validate([
             'payment_method' => ['nullable', 'in:'.implode(',', array_keys(WeeklyBookkeepingTarget::PAYMENT_METHODS))],
             'paid_at' => ['nullable', 'date'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -1464,7 +1553,8 @@ class WeeklyBookkeepingController extends Controller
             $target->complete(
                 auth()->user(),
                 $validated['payment_method'] ?? null,
-                isset($validated['paid_at']) ? Carbon::parse($validated['paid_at']) : null
+                isset($validated['paid_at']) ? Carbon::parse($validated['paid_at']) : null,
+                $validated['payment_reference'] ?? null
             );
         } catch (\InvalidArgumentException $e) {
             return back()->withErrors(['action' => $e->getMessage()]);

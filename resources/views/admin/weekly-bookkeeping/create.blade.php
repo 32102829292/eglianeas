@@ -51,13 +51,22 @@
                 </select>
             </div>
 
-            <div>
-                <label class="form-label" for="assignTargetDate">Target Date</label>
-                <input type="date" name="target_date" id="assignTargetDate" class="form-control"
+            <div id="assignSelectedDateWrapper">
+                <label class="form-label" for="assignSelectedDate">Selected Date</label>
+                <input type="date" name="selected_date" id="assignSelectedDate" class="form-control"
                        min="{{ $activeWeekStart }}" max="{{ $activeWeekEnd }}" required>
-                <p class="form-hint">
-                    Within this week: {{ \Illuminate\Support\Carbon::parse($activeWeekStart)->format('M j, Y') }} – {{ \Illuminate\Support\Carbon::parse($activeWeekEnd)->format('M j, Y') }}
+                <p class="form-hint" id="assignDatePreview" style="font-size:var(--text-sm); color:var(--muted-text); margin-top:4px; display:none;">
+                    Select a date to preview the deadline
                 </p>
+            </div>
+
+            <div id="assignPriorityWrapper">
+                <label class="form-label" for="assignPriority">Priority</label>
+                <select name="priority" id="assignPriority" class="form-control">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                </select>
             </div>
 
             <div>
@@ -428,7 +437,11 @@
        Same behaviour as Set Monthly Target's panel: own form, its own client
        picker, a live confirmation strip, and the note that a client already
        holds the chosen task, since one client + one task type per week is the
-       existing rule and a repeat save moves that row instead of adding one. */
+       existing rule and a repeat save moves that row instead of adding one.
+
+       Selected Date applies to every task type. Priority applies to the Record
+       task only; for every other task type its whole container (label
+       included) is hidden and the select is disabled. */
     var assignForm = document.getElementById('assignForm');
 
     if (assignForm) {
@@ -440,7 +453,11 @@
         var assignCount = document.getElementById('assignSelectedCount');
         var assignSubmit = document.getElementById('assignSubmitBtn');
         var assignStaff = document.getElementById('assignStaff');
-        var assignDate = document.getElementById('assignTargetDate');
+        var assignDate = document.getElementById('assignSelectedDate');
+        var assignDateWrapper = document.getElementById('assignSelectedDateWrapper');
+        var assignDatePreview = document.getElementById('assignDatePreview');
+        var assignPriority = document.getElementById('assignPriority');
+        var assignPriorityWrapper = document.getElementById('assignPriorityWrapper');
         var assignTaskType = document.getElementById('assignTaskType');
         var assignEmpty = document.getElementById('assignClientEmpty');
         var assignSumStaff = document.getElementById('assignSumStaff');
@@ -450,6 +467,10 @@
 
         var ASSIGN_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'];
+
+        function assignIsRecord() {
+            return !!assignTaskType && assignTaskType.value === 'record';
+        }
 
         function assignSelectedCount() {
             return assignChecks.filter(function (check) { return check.checked; }).length;
@@ -472,6 +493,10 @@
             }
 
             return Number(parts[2]) + ' ' + ASSIGN_MONTHS[Number(parts[1]) - 1] + ', ' + parts[0];
+        }
+
+        function assignCapitalise(string) {
+            return string.charAt(0).toUpperCase() + string.slice(1);
         }
 
         function refreshAssignSummary() {
@@ -530,6 +555,64 @@
             assignEmpty.hidden = visible !== 0;
         }
 
+        /* Live deadline preview: selected_date + priority offset — Record only,
+           and only once a date has been chosen. */
+        function updatePreview() {
+            if (!assignDatePreview) {
+                return;
+            }
+
+            if (!assignIsRecord() || !assignDate.value) {
+                assignDatePreview.textContent = 'Select a date to preview the deadline';
+                assignDatePreview.style.display = 'none';
+                return;
+            }
+
+            var priority = assignPriority.value;                    // 'low'|'medium'|'high'
+            var days = { low: 0, medium: 1, high: 2 }[priority];
+            if (days === undefined) days = 1;
+            var parts = assignDate.value.split('-');                // YYYY-MM-DD
+            var date = new Date(+parts[0], +parts[1] - 1, +parts[2]); // month is 0-based
+
+            date.setDate(date.getDate() + days);
+
+            var formatted = ASSIGN_MONTHS[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
+
+            assignDatePreview.textContent = assignCapitalise(priority) + ' – Due ' + formatted;
+            assignDatePreview.style.display = '';
+        }
+
+/* Selected Date and Priority are shown only for the 'record' task type.
+   For Pick-Up, Return, Collect, and Payment the entire field containers
+   (including labels) are hidden, inputs are disabled and required state
+   is removed. */
+function setFieldVisibility() {
+    var isRecord = assignIsRecord();
+
+    /* Selected Date wrapper is always visible — never hidden */
+    if (assignDateWrapper) {
+        assignDateWrapper.style.display = '';
+    }
+
+    /* Selected Date input is always enabled and required */
+    if (assignDate) {
+        assignDate.disabled = false;
+        assignDate.required = true;
+    }
+
+    /* Priority wrapper: visible only for Record */
+    if (assignPriorityWrapper) {
+        assignPriorityWrapper.style.display = isRecord ? '' : 'none';
+    }
+
+    /* Priority select: enabled only for Record */
+    if (assignPriority) {
+        assignPriority.disabled = !isRecord;
+    }
+
+    updatePreview();
+}
+
         assignSearch.addEventListener('input', applyAssignFilter);
 
         assignSelectAll.addEventListener('click', function () {
@@ -555,9 +638,15 @@
             field.addEventListener('input', refreshAssignSummary);
         });
 
-        if (assignTaskType) {
-            assignTaskType.addEventListener('change', refreshExistingHints);
-        }
+        assignDate.addEventListener('input', updatePreview);
+        assignDate.addEventListener('change', updatePreview);
+        assignPriority.addEventListener('change', updatePreview);
+
+        assignTaskType.addEventListener('change', function () {
+            setFieldVisibility();
+            refreshExistingHints();
+            refreshAssignSummary();
+        });
 
         /* Submitting an empty selection would only bounce off the server, so the
            button also guards itself for keyboards that submit on Enter. */
@@ -567,6 +656,8 @@
             }
         });
 
+        // Initial page-load state
+        setFieldVisibility();
         refreshExistingHints();
         refreshAssignRows();
     }
