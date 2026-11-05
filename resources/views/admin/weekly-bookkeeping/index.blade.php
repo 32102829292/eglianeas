@@ -873,7 +873,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     html += '  <div class="bk-modal-section-body"><div class="bk-modal-grid">';
                     html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Status</span><span class="bk-modal-value">'+(t.payment_label||'—')+'</span></div>';
                     html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Date</span><span class="bk-modal-value">'+(t.payment_at_label||'—')+'</span></div>';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Method</span><span class="bk-modal-value">'+(t.payment_method||'—')+'</span></div>';
+                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Method</span><span class="bk-modal-value">'+(t.payment_method_label||'Not specified')+'</span></div>';
+                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Bank / Reference / Description</span><span class="bk-modal-value">'+(t.payment_reference||'—')+'</span></div>';
                     html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Detail</span><span class="bk-modal-value">'+(t.payment_detail||'—')+'</span></div>';
                     html += '  </div></div>';
                     html += '</div>';

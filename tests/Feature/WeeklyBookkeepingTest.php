@@ -875,6 +875,65 @@ class WeeklyBookkeepingTest extends TestCase
         $this->assertSame('With Balance · ₱2,500.00', $payment->balanceSummary());
     }
 
+    public function test_payment_completion_records_bank_transfer_and_an_optional_reference(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(1)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $payment]))
+            ->assertRedirect();
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.complete-target', [$plan, $payment]), [
+                'attachment' => UploadedFile::fake()->image('receipt.jpg'),
+                'payment_method' => 'bank_transfer',
+                'payment_reference' => 'BPI-2026-0042',
+            ])
+            ->assertRedirect()
+            ->assertSessionMissing('errors');
+
+        $payment->refresh();
+
+        $this->assertSame('bank_transfer', $payment->payment_method);
+        $this->assertSame('Bank Transfer', $payment->paymentMethodLabel());
+        $this->assertSame('BPI-2026-0042', $payment->payment_reference);
+        $this->assertSame('Paid Bank Transfer', $payment->paymentLabel());
+        $this->assertStringContainsString('BPI-2026-0042', (string) $payment->paymentDetail());
+    }
+
+    public function test_the_plan_page_offers_payment_method_and_reference_for_an_active_payment(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(1)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.start-target', [$plan, $payment]));
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.show', $plan))
+            ->assertOk()
+            ->assertSee('name="payment_method"', false)
+            ->assertSee('Bank Transfer')
+            ->assertSee('name="payment_reference"', false);
+    }
+
     public function test_the_balance_is_cleared_once_the_status_is_no_longer_with_balance(): void
     {
         $staff = $this->staff('Maria Santos');
@@ -2481,5 +2540,334 @@ class WeeklyBookkeepingTest extends TestCase
         $target = $plan->targets()->first();
         $this->assertStringContainsString('data-bk-remarks-for="'.$target->id.'"', $html);
         $this->assertStringContainsString("indexOf('__BK_TARGET_ID__')", $html);
+    }
+
+    /**************************************************************************
+     *                            selected_date / priority feature tests
+     **************************************************************************/
+
+    public function test_bulk_assignment_with_selected_date_and_priority_computes_deadline(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+                'week_start' => $week,
+                'assigned_staff_id' => $staff->id,
+                'task_type' => 'record',
+                'target_date' => '',
+                'selected_date' => '2026-11-04',
+                'priority' => 'low',
+                'client_ids' => [$client->id],
+            ])
+            ->assertRedirect();
+
+        $record->refresh();
+        /* Low priority = selected_date + 0 days, so target_date should be the
+           selected date itself (2026-11-04), regardless of the submitted
+           target_date being empty. */
+        $this->assertSame('2026-11-04', $record->target_date->format('Y-m-d'));
+    }
+
+    public function test_bulk_assignment_medium_priority_adds_one_day(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+                'week_start' => $week,
+                'assigned_staff_id' => $staff->id,
+                'task_type' => 'record',
+                'target_date' => '',
+                'selected_date' => '2026-11-04',
+                'priority' => 'medium',
+                'client_ids' => [$client->id],
+            ])
+            ->assertRedirect();
+
+        $record->refresh();
+        /* Medium = selected_date + 1 day → 2026-11-05 */
+        $this->assertSame('2026-11-05', $record->target_date->format('Y-m-d'));
+    }
+
+    public function test_bulk_assignment_high_priority_adds_two_days(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+                'week_start' => $week,
+                'assigned_staff_id' => $staff->id,
+                'task_type' => 'record',
+                'target_date' => '',
+                'selected_date' => '2026-11-04',
+                'priority' => 'high',
+                'client_ids' => [$client->id],
+            ])
+            ->assertRedirect();
+
+        $record->refresh();
+        /* High = selected_date + 2 days → 2026-11-06 */
+        $this->assertSame('2026-11-06', $record->target_date->format('Y-m-d'));
+    }
+
+    public function test_bulk_assignment_no_new_values_preserves_existing_target_date(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Submit without selected_date or priority → should keep existing target_date */
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+                'week_start' => $week,
+                'assigned_staff_id' => $staff->id,
+                'task_type' => 'payment',
+                'target_date' => '2026-11-05',
+                'client_ids' => [$client->id],
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-05', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_bulk_assignment_legacy_record_missing_selected_date_keeps_target(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Legacy record: selected_date and priority are null, submitting with
+           only target_date should preserve the existing target_date */
+        $this->actingAs($staff)
+            ->post(route('admin.weekly-bookkeeping.bulk-assign'), [
+                'week_start' => $week,
+                'assigned_staff_id' => $staff->id,
+                'task_type' => 'payment',
+                'target_date' => '2026-11-07',
+                'client_ids' => [$client->id],
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-07', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_update_target_with_selected_date_and_priority(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['record'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $record = $this->targetFor($plan, $client->id, 'record');
+
+        /* Initially no selected_date/priority → target_date is as created */
+        $this->assertSame('2026-11-03', $record->target_date->format('Y-m-d'));
+
+        /* Edit target with new selected_date + priority */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $record]), [
+                'target_date' => '',
+                'selected_date' => '2026-11-04',
+                'priority' => 'medium',
+            ])
+            ->assertRedirect();
+
+        $record->refresh();
+        /* Medium = selected_date + 1 day → 2026-11-05 */
+        $this->assertSame('2026-11-05', $record->target_date->format('Y-m-d'));
+    }
+
+    public function test_update_target_preserves_target_date_when_no_changes(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Edit target without submitting selected_date/priority → should keep existing */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $payment]), [
+                'target_date' => '2026-11-03',
+                'notes' => 'updated remark',
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-03', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_update_target_legacy_record_missing_values_keeps_target(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Legacy record: no selected_date/priority columns yet.
+           Submitting only target_date should keep existing target_date. */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $payment]), [
+                'target_date' => '2026-11-10',
+                'selected_date' => '',
+                'priority' => '',
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-10', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_update_target_selected_date_only_no_priority_falls_back(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Submitting selected_date without priority → should keep existing target_date
+           (need both to trigger recomputation) */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $payment]), [
+                'target_date' => '',
+                'selected_date' => '2026-11-04',
+                'priority' => '',
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-03', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_update_target_priority_only_no_selected_date_falls_back(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['payment'], 'date' => $this->insideWeek(3)],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+        $payment = $this->targetFor($plan, $client->id, 'payment');
+
+        /* Submitting priority without selected_date → should keep existing target_date */
+        $this->actingAs($staff)
+            ->patch(route('admin.weekly-bookkeeping.update-target', [$plan, $payment]), [
+                'target_date' => '',
+                'selected_date' => '',
+                'priority' => 'high',
+            ])
+            ->assertRedirect();
+
+        $payment->refresh();
+        $this->assertSame('2026-11-03', $payment->target_date->format('Y-m-d'));
+    }
+
+    public function test_view_has_selected_date_and_priority_fields(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['record']],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $week]))
+            ->assertOk()
+            ->assertSee('name="selected_date"')
+            ->assertSee('name="priority"')
+            ->assertSee('Low')
+            ->assertSee('Medium')
+            ->assertSee('High')
+            ->assertSee('assignDatePreview');
+    }
+
+    public function test_view_deadline_preview_javascript_is_present(): void
+    {
+        $staff = $this->staff('Maria Santos');
+        $client = $this->client('Client A');
+        $week = $this->weekStart();
+
+        $this->createPlan($staff, $week, [
+            $client->id => ['tasks' => ['pickup']],
+        ]);
+
+        $plan = $this->findPlan($staff, $week);
+
+        $this->actingAs($staff)
+            ->get(route('admin.weekly-bookkeeping.create', ['week_start' => $week]))
+            ->assertOk()
+            ->assertSee('updatePreview');
     }
 }

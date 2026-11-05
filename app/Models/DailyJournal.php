@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Casts\DateOnlyCast;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
-use App\Casts\DateOnlyCast;
 
 class DailyJournal extends Model
 {
@@ -24,6 +26,18 @@ class DailyJournal extends Model
         'submitted_at',
         'reminded_at',
         'reminder_count',
+        'achievement_score',
+        'achievement_category',
+        'achievement_level',
+        'achievement_explanation',
+        'recognition_tags',
+        'assessment_source',
+        'assessment_status',
+        'assessed_at',
+        'assessment_hash',
+        'reviewed_by',
+        'reviewed_at',
+        'review_note',
     ];
 
     protected function casts(): array
@@ -34,17 +48,106 @@ class DailyJournal extends Model
             'submitted_at' => 'datetime',
             'reminded_at' => 'datetime',
             'reminder_count' => 'integer',
+            'achievement_score' => 'integer',
+            'recognition_tags' => 'array',
+            'assessed_at' => 'datetime',
+            'reviewed_at' => 'datetime',
         ];
     }
 
     public const STATUS_MISSING = 'missing';
+
     public const STATUS_SUBMITTED = 'submitted';
+
     public const STATUS_LATE = 'late';
+
     public const STATUSES = [self::STATUS_MISSING, self::STATUS_SUBMITTED, self::STATUS_LATE];
+
+    public const ASSESSMENT_SOURCE_AI = 'ai';
+
+    public const ASSESSMENT_SOURCE_RULE_BASED = 'rule_based';
+
+    public const ASSESSMENT_SOURCE_REVIEWER = 'reviewer';
+
+    public const ASSESSMENT_STATUS_PROVISIONAL = 'provisional';
+
+    public const ASSESSMENT_STATUS_VERIFIED = 'verified';
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function assessmentRevisions(): HasMany
+    {
+        return $this->hasMany(DailyJournalAssessmentRevision::class)->latest();
+    }
+
+    public function hasAssessment(): bool
+    {
+        return $this->achievement_score !== null && $this->achievement_level !== null;
+    }
+
+    public function isAssessmentVerified(): bool
+    {
+        return $this->assessment_status === self::ASSESSMENT_STATUS_VERIFIED;
+    }
+
+    /**
+     * A verified assessment is the reviewer's manual decision. Automatic
+     * analysis is provisional until a reviewer verifies or overrides it.
+     */
+    public function isManuallyAssessed(): bool
+    {
+        return $this->isAssessmentVerified();
+    }
+
+    public function assessmentMode(): string
+    {
+        if (! $this->hasAssessment()) {
+            return 'none';
+        }
+
+        return $this->isManuallyAssessed() ? 'manual' : 'automatic';
+    }
+
+    public function assessmentModeLabel(): string
+    {
+        return match ($this->assessmentMode()) {
+            'manual' => 'Manual review',
+            'automatic' => 'Automatic analysis',
+            default => 'Not assessed',
+        };
+    }
+
+    public static function assessmentSourceLabelFor(?string $source): string
+    {
+        return match ($source) {
+            self::ASSESSMENT_SOURCE_AI => 'AI-assisted automatic',
+            self::ASSESSMENT_SOURCE_REVIEWER => 'Manual reviewer',
+            self::ASSESSMENT_SOURCE_RULE_BASED => 'Rule-based automatic',
+            null, '' => 'Not assessed',
+            default => ucfirst(str_replace('_', ' ', $source)),
+        };
+    }
+
+    public function assessmentSourceLabel(): string
+    {
+        return self::assessmentSourceLabelFor($this->assessment_source);
+    }
+
+    public function assessmentStatusLabel(): string
+    {
+        return match ($this->assessment_status) {
+            self::ASSESSMENT_STATUS_VERIFIED => 'Verified',
+            self::ASSESSMENT_STATUS_PROVISIONAL => 'Provisional',
+            default => 'Not assessed',
+        };
     }
 
     public function scopeForDate(Builder $query, Carbon $date): Builder
@@ -85,7 +188,7 @@ class DailyJournal extends Model
     {
         $connection = $query->getModel()->getConnection();
         $column = $connection->getQueryGrammar()->wrap(
-            $query->getModel()->getTable() . '.required_date'
+            $query->getModel()->getTable().'.required_date'
         );
 
         $clause = match ($connection->getDriverName()) {
@@ -222,7 +325,7 @@ class DailyJournal extends Model
                 'suggested_solutions' => '',
                 'evidence_paths' => [],
             ]);
-        } catch (\Illuminate\Database\QueryException $e) {
+        } catch (QueryException $e) {
             if ($e->getCode() === '23000') {
                 return static::where('user_id', $userId)
                     ->whereDate('required_date', $dateString)

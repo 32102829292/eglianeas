@@ -416,6 +416,11 @@
                                                                         </select>
                                                                     </div>
                                                                 @endif
+                                                                @if ($stageKey === 'payment')
+                                                                    <div class="wt-cell-row">
+                                                                        <input type="text" name="payment_reference" maxlength="255" placeholder="Bank / reference / description" value="{{ $target->payment_reference }}" aria-label="Bank, reference, or payment description (optional)">
+                                                                    </div>
+                                                                @endif
                                                                 <div class="wt-cell-row">
                                                                     <input type="date" name="{{ $stageKey === 'payment' ? 'payment_date' : 'actual_date' }}" value="{{ $stageKey === 'payment' ? $target->payment_at?->format('Y-m-d') : $target->ended_at?->format('Y-m-d') }}">
                                                                     <button type="submit" class="btn btn-sm btn-outline">Save</button>
@@ -431,6 +436,9 @@
                                                         {{ $row['payment_date_label'] }}
                                                         @if ($row['payment_label'])
                                                             <span class="wt-notes">{{ $row['payment_label'] }}</span>
+                                                        @endif
+                                                        @if ($row['payment_reference'])
+                                                            <span class="wt-notes">{{ $row['payment_reference'] }}</span>
                                                         @endif
                                                     @else
                                                         <span class="wt-dash">—</span>
@@ -468,6 +476,7 @@
                                                     <option value="{{ $value }}">{{ $label }}</option>
                                                 @endforeach
                                             </select>
+                                            <input type="text" name="payment_reference" form="{{ $group['form_id'] }}" maxlength="255" placeholder="Bank / reference / description" aria-label="Bank, reference, or payment description (optional)">
                                             <input type="date" name="payment_date" form="{{ $group['form_id'] }}" value="{{ now()->format('Y-m-d') }}">
                                         @endif
                                         <button type="submit" form="{{ $group['form_id'] }}" class="btn btn-sm btn-primary">Update selected</button>

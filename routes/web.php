@@ -476,7 +476,15 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
     Route::get('/daily-journal', [DailyJournalController::class, 'create'])->name('daily-journal.create');
     Route::post('/daily-journal', [DailyJournalController::class, 'store'])->name('daily-journal.store');
+    // Registered before the model-binding route so the literal segment wins.
+    Route::get('/daily-journal/achievements', [DailyJournalController::class, 'achievements'])->name('daily-journal.achievements');
     Route::get('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'show'])->name('daily-journal.show');
+});
+
+// Assessment corrections are reviewer-only. Staff cannot reach these endpoints.
+Route::middleware(['auth', 'role:admin,supervisor', 'admin.confidentiality'])->group(function () {
+    Route::patch('/daily-journal/{dailyJournal}/assessment', [DailyJournalController::class, 'reviewAssessment'])->name('daily-journal.assessment.review');
+    Route::post('/daily-journal/{dailyJournal}/reassess', [DailyJournalController::class, 'reassessAssessment'])->name('daily-journal.assessment.reassess');
 });
 
 // Admin monitoring routes

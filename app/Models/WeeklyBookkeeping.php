@@ -28,8 +28,8 @@ class WeeklyBookkeeping extends Model
     public const TASK_TYPES = [
         'pickup' => 'Pick-Up',
         'record' => 'Record',
-        'return' => 'Return / Collect',
-        'payment' => 'Billing / Payment',
+        'return' => 'Return',
+        'payment' => 'Collect',
     ];
 
     protected $fillable = [

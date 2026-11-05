@@ -260,6 +260,7 @@ class WeeklyTrackerController extends Controller
                     'has_notes' => filled($anchor->notes) || $tasks->contains(fn (WeeklyBookkeepingTarget $t) => filled($t->notes)),
                     'payment_date_label' => $paymentTarget?->payment_at?->format('M j, Y'),
                     'payment_label' => $paymentTarget?->paymentLabel(),
+                    'payment_reference' => $paymentTarget?->payment_reference,
                 ];
             })
             ->sortBy(fn (array $row) => $row['client_name'])
@@ -366,6 +367,7 @@ class WeeklyTrackerController extends Controller
             'status' => ['required', 'string'],
             'payment_method' => ['nullable', Rule::in(array_keys(WeeklyBookkeepingTarget::PAYMENT_METHODS))],
             'payment_date' => ['nullable', 'date'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
         if ($target->task_type !== $validated['stage']) {
@@ -401,6 +403,7 @@ class WeeklyTrackerController extends Controller
             'status' => ['required', 'string'],
             'payment_method' => ['nullable', Rule::in(array_keys(WeeklyBookkeepingTarget::PAYMENT_METHODS))],
             'payment_date' => ['nullable', 'date'],
+            'payment_reference' => ['nullable', 'string', 'max:255'],
         ]);
 
         $stage = $validated['stage'];
@@ -500,9 +503,13 @@ class WeeklyTrackerController extends Controller
                 : null;
 
             $paymentDate = $validated['payment_date'] ?? null;
+            $paymentReference = trim((string) ($validated['payment_reference'] ?? ''));
 
             $attributes['payment_at'] = $isDone
                 ? ($paymentDate !== null && $paymentDate !== '' ? Carbon::parse($paymentDate) : now())
+                : null;
+            $attributes['payment_reference'] = $isDone && $paymentReference !== ''
+                ? $paymentReference
                 : null;
         }
 

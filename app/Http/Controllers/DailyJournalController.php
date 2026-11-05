@@ -2,19 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\DailyJournal;
 use App\Models\User;
+use App\Services\AchievementAnalysisService;
+use App\Services\AchievementRankingService;
 use App\Services\DailyJournalService;
+use App\Services\TeamSupervisionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class DailyJournalController extends Controller
 {
+    public function __construct(private readonly TeamSupervisionService $supervision) {}
+
     /**
      * Show the journal form for the authenticated employee.
      * For a specific date (defaults to today).
@@ -23,7 +28,7 @@ class DailyJournalController extends Controller
     public function create(Request $request): View|RedirectResponse
     {
         $user = Auth::user();
-        
+
         // Admin users don't submit journals - redirect to monitoring
         if ($user->isAdmin()) {
             return redirect()->route('admin.daily-journal.admin-monitor');
@@ -102,7 +107,7 @@ class DailyJournalController extends Controller
         $evidencePaths = [];
         if ($request->hasFile('evidence')) {
             foreach ($request->file('evidence') as $file) {
-                $path = $file->store('daily-journals/' . $user->id . '/' . $date->format('Y-m-d'), 'supabase');
+                $path = $file->store('daily-journals/'.$user->id.'/'.$date->format('Y-m-d'), 'supabase');
                 $evidencePaths[] = $path;
             }
         }
@@ -165,10 +170,12 @@ class DailyJournalController extends Controller
         $status = $request->get('status');
 
         $journals = DailyJournalService::getFilteredJournals($date, null, null, $status);
-        // Filter to only show journals for staff under this supervisor + supervisor's own journal
-        $journals = $journals->filter(function ($journal) use ($user) {
-            $journalUser = $journal->user;
-            return $journalUser && ($journalUser->id === $user->id || $journalUser->supervisor_id === $user->id);
+        $teamUserIds = $this->supervision->teamUserIds($user);
+
+        // Filter to the supervisor's own journal plus the staff whose roster
+        // entries place them under this supervisor.
+        $journals = $journals->filter(function ($journal) use ($teamUserIds) {
+            return $journal->user && $teamUserIds->contains($journal->user->id);
         })->values();
 
         $availableDates = DailyJournalService::getAvailableDates();
@@ -193,14 +200,124 @@ class DailyJournalController extends Controller
         if ($user->isAdmin()) {
             // allowed
         } elseif ($user->isSupervisor()) {
-            abort_unless($dailyJournal->user_id === $user->id || $dailyJournal->user->supervisor_id === $user->id, 403);
+            abort_unless($this->canReviewAssessment($user, $dailyJournal), 403);
         } else {
             abort_unless($dailyJournal->user_id === $user->id, 403);
         }
 
         return view('daily-journal.show', [
-            'journal' => $dailyJournal->load('user'),
+            'journal' => $dailyJournal->load(['user', 'reviewer', 'assessmentRevisions.reviewer']),
+            'categories' => config('achievements.categories', []),
+            'levels' => collect(config('achievements.levels', []))->pluck('label')->values()->all(),
+            'canReview' => $this->canReviewAssessment($user, $dailyJournal),
         ]);
+    }
+
+    /**
+     * Internal achievement rankings. Staff, supervisors, and admins may view
+     * recognition results; clients are denied by both role middleware and this
+     * explicit check.
+     */
+    public function achievements(Request $request, AchievementRankingService $rankingService): View
+    {
+        $user = Auth::user();
+        abort_if($user->isClient(), 403, 'Clients cannot access achievement rankings.');
+
+        $period = $request->string('period')->toString() ?: 'week';
+
+        if (! in_array($period, ['today', 'week', 'month', 'custom'], true)) {
+            $period = 'week';
+        }
+
+        $today = Carbon::today();
+
+        [$start, $end] = match ($period) {
+            'today' => [$today->copy()->startOfDay(), $today->copy()->endOfDay()],
+            'month' => [$today->copy()->startOfMonth(), $today->copy()->endOfMonth()],
+            'custom' => $this->customPeriod($request),
+            default => [$today->copy()->startOfWeek(), $today->copy()->endOfWeek()],
+        };
+
+        if ($start->gt($end)) {
+            [$start, $end] = [$end, $start];
+        }
+
+        $rankings = $rankingService->rankings($start, $end, $user);
+
+        return view('daily-journal.achievements', [
+            'rankings' => $rankings,
+            'period' => $period,
+            'start' => $start,
+            'end' => $end,
+            'verifiedCount' => $rankings->sum('verified_count'),
+            'provisionalCount' => $rankings->sum('provisional_count'),
+            'employeeCount' => $rankings->count(),
+        ]);
+    }
+
+    /**
+     * Correct an assessment. Authorized admins and supervisors only; the
+     * correction and its reason are written to the audit history.
+     */
+    public function reviewAssessment(Request $request, DailyJournal $dailyJournal): RedirectResponse
+    {
+        $this->authorizeAssessmentReviewer($dailyJournal);
+
+        $levels = collect(config('achievements.levels', []))->pluck('label')->all();
+
+        $validated = $request->validate([
+            'score' => ['required', 'integer', 'between:0,100'],
+            'category' => ['required', 'string', Rule::in(config('achievements.categories', []))],
+            'level' => ['nullable', 'string', Rule::in($levels)],
+            'explanation' => ['required', 'string', 'max:2000'],
+            'tags' => ['nullable', 'string', 'max:500'],
+            'reason' => [
+                Rule::requiredIf($dailyJournal->hasAssessment()),
+                'nullable',
+                'string',
+                'max:1000',
+            ],
+        ]);
+
+        $tags = collect(preg_split('/[,;\n]+/', (string) ($validated['tags'] ?? '')))
+            ->map(fn (string $tag): string => Str::limit(trim($tag), 40, ''))
+            ->filter()
+            ->take(8)
+            ->values()
+            ->all();
+
+        app(AchievementAnalysisService::class)->applyReview(
+            $dailyJournal,
+            Auth::user(),
+            (int) $validated['score'],
+            $validated['category'],
+            $validated['explanation'],
+            $tags,
+            $validated['reason'] ?? null,
+            $validated['level'] ?? null
+        );
+
+        return back()->with('status', 'Manual assessment saved and verified.');
+    }
+
+    /**
+     * Explicitly re-run analysis when a reviewer asks for it.
+     */
+    public function reassessAssessment(Request $request, DailyJournal $dailyJournal): RedirectResponse
+    {
+        $this->authorizeAssessmentReviewer($dailyJournal);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        app(AchievementAnalysisService::class)->reassess(
+            $dailyJournal,
+            Auth::user(),
+            $validated['reason'] ?? null
+        );
+
+        return back()->with('status', 'Automatic reassessment completed. Review and verify it if the result is correct.');
     }
 
     /**
@@ -215,7 +332,7 @@ class DailyJournalController extends Controller
 
         $dailyJournal->delete();
 
-        \App\Services\DailyJournalService::forgetMissingCount($dailyJournal->user_id);
+        DailyJournalService::forgetMissingCount($dailyJournal->user_id);
 
         return redirect()->route('daily-journal.admin-monitor', ['date' => $date->toDateString()])
             ->with('status', "Daily journal for {$userName} on {$date->format('F j, Y')} deleted.");
@@ -229,5 +346,50 @@ class DailyJournalController extends Controller
     private function authorizeSupervisor(): void
     {
         abort_unless(Auth::user()->isSupervisor(), 403, 'Supervisor access required.');
+    }
+
+    private function authorizeAssessmentReviewer(DailyJournal $journal): void
+    {
+        abort_unless(
+            $this->canReviewAssessment(Auth::user(), $journal),
+            403,
+            'You can only review assessments for your own team.'
+        );
+    }
+
+    private function canReviewAssessment(User $reviewer, DailyJournal $journal): bool
+    {
+        if ($reviewer->isAdmin()) {
+            return true;
+        }
+
+        if (! $reviewer->isSupervisor()) {
+            return false;
+        }
+
+        $journal->loadMissing('user');
+
+        return $journal->user_id === $reviewer->id
+            || ($journal->user !== null && $this->supervision->supervises($reviewer, $journal->user));
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function customPeriod(Request $request): array
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $start = Carbon::parse($validated['start_date'])->startOfDay();
+        $end = Carbon::parse($validated['end_date'])->endOfDay();
+
+        if ($start->diffInDays($end) > 366) {
+            $end = $start->copy()->addDays(366)->endOfDay();
+        }
+
+        return [$start, $end];
     }
 }

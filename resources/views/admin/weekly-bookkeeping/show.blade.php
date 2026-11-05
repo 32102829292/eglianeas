@@ -212,6 +212,7 @@
                                                         @endforeach
                                                     </select>
                                                     <input type="date" name="paid_at" class="tb-mini-select" aria-label="Payment date" value="{{ now()->format('Y-m-d') }}">
+                                                    <input type="text" name="payment_reference" class="tb-mini-select" maxlength="255" placeholder="Bank / reference / description" aria-label="Bank, reference, or payment description (optional)">
                                                 @endif
                                                 <button type="submit" class="btn btn-success btn-sm">Complete</button>
                                             </form>

@@ -61,9 +61,10 @@ class WeeklyBookkeepingTarget extends Model
     ];
 
     public const PAYMENT_METHODS = [
-        'cash' => 'Paid Cash',
-        'gcash' => 'Paid GCash',
-        'other' => 'Paid (Other)',
+        'cash' => 'Cash',
+        'gcash' => 'GCash',
+        'bank_transfer' => 'Bank Transfer',
+        'other' => 'Other',
     ];
 
     public const TIMING_ON_TIME = 'on_time';
@@ -95,6 +96,8 @@ class WeeklyBookkeepingTarget extends Model
         'assigned_staff_id',
         'assigned_staff_name',
         'target_date',
+        'selected_date',
+        'priority',
         'target_date_auto',
         'actual_status',
         'timing',
@@ -105,6 +108,7 @@ class WeeklyBookkeepingTarget extends Model
         'ended_at',
         'payment_method',
         'payment_at',
+        'payment_reference',
         'payment_status',
         'balance_amount',
         'balance_note',
@@ -118,6 +122,8 @@ class WeeklyBookkeepingTarget extends Model
     {
         return [
             'target_date' => 'date',
+            'selected_date' => 'date',
+            'priority' => 'string',
             'target_date_auto' => 'boolean',
             'started_at' => 'datetime',
             'ended_at' => 'datetime',
@@ -459,13 +465,26 @@ class WeeklyBookkeepingTarget extends Model
      * The billing cell in the workbook, e.g. "Paid Cash" plus the date the
      * payment was received. Never invents a method that was not recorded.
      */
+    public function paymentMethodLabel(): ?string
+    {
+        return $this->payment_method
+            ? (self::PAYMENT_METHODS[$this->payment_method] ?? null)
+            : null;
+    }
+
     public function paymentLabel(): ?string
     {
         if ($this->task_type !== 'payment' || ! $this->payment_method) {
             return null;
         }
 
-        return self::PAYMENT_METHODS[$this->payment_method] ?? 'Paid';
+        $method = $this->paymentMethodLabel();
+
+        if ($method === null) {
+            return 'Paid';
+        }
+
+        return $this->payment_method === 'other' ? 'Paid (Other)' : 'Paid '.$method;
     }
 
     public function paymentDetail(): ?string
@@ -476,9 +495,13 @@ class WeeklyBookkeepingTarget extends Model
             return null;
         }
 
-        return $this->payment_at
+        $detail = $this->payment_at
             ? $label.' — '.$this->payment_at->format('M j, Y g:i A')
             : $label;
+
+        return $this->payment_reference
+            ? $detail.' · '.$this->payment_reference
+            : $detail;
     }
 
     /**
@@ -598,7 +621,12 @@ class WeeklyBookkeepingTarget extends Model
      * workbook (Pick-Up becomes On Time, Record Completed, Return Returned and
      * Billing Paid), then records whether it landed on or after the target date.
      */
-    public function complete(?User $user = null, ?string $paymentMethod = null, ?\Illuminate\Support\Carbon $paidAt = null): void
+    public function complete(
+        ?User $user = null,
+        ?string $paymentMethod = null,
+        ?\Illuminate\Support\Carbon $paidAt = null,
+        ?string $paymentReference = null
+    ): void
     {
         if (! $this->isInProgress()) {
             throw new \InvalidArgumentException(
@@ -617,8 +645,11 @@ class WeeklyBookkeepingTarget extends Model
         $this->setPerformer($user);
 
         if ($this->task_type === 'payment') {
+            $reference = trim((string) $paymentReference);
+
             $this->payment_method = $paymentMethod;
             $this->payment_at = $paidAt ?? now();
+            $this->payment_reference = $reference === '' ? null : $reference;
         }
 
         // Resolve timing after the finish date is on the model.

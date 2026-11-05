@@ -309,6 +309,17 @@ class DailyJournalService
             );
         }
 
+        // Analyze on submission/update only. The analyzer caches by a content
+        // hash, so opening pages or re-saving unchanged text never calls AI.
+        try {
+            app(AchievementAnalysisService::class)->analyze($journal);
+        } catch (\Throwable $exception) {
+            Log::warning('Achievement analysis could not be saved.', [
+                'daily_journal_id' => $journal->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
         return $journal;
     }
 

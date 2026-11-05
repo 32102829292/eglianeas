@@ -202,6 +202,56 @@ class WeeklyTrackerTest extends TestCase
         $this->assertNull($target->payment_at);
     }
 
+    public function test_billing_paid_records_a_bank_transfer_reference_and_clears_it_on_revert(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client();
+        $week = $this->weekStart();
+        $target = $this->target($this->plan($week), $client, 'payment', $week);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.weekly-tracker.update-stage', $target), [
+                'stage' => 'payment',
+                'status' => 'paid',
+                'payment_method' => 'bank_transfer',
+                'payment_reference' => 'BPI-2026-0042',
+            ])
+            ->assertRedirect();
+
+        $target->refresh();
+        $this->assertSame('bank_transfer', $target->payment_method);
+        $this->assertSame('Bank Transfer', $target->paymentMethodLabel());
+        $this->assertSame('BPI-2026-0042', $target->payment_reference);
+        $this->assertStringContainsString('Paid Bank Transfer', (string) $target->paymentDetail());
+        $this->assertStringContainsString('BPI-2026-0042', (string) $target->paymentDetail());
+
+        $this->actingAs($admin)
+            ->patch(route('admin.weekly-tracker.update-stage', $target), [
+                'stage' => 'payment',
+                'status' => 'unpaid',
+            ])
+            ->assertRedirect();
+
+        $target->refresh();
+        $this->assertNull($target->payment_method);
+        $this->assertNull($target->payment_at);
+        $this->assertNull($target->payment_reference);
+    }
+
+    public function test_payment_band_offers_bank_transfer_and_an_optional_reference(): void
+    {
+        $admin = $this->admin();
+        $client = $this->client();
+        $week = $this->weekStart();
+        $this->target($this->plan($week), $client, 'payment', $week);
+
+        $this->actingAs($admin)
+            ->get(route('admin.weekly-tracker.index', ['week_start' => $week]))
+            ->assertOk()
+            ->assertSee('Bank Transfer')
+            ->assertSee('name="payment_reference"', false);
+    }
+
     public function test_invalid_status_for_a_stage_is_rejected(): void
     {
         $admin = $this->admin();
