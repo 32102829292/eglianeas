@@ -22,12 +22,7 @@
         </div>
     </div>
 
-    @if (session('status'))
-        <div class="alert alert-success">{{ session('status') }}</div>
-    @endif
-    @if (session('error'))
-        <div class="alert alert-danger">{{ session('error') }}</div>
-    @endif
+    {{-- Flash messages are rendered once by the shared dashboard layout. --}}
 
     {{-- Creation modal --}}
     <div class="modal fade" id="cdpCreateModal" tabindex="-1" aria-hidden="true" data-auto-open="{{ ($period === null && ($selection['client_id'] ?? null)) ? '1' : '0' }}">
@@ -465,7 +460,12 @@
                                         </tr>
                                         @foreach ($savedDay->lines as $savedLine)
                                             <tr class="cdp-report-detail">
-                                                <td colspan="9">{{ $savedLine->typeLabel() }}: {{ $savedLine->label }} — {{ number_format((float) $savedLine->amount, 2) }}</td>
+                                                <td colspan="9">
+                                                    {{ $savedLine->typeLabel() }}: {{ $savedLine->label }} — {{ number_format((float) $savedLine->amount, 2) }}
+                                                    @if ($savedLine->type === CashDailyLine::TYPE_ADDITION && filled($savedLine->notes))
+                                                        <span class="cdp-report-remark">Remarks: {{ $savedLine->notes }}</span>
+                                                    @endif
+                                                </td>
                                             </tr>
                                         @endforeach
                                         @foreach ($savedDay->payments as $savedPayment)
@@ -513,6 +513,7 @@
             .cdp-report-days th, .cdp-report-days td { padding: 6px 8px; border-bottom: 1px solid var(--border-subtle); text-align: left; }
             .cdp-report-days td.num { text-align: right; }
             .cdp-report-detail td { font-size: 12px; color: var(--muted-text); border-bottom-style: dashed; }
+            .cdp-report-remark { display: block; margin-top: 2px; color: var(--navy); font-style: italic; }
         </style>
         @endpush
     @endif

@@ -41,6 +41,11 @@ class CashDailyPosition extends Model
         return $this->hasMany(CashDailyLine::class);
     }
 
+    public function receipts(): HasMany
+    {
+        return $this->hasMany(CashDailyReceipt::class, 'cash_daily_position_id')->orderByDesc('created_at');
+    }
+
     /** The ADD block: cash received (client-linked or free-text). */
     public function additions(): HasMany
     {

@@ -383,6 +383,12 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::post('/cash-daily-position/reports', [AdminCashDailyPositionController::class, 'storeReport'])->name('cash-daily-position.reports.store');
     Route::delete('/cash-daily-position/reports/{report}', [AdminCashDailyPositionController::class, 'destroyReport'])->name('cash-daily-position.reports.destroy');
 
+    // Receipt uploads for a saved Cash Daily Position
+    Route::post('/cash-daily-position/positions/{position}/receipts', [AdminCashDailyPositionController::class, 'uploadReceipts'])->name('cash-daily-position.receipts.store');
+    Route::get('/cash-daily-position/receipts/{receipt}/view', [AdminCashDailyPositionController::class, 'viewReceipt'])->name('cash-daily-position.receipts.view');
+    Route::get('/cash-daily-position/receipts/{receipt}/download', [AdminCashDailyPositionController::class, 'downloadReceipt'])->name('cash-daily-position.receipts.download');
+    Route::delete('/cash-daily-position/receipts/{receipt}', [AdminCashDailyPositionController::class, 'deleteReceipt'])->name('cash-daily-position.receipts.destroy');
+
     // BIR Form Types (master list management)
     Route::post('/bir-form-types', [BirFormTypeController::class, 'store'])->name('bir-form-types.store');
 

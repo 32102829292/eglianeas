@@ -7,6 +7,7 @@ use App\Models\ActivityLog;
 use App\Models\Billing;
 use App\Models\CashDailyLine;
 use App\Models\CashDailyPosition;
+use App\Models\CashDailyReceipt;
 use App\Models\CashDailyReport;
 use App\Models\CashPayment;
 use App\Models\MonthlyBookkeepingTarget;
@@ -18,13 +19,18 @@ use App\Support\Cash\CashReportSnapshotter;
 use App\Support\Cash\PaymentSynchronizer;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The Cash Daily Position report.
@@ -311,6 +317,173 @@ class CashDailyPositionController extends Controller
     }
 
     /**
+     * Upload one or more receipts for a saved Cash Daily Position Report.
+     * Accepts JPG, JPEG, PNG, and PDF files up to 2MB each. Stored privately
+     * under storage/app/private/cash_daily_receipts.
+     */
+    public function uploadReceipts(Request $request, CashDailyPosition $position): RedirectResponse
+    {
+        $this->assertCanAccessPosition($position);
+
+        $request->validate([
+            'receipts' => ['required', 'array', 'min:1', 'max:10'],
+            'receipts.*' => [
+                'file',
+                'max:2048',
+                'mimes:jpg,jpeg,png,pdf',
+                'mimetypes:image/jpeg,image/png,application/pdf',
+            ],
+        ]);
+
+        $receiptDir = storage_path('app/private/cash_daily_receipts');
+        if (! File::isDirectory($receiptDir)) {
+            File::makeDirectory($receiptDir, 0755, true);
+        }
+
+        $count = 0;
+
+        foreach ($request->file('receipts') as $file) {
+            $extension = match ($file->getMimeType()) {
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'application/pdf' => 'pdf',
+                default => null,
+            };
+
+            if ($extension === null) {
+                continue;
+            }
+
+            $originalName = basename($file->getClientOriginalName());
+            $storedName = uniqid('receipt_', true).'.'.$extension;
+            $relativePath = 'private/cash_daily_receipts/'.$storedName;
+
+            $file->move($receiptDir, $storedName);
+
+            try {
+                CashDailyReceipt::create([
+                    'cash_daily_position_id' => $position->id,
+                    'file_name' => $originalName,
+                    'file_type' => $extension,
+                    'file_path' => $relativePath,
+                ]);
+            } catch (\Throwable $e) {
+                // Never leave the just-written file behind if the row cannot
+                // be inserted; that would be an orphan with no owner.
+                File::delete($receiptDir.DIRECTORY_SEPARATOR.$storedName);
+                throw $e;
+            }
+
+            $count++;
+        }
+
+        return back()->with('status', $count.' receipt(s) uploaded.');
+    }
+
+    /**
+     * Serve a receipt file for inline viewing inside a modal. Verifies the
+     * requesting user may access the parent report before returning the file.
+     * Never exposes private receipts through public storage URLs.
+     */
+    public function viewReceipt(CashDailyReceipt $receipt): Response
+    {
+        $position = $receipt->position;
+        abort_if($position === null, 404);
+
+        $this->assertCanAccessPosition($position);
+
+        $filePath = storage_path('app/'.$receipt->file_path);
+
+        if (! File::exists($filePath)) {
+            abort(404);
+        }
+
+        $mime = File::mimeType($filePath);
+        $allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+        abort_if(! in_array($mime, $allowed, true), 415);
+
+        $contents = File::get($filePath);
+        $fileName = str_replace(['"', "\r", "\n"], '', basename((string) $receipt->file_name));
+
+        return response($contents, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="'.$fileName.'"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-cache, private',
+        ]);
+    }
+
+    /**
+     * Download a receipt file as an attachment. Reuses the same private file
+     * path and authorization checks as the inline preview.
+     */
+    public function downloadReceipt(CashDailyReceipt $receipt): Response
+    {
+        $position = $receipt->position;
+        abort_if($position === null, 404);
+
+        $this->assertCanAccessPosition($position);
+
+        $filePath = storage_path('app/'.$receipt->file_path);
+
+        if (! File::exists($filePath)) {
+            abort(404);
+        }
+
+        $mime = File::mimeType($filePath);
+        $allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+        abort_if(! in_array($mime, $allowed, true), 415);
+
+        $fileName = str_replace(['"', "\r", "\n"], '', basename((string) $receipt->file_name));
+        if ($fileName === '') {
+            $fileName = 'receipt.'.$receipt->file_type;
+        }
+
+        return response()->download($filePath, $fileName, [
+            'Content-Type' => $mime,
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-cache, private',
+        ]);
+    }
+
+    /**
+     * Delete a single receipt. Verifies the requesting user may access the
+     * parent report before deleting both the database record and the file.
+     */
+    public function deleteReceipt(CashDailyReceipt $receipt): RedirectResponse
+    {
+        $position = $receipt->position;
+        abort_if($position === null, 404);
+
+        $this->assertCanAccessPosition($position);
+
+        $filePath = storage_path('app/'.$receipt->file_path);
+
+        // Remove only this receipt and its own file. Other receipts and the
+        // parent report are untouched.
+        $receipt->delete();
+
+        if (File::exists($filePath)) {
+            File::delete($filePath);
+        }
+
+        return back()->with('status', 'Receipt deleted.');
+    }
+
+    /**
+     * Daily worksheet reports (the date-based archive) are not tied to a
+     * client (client_id is null), while period reports are. Only client-scoped
+     * positions need the client authorization check; the route group already
+     * restricts these actions to authenticated admin/staff/supervisor users.
+     */
+    private function assertCanAccessPosition(CashDailyPosition $position): void
+    {
+        if ($position->client_id !== null) {
+            $this->assertAuthorizedClient((int) $position->client_id);
+        }
+    }
+
+    /**
      * Confirm a payment against exactly one bookkeeping Billing / Payment
      * target. Steps, all server-side:
      *   1. the user may access the client;
@@ -523,7 +696,7 @@ class CashDailyPositionController extends Controller
      * the selected period, across all three bookkeeping cadences. A target is
      * outstanding until a cash_payments row exists for that exact target.
      *
-     * @return \Illuminate\Support\Collection<int, Model>
+     * @return Collection<int, Model>
      */
     private function outstandingBillings(User $client, CashReportPeriod $period)
     {
@@ -608,7 +781,7 @@ class CashDailyPositionController extends Controller
      * authorized client set the picker uses and never loads the full list into
      * the page: it returns at most 20 matches for the typed query.
      */
-    public function clientsJson(Request $request): \Illuminate\Http\JsonResponse
+    public function clientsJson(Request $request): JsonResponse
     {
         $q = trim((string) $request->get('q', ''));
 
@@ -635,7 +808,7 @@ class CashDailyPositionController extends Controller
      * accounting task can be picked, and returns at most 20 matches rather than
      * loading every user into the page.
      */
-    public function staffJson(Request $request): \Illuminate\Http\JsonResponse
+    public function staffJson(Request $request): JsonResponse
     {
         $q = trim((string) $request->get('q', ''));
 
@@ -814,13 +987,28 @@ class CashDailyPositionController extends Controller
     {
         $date = $request->get('date') ? Carbon::parse($request->get('date'))->toDateString() : now()->toDateString();
 
-        $existing = CashDailyPosition::query()->where('position_date', $date)->first();
+        // Opening the create screen for a date that already has a report must
+        // load THAT report in edit mode. Previously this redirected straight
+        // back to the show page, which made "Edit/Add Lines" look like a page
+        // refresh and made editing impossible.
+        $positionQuery = CashDailyPosition::query()->with('lines');
+        if (Schema::hasTable('cash_daily_receipts')) {
+            $positionQuery->with('receipts');
+        }
+        $existing = $positionQuery->whereDate('position_date', $date)->first();
+
         if ($existing) {
-            return redirect()->route('admin.cash-daily-position.show', ['date' => $date])->with('status', 'Report already exists for this date.');
+            return view('admin.cash-daily-position.daily', [
+                'reportDate' => $date,
+                'position' => $existing,
+                'beginningBalance' => (float) $existing->beginning_balance,
+                'mode' => 'edit',
+                'receiptsUnavailable' => ! Schema::hasTable('cash_daily_receipts'),
+            ]);
         }
 
         $prev = CashDailyPosition::query()
-            ->where('position_date', '<', $date)
+            ->whereDate('position_date', '<', $date)
             ->orderByDesc('position_date')
             ->first();
 
@@ -831,6 +1019,7 @@ class CashDailyPositionController extends Controller
             'position' => null,
             'beginningBalance' => $beginningBalance,
             'mode' => 'create',
+            'receiptsUnavailable' => ! Schema::hasTable('cash_daily_receipts'),
         ]);
     }
 
@@ -838,7 +1027,11 @@ class CashDailyPositionController extends Controller
     {
         $date = $request->get('date') ? Carbon::parse($request->get('date'))->toDateString() : now()->toDateString();
 
-        $position = CashDailyPosition::query()->with('lines')->where('position_date', $date)->first();
+        $positionQuery = CashDailyPosition::query()->with('lines');
+        if (Schema::hasTable('cash_daily_receipts')) {
+            $positionQuery->with('receipts');
+        }
+        $position = $positionQuery->whereDate('position_date', $date)->first();
         if (! $position) {
             return redirect()->route('admin.cash-daily-position.create', ['date' => $date]);
         }
@@ -848,30 +1041,80 @@ class CashDailyPositionController extends Controller
             'position' => $position,
             'beginningBalance' => (float) $position->beginning_balance,
             'mode' => 'view',
+            'receiptsUnavailable' => ! Schema::hasTable('cash_daily_receipts'),
         ]);
     }
 
     public function storeDaily(Request $request): RedirectResponse
     {
         $data = $request->validate([
+            // Present only when the form was opened from an existing report.
+            'position_id' => ['nullable', 'integer', 'exists:cash_daily_positions,id'],
             'position_date' => ['required', 'date'],
             'beginning_balance' => ['required', 'numeric'],
             'budget' => ['nullable', 'numeric'],
             'actual_cash' => ['nullable', 'numeric'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'additions' => ['nullable', 'array'],
+            'additions.*.id' => ['nullable', 'integer'],
             'additions.*.label' => ['nullable', 'string', 'max:150'],
+            'additions.*.notes' => ['nullable', 'string', 'max:500'],
             'additions.*.amount' => ['nullable', 'numeric'],
             'salaries' => ['nullable', 'array'],
+            'salaries.*.id' => ['nullable', 'integer'],
             'salaries.*.label' => ['nullable', 'string', 'max:150'],
             'salaries.*.amount' => ['nullable', 'numeric'],
             'expenses' => ['nullable', 'array'],
+            'expenses.*.id' => ['nullable', 'integer'],
             'expenses.*.label' => ['nullable', 'string', 'max:150'],
             'expenses.*.amount' => ['nullable', 'numeric'],
         ]);
 
+        // Editing an existing report: update it in place so its ID and date are
+        // preserved, and its receipt attachments stay attached. The duplicate
+        // date guard below excludes this report, so it never blocks an edit.
+        if (! empty($data['position_id'])) {
+            $position = CashDailyPosition::query()->findOrFail($data['position_id']);
+            $this->assertCanAccessPosition($position);
+
+            $date = $position->position_date->format('Y-m-d');
+            $conflict = CashDailyPosition::query()
+                ->whereDate('position_date', $date)
+                ->whereKeyNot($position->id)
+                ->exists();
+
+            if ($conflict) {
+                return redirect()->route('admin.cash-daily-position.show', ['date' => $date])
+                    ->with('error', 'Another report already exists for this date.');
+            }
+
+            DB::transaction(function () use ($request, $data, $position) {
+                $position->update([
+                    'beginning_balance' => $data['beginning_balance'],
+                    'budget' => $data['budget'] ?? 0,
+                    'actual_cash' => $data['actual_cash'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                    'recorded_by' => auth()->id(),
+                ]);
+
+                $this->syncLinesFor($request, $position, 'additions', CashDailyLine::TYPE_ADDITION);
+                $this->syncLinesFor($request, $position, 'salaries', CashDailyLine::TYPE_SALARY);
+                $this->syncLinesFor($request, $position, 'expenses', CashDailyLine::TYPE_EXPENSE);
+            });
+
+            ActivityLog::record(
+                auth()->user(),
+                'admin.cash_daily_report_updated',
+                'Updated Cash Daily Position Report #'.$position->id.' for '.$date.'.',
+            );
+
+            return redirect()->route('admin.cash-daily-position.show', ['date' => $date])
+                ->with('status', 'Cash Daily Position Report updated.');
+        }
+
+        // Creating a new report keeps the existing duplicate-date protection.
         $date = Carbon::parse($data['position_date'])->toDateString();
-        $existing = CashDailyPosition::query()->where('position_date', $date)->first();
+        $existing = CashDailyPosition::query()->whereDate('position_date', $date)->first();
         if ($existing) {
             return redirect()->route('admin.cash-daily-position.show', ['date' => $date])->with('error', 'A report already exists for this date.');
         }
@@ -887,9 +1130,9 @@ class CashDailyPositionController extends Controller
                 'recorded_by' => auth()->id(),
             ]);
 
-            $this->storeLinesFor($request, $position, 'additions', CashDailyLine::TYPE_ADDITION);
-            $this->storeLinesFor($request, $position, 'salaries', CashDailyLine::TYPE_SALARY);
-            $this->storeLinesFor($request, $position, 'expenses', CashDailyLine::TYPE_EXPENSE);
+            $this->syncLinesFor($request, $position, 'additions', CashDailyLine::TYPE_ADDITION);
+            $this->syncLinesFor($request, $position, 'salaries', CashDailyLine::TYPE_SALARY);
+            $this->syncLinesFor($request, $position, 'expenses', CashDailyLine::TYPE_EXPENSE);
         });
 
         ActivityLog::record(
@@ -898,16 +1141,29 @@ class CashDailyPositionController extends Controller
             'Saved Cash Daily Position Report for '.$date.'.',
         );
 
-        return redirect()->route('admin.cash-daily-position.index', ['year' => Carbon::parse($date)->year, 'month' => Carbon::parse($date)->month])->with('status', 'Cash Daily Position Report saved.');
+        return redirect()->route('admin.cash-daily-position.show', ['date' => $date])->with('status', 'Cash Daily Position Report saved.');
     }
 
-    private function storeLinesFor(Request $request, CashDailyPosition $position, string $key, string $type): void
+    /**
+     * Reconcile one block (additions / salaries / expenses) with what was
+     * submitted. Rows carrying an id are updated in place (keeping any
+     * client / source-payment links they already had); rows without an id are
+     * created; existing rows that were removed from the form are deleted.
+     */
+    private function syncLinesFor(Request $request, CashDailyPosition $position, string $key, string $type): void
     {
         $items = $request->input($key, []);
         if (! is_array($items)) {
-            return;
+            $items = [];
         }
+
+        $keptIds = [];
+
         foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
             $label = trim((string) ($item['label'] ?? ''));
             $amount = $item['amount'] ?? null;
             if ($label === '' || $amount === null || $amount === '') {
@@ -916,12 +1172,50 @@ class CashDailyPositionController extends Controller
             if ((float) $amount <= 0) {
                 continue;
             }
-            CashDailyLine::create([
-                'cash_daily_position_id' => $position->id,
-                'type' => $type,
-                'label' => $label,
-                'amount' => $amount,
-            ]);
+
+            $lineId = (int) ($item['id'] ?? 0);
+            $line = $lineId > 0
+                ? $position->lines()->whereKey($lineId)->where('type', $type)->first()
+                : null;
+
+            // Remarks belong to the ADD block only. The shared `notes` column
+            // already exists on the line table, so no schema change is needed.
+            // Other blocks keep their existing notes untouched if the form did
+            // not send the key.
+            $notes = null;
+            $hasNotes = $type === CashDailyLine::TYPE_ADDITION && array_key_exists('notes', $item);
+            if ($hasNotes) {
+                $notes = trim((string) ($item['notes'] ?? ''));
+                $notes = $notes === '' ? null : $notes;
+            }
+
+            if ($line !== null) {
+                $update = [
+                    'label' => $label,
+                    'amount' => $amount,
+                ];
+                if ($hasNotes) {
+                    $update['notes'] = $notes;
+                }
+
+                $line->update($update);
+                $keptIds[] = $line->id;
+            } else {
+                $created = CashDailyLine::create([
+                    'cash_daily_position_id' => $position->id,
+                    'type' => $type,
+                    'label' => $label,
+                    'amount' => $amount,
+                    'notes' => $notes,
+                ]);
+                $keptIds[] = $created->id;
+            }
         }
+
+        $query = $position->lines()->where('type', $type);
+        if ($keptIds !== []) {
+            $query->whereNotIn('id', $keptIds);
+        }
+        $query->delete();
     }
 }
