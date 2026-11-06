@@ -67,4 +67,20 @@ return [
         'model' => env('ACHIEVEMENT_AI_MODEL', 'gpt-4o-mini'),
         'timeout' => (int) env('ACHIEVEMENT_AI_TIMEOUT', 15),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Criterion scoring weights
+    |--------------------------------------------------------------------------
+    | Weights used to combine the four criterion scores into one overall
+    | achievement score. Criteria with insufficient data (null) are excluded
+    | and the remaining weights are renormalized, so a missing data source
+    | never forces a zero score. Weights should sum to 100.
+    */
+    'scoring_weights' => [
+        'quality' => 50,
+        'timeliness' => 20,
+        'responsiveness' => 20,
+        'client_feedback' => 10,
+    ],
 ];

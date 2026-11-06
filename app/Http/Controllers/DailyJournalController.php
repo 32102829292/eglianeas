@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\DailyJournal;
 use App\Models\User;
 use App\Services\AchievementAnalysisService;
+use App\Services\AchievementCriteriaService;
 use App\Services\AchievementRankingService;
 use App\Services\DailyJournalService;
 use App\Services\TeamSupervisionService;
@@ -244,6 +245,13 @@ class DailyJournalController extends Controller
 
         $rankings = $rankingService->rankings($start, $end, $user);
 
+        $criteriaScored = $rankings->filter(function ($row) {
+            return $row['quality_score'] !== null
+                || $row['timeliness_score'] !== null
+                || $row['responsiveness_score'] !== null
+                || $row['client_feedback_score'] !== null;
+        })->count();
+
         return view('daily-journal.achievements', [
             'rankings' => $rankings,
             'period' => $period,
@@ -252,16 +260,17 @@ class DailyJournalController extends Controller
             'verifiedCount' => $rankings->sum('verified_count'),
             'provisionalCount' => $rankings->sum('provisional_count'),
             'employeeCount' => $rankings->count(),
+            'criteriaScored' => $criteriaScored,
         ]);
     }
 
     /**
-     * Correct an assessment. Authorized admins and supervisors only; the
-     * correction and its reason are written to the audit history.
+     * Correct an assessment. Admin only; the correction and its reason are
+     * written to the audit history. Supervisors and staff cannot modify scores.
      */
     public function reviewAssessment(Request $request, DailyJournal $dailyJournal): RedirectResponse
     {
-        $this->authorizeAssessmentReviewer($dailyJournal);
+        $this->authorizeAdmin();
 
         $levels = collect(config('achievements.levels', []))->pluck('label')->all();
 
@@ -301,11 +310,51 @@ class DailyJournalController extends Controller
     }
 
     /**
-     * Explicitly re-run analysis when a reviewer asks for it.
+     * Admin-only manual reassessment with per-criterion adjustments.
+     * Preserves the original AI score and records each changed criterion.
+     */
+    public function manualReassess(Request $request, DailyJournal $dailyJournal): RedirectResponse
+    {
+        $this->authorizeAdmin();
+
+        $levels = collect(config('achievements.levels', []))->pluck('label')->all();
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+            'criteria' => ['required', 'array'],
+            'criteria.*.score' => ['required', 'numeric', 'between:0,100'],
+            'criteria.*.max' => ['required', 'numeric', 'between:0,100'],
+            'criteria.*.reason' => ['nullable', 'string', 'max:500'],
+            'weights.quality' => ['nullable', 'numeric', 'between:0,100'],
+            'weights.timeliness' => ['nullable', 'numeric', 'between:0,100'],
+            'weights.responsiveness' => ['nullable', 'numeric', 'between:0,100'],
+            'weights.client_feedback' => ['nullable', 'numeric', 'between:0,100'],
+        ]);
+
+        $weights = [
+            'quality' => (float) ($validated['weights']['quality'] ?? config('achievements.scoring_weights.quality', 50)),
+            'timeliness' => (float) ($validated['weights']['timeliness'] ?? config('achievements.scoring_weights.timeliness', 20)),
+            'responsiveness' => (float) ($validated['weights']['responsiveness'] ?? config('achievements.scoring_weights.responsiveness', 20)),
+            'client_feedback' => (float) ($validated['weights']['client_feedback'] ?? config('achievements.scoring_weights.client_feedback', 10)),
+        ];
+
+        app(AchievementAnalysisService::class)->manualReassess(
+            $dailyJournal,
+            Auth::user(),
+            $validated['criteria'],
+            $weights,
+            $validated['reason']
+        );
+
+        return back()->with('status', 'Manual reassessment saved and verified.');
+    }
+
+    /**
+     * Explicitly re-run analysis when a reviewer asks for it. Admin only.
      */
     public function reassessAssessment(Request $request, DailyJournal $dailyJournal): RedirectResponse
     {
-        $this->authorizeAssessmentReviewer($dailyJournal);
+        $this->authorizeAdmin();
 
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:1000'],
@@ -318,6 +367,103 @@ class DailyJournalController extends Controller
         );
 
         return back()->with('status', 'Automatic reassessment completed. Review and verify it if the result is correct.');
+    }
+
+    /**
+     * Display the detailed AI score sheet for a single assessed journal.
+     */
+    public function scoreSheet(DailyJournal $dailyJournal): View
+    {
+        $user = Auth::user();
+
+        // Authorization: admin can see all, supervisor can see their staff,
+        // employee can see own.
+        if ($user->isAdmin()) {
+            // allowed
+        } elseif ($user->isSupervisor()) {
+            abort_unless($this->canReviewAssessment($user, $dailyJournal), 403);
+        } else {
+            abort_unless($dailyJournal->user_id === $user->id, 403);
+        }
+
+        $dailyJournal->load(['user', 'reviewer', 'assessmentRevisions.reviewer']);
+
+        $criteriaService = app(AchievementCriteriaService::class);
+        $weights = [
+            'quality' => (float) config('achievements.scoring_weights.quality', 50),
+            'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
+            'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
+            'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+        ];
+
+        $start = $dailyJournal->required_date?->copy()->startOfDay() ?? now()->startOfDay();
+        $end = $dailyJournal->required_date?->copy()->endOfDay() ?? now()->endOfDay();
+
+        $criteria = $criteriaService->analyze($dailyJournal->user, $start, $end);
+        $combined = $criteriaService->combine($criteria, $weights);
+
+        // Pre-compute per-criterion evidence text to keep the Blade template
+        // simple and avoid complex inline expressions.
+        $criterionEvidence = [];
+        foreach (['quality', 'timeliness', 'responsiveness', 'client_feedback'] as $key) {
+            $meta = $criteria[$key.'_meta'] ?? [];
+            $score = $criteria[$key] ?? null;
+            match ($key) {
+                'quality' => $criterionEvidence[$key] = 'Based on '.(int) ($meta['entries'] ?? 0).' assessed daily accomplishment report(s) in this period. Average quality score '.(float) ($meta['average'] ?? $score).'.',
+                'timeliness' => $criterionEvidence[$key] = (int) ($meta['evaluated'] ?? 0).' evaluable task(s): '.(int) ($meta['on_time'] ?? 0).' on time, '.(int) ($meta['late'] ?? 0).' late, '.(int) ($meta['overdue_not_completed'] ?? 0).' overdue. On-time rate '.(float) ($meta['on_time_rate'] ?? 0).'%.',
+                'responsiveness' => $criterionEvidence[$key] = (int) ($meta['evaluated'] ?? 0).' evaluated response(s): '.(int) ($meta['prompt'] ?? 0).' prompt, '.(int) ($meta['delayed'] ?? 0).' delayed, '.(int) ($meta['unanswered'] ?? 0).' unanswered. Average response time '.(($meta['avg_response_hours'] ?? null) !== null ? number_format((float) $meta['avg_response_hours'], 1).'h' : '—').'.',
+                'client_feedback' => $criterionEvidence[$key] = (int) ($meta['responses'] ?? 0).' verified feedback response(s): '.(int) ($meta['positive'] ?? 0).' positive, '.(int) ($meta['negative'] ?? 0).' negative, '.(int) ($meta['neutral'] ?? 0).' neutral. Average rating '.(($meta['average_rating'] ?? null) !== null ? number_format((float) $meta['average_rating'], 2).'/5' : '—').'.',
+            };
+        }
+
+        // Pre-compute explanation bullet points to avoid complex inline PHP
+        // in the Blade template.
+        $tMeta = $criteria['timeliness_meta'] ?? [];
+        $rMeta = $criteria['responsiveness_meta'] ?? [];
+        $blockers = [];
+        if ((int) ($tMeta['late'] ?? 0) > 0) {
+            $blockers[] = (int) ($tMeta['late'] ?? 0).' task(s) completed after the deadline.';
+        }
+        if ((int) ($tMeta['overdue_not_completed'] ?? 0) > 0) {
+            $blockers[] = (int) ($tMeta['overdue_not_completed'] ?? 0).' task(s) overdue and not completed.';
+        }
+        if ((int) ($rMeta['delayed'] ?? 0) > 0) {
+            $blockers[] = (int) ($rMeta['delayed'] ?? 0).' response(s) delayed beyond 24 hours.';
+        }
+        if ((int) ($rMeta['unanswered'] ?? 0) > 0) {
+            $blockers[] = (int) ($rMeta['unanswered'] ?? 0).' assigned item(s) left unanswered.';
+        }
+        if (empty($blockers)) {
+            $blockers[] = 'No specific blockers identified from the available records.';
+        }
+
+        $improvements = [];
+        if ((int) ($tMeta['late'] ?? 0) > 0) {
+            $improvements[] = 'Complete assigned tasks on or before their deadlines to improve the timeliness score.';
+        }
+        if ((int) ($rMeta['unanswered'] ?? 0) > 0) {
+            $improvements[] = 'Acknowledge assigned concerns promptly so they are not left unanswered.';
+        }
+        if ((int) ($rMeta['delayed'] ?? 0) > 0) {
+            $improvements[] = 'Respond to assignments within 24 hours to improve the responsiveness score.';
+        }
+        if ($dailyJournal->evidenceCount() === 0) {
+            $improvements[] = 'Attach supporting evidence to accomplishment reports for stronger verification.';
+        }
+        if (empty($improvements)) {
+            $improvements[] = 'Maintain the current level of performance across all criteria.';
+        }
+
+        return view('daily-journal.score-sheet', [
+            'journal' => $dailyJournal,
+            'criteria' => $criteria,
+            'combined' => $combined,
+            'weights' => $weights,
+            'criterionEvidence' => $criterionEvidence,
+            'blockers' => $blockers,
+            'improvements' => $improvements,
+            'canReview' => $user->isAdmin(),
+        ]);
     }
 
     /**

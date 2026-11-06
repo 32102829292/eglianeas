@@ -27,6 +27,8 @@ class DailyJournal extends Model
         'reminded_at',
         'reminder_count',
         'achievement_score',
+        'original_ai_score',
+        'criterion_scores',
         'achievement_category',
         'achievement_level',
         'achievement_explanation',
@@ -49,6 +51,8 @@ class DailyJournal extends Model
             'reminded_at' => 'datetime',
             'reminder_count' => 'integer',
             'achievement_score' => 'integer',
+            'original_ai_score' => 'integer',
+            'criterion_scores' => 'array',
             'recognition_tags' => 'array',
             'assessed_at' => 'datetime',
             'reviewed_at' => 'datetime',
@@ -148,6 +152,70 @@ class DailyJournal extends Model
             self::ASSESSMENT_STATUS_PROVISIONAL => 'Provisional',
             default => 'Not assessed',
         };
+    }
+
+    /**
+     * Returns "Automatic Assessment" or "Manual Reassessment".
+     */
+    public function assessmentType(): string
+    {
+        return match ($this->assessment_source) {
+            self::ASSESSMENT_SOURCE_REVIEWER => 'Manual Reassessment',
+            self::ASSESSMENT_SOURCE_AI, self::ASSESSMENT_SOURCE_RULE_BASED => 'Automatic Assessment',
+            default => 'Not assessed',
+        };
+    }
+
+    /**
+     * The original AI/rule-based score before any manual override.
+     * Null when the journal has never been automatically assessed.
+     */
+    public function originalAiScore(): ?int
+    {
+        return $this->original_ai_score !== null ? (int) $this->original_ai_score : null;
+    }
+
+    /**
+     * Whether a manual override has changed the final score away from the
+     * original AI score.
+     */
+    public function hasManualOverride(): bool
+    {
+        return $this->original_ai_score !== null
+            && $this->achievement_score !== null
+            && (int) $this->original_ai_score !== (int) $this->achievement_score;
+    }
+
+    /**
+     * The manual adjustment applied to the original AI score, or null when
+     * there is no manual override.
+     */
+    public function manualAdjustment(): ?float
+    {
+        if (! $this->hasManualOverride()) {
+            return null;
+        }
+
+        return round((float) $this->achievement_score - (float) $this->original_ai_score, 1);
+    }
+
+    /**
+     * Per-criterion manual adjustment scores with reasons, or an empty array
+     * when no manual per-criterion overrides exist.
+     *
+     * @return array<string, array{score: float|int, max: float|int, reason: string}>
+     */
+    public function criterionScores(): array
+    {
+        return (array) ($this->criterion_scores ?? []);
+    }
+
+    /**
+     * The final assessment score (AI or manually reassessed).
+     */
+    public function finalScore(): ?int
+    {
+        return $this->achievement_score !== null ? (int) $this->achievement_score : null;
     }
 
     public function scopeForDate(Builder $query, Carbon $date): Builder

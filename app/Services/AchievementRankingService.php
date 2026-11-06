@@ -16,6 +16,11 @@ class AchievementRankingService
      * Duplicate accomplishment text inside the period is counted once so
      * copy-pasted submissions cannot inflate a position.
      *
+     * Each ranking row now also includes the four criterion scores (quality,
+     * timeliness, responsiveness, client feedback) and an overall weighted
+     * score. Criteria with insufficient data are reported as null and never
+     * force a zero overall score.
+     *
      * @return Collection<int, array<string, mixed>>
      */
     public function rankings(Carbon $start, Carbon $end, ?User $viewer = null): Collection
@@ -46,14 +51,19 @@ class AchievementRankingService
             ->orderByDesc('achievement_score')
             ->get();
 
+        $criteriaService = app(AchievementCriteriaService::class);
+        $weights = $this->scoringWeights();
+
         $rankings = $journals
             ->groupBy('user_id')
-            ->map(function (Collection $entries): ?array {
+            ->map(function (Collection $entries) use ($criteriaService, $weights, $start, $end): ?array {
                 $unique = $this->deduplicate($entries);
 
                 if ($unique->isEmpty()) {
                     return null;
                 }
+
+                $user = $unique->first()->user;
 
                 $average = round((float) $unique->avg('achievement_score'), 1);
                 $verified = $unique->where('assessment_status', 'verified')->count();
@@ -68,10 +78,24 @@ class AchievementRankingService
                     $tags->push('Consistency');
                 }
 
+                $criteria = $criteriaService->analyze($user, $start, $end);
+                $combined = $criteriaService->combine($criteria, $weights);
+
+                // Quality score is the existing daily-journal average. Overall
+                // score combines all available criteria; if only quality has
+                // data it equals the quality score.
+                $qualityScore = $average;
+                $overallScore = $combined['overall_score'] ?? $qualityScore;
+
                 return [
-                    'user' => $unique->first()->user,
-                    'score' => $average,
-                    'level' => AchievementAnalysisService::levelForScore((int) round($average)),
+                    'user' => $user,
+                    'score' => $qualityScore,
+                    'overall_score' => $overallScore,
+                    'level' => AchievementAnalysisService::levelForScore((int) round($overallScore)),
+                    'quality_score' => $qualityScore,
+                    'timeliness_score' => $criteria['timeliness'],
+                    'responsiveness_score' => $criteria['responsiveness'],
+                    'client_feedback_score' => $criteria['client_feedback'],
                     'submitted_count' => $submitted,
                     'verified_count' => $verified,
                     'provisional_count' => $submitted - $verified,
@@ -80,12 +104,18 @@ class AchievementRankingService
                         : ($verified === $submitted ? 'verified' : 'partial'),
                     'tags' => $tags->take(5)->values()->all(),
                     'last_assessed_at' => $unique->max('assessed_at'),
+                    'criteria_explanation' => $this->criteriaExplanation($criteria),
+                    'on_time_completion_rate' => $criteria['timeliness_meta']['on_time_rate'] ?? null,
+                    'avg_first_response_hours' => $criteria['responsiveness_meta']['avg_response_hours'] ?? null,
+                    'positive_feedback_count' => $criteria['client_feedback_meta']['positive'] ?? 0,
+                    'negative_feedback_count' => $criteria['client_feedback_meta']['negative'] ?? 0,
                 ];
             })
             ->filter()
             ->values();
 
         $sorted = $rankings->sortBy([
+            ['overall_score', 'desc'],
             ['score', 'desc'],
             ['verified_count', 'desc'],
             ['submitted_count', 'desc'],
@@ -103,6 +133,58 @@ class AchievementRankingService
 
             return $row;
         });
+    }
+
+    /**
+     * Return scoring weights from config, with sensible defaults.
+     *
+     * @return array<string, float>
+     */
+    private function scoringWeights(): array
+    {
+        $configured = (array) config('achievements.scoring_weights', []);
+
+        return [
+            AchievementCriteriaService::CRITERION_QUALITY => (float) ($configured['quality'] ?? 50),
+            AchievementCriteriaService::CRITERION_TIMELINESS => (float) ($configured['timeliness'] ?? 20),
+            AchievementCriteriaService::CRITERION_RESPONSIVENESS => (float) ($configured['responsiveness'] ?? 20),
+            AchievementCriteriaService::CRITERION_CLIENT_FEEDBACK => (float) ($configured['client_feedback'] ?? 10),
+        ];
+    }
+
+    /**
+     * Build a plain-language explanation of why a staff member received their
+     * criterion scores.
+     */
+    private function criteriaExplanation(array $criteria): string
+    {
+        $parts = [];
+
+        if ($criteria['quality'] !== null) {
+            $parts[] = 'Quality: '.$criteria['quality_explanation'];
+        } else {
+            $parts[] = 'Quality: not yet evaluated (no assessed daily accomplishments).';
+        }
+
+        if ($criteria['timeliness'] !== null) {
+            $parts[] = 'Timeliness: '.$criteria['timeliness_explanation'];
+        } else {
+            $parts[] = 'Timeliness: not yet evaluated (no assigned tasks with deadlines).';
+        }
+
+        if ($criteria['responsiveness'] !== null) {
+            $parts[] = 'Responsiveness: '.$criteria['responsiveness_explanation'];
+        } else {
+            $parts[] = 'Responsiveness: not yet evaluated (no assigned tasks or concerns).';
+        }
+
+        if ($criteria['client_feedback'] !== null) {
+            $parts[] = 'Client feedback: '.$criteria['client_feedback_explanation'];
+        } else {
+            $parts[] = 'Client feedback: not yet evaluated (no linked client feedback).';
+        }
+
+        return implode(' '.PHP_EOL, $parts);
     }
 
     /**

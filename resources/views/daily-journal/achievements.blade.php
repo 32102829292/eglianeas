@@ -30,7 +30,7 @@
             <span class="is-current">Achievement Rankings</span>
         </nav>
         <h1>Achievement Rankings</h1>
-        <p>Recognising completed work, initiative, quality, teamwork, and service across EAS.</p>
+        <p>Recognising completed work, initiative, quality, timeliness, responsiveness, and client service across EAS.</p>
     </div>
     <div class="dar-range-chip">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
@@ -74,6 +74,11 @@
             <span class="dar-stat-label">Automatic provisional</span>
             <span class="dar-stat-value">{{ $provisionalCount }}</span>
             <span class="dar-stat-note">Rule-based or AI-assisted, awaiting review</span>
+        </article>
+        <article class="dar-stat dar-stat--criteria">
+            <span class="dar-stat-label">Criteria scored</span>
+            <span class="dar-stat-value">{{ $criteriaScored }}</span>
+            <span class="dar-stat-note">Staff with at least one evaluated criterion</span>
         </article>
     </section>
 
@@ -150,8 +155,15 @@
                     <tr>
                         <th scope="col">Rank</th>
                         <th scope="col">Employee</th>
-                        <th scope="col">Achievement score</th>
+                        <th scope="col">Overall Score</th>
                         <th scope="col">Level</th>
+                        <th scope="col">Quality</th>
+                        <th scope="col">Timeliness</th>
+                        <th scope="col">Responsiveness</th>
+                        <th scope="col">Client Feedback</th>
+                        <th scope="col">On-time %</th>
+                        <th scope="col">Avg Response (h)</th>
+                        <th scope="col">Feedback +/−</th>
                         <th scope="col">Submitted</th>
                         <th scope="col">Manual verified</th>
                         <th scope="col">Recognition tags</th>
@@ -186,8 +198,19 @@
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="dar-score">{{ number_format((float) $ranking['score'], 1) }}</span></td>
-                            <td><span class="dar-level dar-level--{{ $levelSlug }}">{{ $ranking['level'] }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['overall_score'] !== null ? number_format((float) $ranking['overall_score'], 1) : '—' }}</span></td>
+                            <td><span class="dar-level dar-level--{{ \Illuminate\Support\Str::slug($ranking['level']) }}">{{ $ranking['level'] }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['quality_score'] !== null ? number_format((float) $ranking['quality_score'], 1) : '—' }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['timeliness_score'] !== null ? number_format((float) $ranking['timeliness_score'], 1) : '—' }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['responsiveness_score'] !== null ? number_format((float) $ranking['responsiveness_score'], 1) : '—' }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['client_feedback_score'] !== null ? number_format((float) $ranking['client_feedback_score'], 1) : '—' }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['on_time_completion_rate'] !== null ? number_format((float) $ranking['on_time_completion_rate'], 1).'%' : '—' }}</span></td>
+                            <td><span class="dar-score">{{ $ranking['avg_first_response_hours'] !== null ? number_format((float) $ranking['avg_first_response_hours'], 1) : '—' }}</span></td>
+                            <td>
+                                <span class="dar-feedback {{ $ranking['positive_feedback_count'] > 0 ? 'dar-feedback--pos' : '' }} {{ $ranking['negative_feedback_count'] > 0 ? 'dar-feedback--neg' : '' }}">
+                                    {{ $ranking['positive_feedback_count'] }} / {{ $ranking['negative_feedback_count'] }}
+                                </span>
+                            </td>
                             <td><span class="dar-count">{{ $ranking['submitted_count'] }}</span></td>
                             <td>
                                 <span class="dar-count">{{ $ranking['verified_count'] }}</span>
@@ -221,9 +244,29 @@
         <div>
             <h2>How this ranking works</h2>
             <p>
-                Employees are ordered by their average assessed quality across distinct accomplishment text, not by the
-                number of reports submitted. Repeated or copy-pasted entries are counted once. Differences in role are
-                shown so work is read in context rather than assumed to be identical.
+                Employees are ordered by their overall achievement score, which combines four criteria using
+                configurable weights: Accomplishment Quality (50%), Timeliness (20%), Immediate Responsiveness (20%),
+                and Client Feedback (10%). Duplicate accomplishment text inside the period is counted once so
+                copy-pasted submissions cannot inflate a position. Differences in role are shown so work is read in
+                context rather than assumed to be identical.
+            </p>
+        </div>
+        <div>
+            <h2>Criterion scores</h2>
+            <p>
+                <strong>Quality</strong> is the average assessed score of the staff member&rsquo;s daily accomplishment
+                reports. <strong>Timeliness</strong> measures completed-before-deadline, on-deadline, late, and
+                overdue outcomes from assigned tasks and concerns. <strong>Responsiveness</strong> measures the time
+                from assignment to the first observable action (completion or implementation timestamp). <strong>Client
+                Feedback</strong> uses verified client survey ratings linked to the staff member, with duplicates removed.
+            </p>
+        </div>
+        <div>
+            <h2>Missing data</h2>
+            <p>
+                A criterion with no evaluable data is shown as &ldquo;—&rdquo; (not yet evaluated), not zero. The overall
+                score is computed only from criteria that have data, so a missing source never unfairly lowers a
+                staff member&rsquo;s result.
             </p>
         </div>
         <div>
@@ -257,7 +300,8 @@
 .dar-stat-value { color: var(--navy, #1e3a5f); font-size: 1.8rem; font-weight: 800; line-height: 1.1; letter-spacing: -.02em; }
 .dar-stat-note { color: var(--muted, #64748b); font-size: .74rem; }
 .dar-stat--verified { border-left: 3px solid #0f9d58; }
-.dar-stat--provisional { border-left: 3px solid #d97706; }
+    .dar-stat--provisional { border-left: 3px solid #d97706; }
+    .dar-stat--criteria { border-left: 3px solid #2563eb; }
 
 .dar-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
 .dar-podium-card { display: flex; flex-direction: column; gap: .75rem; padding: 1rem 1.1rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 47, 91, .06); }
@@ -329,6 +373,26 @@
 .dar-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .dar-dot--verified { background: #0f9d58; }
 .dar-dot--provisional { background: #d97706; }
+
+.dar-feedback {
+    display: inline-flex;
+    gap: .35rem;
+    font-size: .7rem;
+    font-weight: 700;
+    padding: .2rem .5rem;
+    border-radius: 999px;
+}
+.dar-feedback--pos { color: #047857; background: #ecfdf3; }
+.dar-feedback--neg { color: #9a3412; background: #fff7ed; }
+
+.dar-table thead th:nth-child(1),
+.dar-table tbody td:nth-child(1) { width: 40px; text-align: center; }
+.dar-table thead th:nth-child(8),
+.dar-table tbody td:nth-child(8) { width: 70px; text-align: right; }
+.dar-table thead th:nth-child(9),
+.dar-table tbody td:nth-child(9) { width: 80px; text-align: right; }
+.dar-table thead th:nth-child(10),
+.dar-table tbody td:nth-child(10) { width: 80px; text-align: center; }
 
 .dar-empty { display: flex; flex-direction: column; align-items: center; gap: .55rem; margin-bottom: 1.25rem; padding: 3rem 1.5rem; text-align: center; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 47, 91, .05); }
 .dar-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: none; border-radius: 14px; background: #f1f5f9; color: #64748b; }

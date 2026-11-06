@@ -105,11 +105,15 @@ class UserController extends Controller
 
     public function photo(User $user)
     {
-        if (! $user->profile_image_path || ! Storage::disk('supabase')->exists($user->profile_image_path)) {
+        if (! $user->profile_image_path) {
             abort(404);
         }
 
         try {
+            if (! Storage::disk('supabase')->exists($user->profile_image_path)) {
+                abort(404);
+            }
+
             $temporaryUrl = Storage::disk('supabase')->temporaryUrl($user->profile_image_path, now()->addMinutes(30));
 
             return redirect($temporaryUrl)->withHeaders([

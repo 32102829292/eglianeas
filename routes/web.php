@@ -487,10 +487,16 @@ Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
     Route::get('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'show'])->name('daily-journal.show');
 });
 
-// Assessment corrections are reviewer-only. Staff cannot reach these endpoints.
-Route::middleware(['auth', 'role:admin,supervisor', 'admin.confidentiality'])->group(function () {
+// Assessment corrections and manual reassessment are admin-only for modifications.
+// Score sheets are viewable by admin, supervisor (their staff), and staff (own).
+Route::middleware(['auth', 'role:admin', 'admin.confidentiality'])->group(function () {
     Route::patch('/daily-journal/{dailyJournal}/assessment', [DailyJournalController::class, 'reviewAssessment'])->name('daily-journal.assessment.review');
     Route::post('/daily-journal/{dailyJournal}/reassess', [DailyJournalController::class, 'reassessAssessment'])->name('daily-journal.assessment.reassess');
+    Route::post('/daily-journal/{dailyJournal}/manual-reassess', [DailyJournalController::class, 'manualReassess'])->name('daily-journal.assessment.manual-reassess');
+});
+
+Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->group(function () {
+    Route::get('/daily-journal/{dailyJournal}/score-sheet', [DailyJournalController::class, 'scoreSheet'])->name('daily-journal.assessment.score-sheet');
 });
 
 // Admin monitoring routes

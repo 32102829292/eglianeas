@@ -1,6 +1,6 @@
 /* Egliane Accounting Services — Service Worker (hand-rolled) */
 
-const VERSION = 'egliane-v24';
+const VERSION = 'egliane-v25';
 const SHELL_CACHE = 'egliane-shell-' + VERSION;
 const DATA_CACHE = 'egliane-data-' + VERSION;
 

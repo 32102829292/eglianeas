@@ -294,7 +294,7 @@ class AchievementRankingAccessTest extends TestCase
     }
 
     /** @test */
-    public function admins_can_review_any_assessment_while_supervisors_only_review_their_own()
+    public function admins_can_review_any_assessment_while_supervisors_cannot_modify_scores()
     {
         $admin = $this->user(User::ROLE_ADMIN, 'Admin Reviewer');
         $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor Reviewer');
@@ -302,7 +302,6 @@ class AchievementRankingAccessTest extends TestCase
 
         $staffJournal = $this->assessedJournal($staff, '2026-10-05', 65, 'Completed the daily reconciliation.');
         $supervisorJournal = $this->assessedJournal($supervisor, '2026-10-05', 70, 'Reviewed all team filings.');
-        $clientJournal = $this->assessedJournal($staff, '2026-10-02', 60, 'Completed a client filing.');
 
         $payload = [
             'score' => 82,
@@ -312,39 +311,32 @@ class AchievementRankingAccessTest extends TestCase
             'reason' => 'Supporting documents confirmed the result.',
         ];
 
+        // Admin can review any assessment.
         $this->actingAs($admin)
             ->patch(route('daily-journal.assessment.review', $staffJournal), $payload)
             ->assertRedirect();
         $this->assertSame(82, $staffJournal->fresh()->achievement_score);
 
+        // Supervisors can no longer modify assessment scores (admin only).
         $this->actingAs($supervisor)
             ->patch(route('daily-journal.assessment.review', $supervisorJournal), $payload)
-            ->assertRedirect();
-        $this->assertSame(82, $supervisorJournal->fresh()->achievement_score);
-
-        $this->actingAs($supervisor)
-            ->patch(route('daily-journal.assessment.review', $clientJournal), $payload)
             ->assertForbidden();
-        $this->assertSame(60, $clientJournal->fresh()->achievement_score);
+        $this->assertSame(70, $supervisorJournal->fresh()->achievement_score);
     }
 
     /** @test */
-    public function supervisors_review_only_their_assigned_staff_while_admins_review_everyone()
+    public function supervisors_cannot_modify_assessment_scores_admins_can()
     {
         $admin = $this->user(User::ROLE_ADMIN, 'Admin Reviewer');
         $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Lorez Ann Perez');
         $assignedStaff = $this->user(User::ROLE_STAFF, 'Archie Medina');
         $unassignedStaff = $this->user(User::ROLE_STAFF, 'Angeli Gabuat');
-        $otherSupervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor QA');
-        $otherStaff = $this->user(User::ROLE_STAFF, 'Diane Mae Alforte');
         $client = $this->user(User::ROLE_CLIENT, 'Client Viewer');
 
         $this->assignSupervision($supervisor, $assignedStaff);
-        $this->assignSupervision($otherSupervisor, $otherStaff, 'Quality Control Supervisor', 'Liaison Officer');
 
         $assignedJournal = $this->assessedJournal($assignedStaff, '2026-10-05', 65, 'Completed the daily reconciliation.');
         $unassignedJournal = $this->assessedJournal($unassignedStaff, '2026-10-05', 60, 'Completed a separate filing.');
-        $otherStaffJournal = $this->assessedJournal($otherStaff, '2026-10-05', 55, 'Handled another team\'s client.');
 
         $payload = [
             'score' => 82,
@@ -354,31 +346,25 @@ class AchievementRankingAccessTest extends TestCase
             'reason' => 'Supporting documents confirmed the result.',
         ];
 
+        // Supervisor can view their assigned staff's journal but cannot modify scores.
         $this->actingAs($supervisor)
             ->get(route('daily-journal.show', $assignedJournal))
             ->assertOk();
         $this->actingAs($supervisor)
             ->get(route('daily-journal.show', $unassignedJournal))
             ->assertForbidden();
-        $this->actingAs($supervisor)
-            ->get(route('daily-journal.show', $otherStaffJournal))
-            ->assertForbidden();
 
         $this->actingAs($supervisor)
             ->patch(route('daily-journal.assessment.review', $assignedJournal), $payload)
-            ->assertRedirect();
-        $this->assertSame(82, $assignedJournal->fresh()->achievement_score);
+            ->assertForbidden();
+        $this->assertSame(65, $assignedJournal->fresh()->achievement_score);
 
         $this->actingAs($supervisor)
             ->patch(route('daily-journal.assessment.review', $unassignedJournal), $payload)
             ->assertForbidden();
         $this->assertSame(60, $unassignedJournal->fresh()->achievement_score);
 
-        $this->actingAs($supervisor)
-            ->patch(route('daily-journal.assessment.review', $otherStaffJournal), $payload)
-            ->assertForbidden();
-        $this->assertSame(55, $otherStaffJournal->fresh()->achievement_score);
-
+        // Admin can modify any assessment score.
         $this->actingAs($admin)
             ->patch(route('daily-journal.assessment.review', $unassignedJournal), $payload)
             ->assertRedirect();
@@ -432,8 +418,8 @@ class AchievementRankingAccessTest extends TestCase
 
         $this->actingAs($supervisor)
             ->patch(route('daily-journal.assessment.review', $assignedJournal), $payload)
-            ->assertRedirect();
-        $this->assertSame(82, $assignedJournal->fresh()->achievement_score);
+            ->assertForbidden();
+        $this->assertSame(65, $assignedJournal->fresh()->achievement_score);
 
         $this->actingAs($supervisor)
             ->patch(route('daily-journal.assessment.review', $unassignedJournal), $payload)
@@ -474,5 +460,205 @@ class AchievementRankingAccessTest extends TestCase
             ->get(route('daily-journal.achievements', ['period' => 'today']))
             ->assertOk()
             ->assertSee('No assessed accomplishments for this period');
+    }
+
+    // ------------------------------------------------------------------
+    // Score sheet access
+    // ------------------------------------------------------------------
+
+    /** @test */
+    public function admin_can_view_score_sheet(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin Viewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Score Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($admin)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertOk()
+            ->assertSee('AI Score Sheet')
+            ->assertSee('Accomplishment Quality')
+            ->assertSee('Timeliness')
+            ->assertSee('Immediate Responsiveness')
+            ->assertSee('Client Feedback');
+    }
+
+    /** @test */
+    public function supervisor_can_view_score_sheet_for_assigned_staff(): void
+    {
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor Viewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Score Staff');
+        $this->assignSupervision($supervisor, $staff);
+        $journal = $this->assessedJournal($staff, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($supervisor)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertOk();
+    }
+
+    /** @test */
+    public function staff_can_view_own_score_sheet(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF, 'Score Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($staff)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertOk();
+    }
+
+    /** @test */
+    public function client_cannot_view_score_sheet(): void
+    {
+        $client = $this->user(User::ROLE_CLIENT, 'Client Viewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Score Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($client)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertForbidden();
+    }
+
+    /** @test */
+    public function staff_cannot_view_another_staff_score_sheet(): void
+    {
+        $viewer = $this->user(User::ROLE_STAFF, 'Staff Viewer');
+        $other = $this->user(User::ROLE_STAFF, 'Other Staff');
+        $journal = $this->assessedJournal($other, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($viewer)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertForbidden();
+    }
+
+    /** @test */
+    public function supervisor_cannot_view_unassigned_staff_score_sheet(): void
+    {
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor Viewer');
+        $unassigned = $this->user(User::ROLE_STAFF, 'Unassigned Staff');
+        $journal = $this->assessedJournal($unassigned, '2026-10-05', 80, 'Completed daily reconciliation.');
+
+        $this->actingAs($supervisor)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertForbidden();
+    }
+
+    // ------------------------------------------------------------------
+    // Manual reassessment (admin only)
+    // ------------------------------------------------------------------
+
+    /** @test */
+    public function admin_can_manually_reassess_with_per_criterion_scores(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin Reviewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Reassessed Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 70, 'Completed daily reconciliation.');
+
+        $payload = [
+            'reason' => 'Reviewed supporting evidence and adjusted criteria.',
+            'criteria' => [
+                'quality' => ['score' => 85, 'max' => 100, 'reason' => 'Strong completion evidence.'],
+                'timeliness' => ['score' => 90, 'max' => 100, 'reason' => 'All tasks on time.'],
+                'responsiveness' => ['score' => 80, 'max' => 100, 'reason' => 'Prompt responses.'],
+                'client_feedback' => ['score' => 70, 'max' => 100, 'reason' => 'Mixed feedback.'],
+            ],
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('daily-journal.assessment.manual-reassess', $journal), $payload)
+            ->assertRedirect();
+
+        $journal->refresh();
+        $this->assertSame(70, $journal->original_ai_score); // original preserved
+        $this->assertNotSame(70, $journal->achievement_score); // final changed
+        $this->assertSame('verified', $journal->assessment_status);
+        $this->assertSame('reviewer', $journal->assessment_source);
+        $this->assertSame($admin->id, $journal->reviewed_by);
+    }
+
+    /** @test */
+    public function manual_reassessment_requires_reason(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin Reviewer');
+        $staff = $this->user(User::ROLE_STAFF, 'No Reason Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 70, 'Completed daily reconciliation.');
+
+        $payload = [
+            'criteria' => [
+                'quality' => ['score' => 85, 'max' => 100, 'reason' => 'Strong completion evidence.'],
+            ],
+        ];
+
+        $this->actingAs($admin)
+            ->post(route('daily-journal.assessment.manual-reassess', $journal), $payload)
+            ->assertSessionHasErrors('reason');
+
+        $journal->refresh();
+        $this->assertSame(70, $journal->achievement_score); // unchanged
+    }
+
+    /** @test */
+    public function supervisor_cannot_manually_reassess(): void
+    {
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor Reviewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Reassessed Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 70, 'Completed daily reconciliation.');
+
+        $payload = [
+            'reason' => 'Trying to reassess.',
+            'criteria' => [
+                'quality' => ['score' => 85, 'max' => 100, 'reason' => 'Strong completion evidence.'],
+            ],
+        ];
+
+        $this->actingAs($supervisor)
+            ->post(route('daily-journal.assessment.manual-reassess', $journal), $payload)
+            ->assertForbidden();
+    }
+
+    /** @test */
+    public function staff_cannot_manually_reassess(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF, 'Reassessed Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 70, 'Completed daily reconciliation.');
+
+        $payload = [
+            'reason' => 'Trying to reassess.',
+            'criteria' => [
+                'quality' => ['score' => 85, 'max' => 100, 'reason' => 'Strong completion evidence.'],
+            ],
+        ];
+
+        $this->actingAs($staff)
+            ->post(route('daily-journal.assessment.manual-reassess', $journal), $payload)
+            ->assertForbidden();
+    }
+
+    /** @test */
+    public function score_sheet_shows_original_and_final_scores(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin Reviewer');
+        $staff = $this->user(User::ROLE_STAFF, 'Score Sheet Staff');
+        $journal = $this->assessedJournal($staff, '2026-10-05', 70, 'Completed daily reconciliation.');
+
+        // Manually reassess to create an original vs final difference.
+        $this->actingAs($admin)
+            ->post(route('daily-journal.assessment.manual-reassess', $journal), [
+                'reason' => 'Adjusted after review.',
+                'criteria' => [
+                    'quality' => ['score' => 85, 'max' => 100, 'reason' => 'Strong completion evidence.'],
+                    'timeliness' => ['score' => 90, 'max' => 100, 'reason' => 'All tasks on time.'],
+                    'responsiveness' => ['score' => 80, 'max' => 100, 'reason' => 'Prompt responses.'],
+                    'client_feedback' => ['score' => 70, 'max' => 100, 'reason' => 'Mixed feedback.'],
+                ],
+            ]);
+
+        $this->actingAs($admin)
+            ->get(route('daily-journal.assessment.score-sheet', $journal))
+            ->assertOk()
+            ->assertSee('Original AI score')
+            ->assertSee('Final score')
+            ->assertSee('Manual adjustment')
+            ->assertSee('70.0'); // original AI score
     }
 }

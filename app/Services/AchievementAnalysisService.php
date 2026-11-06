@@ -67,8 +67,14 @@ class AchievementAnalysisService
 
         $score = max(0, min(100, (int) ($result['score'] ?? 0)));
 
+        // Preserve the original AI/rule-based score on first automatic
+        // assessment. Never overwrite it on later manual reassessment so the
+        // score sheet can always show "Original AI score" vs "Final score".
+        $originalAiScore = $journal->original_ai_score ?? $score;
+
         $journal->forceFill([
             'achievement_score' => $score,
+            'original_ai_score' => $originalAiScore,
             'achievement_category' => $result['category'],
             'achievement_level' => self::levelForScore($score),
             'achievement_explanation' => $result['explanation'],
@@ -157,6 +163,95 @@ class AchievementAnalysisService
             $reviewer,
             'daily_journal.assessment_corrected',
             "Corrected achievement assessment for daily journal #{$journal->id} ({$journal->user?->name})."
+        );
+
+        return $journal;
+    }
+
+    /**
+     * Admin-only manual reassessment with per-criterion adjustments.
+     *
+     * Preserves the original AI score and records each changed criterion with
+     * its reason. The final score is computed from the configured weights
+     * over the supplied criterion scores.
+     *
+     * @param  array<string, array{score: float|int, max: float|int, reason: string}>  $criteria
+     * @param  array<string, float>  $weights
+     */
+    public function manualReassess(
+        DailyJournal $journal,
+        User $reviewer,
+        array $criteria,
+        array $weights,
+        string $reason
+    ): DailyJournal {
+        $previous = $this->snapshot($journal);
+
+        // Validate that every supplied criterion score is within its max.
+        $normalizedCriteria = [];
+        foreach ($criteria as $criterion => $data) {
+            $score = max(0, min((float) $data['max'], (float) $data['score']));
+            $normalizedCriteria[$criterion] = [
+                'score' => $score,
+                'max' => (float) $data['max'],
+                'reason' => trim((string) ($data['reason'] ?? '')),
+            ];
+        }
+
+        // Compute the final score from available criteria using configured
+        // weights. Criteria with null/missing data are excluded.
+        $criterionValues = [];
+        foreach ($normalizedCriteria as $criterion => $data) {
+            $criterionValues[$criterion] = $data['score'];
+        }
+
+        $combined = (new AchievementCriteriaService)->combine($criterionValues, $weights);
+        $finalScore = $combined['overall_score'] ?? null;
+
+        if ($finalScore === null) {
+            $finalScore = $journal->achievement_score ?? 0;
+        }
+
+        $finalScore = (int) round(max(0, min(100, $finalScore)));
+
+        $levels = collect(config('achievements.levels', []))->pluck('label')->values()->all();
+        $category = config('achievements.categories', [])[0] ?? 'Productivity';
+
+        $journal->forceFill([
+            'achievement_score' => $finalScore,
+            'achievement_category' => $category,
+            'achievement_level' => self::levelForScore($finalScore),
+            'achievement_explanation' => 'Manual reassessment by '.($reviewer->name ?? 'Admin').'. '.trim($reason),
+            'recognition_tags' => [],
+            'assessment_source' => DailyJournal::ASSESSMENT_SOURCE_REVIEWER,
+            'assessment_status' => DailyJournal::ASSESSMENT_STATUS_VERIFIED,
+            'assessed_at' => now(),
+            'assessment_hash' => $this->contentHash($journal),
+            'reviewed_by' => $reviewer->id,
+            'reviewed_at' => now(),
+            'review_note' => $reason,
+            'criterion_scores' => $normalizedCriteria,
+            // Preserve the original AI score on first manual reassessment.
+            // If the journal was never automatically assessed, original_ai_score
+            // stays null and the final score stands alone.
+            'original_ai_score' => $journal->original_ai_score ?? $journal->achievement_score,
+        ])->save();
+
+        $journal = $journal->refresh();
+
+        $this->recordRevision(
+            $journal,
+            $reviewer,
+            'manually_reassessed',
+            $previous,
+            $this->snapshot($journal),
+            $reason
+        );
+
+        ActivityLog::record(
+            $reviewer,
+            'daily_journal.assessment_manually_reassessed',
+            "Manually reassessed daily journal #{$journal->id} for {$journal->user?->name}."
         );
 
         return $journal;
