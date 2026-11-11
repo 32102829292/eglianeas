@@ -1153,7 +1153,7 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk('local')->response($evidence->path, $evidence->original_name, [
+        return Storage::disk($this->evidenceDisk())->response($evidence->path, $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'Pragma' => 'no-cache',
@@ -1165,19 +1165,46 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk('local')->download($evidence->path, $evidence->original_name, [
+        return Storage::disk($this->evidenceDisk())->download($evidence->path, $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
-    public function deleteEvidence(KaizenConcern $concern, KaizenEvidence $evidence): RedirectResponse
+    public function deleteEvidence(Request $request, KaizenConcern $concern, KaizenEvidence $evidence): RedirectResponse|JsonResponse
     {
         abort_unless(auth()->user()->isAdmin(), 403, 'Only admins can remove evidence.');
         $this->authorizeEvidence($concern, $evidence);
 
-        Storage::disk('local')->delete($evidence->path);
+        $storageDeleted = false;
+        try {
+            $storageDeleted = Storage::disk($this->evidenceDisk())->delete($evidence->path);
+        } catch (\Throwable $e) {
+            report($e);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Storage deletion failed: '.$e->getMessage(),
+                ], 500);
+            }
+            return back()->withErrors(['evidence' => 'The evidence file could not be removed from storage.']);
+        }
+
+        if (! $storageDeleted && Storage::disk($this->evidenceDisk())->exists($evidence->path)) {
+            // Storage reported success but file still exists; try once more
+            try {
+                Storage::disk($this->evidenceDisk())->delete($evidence->path);
+            } catch (\Throwable $e) {
+                report($e);
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'Storage deletion failed on retry.',
+                    ], 500);
+                }
+                return back()->withErrors(['evidence' => 'Storage deletion failed on retry.']);
+            }
+        }
+
         $evidence->delete();
 
         $this->logActivity(
@@ -1186,17 +1213,26 @@ class KaizenConcernController extends Controller
             "Removed implementation evidence from Kaizen concern #{$concern->id}."
         );
 
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Evidence removed.',
+            ]);
+        }
+
         return back()->with('status', 'Evidence removed.');
     }
 
     /**
      * Ensure the evidence belongs to this concern and the viewer may see it.
+     *
+     * Note: We do not check for file existence on disk here, because the file
+     * may have been stored on a different disk or manually removed. The database
+     * record should still be deletable even if the physical file is absent.
      */
     private function authorizeEvidence(KaizenConcern $concern, KaizenEvidence $evidence): void
     {
         abort_unless((int) $evidence->kaizen_concern_id === (int) $concern->id, 404);
         abort_unless($concern->isVisibleTo(auth()->user()), 403);
-        abort_unless(Storage::disk('local')->exists($evidence->path), 404);
     }
 
     /**
@@ -1358,5 +1394,10 @@ class KaizenConcernController extends Controller
             $action,
             $description." (Challenge: {$concern->challenge})"
         );
+    }
+
+    private function evidenceDisk(): string
+    {
+        return (string) config('filesystems.evidence_disk', 'local');
     }
 }

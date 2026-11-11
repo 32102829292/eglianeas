@@ -643,6 +643,52 @@ class KaizenPriorityPageTest extends TestCase
         Storage::disk('local')->assertMissing($path);
     }
 
+    public function test_admin_cannot_delete_evidence_from_another_concern(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concernA = $this->concern($admin);
+        $concernB = $this->concern($admin);
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.evidence.add', $concernA), [
+            'evidence' => UploadedFile::fake()->create('proof.pdf', 120, 'application/pdf'),
+        ]);
+        $evidence = $concernA->evidences()->firstOrFail();
+
+        // Attempting to delete evidence belonging to concern A using concern B's ID returns 404
+        $this->actingAs($admin)
+            ->delete(route('admin.kaizen-concerns.evidence.delete', [$concernB, $evidence]))
+            ->assertNotFound();
+
+        // Evidence record still exists
+        $this->assertDatabaseHas('kaizen_evidences', ['id' => $evidence->id]);
+    }
+
+    public function test_admin_can_delete_evidence_when_file_missing_from_disk(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.evidence.add', $concern), [
+            'evidence' => UploadedFile::fake()->create('proof.pdf', 120, 'application/pdf'),
+        ]);
+        $evidence = $concern->evidences()->firstOrFail();
+
+        // Manually remove the file from storage to simulate a missing file
+        Storage::disk('local')->delete($evidence->path);
+
+        // Deleting the evidence should still remove the database record even
+        // though the physical file is absent
+        $this->actingAs($admin)
+            ->delete(route('admin.kaizen-concerns.evidence.delete', [$concern, $evidence]))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('kaizen_evidences', ['id' => $evidence->id]);
+    }
+
     public function test_evidence_cannot_be_fetched_through_another_record(): void
     {
         Storage::fake('local');

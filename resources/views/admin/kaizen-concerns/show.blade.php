@@ -1303,6 +1303,47 @@
         border-radius: 10px;
         display: inline-block;
     }
+
+    /* ---------- Evidence delete notification ---------- */
+    .kaizen-evidence-notifications {
+        position: fixed;
+        top: 100px;
+        right: 20px;
+        z-index: 1060;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 320px;
+    }
+    .kaizen-evidence-notification {
+        font-size: 13px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(16, 24, 40, 0.15);
+    }
+    .kaizen-evidence-notification.alert-success {
+        background: #196F3D;
+        border: 1px solid rgba(25, 111, 61, 0.2);
+    }
+    .kaizen-evidence-notification.alert-danger {
+        background: #A93226;
+        border: 1px solid rgba(169, 50, 38, 0.2);
+    }
+    .kaizen-evidence-notification .btn-close {
+        filter: invert(1);
+        opacity: 0.8;
+        margin-left: auto;
+    }
+    @keyframes kaizen-spin {
+        to { transform: rotate(360deg); }
+    }
+    .kaizen-evidence-delete-btn .loading-spinner {
+        animation: kaizen-spin 0.8s linear infinite;
+    }
 </style>
 @endpush
 
@@ -1817,6 +1858,9 @@
             </div>
         @endif
 
+        {{-- Evidence delete notifications (AJAX) --}}
+        <div id="kaizen-evidence-notifications" class="kaizen-evidence-notifications"></div>
+
         @if ($concern->evidences->isNotEmpty())
             <div class="kaizen-evidence-grid">
                 @foreach ($concern->evidences as $evidence)
@@ -1838,10 +1882,10 @@
                             <a href="{{ URL::temporarySignedRoute('admin.kaizen-concerns.evidence.view', now()->addMinutes(30), ['concern' => $concern->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm" target="_blank" rel="noopener">View</a>
                             <a href="{{ URL::temporarySignedRoute('admin.kaizen-concerns.evidence.download', now()->addMinutes(30), ['concern' => $concern->id, 'evidence' => $evidence->id]) }}" class="btn btn-outline btn-sm">Download</a>
                             @if (auth()->user()->isAdmin())
-                                <form method="POST" action="{{ route('admin.kaizen-concerns.evidence.delete', [$concern, $evidence]) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Remove this evidence?', message: 'This file will be permanently removed.', danger: true, confirmLabel: 'Remove' });">
+                                <form method="POST" action="{{ route('admin.kaizen-concerns.evidence.delete', [$concern, $evidence]) }}" class="d-inline kaizen-evidence-delete-form" data-evidence-id="{{ $evidence->id }}" data-confirm-title="Remove this evidence?" data-confirm-message="This file will be permanently removed." data-confirm-label="Remove" data-confirm-danger="true">
                                     @csrf
                                     @method('DELETE')
-                                    <button type="submit" class="btn btn-outline danger btn-sm">Delete</button>
+                                    <button type="submit" class="btn btn-outline danger btn-sm kaizen-evidence-delete-btn">Delete</button>
                                 </form>
                             @endif
                         </div>
@@ -2318,6 +2362,9 @@
     </div>
     @endif
     </div>
+
+    {{-- Confirmation modal for delete actions --}}
+    @include('components.confirm-modal')
 @endsection
 
 @push('scripts')
@@ -2392,6 +2439,87 @@
             confirmLabel: confirmLabel,
             danger: danger,
         });
+    }
+
+    // AJAX delete for evidence cards. Confirms via the shared modal, then
+    // submits via fetch and removes the card from the DOM on success.
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || !form.classList.contains('kaizen-evidence-delete-form')) {
+            return;
+        }
+        e.preventDefault();
+
+        var btn = form.querySelector('.kaizen-evidence-delete-btn');
+        var card = form.closest('.kaizen-evidence-card');
+        var notifications = document.getElementById('kaizen-evidence-notifications');
+
+        // Show loading state
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner" style="width:14px;height:14px;border:2px solid #ffffff;border-radius:50%;border-top-color:#transparent;border-top-color:#ffffff;animation:spin 0.8s linear infinite;display:inline-block;margin-right:6px;"></span>Deleting...';
+
+        // Confirm via the shared modal, then submit via AJAX
+        egliane.confirm.action({
+            title: form.dataset.confirmTitle || 'Remove this evidence?',
+            message: form.dataset.confirmMessage || 'This file will be permanently removed.',
+            confirmLabel: form.dataset.confirmLabel || 'Remove',
+            danger: form.dataset.confirmDanger === 'true'
+        }, function () {
+            var formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                credentials: 'same-origin',
+                body: formData
+            })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Server returned ' + response.status);
+                }
+                return response.json();
+            })
+            .then(function (data) {
+                // Success: remove the card and show a notification
+                if (card) {
+                    card.style.opacity = '0';
+                    setTimeout(function () { card.remove(); }, 300);
+                }
+                showEvidenceNotification(data.message || 'Evidence removed.', 'success');
+            })
+            .catch(function (error) {
+                console.error('Evidence delete failed:', error);
+                showEvidenceNotification('Failed to delete evidence. Please try again.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = 'Delete';
+            });
+        });
+    });
+
+    function showEvidenceNotification(message, type) {
+        var container = document.getElementById('kaizen-evidence-notifications');
+        if (!container) return;
+
+        var alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        var icon = type === 'success' ? '&#10003;' : '&#10007;';
+
+        var el = document.createElement('div');
+        el.className = 'alert ' + alertClass + ' alert-dismissible fade show kaizen-evidence-notification';
+        el.role = 'alert';
+        el.innerHTML = '<span aria-hidden="true">' + icon + '</span>&nbsp;' + message +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+
+        container.appendChild(el);
+
+        // Auto-dismiss after 5 seconds
+        setTimeout(function () {
+            var bsAlert = bootstrap.Alert.getOrCreateInstance(el);
+            if (bsAlert) bsAlert.close();
+        }, 5000);
     }
 </script>
 @endpush
