@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DailyGoal;
 use App\Models\DailyJournal;
 use App\Models\StaffTaskEvaluation;
 use App\Models\User;
@@ -59,6 +60,14 @@ class DailyJournalController extends Controller
         $isPast = $date->lt(Carbon::today());
         $isFuture = $date->gt(Carbon::today());
 
+        // Goals for the Day: active goals for the selected date
+        $dailyGoals = DailyGoal::query()
+            ->where('user_id', $user->id)
+            ->where('target_date', $date->toDateString())
+            ->where('status', DailyGoal::STATUS_ACTIVE)
+            ->orderBy('id')
+            ->get();
+
         return view('daily-journal.create', [
             'journal' => $journal,
             'date' => $date,
@@ -67,6 +76,7 @@ class DailyJournalController extends Controller
             'isFuture' => $isFuture,
             'requiresReport' => $requiresReport,
             'user' => $user,
+            'dailyGoals' => $dailyGoals,
         ]);
     }
 
@@ -150,6 +160,17 @@ class DailyJournalController extends Controller
 
         $availableDates = DailyJournalService::getAvailableDates();
 
+        // Goals for the Day: active daily goals for the selected date, grouped by user
+        $dailyGoals = DailyGoal::query()
+            ->where('target_date', $date->toDateString())
+            ->where('status', DailyGoal::STATUS_ACTIVE)
+            ->with(['user', 'creator'])
+            ->orderBy('user_id')
+            ->orderBy('id')
+            ->get();
+
+        $goalsByUser = $dailyGoals->groupBy('user_id');
+
         return view('daily-journal.admin-monitor', [
             'journals' => $journals,
             'employees' => $employees,
@@ -158,6 +179,7 @@ class DailyJournalController extends Controller
             'selectedRole' => $role,
             'selectedStatus' => $status,
             'availableDates' => $availableDates,
+            'goalsByUser' => $goalsByUser,
         ]);
     }
 

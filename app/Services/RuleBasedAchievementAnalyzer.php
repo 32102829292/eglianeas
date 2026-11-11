@@ -77,7 +77,7 @@ class RuleBasedAchievementAnalyzer
         ],
     ];
 
-    public function analyze(DailyJournal $journal): array
+    public function analyze(DailyJournal $journal, array $goals = []): array
     {
         return $this->analyzeArray([
             'achievements' => $journal->achievements,
@@ -85,6 +85,7 @@ class RuleBasedAchievementAnalyzer
             'suggested_solutions' => $journal->suggested_solutions,
             'evidence_files' => $journal->evidenceCount(),
             'context_type' => 'daily_journal',
+            'goals' => $goals,
         ]);
     }
 
@@ -117,6 +118,7 @@ class RuleBasedAchievementAnalyzer
         $evidenceCount = (int) ($data['evidence_files'] ?? 0);
         $status = $data['status'] ?? '';
         $resolvedAt = $data['resolved_at'] ?? null;
+        $goals = $data['goals'] ?? [];
 
         // Combine all text for keyword analysis.
         $allText = trim(implode(' ', array_filter([
@@ -130,11 +132,14 @@ class RuleBasedAchievementAnalyzer
         $words = preg_split('/\s+/u', $allText, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $wordCount = count($words);
 
+        // Assess goal completion for each assigned goal.
+        $goalAssessments = $this->assessGoals($goals, $allText, $lower = Str::lower($allText));
+
         if ($allText === '' || $wordCount < 4) {
             return [
                 'score' => min(25, 15 + ($wordCount * 2)) + ($evidenceCount > 0 ? 3 : 0),
                 'category' => 'Productivity',
-                'explanation' => 'Rule-based assessment: The concern description and progress updates are empty or too brief to identify meaningful completed work. Add specific tasks, results, or outcomes for a fairer assessment.',
+                'explanation' => $this->buildExplanation($goalAssessments, $evidenceCount, $allText),
                 'tags' => $evidenceCount > 0 ? ['Evidence-backed'] : [],
                 'source' => 'rule_based',
             ];
@@ -166,6 +171,17 @@ class RuleBasedAchievementAnalyzer
         $score += min($categorySignals * 3, 15);
         $score += $this->hasClarity($allText) ? 2 : 0;
 
+        // Goal completion bonus/penalty
+        $metCount = count(array_filter($goalAssessments, fn ($g) => $g['status'] === 'met'));
+        $partialCount = count(array_filter($goalAssessments, fn ($g) => $g['status'] === 'partially_met'));
+        $notMetCount = count(array_filter($goalAssessments, fn ($g) => $g['status'] === 'not_met'));
+
+        if (count($goalAssessments) > 0) {
+            $score += min($metCount * 10, 30);           // up to +30 for met goals
+            $score += min($partialCount * 5, 15);        // up to +15 for partial
+            $score -= min($notMetCount * 5, 20);         // up to -20 for not met
+        }
+
         // Bonus for resolved/closed status with actual work described.
         if (in_array($status, ['resolved', 'closed'], true) && count($completed) > 0) {
             $score += 10;
@@ -191,21 +207,150 @@ class RuleBasedAchievementAnalyzer
             'score' => $score,
             'category' => $category,
             'category_signals' => $categorySignals,
-            'explanation' => 'Rule-based assessment: The concern describes '.(
-                count($completed) > 0
-                    ? 'completed work ('.implode(', ', array_slice($completed, 0, 3)).')'
-                    : 'activity without enough specific outcome detail'
-            ).($quantified ? ' with a concrete or measurable outcome' : '').($evidenceCount > 0 ? ', supported by attached evidence' : '').($categorySignalsText).'.',
+            'explanation' => $this->buildExplanation($goalAssessments, $evidenceCount, $allText, $completed, $quantified, $category, $categorySignals, $superlatives, $repetition, $wordCount),
             'tags' => $this->tags(
                 $quantified,
                 $evidenceCount,
                 $categoryScores,
                 $category,
                 $repetition,
-                $wordCount
+                $wordCount,
+                $goalAssessments
             ),
             'source' => 'rule_based',
+            'goal_assessments' => $goalAssessments,
         ];
+    }
+
+    /**
+     * Assess each assigned goal against the employee's report text.
+     *
+     * @return array<int, array{title:string, status:string, reason:string}>
+     *   status: 'met', 'partially_met', 'not_met', 'not_applicable'
+     */
+    private function assessGoals(array $goals, string $allText, string $lower): array
+    {
+        $assessments = [];
+
+        if (empty($goals)) {
+            return $assessments;
+        }
+
+        foreach ($goals as $goal) {
+            $title = trim((string) ($goal['title'] ?? ''));
+            $description = trim((string) ($goal['description'] ?? ''));
+            $criteria = trim((string) ($goal['success_criteria'] ?? ''));
+
+            $goalText = trim(implode(' ', array_filter([$title, $description, $criteria])));
+
+            if ($goalText === '') {
+                $assessments[] = [
+                    'title' => $title,
+                    'status' => 'not_applicable',
+                    'reason' => 'No goal text provided.',
+                ];
+                continue;
+            }
+
+            // Check if goal keywords appear in the employee's report.
+            $goalWordsArray = preg_split('/\s+/u', $goalText, -1, PREG_SPLIT_NO_EMPTY);
+            $significantWords = array_filter($goalWordsArray, fn (string $w) => mb_strlen($w) > 3);
+            $matched = 0;
+            foreach ($significantWords as $word) {
+                if (preg_match('/(?:^|\s)'.preg_quote($word, '/').'(?:\s|$)/u', $lower)) {
+                    $matched++;
+                }
+            }
+
+            $matchRatio = count($significantWords) > 0 ? $matched / count($significantWords) : 0;
+
+            // Also check if any key phrase from the goal appears verbatim in the report.
+            $hasVerboseMatch = false;
+            foreach ([$title, $description, $criteria] as $phrase) {
+                $phrase = trim($phrase);
+                if ($phrase !== '' && mb_strlen($phrase) >= 10 && str_contains($lower, Str::lower($phrase))) {
+                    $hasVerboseMatch = true;
+                    break;
+                }
+            }
+
+            if ($hasVerboseMatch || $matchRatio >= 0.6) {
+                $status = 'met';
+                $reason = 'Goal clearly addressed in the report.';
+            } elseif ($matchRatio >= 0.3) {
+                $status = 'partially_met';
+                $reason = 'Some aspects of the goal appear addressed, but key elements may be missing.';
+            } else {
+                $status = 'not_met';
+                $reason = 'Goal not evident in the submitted report.';
+            }
+
+            $assessments[] = [
+                'title' => $title,
+                'status' => $status,
+                'reason' => $reason,
+            ];
+        }
+
+        return $assessments;
+    }
+
+    /**
+     * Build a plain-language explanation including goal assessments.
+     */
+    private function buildExplanation(
+        array $goalAssessments,
+        int $evidenceCount,
+        string $allText,
+        array $completed = [],
+        bool $quantified = false,
+        string $category = '',
+        int $categorySignals = 0,
+        array $superlatives = [],
+        bool $repetition = false,
+        int $wordCount = 0
+    ): string {
+        $parts = [];
+
+        if (count($goalAssessments) > 0) {
+            $parts[] = 'Goal assessment:';
+            foreach ($goalAssessments as $ga) {
+                $statusLabel = match ($ga['status']) {
+                    'met' => 'MET',
+                    'partially_met' => 'PARTIALLY MET',
+                    'not_met' => 'NOT MET',
+                    default => 'NOT APPLICABLE',
+                };
+                $parts[] = '  • '.$ga['title'].': '.$statusLabel.' - '.$ga['reason'];
+            }
+            $parts[] = '';
+        }
+
+        if (count($completed) > 0) {
+            $parts[] = 'Completed work: '.implode(', ', array_slice($completed, 0, 3)).'.';
+        }
+        if ($quantified) {
+            $parts[] = 'Includes a concrete or measurable outcome.';
+        }
+        if ($evidenceCount > 0) {
+            $parts[] = 'Supported by attached evidence.';
+        }
+        if ($categorySignals > 0) {
+            $parts[] = 'Shows '.Str::lower($category).' signals.';
+        }
+        if ($repetition) {
+            $parts[] = 'Closely repeats recent entries, which lowers the score.';
+        }
+        if (! empty($superlatives) && ! $quantified) {
+            $parts[] = 'Uses broad claims without concrete outcomes.';
+        }
+        if (empty($parts)) {
+            $parts[] = $wordCount < 8
+                ? 'Entry is brief and does not clearly describe a completed result.'
+                : 'Reports activity without enough specific outcome detail.';
+        }
+
+        return 'Rule-based assessment: '.\implode(' ', $parts).'.';
     }
 
     /**
@@ -398,7 +543,7 @@ class RuleBasedAchievementAnalyzer
     }
 
     /**
-     * @param  array<string, int>  $categoryScores
+     * @param  array<int, array{title:string, status:string, reason:string}>  $goalAssessments
      * @return array<int, string>
      */
     private function tags(
@@ -407,7 +552,8 @@ class RuleBasedAchievementAnalyzer
         array $categoryScores,
         string $category,
         bool $repetition,
-        int $wordCount
+        int $wordCount,
+        array $goalAssessments = []
     ): array {
         $tags = [];
 
@@ -443,6 +589,17 @@ class RuleBasedAchievementAnalyzer
         }
         if (! $repetition && $wordCount >= 30) {
             $tags[] = 'Consistency';
+        }
+        if (count($goalAssessments) > 0) {
+            $metCount = count(array_filter($goalAssessments, fn ($g) => $g['status'] === 'met'));
+            $notMetCount = count(array_filter($goalAssessments, fn ($g) => $g['status'] === 'not_met'));
+            if ($metCount > 0 && $notMetCount === 0) {
+                $tags[] = 'Goals Met';
+            } elseif ($metCount > 0) {
+                $tags[] = 'Goals Partially Met';
+            } elseif ($notMetCount === count($goalAssessments)) {
+                $tags[] = 'Goals Not Met';
+            }
         }
 
         return array_slice(array_values(array_unique($tags)), 0, 5);

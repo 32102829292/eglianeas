@@ -122,6 +122,68 @@
     @endforeach
 </section>
 
+<!-- Goals for the Day Panel -->
+<section class="dg-panel" aria-label="Goals for the Day">
+    <div class="dg-panel-head">
+        <div class="dg-panel-title">
+            <span class="dg-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
+            </span>
+            <div>
+                <h2>Goals for the Day</h2>
+                <p>Targeted goals for {{ $date->format('l, F j, Y') }}. These goals are used as the reference when evaluating Daily Accomplishment Reports.</p>
+            </div>
+        </div>
+        <a href="{{ route('admin.daily-goals.index', ['week_start' => $date->copy()->startOfWeek(Carbon::MONDAY)->format('Y-m-d')]) }}" class="btn btn-primary btn-sm dg-edit-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="vertical-align:-3px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Edit Goals
+        </a>
+    </div>
+
+    <div class="dg-goals-container">
+        @if ($goalsByUser->isEmpty())
+            <div class="dg-empty-state">
+                <span class="dg-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                </span>
+                <div class="dg-empty-text">
+                    <strong>No goals set for today.</strong>
+                    <p>No targeted goals have been assigned for {{ $date->format('F j, Y') }}. Use "Edit Goals" to create them.</p>
+                </div>
+            </div>
+        @else
+            @foreach ($goalsByUser as $userId => $userGoals)
+                @php
+                    $goalUser = $userGoals->first()->user;
+                @endphp
+                <div class="dg-employee-goals">
+                    <div class="dg-emp-header">
+                        <span class="dg-emp-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($goalUser->name, 0, 1)) }}</span>
+                        <span class="dg-emp-name">{{ $goalUser->name }}</span>
+                        <span class="dg-emp-role">{{ ucfirst($goalUser->role) }}</span>
+                    </div>
+                    <ul class="dg-goal-list">
+                        @foreach ($userGoals as $goal)
+                            <li class="dg-goal-item">
+                                <span class="dg-goal-title">{{ $goal->title }}</span>
+                                @if ($goal->description)
+                                    <span class="dg-goal-desc">{{ $goal->description }}</span>
+                                @endif
+                                @if ($goal->success_criteria)
+                                    <span class="dg-goal-meta">
+                                        <span class="dg-criteria-tag">Success: {{ $goal->success_criteria }}</span>
+                                    </span>
+                                @endif
+                                <span class="dg-goal-date">{{ $goal->target_date?->format('D, M j') }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endforeach
+        @endif
+    </div>
+</section>
+
 <form method="GET" action="{{ route('admin.daily-journal.admin-monitor') }}" class="djam-filters">
     <div class="djam-filters-head">
         <div>
@@ -414,6 +476,47 @@
 }
 @media (max-width: 380px) {
     .djam-stats { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 380px) {
+    .djam-stats { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Goals for the Day Panel (scoped to .dg-*) ---------- */
+.dg-panel { margin-bottom: 1.25rem; }
+.dg-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: #f8fafc; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 12px 12px 0 0; border-bottom: none; }
+.dg-panel-title { display: flex; align-items: center; gap: .75rem; }
+.dg-panel-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: #eef4fd; color: #2563eb; }
+.dg-panel-icon svg { width: 20px; height: 20px; flex: none; }
+.dg-panel-title h2 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
+.dg-panel-title p { margin: .2rem 0 0; color: var(--muted, #64748b); font-size: .8rem; }
+.dg-edit-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; padding: .45rem .8rem; }
+.dg-edit-btn svg { width: 14px; height: 14px; flex: none; }
+
+.dg-goals-container { padding: 1rem 1.25rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 0 0 12px 12px; border-top: none; }
+.dg-empty-state { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 2.5rem 1rem; text-align: center; color: var(--muted, #64748b); }
+.dg-empty-icon { width: 48px; height: 48px; border-radius: 14px; background: #f1f5f9; color: #64748b; display: inline-flex; align-items: center; justify-content: center; }
+.dg-empty-icon svg { width: 24px; height: 24px; flex: none; }
+.dg-empty-text strong { color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; display: block; margin-bottom: .25rem; }
+.dg-empty-text p { margin: 0; font-size: .85rem; }
+
+.dg-employee-goals { border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; overflow: hidden; margin-bottom: 1rem; background: var(--surface, #fff); }
+.dg-emp-header { display: flex; align-items: center; gap: .65rem; padding: .75rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle, #e5e7eb); }
+.dg-emp-avatar { width: 30px; height: 30px; border-radius: 50%; background: #eef4fd; color: #2563eb; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: .75rem; flex: none; }
+.dg-emp-name { color: var(--navy, #1e3a5f); font-weight: 700; font-size: .9rem; }
+.dg-emp-role { color: var(--muted, #64748b); font-size: .72rem; margin-left: auto; }
+.dg-goal-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; }
+.dg-goal-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem .75rem; background: #f8fafc; border-radius: 8px; font-size: .88rem; flex-wrap: wrap; }
+.dg-goal-title { font-weight: 700; color: var(--text, #1f2937); overflow-wrap: anywhere; }
+.dg-goal-desc { color: var(--muted, #64748b); font-size: .82rem; overflow-wrap: anywhere; }
+.dg-goal-meta { display: inline-flex; gap: .3rem; align-items: center; }
+.dg-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
+.dg-goal-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
+
+@media (max-width: 640px) {
+    .dg-panel-head { flex-direction: column; align-items: stretch; gap: .75rem; }
+    .dg-edit-btn { width: 100%; justify-content: center; }
+    .dg-goal-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
+    .dg-goal-date { margin-top: .25rem; }
 }
 </style>
 @endpush

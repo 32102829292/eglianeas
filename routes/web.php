@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DistributionController as AdminDistributionController;
 use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\KaizenConcernController;
+use App\Http\Controllers\Admin\DailyGoalController;
 use App\Http\Controllers\Admin\MonthlyBookkeepingController as AdminMonthlyBookkeepingController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\PriorityItemController;
@@ -529,6 +530,16 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/daily-journal-monitor', [DailyJournalController::class, 'adminMonitor'])->name('daily-journal.admin-monitor');
     Route::delete('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
+
+    // Daily Goals management (admin only)
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/daily-goals', [DailyGoalController::class, 'index'])->name('daily-goals.index');
+        Route::post('/daily-goals', [DailyGoalController::class, 'store'])->name('daily-goals.store');
+        Route::get('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'edit'])->name('daily-goals.edit');
+        Route::put('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'update'])->name('daily-goals.update');
+        Route::delete('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'destroy'])->name('daily-goals.destroy');
+        Route::get('/daily-goals/for-date', [DailyGoalController::class, 'goalsForDate'])->name('daily-goals.for-date');
+    });
 });
 
 // Supervisor monitoring routes

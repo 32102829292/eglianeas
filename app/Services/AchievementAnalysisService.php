@@ -99,7 +99,7 @@ class AchievementAnalysisService
         return $result;
     }
 
-    public function analyze(DailyJournal $journal, bool $force = false): DailyJournal
+    public function analyze(DailyJournal $journal, bool $force = false, array $goals = []): DailyJournal
     {
         // Automatic analysis must never silently replace a reviewer's manual
         // decision. Only an explicit reassessment request may do that.
@@ -107,7 +107,7 @@ class AchievementAnalysisService
             return $journal;
         }
 
-        $hash = $this->contentHash($journal);
+        $hash = $this->contentHash($journal, $goals);
 
         if (! $force && $journal->hasAssessment() && hash_equals((string) $journal->assessment_hash, $hash)) {
             return $journal;
@@ -117,7 +117,7 @@ class AchievementAnalysisService
         $result = null;
 
         try {
-            $result = $this->ai->analyze($journal);
+            $result = $this->ai->analyze($journal, $goals);
         } catch (Throwable $exception) {
             Log::warning('Achievement AI assessment failed; using rule-based fallback.', [
                 'daily_journal_id' => $journal->id,
@@ -126,7 +126,7 @@ class AchievementAnalysisService
         }
 
         if ($result === null) {
-            $result = $this->rules->analyze($journal);
+            $result = $this->rules->analyze($journal, $goals);
 
             if ($aiConfigured) {
                 $result['explanation'] = 'Rule-based assessment (AI unavailable or invalid response): '
@@ -326,13 +326,16 @@ class AchievementAnalysisService
         return $journal;
     }
 
-    public function contentHash(DailyJournal $journal): string
+    public function contentHash(DailyJournal $journal, array $goals = []): string
     {
+        $goalsJson = $goals ? json_encode($goals, JSON_UNESCAPED_UNICODE) : '';
+
         return hash('sha256', implode("\n", [
             (string) $journal->achievements,
             (string) $journal->problems_encountered,
             (string) $journal->suggested_solutions,
             (string) $journal->evidenceCount(),
+            $goalsJson,
         ]));
     }
 

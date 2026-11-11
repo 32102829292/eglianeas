@@ -24,9 +24,10 @@ class AiAchievementAnalyzer
     /**
      * Assess a Daily Journal via AI.
      *
+     * @param  array<int, array{title:string, description?:string, success_criteria?:string, target_date?:string, status?:string}>  $goals
      * @return array{score:int, category:string, explanation:string, tags:array<int, string>, source:string}|null
      */
-    public function analyze(DailyJournal $journal): ?array
+    public function analyze(DailyJournal $journal, array $goals = []): ?array
     {
         return $this->analyzeArray([
             'achievements' => $journal->achievements,
@@ -34,6 +35,7 @@ class AiAchievementAnalyzer
             'suggested_solutions' => $journal->suggested_solutions,
             'evidence_files' => $journal->evidenceCount(),
             'context_type' => 'daily_journal',
+            'goals' => $goals,
         ]);
     }
 
@@ -54,6 +56,7 @@ class AiAchievementAnalyzer
      *     actions_taken?: string,
      *     current_situation?: string,
      *     remaining_issues?: string,
+     *     goals?: array<int, array{title:string, description?:string, success_criteria?:string, target_date?:string, status?:string}>
      * }  $data
      * @return array{score:int, category:string, explanation:string, tags:array<int, string>, source:string}|null
      */
@@ -69,6 +72,7 @@ class AiAchievementAnalyzer
             ->implode(', ');
 
         $contextType = $data['context_type'] ?? 'admin_concern';
+        $goals = $data['goals'] ?? [];
 
         $systemPrompt = $contextType === 'daily_journal'
             ? 'You assess internal daily accomplishment reports fairly. '
@@ -78,8 +82,16 @@ class AiAchievementAnalyzer
             .'Reward meaningful completed work, concrete results, initiative, problem solving, teamwork, '
             .'client service, timeliness, process improvement, and learning. Do not reward exaggeration or '
             .'repetition. Never treat the score as evidence of misconduct. '
-            .'A resolved status alone is not proof of successful performance. '
-            .'Return strict JSON with keys: score (0-100 integer), category (one of the allowed list), '
+            .'A resolved status alone is not proof of successful performance. ';
+
+        if ($contextType === 'daily_journal' && ! empty($goals)) {
+            $systemPrompt .= 'TARGET GOALS FOR THIS DATE: '.json_encode($goals, JSON_UNESCAPED_UNICODE).'. '
+                .'For each goal, assess whether it was MET (fully achieved), PARTIALLY MET (some progress), '
+                .'NOT MET (not achieved), or NOT APPLICABLE (legitimately not applicable). Factor goal '
+                .'completion into the score. Explain each goal assessment in your response.';
+        }
+
+        $systemPrompt .= 'Return strict JSON with keys: score (0-100 integer), category (one of the allowed list), '
             .'explanation (short plain-language reason), tags (array of short recognition tags). '
             .'Allowed categories: '.$categories.'. Achievement levels: '.$levels.'.';
 
@@ -106,6 +118,7 @@ class AiAchievementAnalyzer
                         'remaining_issues' => $data['remaining_issues'] ?? '',
                         'progress_updates' => $data['progress_updates'] ?? [],
                         'evidence_files' => $data['evidence_files'] ?? 0,
+                        'goals' => $goals,
                     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 ],
             ],

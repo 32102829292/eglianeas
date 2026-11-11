@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ActivityLog;
+use App\Models\DailyGoal;
 use App\Models\DailyJournal;
 use App\Models\Notification;
 use App\Models\User;
@@ -312,7 +313,24 @@ class DailyJournalService
         // Analyze on submission/update only. The analyzer caches by a content
         // hash, so opening pages or re-saving unchanged text never calls AI.
         try {
-            app(AchievementAnalysisService::class)->analyze($journal);
+            $goalsForDate = DailyGoal::query()
+                ->where('user_id', $userId)
+                ->where('target_date', $date->toDateString())
+                ->where('status', DailyGoal::STATUS_ACTIVE)
+                ->get(['id', 'title', 'description', 'success_criteria', 'target_date', 'status'])
+                ->map(function ($g) {
+                    return [
+                        'title' => $g->title,
+                        'description' => $g->description,
+                        'success_criteria' => $g->success_criteria,
+                        'target_date' => $g->target_date?->format('Y-m-d'),
+                        'status' => $g->status,
+                    ];
+                })
+                ->values()
+                ->all();
+
+            app(AchievementAnalysisService::class)->analyze($journal, false, $goalsForDate);
         } catch (\Throwable $exception) {
             Log::warning('Achievement analysis could not be saved.', [
                 'daily_journal_id' => $journal->id,
