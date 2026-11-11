@@ -79,36 +79,77 @@ class RuleBasedAchievementAnalyzer
 
     public function analyze(DailyJournal $journal): array
     {
-        $achievements = trim((string) $journal->achievements);
-        $problems = trim((string) $journal->problems_encountered);
-        $solutions = trim((string) $journal->suggested_solutions);
-        $allText = trim(implode(' ', array_filter([$achievements, $problems, $solutions])));
-        $achievementText = $achievements !== '' ? $achievements : $allText;
+        return $this->analyzeArray([
+            'achievements' => $journal->achievements,
+            'problems_encountered' => $journal->problems_encountered,
+            'suggested_solutions' => $journal->suggested_solutions,
+            'evidence_files' => $journal->evidenceCount(),
+            'context_type' => 'daily_journal',
+        ]);
+    }
+
+    /**
+     * Assess arbitrary assessment data via rule-based logic. Used for Admin
+     * Concerns and any other record type that reuses the Daily Accomplishment
+     * assessment engine.
+     *
+     * @param  array{
+     *     challenge?: string,
+     *     solution?: string,
+     *     target_date?: string,
+     *     date_identified?: string,
+     *     resolved_at?: string,
+     *     status?: string,
+     *     progress_updates?: array,
+     *     evidence_files?: int,
+     *     context_type?: string,
+     *     actions_taken?: string,
+     *     current_situation?: string,
+     *     remaining_issues?: string,
+     * }  $data
+     * @return array{score:int, category:string, explanation:string, tags:array<int, string>, source:string}
+     */
+    public function analyzeArray(array $data): array
+    {
+        $challenge = trim((string) ($data['challenge'] ?? ''));
+        $solution = trim((string) ($data['solution'] ?? ''));
+        $progressUpdates = $data['progress_updates'] ?? [];
+        $evidenceCount = (int) ($data['evidence_files'] ?? 0);
+        $status = $data['status'] ?? '';
+        $resolvedAt = $data['resolved_at'] ?? null;
+
+        // Combine all text for keyword analysis.
+        $allText = trim(implode(' ', array_filter([
+            $challenge,
+            $solution,
+            implode(' ', array_column($progressUpdates, 'actions_taken')),
+            implode(' ', array_column($progressUpdates, 'current_situation')),
+            implode(' ', array_column($progressUpdates, 'remaining_issues')),
+        ])));
+
         $words = preg_split('/\s+/u', $allText, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $wordCount = count($words);
-        $evidenceCount = $journal->evidenceCount();
 
-        if ($achievements === '' || $wordCount < 4) {
+        if ($allText === '' || $wordCount < 4) {
             return [
                 'score' => min(25, 15 + ($wordCount * 2)) + ($evidenceCount > 0 ? 3 : 0),
                 'category' => 'Productivity',
-                'explanation' => 'Rule-based assessment: The accomplishment description is empty or too brief to identify meaningful completed work. Add specific tasks, results, or outcomes for a fairer assessment.',
+                'explanation' => 'Rule-based assessment: The concern description and progress updates are empty or too brief to identify meaningful completed work. Add specific tasks, results, or outcomes for a fairer assessment.',
                 'tags' => $evidenceCount > 0 ? ['Evidence-backed'] : [],
                 'source' => 'rule_based',
             ];
         }
 
         $lower = Str::lower($allText);
-        $achievementLower = Str::lower($achievementText);
 
         $completed = $this->matchedKeywords($lower, self::COMPLETED_ACTIONS);
         $outcomePhrases = $this->matchedKeywords($lower, self::OUTCOME_PHRASES);
         $superlatives = $this->matchedKeywords($lower, self::SUPERLATIVES);
         $quantified = $this->hasQuantifiedOutcome($allText);
-        $categoryScores = $this->categoryScores($achievementLower, $lower);
+        $categoryScores = $this->categoryScores($challenge . ' ' . $solution, $lower);
         $category = $this->pickCategory($categoryScores);
         $categorySignals = $categoryScores[$category] ?? 0;
-        $repetition = $this->isRepetitive($journal, $achievementText);
+        $repetition = false; // No repetition check for Admin Concerns (no user journal history)
 
         $score = 35;
         $score += match (true) {
@@ -123,7 +164,12 @@ class RuleBasedAchievementAnalyzer
         $score += min(count($outcomePhrases) * 3, 6);
         $score += $evidenceCount > 0 ? 4 : 0;
         $score += min($categorySignals * 3, 15);
-        $score += $this->hasClarity($achievementText) ? 2 : 0;
+        $score += $this->hasClarity($allText) ? 2 : 0;
+
+        // Bonus for resolved/closed status with actual work described.
+        if (in_array($status, ['resolved', 'closed'], true) && count($completed) > 0) {
+            $score += 10;
+        }
 
         if (! empty($superlatives) && ! $quantified) {
             $score -= 6;
@@ -137,19 +183,19 @@ class RuleBasedAchievementAnalyzer
 
         $score = max(0, min(100, (int) round($score)));
 
+        $categorySignalsText = $categorySignals > 0
+            ? ' shows '.Str::lower($category).' signals'
+            : '';
+
         return [
             'score' => $score,
             'category' => $category,
-            'explanation' => $this->explanation(
-                $completed,
-                $quantified,
-                $evidenceCount,
-                $category,
-                $categorySignals,
-                $repetition,
-                $superlatives,
-                $wordCount
-            ),
+            'category_signals' => $categorySignals,
+            'explanation' => 'Rule-based assessment: The concern describes '.(
+                count($completed) > 0
+                    ? 'completed work ('.implode(', ', array_slice($completed, 0, 3)).')'
+                    : 'activity without enough specific outcome detail'
+            ).($quantified ? ' with a concrete or measurable outcome' : '').($evidenceCount > 0 ? ', supported by attached evidence' : '').($categorySignalsText).'.',
             'tags' => $this->tags(
                 $quantified,
                 $evidenceCount,

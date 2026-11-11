@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DailyJournal;
+use App\Models\StaffTaskEvaluation;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;

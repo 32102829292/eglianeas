@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\KaizenConcern;
 use App\Models\PriorityItem;
+use App\Models\StaffTaskEvaluation;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -166,24 +167,24 @@ class AchievementCriteriaService
     {
         $tasks = $this->collectTimelinessTasks($staff, $start, $end);
 
-        if ($tasks->isEmpty()) {
-            return [
-                'score' => null,
-                'explanation' => 'No assigned tasks or concerns with deadlines in this period.',
-                'meta' => ['evaluated' => 0, 'on_time' => 0, 'late' => 0, 'overdue' => 0],
-            ];
-        }
+        // Get Admin Concern evaluation timeliness scores
+        $concernEvaluations = StaffTaskEvaluation::query()
+            ->where('staff_id', $staff->id)
+            ->where('source_type', StaffTaskEvaluation::SOURCE_ADMIN_CONCERN)
+            ->where('evaluation_status', StaffTaskEvaluation::STATUS_FINALIZED)
+            ->whereNotNull('timeliness_score')
+            ->whereBetween('finalized_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
+            ->get();
 
         $onTime = 0;
         $early = 0;
         $late = 0;
         $overdue = 0;
-        $totalScore = 0.0;
+        $allScores = [];
 
         foreach ($tasks as $task) {
             $deadline = $task['deadline'];
             $completed = $task['completed'];
-            $status = $task['status'];
 
             // Overdue and not completed.
             if ($completed === null && $deadline->lt(now()->startOfDay())) {
@@ -197,28 +198,50 @@ class AchievementCriteriaService
                 if ($completed->lt($deadline)) {
                     $early++;
                     $onTime++;
-                    $totalScore += 100;
+                    $allScores[] = 100;
                 } elseif ($completed->eq($deadline)) {
                     $onTime++;
-                    $totalScore += 90;
+                    $allScores[] = 90;
                 } else {
                     $late++;
                     $daysLate = (int) $deadline->diffInDays($completed);
-                    $taskScore = max(0, 90 - ($daysLate * 10));
-                    $totalScore += $taskScore;
+                    $allScores[] = max(0, 90 - ($daysLate * 10));
                 }
             }
         }
 
-        $evaluated = $onTime + $late; // excludes overdue-not-completed from denominator
-        $denominator = $evaluated > 0 ? $evaluated : 1;
-        $score = round($totalScore / $denominator, 1);
+        if (empty($allScores)) {
+            // If there were tasks but none contributed scores (all overdue
+            // and not completed), return 0 rather than null.
+            if (count($tasks) > 0) {
+                return [
+                    'score' => 0,
+                    'explanation' => 'Tasks exist but none have been completed within the period.',
+                    'meta' => [
+                        'evaluated' => 0,
+                        'on_time' => 0,
+                        'late' => 0,
+                        'overdue' => $overdue,
+                        'overdue_not_completed' => $overdue,
+                        'on_time_rate' => 0,
+                    ],
+                ];
+            }
 
+            return [
+                'score' => null,
+                'explanation' => 'No assigned tasks or concerns with deadlines in this period.',
+                'meta' => ['evaluated' => 0, 'on_time' => 0, 'late' => 0, 'overdue' => 0],
+            ];
+        }
+
+        $average = round((float) array_sum($allScores) / count($allScores), 1);
+        $evaluated = count($allScores);
         $rate = $evaluated > 0 ? round(($onTime / $evaluated) * 100, 1) : 0;
 
         return [
-            'score' => $score,
-            'explanation' => $this->timelinessExplanation($early, $onTime, $late, $overdue, $evaluated, $rate),
+            'score' => $average,
+            'explanation' => 'Based on '.count($tasks).' task(s). Average timeliness score '.$average.'.',
             'meta' => [
                 'evaluated' => $evaluated,
                 'on_time' => $onTime,
@@ -285,6 +308,8 @@ class AchievementCriteriaService
         }
 
         // KaizenConcerns: target_date defines the period window.
+        // Admin Concerns are included here so their timeliness is captured
+        // alongside PriorityItems and KaizenStrategy concerns.
         $kaizenConcerns = KaizenConcern::query()
             ->where('assigned_staff_id', $staff->id)
             ->whereNotNull('target_date')
@@ -353,13 +378,14 @@ class AchievementCriteriaService
     {
         $items = $this->collectResponsivenessItems($staff, $start, $end);
 
-        if ($items->isEmpty()) {
-            return [
-                'score' => null,
-                'explanation' => 'No assigned tasks or concerns in this period.',
-                'meta' => ['evaluated' => 0, 'prompt' => 0, 'delayed' => 0, 'unanswered' => 0, 'avg_hours' => null],
-            ];
-        }
+        // Get Admin Concern evaluation responsiveness scores
+        $concernEvaluations = StaffTaskEvaluation::query()
+            ->where('staff_id', $staff->id)
+            ->where('source_type', StaffTaskEvaluation::SOURCE_ADMIN_CONCERN)
+            ->where('evaluation_status', StaffTaskEvaluation::STATUS_FINALIZED)
+            ->whereNotNull('immediate_responsiveness_score')
+            ->whereBetween('finalized_at', [$start->copy()->startOfDay(), $end->copy()->endOfDay()])
+            ->get();
 
         $prompt = 0;
         $delayed = 0;
@@ -370,7 +396,6 @@ class AchievementCriteriaService
         foreach ($items as $item) {
             $created = $item['created'];
             $firstAction = $item['first_action'];
-            $status = $item['status'];
 
             if ($firstAction === null) {
                 // No observable response yet.

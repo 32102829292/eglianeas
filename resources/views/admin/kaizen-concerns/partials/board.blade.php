@@ -32,6 +32,12 @@
                           Suggestions layout
 --}}
 
+@php
+    // Carried through the details and edit screens so "Back" returns to this
+    // exact board view with its filters and page intact.
+    $boardReturnUrl = $boardReturnUrl ?? request()->fullUrl();
+@endphp
+
 {{-- Filters --}}
 <div class="card">
     <div class="card-head">
@@ -91,14 +97,14 @@
                     @endif
                     <th>Status</th>
                     <th>Target Date</th>
-                    <th>Implementation</th>
+                    <th>{{ $showAssigned ? 'Resolution' : 'Implementation' }}</th>
                     <th>Evidence</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @forelse ($concerns as $concern)
-                    <tr class="{{ $concern->isImplemented() ? 'kaizen-row-implemented' : ($concern->effectiveStatus() === \App\Models\KaizenConcern::STATUS_OVERDUE ? 'table-danger' : '') }}">
+                    <tr class="{{ $concern->isCompleted() ? 'kaizen-row-implemented' : ($concern->effectiveStatus() === \App\Models\KaizenConcern::STATUS_OVERDUE ? 'table-danger' : '') }}">
                         <td data-col="{{ $recordLabel }}" class="kaizen-cell-suggestion">
                             <span class="badge kaizen-suggestion-tag">{{ $recordLabel }}</span>
                             <div class="kaizen-challenge">{{ Str::limit($concern->challenge, 90) }}</div>
@@ -126,8 +132,17 @@
                             @include('admin.kaizen-concerns.partials.status-pill', ['concern' => $concern])
                         </td>
                         <td data-col="Target Date">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</td>
-                        <td data-col="Implementation">
-                            @if ($concern->isImplemented())
+                        <td data-col="{{ $showAssigned ? 'Resolution' : 'Implementation' }}">
+                            @if ($concern->isAdminConcern())
+                                @if ($concern->isResolved() || $concern->resolved_at)
+                                    <div class="kaizen-impl-date">{{ $concern->isResolved() ? 'Resolved on:' : 'Closed on:' }}</div>
+                                    <div class="kaizen-impl-value">{{ ($concern->resolved_at ?? $concern->implementation_date)?->format('M j, Y') ?? '—' }}</div>
+                                @elseif ($concern->isClosed())
+                                    <span class="badge badge-neutral">Closed</span>
+                                @else
+                                    <span class="muted">—</span>
+                                @endif
+                            @elseif ($concern->isImplemented())
                                 <div class="kaizen-impl-date">Implemented on:</div>
                                 <div class="kaizen-impl-value">{{ $concern->implementation_date?->format('M j, Y') ?? '—' }}</div>
                             @else
@@ -137,7 +152,7 @@
                         <td data-col="Evidence">
                             @php $evidenceCount = (int) ($concern->evidences_count ?? 0); @endphp
                             @if ($evidenceCount > 0)
-                                <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence" class="btn btn-outline btn-sm">
+                                <a href="{{ route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $boardReturnUrl]) }}#evidence" class="btn btn-outline btn-sm">
                                     View Evidence
                                 </a>
                                 <div class="kaizen-cell-sub">{{ $evidenceCount }} {{ Str::plural('file', $evidenceCount) }} attached</div>
@@ -146,9 +161,9 @@
                             @endif
                         </td>
                         <td data-col="Actions" class="text-end kaizen-cell-actions">
-                            <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline btn-sm">View</a>
+                            <a href="{{ route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $boardReturnUrl]) }}" class="btn btn-outline btn-sm">View</a>
                             @if (auth()->user()->isAdmin())
-                                <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
+                                <a href="{{ route('admin.kaizen-concerns.edit', ['concern' => $concern, 'back' => $boardReturnUrl]) }}" class="btn btn-outline btn-sm">Edit</a>
                             @endif
                             @include('admin.kaizen-concerns.partials.assign-form', ['concern' => $concern])
                         </td>
@@ -165,72 +180,5 @@
             </tbody>
         </table>
 
-        <div class="card-view-list">
-            @forelse ($concerns as $concern)
-                <div class="cv-card {{ $concern->isImplemented() ? 'cv-implemented' : '' }}">
-                    <div class="cv-card-head">
-                        <div class="cv-head-main">
-                            <span class="badge kaizen-suggestion-tag">{{ $recordLabel }}</span>
-                            <div class="cv-head-title">{{ Str::limit($concern->challenge, 90) }}</div>
-                            <div class="cv-head-sub">
-                                Submitted by {{ $concern->creator->name ?? '—' }}
-                                &middot; Identified {{ $concern->date_identified?->format('M j, Y') ?? '—' }}
-                            </div>
-                            <div class="cv-head-sub">
-                                @include('admin.kaizen-concerns.partials.status-pill', ['concern' => $concern])
-                            </div>
-                        </div>
-                    </div>
-                    <div class="cv-card-body">
-                        <div class="cv-pair cv-full"><span class="cv-label">Suggested Solution</span><span class="cv-value">@if ($concern->recommended_solution){{ $concern->recommended_solution }}@else<span class="muted">—</span>@endif</span></div>
-                        <div class="cv-pair"><span class="cv-label">Submitted By</span><span class="cv-value">{{ $concern->creator->name ?? '—' }}</span></div>
-                        <div class="cv-pair"><span class="cv-label">{{ $showAssigned ? 'Assigned To' : 'Assigned Staff' }}</span><span class="cv-value">{{ $concern->assignedStaff?->name ?? 'Unassigned' }}</span></div>
-                        <div class="cv-pair"><span class="cv-label">Target Date</span><span class="cv-value">{{ $concern->target_date?->format('M j, Y') ?? '—' }}</span></div>
-                        <div class="cv-pair">
-                            <span class="cv-label">Implementation</span>
-                            <span class="cv-value">
-                                @if ($concern->isImplemented())
-                                    Implemented on {{ $concern->implementation_date?->format('M j, Y') ?? '—' }}
-                                @else
-                                    —
-                                @endif
-                            </span>
-                        </div>
-                        <div class="cv-pair">
-                            <span class="cv-label">Evidence</span>
-                            <span class="cv-value">
-                                @php $evidenceCount = (int) ($concern->evidences_count ?? 0); @endphp
-                                @if ($evidenceCount > 0)
-                                    <a href="{{ route('admin.kaizen-concerns.show', $concern) }}#evidence">View Evidence</a>
-                                    <span class="muted">({{ $evidenceCount }})</span>
-                                @else
-                                    <span class="muted">No evidence</span>
-                                @endif
-                            </span>
-                        </div>
-                        @if ($concern->notes)
-                            <div class="cv-pair cv-full"><span class="cv-label">Notes</span><span class="cv-value">{{ $concern->notes }}</span></div>
-                        @endif
-                    </div>
-                    <div class="cv-card-actions">
-                        <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline btn-sm">View</a>
-                        @if (auth()->user()->isAdmin())
-                            <a href="{{ route('admin.kaizen-concerns.edit', $concern) }}" class="btn btn-outline btn-sm">Edit</a>
-                            <form method="POST" action="{{ route('admin.kaizen-concerns.destroy', $concern) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this {{ \Illuminate\Support\Str::singular($pluralUnit) }}?', message: 'This {{ \Illuminate\Support\Str::singular($pluralUnit) }} will be permanently deleted.', danger: true, confirmLabel: 'Delete' });">@csrf @method('DELETE')<button type="submit" class="btn btn-outline danger btn-sm">Delete</button></form>
-                        @endif
-                        @include('admin.kaizen-concerns.partials.assign-form', ['concern' => $concern])
-                    </div>
-                </div>
-            @empty
-                <p class="cv-card cv-empty">
-                    @if ($hasFilters)
-                        {{ $filteredEmpty }}
-                    @else
-                        {{ $emptyMessage }}
-                    @endif
-                </p>
-            @endforelse
-        </div>
-    </div>
     {{ $concerns->links('pagination.simple') }}
 </div>

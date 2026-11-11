@@ -22,6 +22,7 @@ use App\Http\Controllers\Admin\PriorityItemController;
 use App\Http\Controllers\Admin\ProfileController as AdminProfileController;
 use App\Http\Controllers\Admin\QuarterlyBookkeepingController as AdminQuarterlyBookkeepingController;
 use App\Http\Controllers\Admin\ServiceTrackerController as AdminServiceTrackerController;
+use App\Http\Controllers\Admin\StaffPerformanceController;
 use App\Http\Controllers\Admin\SurveyController as AdminSurveyController;
 use App\Http\Controllers\Admin\TechnicalIssueController;
 use App\Http\Controllers\Admin\UserController;
@@ -417,31 +418,56 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
 
 // Kaizen Concerns and the Priority List are also used by supervisors, so they
 // live in their own group instead of widening the admin role list for every
-// other module. The fine-grained checks (admin-only create/edit/delete, and
-// admin + supervisor for checklist and evidence) stay in the controllers.
+// other module. Within it, each Kaizen route carries its own role middleware so
+// employee-facing screens and admin-only management are visibly separated:
+//
+//   * employees (staff, supervisors, admins)   -> board, submit, view
+//   * admins + supervisors                     -> assign, checklist structure
+//   * admins only                              -> create/edit/delete/implement
+//
+// The controller repeats these checks as defence in depth.
 Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality'])->prefix('admin')->name('admin.')->group(function () {
-    // Kaizen Concerns / Admin Concerns
+    // ---- Employee-accessible Kaizen routes ----
     Route::get('/kaizen-concerns', [KaizenConcernController::class, 'index'])->name('kaizen-concerns.index');
     // Registered before /{concern} so the literal segment is matched, not an id.
     Route::get('/kaizen-concerns/admin-concerns', [KaizenConcernController::class, 'adminConcerns'])->name('kaizen-concerns.admin-concerns.index');
     Route::get('/kaizen-concerns/submit', [KaizenConcernController::class, 'submit'])->name('kaizen-concerns.submit');
     Route::post('/kaizen-concerns/submit', [KaizenConcernController::class, 'storeSubmission'])->name('kaizen-concerns.submit.store');
-    Route::get('/kaizen-concerns/create', [KaizenConcernController::class, 'create'])->name('kaizen-concerns.create');
-    Route::post('/kaizen-concerns', [KaizenConcernController::class, 'store'])->name('kaizen-concerns.store');
+
+    // ---- Admin-only Kaizen routes ----
+    Route::get('/kaizen-concerns/create', [KaizenConcernController::class, 'create'])->name('kaizen-concerns.create')->middleware('role:admin');
+    Route::post('/kaizen-concerns', [KaizenConcernController::class, 'store'])->name('kaizen-concerns.store')->middleware('role:admin');
     Route::get('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'show'])->name('kaizen-concerns.show');
-    Route::get('/kaizen-concerns/{concern}/edit', [KaizenConcernController::class, 'edit'])->name('kaizen-concerns.edit');
-    Route::put('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'update'])->name('kaizen-concerns.update');
-    Route::post('/kaizen-concerns/{concern}/assign-staff', [KaizenConcernController::class, 'assignStaff'])->name('kaizen-concerns.assign-staff');
-    Route::post('/kaizen-concerns/{concern}/implement', [KaizenConcernController::class, 'implement'])->name('kaizen-concerns.implement');
-    Route::delete('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'destroy'])->name('kaizen-concerns.destroy');
+    Route::get('/kaizen-concerns/{concern}/edit', [KaizenConcernController::class, 'edit'])->name('kaizen-concerns.edit')->middleware('role:admin');
+    Route::put('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'update'])->name('kaizen-concerns.update')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/implement', [KaizenConcernController::class, 'implement'])->name('kaizen-concerns.implement')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/progress-updates', [KaizenConcernController::class, 'storeProgressUpdate'])->name('kaizen-concerns.progress-updates.store');
+    Route::post('/kaizen-concerns/{concern}/resolve', [KaizenConcernController::class, 'resolve'])->name('kaizen-concerns.resolve')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/close', [KaizenConcernController::class, 'close'])->name('kaizen-concerns.close')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/assessment', [KaizenConcernController::class, 'storeAssessment'])->name('kaizen-concerns.assessment.store')->middleware('role:admin');
+    Route::patch('/kaizen-concerns/{concern}/assessment', [KaizenConcernController::class, 'adjustAssessment'])->name('kaizen-concerns.assessment.adjust')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/assessment/finalize', [KaizenConcernController::class, 'finalizeAssessment'])->name('kaizen-concerns.assessment.finalize')->middleware('role:admin');
+    Route::post('/kaizen-concerns/{concern}/evaluation/reverse', [KaizenConcernController::class, 'reverseEvaluation'])->name('kaizen-concerns.evaluation.reverse')->middleware('role:admin');
+    Route::delete('/kaizen-concerns/{concern}', [KaizenConcernController::class, 'destroy'])->name('kaizen-concerns.destroy')->middleware('role:admin');
+
+    // ---- Admin + supervisor Kaizen routes ----
+    Route::post('/kaizen-concerns/{concern}/assign-staff', [KaizenConcernController::class, 'assignStaff'])->name('kaizen-concerns.assign-staff')->middleware('role:admin,supervisor');
+    Route::post('/kaizen-concerns/{concern}/checklist/add', [KaizenConcernController::class, 'addChecklistItem'])->name('kaizen-concerns.checklist.add')->middleware('role:admin,supervisor');
+    Route::post('/kaizen-concerns/{concern}/checklist/update', [KaizenConcernController::class, 'updateChecklistItem'])->name('kaizen-concerns.checklist.update')->middleware('role:admin,supervisor');
+    Route::post('/kaizen-concerns/{concern}/checklist/destroy', [KaizenConcernController::class, 'destroyChecklistItem'])->name('kaizen-concerns.checklist.destroy')->middleware('role:admin,supervisor');
+
+    // ---- Available to anyone who can see the record ----
     Route::post('/kaizen-concerns/{concern}/checklist/toggle', [KaizenConcernController::class, 'toggleChecklistItem'])->name('kaizen-concerns.checklist.toggle');
-    Route::post('/kaizen-concerns/{concern}/checklist/add', [KaizenConcernController::class, 'addChecklistItem'])->name('kaizen-concerns.checklist.add');
-    Route::post('/kaizen-concerns/{concern}/checklist/update', [KaizenConcernController::class, 'updateChecklistItem'])->name('kaizen-concerns.checklist.update');
-    Route::post('/kaizen-concerns/{concern}/checklist/destroy', [KaizenConcernController::class, 'destroyChecklistItem'])->name('kaizen-concerns.checklist.destroy');
     Route::post('/kaizen-concerns/{concern}/evidence', [KaizenConcernController::class, 'addEvidence'])->name('kaizen-concerns.evidence.add');
     Route::get('/kaizen-concerns/{concern}/evidence/{evidence}', [KaizenConcernController::class, 'viewEvidence'])->name('kaizen-concerns.evidence.view')->middleware('signed');
     Route::get('/kaizen-concerns/{concern}/evidence/{evidence}/download', [KaizenConcernController::class, 'downloadEvidence'])->name('kaizen-concerns.evidence.download')->middleware('signed');
-    Route::delete('/kaizen-concerns/{concern}/evidence/{evidence}', [KaizenConcernController::class, 'deleteEvidence'])->name('kaizen-concerns.evidence.delete');
+    Route::delete('/kaizen-concerns/{concern}/evidence/{evidence}', [KaizenConcernController::class, 'deleteEvidence'])->name('kaizen-concerns.evidence.delete')->middleware('role:admin');
+
+    // Staff Performance Evaluation
+    Route::get('/staff-performance', [StaffPerformanceController::class, 'index'])->name('staff-performance.index');
+    Route::get('/staff-performance/{staff}', [StaffPerformanceController::class, 'staff'])->name('staff-performance.staff');
+    Route::get('/staff-performance/config', [StaffPerformanceController::class, 'config'])->name('staff-performance.config');
+    Route::post('/staff-performance/config', [StaffPerformanceController::class, 'updateConfig'])->name('staff-performance.config.update');
 
     // Priority List / To-Do List
     Route::get('/priority-items', [PriorityItemController::class, 'index'])->name('priority-items.index');

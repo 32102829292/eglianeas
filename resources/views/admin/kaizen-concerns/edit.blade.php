@@ -3,12 +3,29 @@
 @section('title', 'Edit Kaizen Concern — Egliane Accounting Services')
 
 @section('content')
+    @php
+        // Keep the board context that the details page handed to this form, so
+        // Back and Cancel return to the same filtered board after the detour.
+        $backParam = request()->query('back');
+        $showParams = ['concern' => $concern];
+
+        if (is_string($backParam) && $backParam !== '') {
+            $showParams['back'] = $backParam;
+        }
+
+        $showUrl = route('admin.kaizen-concerns.show', $showParams);
+    @endphp
+
+    @php
+        $editRecordLabel = $concern->isAdminConcern() ? 'Admin Concern' : 'Employee Suggestion';
+    @endphp
+
     <div class="page-head page-head-row">
         <div>
-            <h1>Edit Employee Suggestion</h1>
-            <p>Update the suggestion, assignment, target date, and implementation outcome.</p>
+            <h1>Edit {{ $editRecordLabel }}</h1>
+            <p>Update the {{ strtolower($editRecordLabel) }}, assignment, target date, and {{ $concern->isAdminConcern() ? 'resolution' : 'implementation' }} outcome.</p>
         </div>
-        <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline">
+        <a href="{{ $showUrl }}" class="btn btn-outline">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" style="vertical-align:-2px"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
             Back
         </a>
@@ -52,7 +69,13 @@
                                 @endforeach
                             </select>
                             @error('status')<div class="form-error">{{ $message }}</div>@enderror
-                            <div class="form-hint">The status is worked out from the implementation itself, so you do not have to pick it: leaving this alone keeps the suggestion where the implementation workflow put it. Choosing Implemented finalises the suggestion and fills in the implementation date when one is not set.</div>
+                            <div class="form-hint">
+                                @if ($concern->isAdminConcern())
+                                    Admin Concerns use Pending, In Progress, Resolved and Closed. Prefer the "Mark as Resolved" action on the detail page so resolution notes and the resolution date are recorded together.
+                                @else
+                                    The status is worked out from the implementation itself, so you do not have to pick it: leaving this alone keeps the suggestion where the implementation workflow put it. Choosing Implemented finalises the suggestion and fills in the implementation date when one is not set.
+                                @endif
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -107,18 +130,27 @@
 
                 {{-- ---------------- Section 4 ---------------- --}}
                 <section class="form-section">
-                    <span class="form-section-title"><span class="badge badge-info">4</span> Implementation</span>
-                    <div class="form-hint">Progress record and supporting notes.</div>
+                    <span class="form-section-title"><span class="badge badge-info">4</span> {{ $concern->isAdminConcern() ? 'Resolution' : 'Implementation' }}</span>
+                    <div class="form-hint">{{ $concern->isAdminConcern() ? 'Resolution details and supporting notes.' : 'Progress record and supporting notes.' }}</div>
 
                     <div class="form-grid two">
                         <div class="form-group">
-                            <label class="form-label" for="implementation_date">Implementation Date</label>
+                            <label class="form-label" for="implementation_date">{{ $concern->isAdminConcern() ? 'Resolution Date' : 'Implementation Date' }}</label>
                             <input class="form-control" id="implementation_date" name="implementation_date" type="date"
                                    value="{{ old('implementation_date', $concern->implementation_date?->format('Y-m-d')) }}">
                             @error('implementation_date')<div class="form-error">{{ $message }}</div>@enderror
-                            <div class="form-hint">Shown as "Implemented on" once the suggestion is marked Implemented.</div>
+                            <div class="form-hint">{{ $concern->isAdminConcern() ? 'Recorded as the resolution date when the concern is marked Resolved.' : 'Shown as "Implemented on" once the suggestion is marked Implemented.' }}</div>
                         </div>
                     </div>
+
+                    @if ($concern->isAdminConcern())
+                        <div class="form-group">
+                            <label class="form-label" for="resolution_notes">Resolution Notes</label>
+                            <textarea class="form-control" id="resolution_notes" name="resolution_notes" rows="3" maxlength="5000"
+                                      placeholder="Describe how this concern was resolved...">{{ old('resolution_notes', $concern->resolution_notes) }}</textarea>
+                            @error('resolution_notes')<div class="form-error">{{ $message }}</div>@enderror
+                        </div>
+                    @endif
 
                     <div class="form-group">
                         <label class="form-label" for="notes">Notes</label>
@@ -131,7 +163,7 @@
 
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Save Changes</button>
-                <a href="{{ route('admin.kaizen-concerns.show', $concern) }}" class="btn btn-outline">Cancel</a>
+                <a href="{{ $showUrl }}" class="btn btn-outline">Cancel</a>
             </div>
         </form>
     </div>

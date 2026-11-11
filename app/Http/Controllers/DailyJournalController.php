@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\DailyJournal;
+use App\Models\StaffTaskEvaluation;
 use App\Models\User;
 use App\Services\AchievementAnalysisService;
 use App\Services\AchievementCriteriaService;
 use App\Services\AchievementRankingService;
 use App\Services\DailyJournalService;
+use App\Services\StaffScoringService;
 use App\Services\TeamSupervisionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -252,6 +254,48 @@ class DailyJournalController extends Controller
                 || $row['client_feedback_score'] !== null;
         })->count();
 
+        // --- Summary metrics for the ranking dashboard ---
+        $overallScores = $rankings->pluck('overall_score')->filter(fn ($v) => $v !== null);
+        $averageOverallScore = $overallScores->isNotEmpty()
+            ? round($overallScores->avg(), 1)
+            : null;
+        $highestScore = $overallScores->isNotEmpty()
+            ? (float) $overallScores->max()
+            : null;
+
+        // Latest assessed journal per ranked employee, for "View Score Sheet" links.
+        $latestJournals = DailyJournal::query()
+            ->whereIn('user_id', $rankings->pluck('user.id')->all())
+            ->whereNotNull('achievement_score')
+            ->latest('required_date')
+            ->get()
+            ->groupBy('user_id')
+            ->map(fn ($journals) => $journals->first());
+
+        // Pending integrations: evaluations not yet linked to the Score Sheet.
+        $pendingIntegrations = StaffTaskEvaluation::query()
+            ->whereNotIn('evaluation_status', [
+                StaffTaskEvaluation::STATUS_FINALIZED,
+                StaffTaskEvaluation::STATUS_REVERSED,
+            ])
+            ->whereNull('score_sheet_included')
+            ->orWhere(function ($query) {
+                $query->where('score_sheet_included', false)
+                    ->whereIn('evaluation_status', [
+                        StaffTaskEvaluation::STATUS_FINALIZED,
+                        StaffTaskEvaluation::STATUS_ADJUSTED,
+                    ]);
+            })
+            ->count();
+
+        // Assessments awaiting admin review (provisional or awaiting_review).
+        $awaitingReview = StaffTaskEvaluation::query()
+            ->whereIn('evaluation_status', [
+                StaffTaskEvaluation::STATUS_PROVISIONAL,
+                StaffTaskEvaluation::STATUS_AWAITING_REVIEW,
+            ])
+            ->count();
+
         return view('daily-journal.achievements', [
             'rankings' => $rankings,
             'period' => $period,
@@ -261,6 +305,11 @@ class DailyJournalController extends Controller
             'provisionalCount' => $rankings->sum('provisional_count'),
             'employeeCount' => $rankings->count(),
             'criteriaScored' => $criteriaScored,
+            'averageOverallScore' => $averageOverallScore,
+            'highestScore' => $highestScore,
+            'pendingIntegrations' => $pendingIntegrations,
+            'awaitingReview' => $awaitingReview,
+            'latestJournals' => $latestJournals,
         ]);
     }
 
@@ -454,6 +503,114 @@ class DailyJournalController extends Controller
             $improvements[] = 'Maintain the current level of performance across all criteria.';
         }
 
+        // Kaizen Strategy and Admin Concern evaluations that are linked to
+        // this staff member's Score Sheet for the journal's period. Included
+        // records are the ones contributing to the official score; pending and
+        // reversed records are shown so the source of each badge is traceable.
+        $scoreSheetTasks = app(StaffScoringService::class)
+            ->taskEvaluationsForScoreSheet($dailyJournal->user, $start);
+
+        // ------------------------------------------------------------------
+        // Build transparent score-calculation data for the employee-facing
+        // explanation. We trace every number back to its source so an
+        // employee can independently verify how the final score was derived.
+        // ------------------------------------------------------------------
+        $finalScore = $dailyJournal->finalScore();
+        $originalAiScore = $dailyJournal->originalAiScore();
+        $hasManualOverride = $dailyJournal->hasManualOverride();
+        $manualAdjustment = $dailyJournal->manualAdjustment();
+        $isManual = $dailyJournal->assessment_source === 'reviewer';
+        $assessmentType = $isManual ? 'Manual Reassessment' : 'Automatic Assessment';
+        $assessedAt = $dailyJournal->assessed_at;
+
+        $criteriaNames = [
+            'quality' => 'Accomplishment Quality',
+            'timeliness' => 'Timeliness',
+            'responsiveness' => 'Immediate Responsiveness',
+            'client_feedback' => 'Client Feedback',
+        ];
+
+        $calculationCriteria = [];
+        $totalOriginalWeight = 0.0;
+        $totalAvailableWeight = 0.0;
+        $totalWeightedPoints = 0.0;
+
+        foreach ($criteria as $key => $scoreOrNull) {
+            if (! is_numeric($scoreOrNull) && $scoreOrNull !== 0 && $scoreOrNull !== '0') {
+                continue;
+            }
+            $score = (float) $scoreOrNull;
+            $weight = (float) ($weights[$key] ?? 0);
+            $totalOriginalWeight += $weight;
+            $weightedPoints = round($score * $weight, 2);
+            $totalAvailableWeight += $weight;
+            $totalWeightedPoints += $weightedPoints;
+
+            $calculationCriteria[] = [
+                'key' => $key,
+                'name' => $criteriaNames[$key] ?? ucfirst(str_replace('_', ' ', $key)),
+                'score' => $score,
+                'weight' => $weight,
+                'weighted_points' => $weightedPoints,
+                'explanation' => $criteria[$key . '_explanation'] ?? 'Not yet evaluated.',
+                'meta' => $criteria[$key . '_meta'] ?? [],
+                'status' => 'Evaluated',
+            ];
+        }
+
+        // Add excluded (null) criteria with their reasons.
+        $addedKeys = array_column($calculationCriteria, 'key');
+        foreach (['quality', 'timeliness', 'responsiveness', 'client_feedback'] as $key) {
+            if (in_array($key, $addedKeys, true)) {
+                continue;
+            }
+            $weight = (float) ($weights[$key] ?? 0);
+            $totalOriginalWeight += $weight;
+            $calculationCriteria[] = [
+                'key' => $key,
+                'name' => $criteriaNames[$key] ?? ucfirst(str_replace('_', ' ', $key)),
+                'score' => null,
+                'weight' => $weight,
+                'weighted_points' => null,
+                'explanation' => $criteria[$key . '_explanation'] ?? 'Not yet evaluated.',
+                'meta' => $criteria[$key . '_meta'] ?? [],
+                'status' => 'Not evaluated',
+            ];
+        }
+
+        // Re-order to match canonical criterion order.
+        $order = ['quality', 'timeliness', 'responsiveness', 'client_feedback'];
+        usort($calculationCriteria, function ($a, $b) use ($order) {
+            return array_search($a['key'], $order) <=> array_search($b['key'], $order);
+        });
+
+        $normalizedScore = null;
+        $normalizationExplanation = null;
+        if ($finalScore !== null && $totalAvailableWeight > 0) {
+            $normalizedScore = round($totalWeightedPoints / $totalAvailableWeight, 1);
+            $normalizationExplanation = sprintf(
+                'Only %.0f%% of the total weight was available. Weighted points %.2f divided by available weight %.0f equals %.1f.',
+                $totalAvailableWeight,
+                $totalWeightedPoints,
+                $totalAvailableWeight,
+                $normalizedScore
+            );
+        }
+
+        $assessmentMethodLabel = $isManual ? 'Manual Reassessment' : 'Automatic Assessment';
+        $assessmentMethodDetail = $isManual
+            ? 'A reviewer manually set this score and may have overridden the automatic result.'
+            : 'An automatic rule-based assessment computed this score from your submitted records.';
+
+        // Plain-language summary of what the score means.
+        $scoreMeaning = match (true) {
+            $finalScore >= 90 => 'Outstanding performance across the evaluated criteria.',
+            $finalScore >= 80 => 'Excellent performance with minor areas for improvement.',
+            $finalScore >= 70 => 'Good performance meeting most expectations.',
+            $finalScore >= 60 => 'Needs further development in several areas.',
+            default => 'Performance needs significant improvement across evaluated criteria.',
+        };
+
         return view('daily-journal.score-sheet', [
             'journal' => $dailyJournal,
             'criteria' => $criteria,
@@ -463,6 +620,20 @@ class DailyJournalController extends Controller
             'blockers' => $blockers,
             'improvements' => $improvements,
             'canReview' => $user->isAdmin(),
+            'scoreSheetTasks' => $scoreSheetTasks,
+            'scoreSheetTasksTotal' => $scoreSheetTasks->sum(fn ($evaluation) => $evaluation->isIncludedInScoreSheet()
+                ? (float) $evaluation->score_sheet_weighted_points
+                : 0),
+            // New: transparent calculation data
+            'calculationCriteria' => $calculationCriteria,
+            'totalOriginalWeight' => $totalOriginalWeight,
+            'totalAvailableWeight' => $totalAvailableWeight,
+            'totalWeightedPoints' => $totalWeightedPoints,
+            'normalizedScore' => $normalizedScore,
+            'normalizationExplanation' => $normalizationExplanation,
+            'assessmentMethodLabel' => $assessmentMethodLabel,
+            'assessmentMethodDetail' => $assessmentMethodDetail,
+            'scoreMeaning' => $scoreMeaning,
         ]);
     }
 

@@ -72,8 +72,8 @@ class KaizenEmployeeSuggestionTest extends TestCase
                 ->get(route('admin.kaizen-concerns.submit'))
                 ->assertOk()
                 ->assertSee('Submit Improvement')
-                ->assertSee('Challenge / Opportunity for Improvement')
-                ->assertSee('Recommended Solution');
+                ->assertSee('Challenge / Current Situation')
+                ->assertSee('Proposed Improvement / Recommended Solution');
         }
     }
 
@@ -134,7 +134,7 @@ class KaizenEmployeeSuggestionTest extends TestCase
         // The submit screen shows the authenticated employee, with no field to
         // type a name into.
         $screen = $this->actingAs($staff)->get(route('admin.kaizen-concerns.submit'))->assertOk();
-        $screen->assertSee('Employee Suggestion');
+        $screen->assertSee('Employee Improvement Board');
         $screen->assertSee('Angeli Gabaut');
         $screen->assertDontSee('name="created_by"', false);
         $screen->assertDontSee('name="submitter"', false);
@@ -187,6 +187,144 @@ class KaizenEmployeeSuggestionTest extends TestCase
         ])->assertSessionHasErrors(['challenge', 'recommended_solution']);
 
         $this->assertSame(0, KaizenConcern::query()->count());
+    }
+
+    public function test_a_successful_submission_is_confirmed_and_redirects_to_the_suggestion(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+
+        $response = $this->actingAs($staff)->post(route('admin.kaizen-concerns.submit.store'), [
+            'date_identified' => '2026-10-05',
+            'challenge' => 'Filing cabinet has no labels',
+            'recommended_solution' => 'Label every drawer.',
+        ]);
+
+        $suggestion = KaizenConcern::query()->latest('id')->firstOrFail();
+
+        $response
+            ->assertRedirect(route('admin.kaizen-concerns.show', $suggestion))
+            ->assertSessionHas('status', 'Thank you! Your improvement suggestion has been submitted.');
+    }
+
+    public function test_the_same_suggestion_cannot_be_submitted_twice_in_a_row(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+
+        $payload = [
+            'date_identified' => '2026-10-05',
+            'challenge' => 'Repeated suggestion',
+            'recommended_solution' => 'Do it the same way.',
+        ];
+
+        $this->actingAs($staff)->post(route('admin.kaizen-concerns.submit.store'), $payload)->assertRedirect();
+        $this->actingAs($staff)
+            ->from(route('admin.kaizen-concerns.submit'))
+            ->post(route('admin.kaizen-concerns.submit.store'), $payload)
+            ->assertRedirect(route('admin.kaizen-concerns.submit'))
+            ->assertSessionHasErrors('challenge');
+
+        $this->assertSame(1, KaizenConcern::query()->count());
+    }
+
+    /* ---------------------------------------------------------------
+     | 1b. Employee board access + assignment
+     * -------------------------------------------------------------- */
+
+    public function test_every_operational_role_can_open_the_improvement_board_but_clients_cannot(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->concern($admin);
+
+        foreach ([User::ROLE_STAFF, User::ROLE_SUPERVISOR, User::ROLE_ADMIN] as $role) {
+            $this->actingAs($this->user($role))
+                ->get(route('admin.kaizen-concerns.index'))
+                ->assertOk()
+                ->assertSee('Employee Improvement Board');
+        }
+
+        $this->actingAs($this->user(User::ROLE_CLIENT))
+            ->get(route('admin.kaizen-concerns.index'))
+            ->assertForbidden();
+    }
+
+    public function test_the_suggestion_assignment_dropdown_lists_every_operational_role(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin Assigner');
+        $staff = $this->user(User::ROLE_STAFF, 'Staff Assignee');
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor Assignee');
+        $client = $this->user(User::ROLE_CLIENT, 'Client Outsider');
+        $creator = $this->user(User::ROLE_STAFF, 'Idea Submitter');
+
+        $this->concern($creator);
+
+        $content = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.index'))
+            ->assertOk()
+            ->getContent();
+
+        foreach ([$staff->name, $supervisor->name, $admin->name] as $name) {
+            $this->assertStringContainsString(
+                $name,
+                $content,
+                "The assignment dropdown must offer the operational employee {$name}."
+            );
+        }
+
+        $this->assertStringNotContainsString($client->name, $content, 'Clients must never be assignable.');
+    }
+
+    public function test_an_admin_can_assign_change_and_clear_a_suggestion_assignment(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'First Owner');
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Second Owner');
+        $concern = $this->concern($admin);
+
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.assign-staff', $concern), ['assigned_staff_id' => $staff->id])
+            ->assertRedirect();
+
+        $this->assertSame($staff->id, $concern->fresh()->assigned_staff_id);
+
+        // Change it to a supervisor.
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.assign-staff', $concern), ['assigned_staff_id' => $supervisor->id])
+            ->assertRedirect();
+
+        $this->assertSame($supervisor->id, $concern->fresh()->assigned_staff_id);
+
+        // Clear it again.
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.assign-staff', $concern), ['assigned_staff_id' => ''])
+            ->assertRedirect();
+
+        $this->assertNull($concern->fresh()->assigned_staff_id);
+    }
+
+    public function test_a_staff_member_cannot_assign_a_suggestion(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $other = $this->user(User::ROLE_STAFF);
+        $concern = $this->concern($this->user(User::ROLE_ADMIN));
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.assign-staff', $concern), ['assigned_staff_id' => $other->id])
+            ->assertForbidden();
+
+        $this->assertNull($concern->fresh()->assigned_staff_id);
+    }
+
+    public function test_a_supervisor_can_assign_an_employee_they_can_see(): void
+    {
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $staff = $this->user(User::ROLE_STAFF, 'Supervised Staff');
+        $concern = $this->concern($supervisor);
+
+        $this->actingAs($supervisor)
+            ->post(route('admin.kaizen-concerns.assign-staff', $concern), ['assigned_staff_id' => $staff->id])
+            ->assertRedirect();
+
+        $this->assertSame($staff->id, $concern->fresh()->assigned_staff_id);
     }
 
     /* ---------------------------------------------------------------
@@ -274,8 +412,27 @@ class KaizenEmployeeSuggestionTest extends TestCase
         }
 
         // Each row shows who submitted it, next to the suggestion itself.
-        $this->assertStringContainsString('Submitted by', $content);
+        $this->assertStringContainsString('Submitted By', $content);
         $this->assertStringContainsString($admin->name, $content);
+    }
+
+    public function test_the_view_modal_cleans_up_its_overlay_when_the_page_is_left(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->concern($admin, KaizenConcern::STATUS_PENDING);
+
+        $content = $this->actingAs($admin)->get(route('admin.kaizen-concerns.index'))->assertOk()->getContent();
+
+        // The overlay is a Bootstrap modal, so it must be managed through a
+        // single reusable instance rather than a fresh instance per click.
+        $this->assertStringContainsString('bootstrap.Modal.getOrCreateInstance', $content);
+
+        // Leaving the page while the modal is open (Edit/Update or Back/Forward)
+        // must not restore the stale backdrop and body scroll lock from bfcache.
+        $this->assertStringContainsString('removeModalArtifacts', $content);
+        $this->assertStringContainsString("window.addEventListener('pageshow'", $content);
+        $this->assertStringContainsString('modal-backdrop', $content);
+        $this->assertStringContainsString("classList.remove('modal-open')", $content);
     }
 
     /**
@@ -328,32 +485,30 @@ class KaizenEmployeeSuggestionTest extends TestCase
         $response = $this->actingAs($staff)->get(route('admin.kaizen-concerns.submit'))->assertOk();
 
         // Section 1 - the employee's actual input.
-        $response->assertSee('Improvement Idea')
-            ->assertSee('Challenge / Opportunity for Improvement')
-            ->assertSee('Recommended Solution');
+        $response->assertSee('Improvement Suggestion')
+            ->assertSee('Challenge / Current Situation')
+            ->assertSee('Proposed Improvement / Recommended Solution');
 
-        // Section 2 - planning, owned by the review team.
-        $response->assertSee('Planning')
-            ->assertSee('Assigned Staff');
+        // Section 2 - review and planning, completed by an Admin or Supervisor.
+        $response->assertSee('Review and Planning')
+            ->assertSee('Pending review')
+            ->assertSee('Assigned Employee');
 
         // Section 3 - implementation and evidence, closed while pending.
-        $response->assertSee('Implementation &amp; Evidence', false)
+        $response->assertSee('Implementation and Evidence')
             ->assertSee('Implementation Date')
             ->assertSee('Implementation Evidence');
 
-        // Wide enough for the three sections to breathe.
-        $response->assertSee('kaizen-submit-card', false);
-        $this->assertMatchesRegularExpression(
-            '/\.kaizen-submit-card\s*\{[^}]*max-width/',
-            file_get_contents(public_path('css/app.css')),
-            'The submit form must be given a wider max-width than the default narrow form.'
-        );
+        // The form is a full-width card, not the default narrow form.
+        $content = $response->getContent();
+        $this->assertStringContainsString('ks-form-card', $content);
+        $this->assertStringContainsString('.ks-form-card {', $content);
 
         // Sections 2 and 3 are visibly secondary while the idea is Pending.
         $this->assertSame(
             2,
-            substr_count($response->getContent(), 'kaizen-section-secondary'),
-            'Planning and Implementation sections must read as secondary.'
+            substr_count($content, 'ks-section-review'),
+            'Review and Implementation sections must read as secondary.'
         );
     }
 
@@ -367,10 +522,12 @@ class KaizenEmployeeSuggestionTest extends TestCase
             $this->assertStringNotContainsString($input, $content, "Employees must not post {$input}.");
         }
 
-        // The planning fields are shown read-only so the flow is still clear.
+        // The review/implementation fields are informational only, so the flow
+        // is still clear without giving the employee control over them.
         $this->assertStringContainsString('Pending', $content);
-        $this->assertStringContainsString('Not assigned yet', $content);
-        $this->assertStringContainsString('readonly disabled', $content);
+        $this->assertStringContainsString('Assigned by an Admin or Supervisor after review', $content);
+        $this->assertStringContainsString('Only authorized staff can mark it Implemented', $content);
+        $this->assertStringNotContainsString('Completed by the review team', $content);
     }
 
     /* ---------------------------------------------------------------
@@ -938,7 +1095,7 @@ class KaizenEmployeeSuggestionTest extends TestCase
             'challenge' => $challenge,
             'recommended_solution' => 'Replace the broken fan in the staff room.',
             'status' => KaizenConcern::STATUS_IN_PROGRESS,
-        ])->assertRedirect(route('admin.kaizen-concerns.index'));
+        ])->assertRedirect(route('admin.kaizen-concerns.admin-concerns.index'));
 
         return KaizenConcern::query()->latest('id')->firstOrFail();
     }
@@ -1258,7 +1415,7 @@ class KaizenEmployeeSuggestionTest extends TestCase
                 ->getContent()
         );
 
-        foreach (['Admin Concern', 'Submitted By', 'Assigned To', 'Status', 'Target Date', 'Implementation', 'Evidence', 'Actions'] as $heading) {
+        foreach (['Admin Concern', 'Submitted By', 'Assigned To', 'Status', 'Target Date', 'Resolution', 'Evidence', 'Actions'] as $heading) {
             $this->assertStringContainsString('>'.$heading.'<', $table, "The Admin Concerns board must keep the \"{$heading}\" column.");
         }
     }
@@ -1292,16 +1449,42 @@ class KaizenEmployeeSuggestionTest extends TestCase
         $this->assertStringContainsString('No evidence', $row);
         $this->assertStringNotContainsString('Unassigned', $row);
 
-        // The existing implementation workflow still applies to an Admin Concern.
-        $this->actingAs($admin)->post(route('admin.kaizen-concerns.implement', $concern))->assertRedirect();
+        // Admin Concerns are resolved, not implemented. A staff member or admin
+        // records progress, then an admin resolves it with resolution notes.
+        $this->actingAs($staff)->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+            'actions_taken' => 'Checked the folder structure and confirmed the issue.',
+            'current_situation' => 'Files are now grouped by client.',
+            'remaining_issues' => 'Older subfolders still need relabeling.',
+        ])->assertRedirect();
 
         $concern = $concern->fresh();
-        $this->assertSame(KaizenConcern::STATUS_IMPLEMENTED, $concern->status);
+        $this->assertSame(KaizenConcern::STATUS_IN_PROGRESS, $concern->status);
+        $this->assertDatabaseHas('kaizen_concern_progress_updates', [
+            'kaizen_concern_id' => $concern->id,
+            'actions_taken' => 'Checked the folder structure and confirmed the issue.',
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.resolve', $concern), [
+            'resolution_notes' => 'The filing structure has been rebuilt and verified.',
+        ])->assertRedirect();
+
+        $concern = $concern->fresh();
+        $this->assertSame(KaizenConcern::STATUS_RESOLVED, $concern->status);
+        $this->assertNotNull($concern->resolved_at);
+        $this->assertSame($admin->id, $concern->resolved_by);
+        $this->assertSame('The filing structure has been rebuilt and verified.', $concern->resolution_notes);
         $this->assertSame(now()->format('Y-m-d'), $concern->implementation_date?->format('Y-m-d'));
 
-        $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
-            ->assertOk()
-            ->assertSee('kaizen-row-implemented', false);
+        $row = $this->boardRow(
+            $this->actingAs($admin)->get(route('admin.kaizen-concerns.admin-concerns.index'))
+                ->assertOk()
+                ->getContent(),
+            'Reconcile the client receipts folder'
+        );
+
+        $this->assertStringContainsString('Resolved on:', $row);
+        $this->assertStringContainsString($staff->name, $row);
+        $this->assertStringContainsString('kaizen-row-implemented', $row);
     }
 
     public function test_admin_concerns_are_never_counted_on_the_improvement_suggestions_board(): void
@@ -1636,7 +1819,7 @@ class KaizenEmployeeSuggestionTest extends TestCase
             'challenge' => 'Modal raised: the scanner is offline',
             'recommended_solution' => 'Replace the cable and re-pair.',
             'status' => KaizenConcern::STATUS_PENDING,
-        ])->assertRedirect(route('admin.kaizen-concerns.index'));
+        ])->assertRedirect(route('admin.kaizen-concerns.admin-concerns.index'));
 
         $concern = KaizenConcern::query()->latest('id')->firstOrFail();
 
@@ -1722,5 +1905,290 @@ class KaizenEmployeeSuggestionTest extends TestCase
         $this->actingAs($staff)->get(route('admin.kaizen-concerns.index'))
             ->assertOk()
             ->assertSee('Staff raised: the kettle leaks');
+    }
+
+    /* ---------------------------------------------------------------
+     | 11. Returning to the board from the standalone details page
+     | -------------------------------------------------------------- */
+
+    public function test_the_board_links_to_the_details_page_with_its_own_url(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $this->concern($admin);
+
+        $board = route('admin.kaizen-concerns.index', ['status' => KaizenConcern::STATUS_PENDING]);
+
+        $this->actingAs($admin)
+            ->get($board)
+            ->assertOk()
+            ->assertSee('back='.urlencode($board), false);
+    }
+
+    public function test_the_details_page_returns_to_the_filtered_board(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $board = route('admin.kaizen-concerns.index', ['status' => KaizenConcern::STATUS_PENDING]);
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $board]))
+            ->assertOk()
+            ->assertSee('Back to Employee Improvement Board')
+            ->getContent();
+
+        $this->assertSame($board, $this->backHref($html));
+    }
+
+    public function test_the_details_page_ignores_an_unsafe_return_target(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $fallback = route('admin.kaizen-concerns.index');
+
+        foreach ([
+            'https://evil.example/admin/kaizen-concerns',
+            route('admin.kaizen-concerns.show', $concern),
+            '/admin/kaizen-concerns/'.$concern->id,
+            '/admin/users',
+            'javascript:alert(1)',
+        ] as $back) {
+            $html = $this->actingAs($admin)
+                ->get(route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $back]))
+                ->assertOk()
+                ->getContent();
+
+            $this->assertSame($fallback, $this->backHref($html), "Unsafe back target was accepted: {$back}");
+        }
+    }
+
+    public function test_the_admin_concerns_board_returns_to_its_own_url(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, null, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $board = route('admin.kaizen-concerns.admin-concerns.index', ['status' => KaizenConcern::STATUS_PENDING]);
+
+        $this->actingAs($admin)
+            ->get($board)
+            ->assertOk()
+            ->assertSee('back='.urlencode($board), false);
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $board]))
+            ->assertOk()
+            ->assertSee('Back to Admin Concerns Board')
+            ->getContent();
+
+        $this->assertSame($board, $this->backHref($html));
+    }
+
+    public function test_the_edit_screen_keeps_the_board_return_target(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $board = route('admin.kaizen-concerns.index', ['status' => KaizenConcern::STATUS_PENDING]);
+        $show = route('admin.kaizen-concerns.show', ['concern' => $concern, 'back' => $board]);
+
+        $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.edit', ['concern' => $concern, 'back' => $board]))
+            ->assertOk()
+            ->assertSee('href="'.$show.'"', false);
+    }
+
+    private function backHref(string $html): string
+    {
+        preg_match('/<div class="kaizen-detail-backbar">.*?<a href="([^"]+)"/s', $html, $matches);
+
+        $this->assertArrayHasKey(1, $matches, 'The details page did not render its back link.');
+
+        return html_entity_decode($matches[1]);
+    }
+
+    /* ---------------------------------------------------------------
+     | 2. Admin Concern redesign: progress updates, resolve, close
+     * -------------------------------------------------------------- */
+
+    public function test_admin_concern_detail_shows_new_sections_and_no_checklist(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $html = $this->actingAs($admin)
+            ->get(route('admin.kaizen-concerns.show', $concern))
+            ->assertOk()
+            ->getContent();
+
+        $this->assertStringContainsString('Concern Overview', $html);
+        $this->assertStringContainsString('Challenge / Opportunity', $html);
+        $this->assertStringContainsString('Suggested Resolution', $html);
+        $this->assertStringContainsString('Progress Updates', $html);
+        $this->assertStringContainsString('Supporting Evidence', $html);
+        $this->assertStringContainsString('Resolution Details', $html);
+
+        // Admin Concerns do not use the implementation checklist.
+        $this->assertStringNotContainsString('Implementation Progress', $html);
+        $this->assertStringNotContainsString('Add Item', $html);
+        $this->assertStringNotContainsString('checklist.add', $html);
+        $this->assertStringNotContainsString('checklist.destroy', $html);
+        $this->assertStringNotContainsString('Mark as Implemented', $html);
+    }
+
+    public function test_assigned_staff_can_submit_progress_update_and_concern_moves_to_in_progress(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+                'actions_taken' => 'Reviewed the folder structure.',
+                'current_situation' => 'Files are now grouped by client.',
+                'remaining_issues' => 'Older subfolders still need relabeling.',
+            ])
+            ->assertRedirect();
+
+        $concern = $concern->fresh();
+        $this->assertSame(KaizenConcern::STATUS_IN_PROGRESS, $concern->status);
+        $this->assertDatabaseHas('kaizen_concern_progress_updates', [
+            'kaizen_concern_id' => $concern->id,
+            'submitted_by' => $staff->id,
+            'actions_taken' => 'Reviewed the folder structure.',
+            'current_situation' => 'Files are now grouped by client.',
+            'remaining_issues' => 'Older subfolders still need relabeling.',
+        ]);
+    }
+
+    public function test_non_assigned_staff_cannot_submit_progress_update(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+        $other = $this->user(User::ROLE_STAFF, 'Other');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($other)
+            ->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+                'actions_taken' => 'Did something.',
+                'current_situation' => 'Situation.',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_mark_concern_resolved_and_staff_cannot(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_IN_PROGRESS, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        // Staff cannot resolve.
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.resolve', $concern), [
+                'resolution_notes' => 'All done.',
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.resolve', $concern), [
+                'resolution_notes' => 'The issue has been fully resolved.',
+            ])
+            ->assertRedirect();
+
+        $concern = $concern->fresh();
+        $this->assertSame(KaizenConcern::STATUS_RESOLVED, $concern->status);
+        $this->assertNotNull($concern->resolved_at);
+        $this->assertSame($admin->id, $concern->resolved_by);
+        $this->assertSame('The issue has been fully resolved.', $concern->resolution_notes);
+        $this->assertNotNull($concern->implementation_date);
+    }
+
+    public function test_resolution_notes_are_required_when_resolving(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin, KaizenConcern::STATUS_IN_PROGRESS, null, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.resolve', $concern), [])
+            ->assertSessionHasErrors('resolution_notes');
+    }
+
+    public function test_admin_can_close_concern_and_closed_concern_rejects_progress_updates(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_IN_PROGRESS, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($admin)
+            ->post(route('admin.kaizen-concerns.close', $concern), [
+                'resolution_notes' => 'No further action needed; concern closed.',
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(KaizenConcern::STATUS_CLOSED, $concern->fresh()->status);
+        $this->assertSame('No further action needed; concern closed.', $concern->fresh()->resolution_notes);
+        $this->assertNotNull($concern->fresh()->resolved_at);
+        $this->assertSame($admin->id, $concern->fresh()->resolved_by);
+
+        // Closed concerns stop accepting progress updates.
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+                'actions_taken' => 'More work.',
+                'current_situation' => 'Still here.',
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_progress_update_evidence_is_optional(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+                'actions_taken' => 'Reviewed the folder structure.',
+                'current_situation' => 'Files are now grouped by client.',
+            ])
+            ->assertRedirect();
+
+        $update = $concern->fresh()->progressUpdates()->first();
+        $this->assertNotNull($update);
+        $this->assertCount(0, $update->evidences);
+    }
+
+    public function test_progress_update_with_optional_evidence_is_stored(): void
+    {
+        Storage::fake('local');
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF, 'Angeli');
+
+        $concern = $this->concern($admin, KaizenConcern::STATUS_PENDING, $staff, KaizenConcern::TYPE_ADMIN_CONCERN);
+
+        $this->actingAs($staff)
+            ->post(route('admin.kaizen-concerns.progress-updates.store', $concern), [
+                'actions_taken' => 'Reviewed the folder structure.',
+                'current_situation' => 'Files are now grouped by client.',
+                'evidence' => UploadedFile::fake()->image('proof.jpg'),
+            ])
+            ->assertRedirect();
+
+        $update = $concern->fresh()->progressUpdates()->first();
+        $this->assertCount(1, $update->evidences);
+        $this->assertDatabaseHas('kaizen_evidences', [
+            'progress_update_id' => $update->id,
+            'kaizen_concern_id' => $concern->id,
+            'original_name' => 'proof.jpg',
+        ]);
     }
 }

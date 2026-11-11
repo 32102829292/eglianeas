@@ -4858,3 +4858,170 @@ html.egliane-page-loader-active .egliane-page-loader__widget {
 @media (max-width: 420px) {
   .stat-grid.priority-summary { grid-template-columns: 1fr; }
 }
+
+/* ------------------------------------------------------------------
+   Score Sheet integration badges (Kaizen Strategy / Admin Concerns)
+   "ADDED TO SCORE SHEET" must only appear after the backend has
+   confirmed the evaluation is linked to the staff member's period.
+   ------------------------------------------------------------------ */
+.badge-score-added {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+.badge-score-pending {
+  background: #fef9c3;
+  color: #854d0e;
+  border: 1px solid #fde047;
+}
+.badge-score-review {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+.badge-score-not-added {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+.badge-score-revised {
+  background: #ede9fe;
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+}
+.badge-score-reversed {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.badge-score-ai-generated {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+.badge-score-finalized {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.pri-eval-score-sheet {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.pri-eval-score-sheet-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.pri-eval-score-sheet-period {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+.pri-eval-score-sheet-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #334155;
+}
+.pri-eval-reverse-form {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px dashed #e2e8f0;
+}
+.pri-eval-reverse-controls {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.pri-eval-reverse-controls .form-control {
+  flex: 1;
+}
+
+.eas-score-task-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.eas-score-task-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  font-size: 13px;
+  color: #64748b;
+}
+.eas-score-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.eas-score-task {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+.eas-score-task-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.eas-score-task-title {
+  font-weight: 600;
+  color: #0f172a;
+  text-decoration: none;
+}
+a.eas-score-task-title:hover {
+  text-decoration: underline;
+}
+.eas-score-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+.eas-score-task-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #991b1b;
+}
+.eas-score-task-score {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.eas-score-task-score-value {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.eas-score-task-score-label {
+  font-size: 11px;
+  color: #64748b;
+}
+@media (max-width: 640px) {
+  .eas-score-task {
+    flex-direction: column;
+  }
+  .eas-score-task-score {
+    text-align: left;
+  }
+  .pri-eval-reverse-controls {
+    flex-direction: column;
+  }
+}

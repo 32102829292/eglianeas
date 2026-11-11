@@ -16,7 +16,7 @@
             @include('admin.kaizen-concerns.partials.create-fields')
             <div class="btn-row">
                 <button type="submit" class="btn btn-primary">Create Concern</button>
-                <a href="{{ route('admin.kaizen-concerns.index') }}" class="btn btn-outline">Cancel</a>
+                <a href="{{ route('admin.kaizen-concerns.admin-concerns.index') }}" class="btn btn-outline">Cancel</a>
             </div>
         </form>
     </div>

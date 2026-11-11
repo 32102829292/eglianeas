@@ -119,14 +119,14 @@ class KaizenPriorityPageTest extends TestCase
         $this->assertSelectedOption($response->getContent(), 'status', KaizenConcern::STATUS_PENDING);
     }
 
-    public function test_kaizen_create_renders_every_status_option(): void
+    public function test_kaizen_create_renders_every_admin_concern_status_option(): void
     {
         $admin = $this->user(User::ROLE_ADMIN);
 
         $response = $this->actingAs($admin)->get(route('admin.kaizen-concerns.create'));
         $response->assertOk();
 
-        foreach (array_keys(KaizenConcern::STATUSES) as $value) {
+        foreach (array_keys(KaizenConcern::ADMIN_CONCERN_STATUSES) as $value) {
             $response->assertSee('value="'.$value.'"', false);
         }
     }

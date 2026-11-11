@@ -125,12 +125,14 @@
 
     <div class="dash-nav-head">Kaizen & Priorities</div>
     {{-- Excludes the admin-concerns subtree so exactly one of these two links is
-         highlighted on either page (the helper is a startsWith test). --}}
-    <a href="{{ route('admin.kaizen-concerns.index') }}" class="{{ ($active('admin.kaizen-concerns') && ! $active('admin.kaizen-concerns.admin')) ? 'active' : '' }}">
+         highlighted on either page (the helper is a startsWith test).
+         When viewing an Admin Concern detail page, highlight Admin Concerns. --}}
+    <?php $isViewingAdminConcern = isset($concern) && $concern->isAdminConcern(); ?>
+    <a href="{{ route('admin.kaizen-concerns.index') }}" class="{{ ($active('admin.kaizen-concerns') && ! $active('admin.kaizen-concerns.admin-concerns') && ! $isViewingAdminConcern) ? 'active' : '' }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
         Kaizen Strategy
     </a>
-    <a href="{{ route('admin.kaizen-concerns.admin-concerns.index') }}" class="{{ $active('admin.kaizen-concerns.admin-concerns') }}">
+    <a href="{{ route('admin.kaizen-concerns.admin-concerns.index') }}" class="{{ $active('admin.kaizen-concerns.admin-concerns') || $isViewingAdminConcern ? 'active' : '' }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         Admin Concerns
     </a>

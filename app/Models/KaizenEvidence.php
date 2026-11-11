@@ -15,6 +15,7 @@ class KaizenEvidence extends Model
 
     protected $fillable = [
         "kaizen_concern_id",
+        "progress_update_id",
         "uploaded_by",
         "original_name",
         "path",
@@ -30,6 +31,11 @@ class KaizenEvidence extends Model
     public function uploader(): BelongsTo
     {
         return $this->belongsTo(User::class, "uploaded_by");
+    }
+
+    public function progressUpdate(): BelongsTo
+    {
+        return $this->belongsTo(KaizenConcernProgressUpdate::class, "progress_update_id");
     }
 
     public function existsOnDisk(): bool

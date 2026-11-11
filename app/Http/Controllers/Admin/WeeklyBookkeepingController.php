@@ -1749,9 +1749,13 @@ $targetDate = match ($taskType) {
         $this->authorizeManageTarget($target);
 
         abort_unless($target->attachment_path, 404);
-        abort_unless(Storage::disk($this->evidenceDisk())->exists($target->attachment_path), 404);
 
-        return Storage::disk($this->evidenceDisk())->download($target->attachment_path, $target->attachment_name);
+        try {
+            return Storage::disk($this->evidenceDisk())->download($target->attachment_path, $target->attachment_name);
+        } catch (\Throwable $e) {
+            report($e);
+            abort(404, 'Evidence file could not be retrieved.');
+        }
     }
 
     public function viewAttachment(WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse|StreamedResponse
@@ -1762,21 +1766,32 @@ $targetDate = match ($taskType) {
 
         $disk = Storage::disk($this->evidenceDisk());
 
-        abort_unless($disk->exists($target->attachment_path), 404);
+        // Try a temporary (presigned) URL for remote disks so the browser
+        // fetches directly from the storage provider. If that is unsupported or
+        // fails, fall back to streaming the file through Laravel.
+        if (config("filesystems.disks.{$this->evidenceDisk()}.driver") !== 'local') {
+            try {
+                $temporaryUrl = $disk->temporaryUrl($target->attachment_path, now()->addMinutes(30));
 
-        if (config("filesystems.disks.{$this->evidenceDisk()}.driver") === 'local') {
+                return redirect($temporaryUrl)->withHeaders([
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                    'Pragma' => 'no-cache',
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+                // Fall through to stream through Laravel below.
+            }
+        }
+
+        try {
             return $disk->response($target->attachment_path, $target->attachment_name, [
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
                 'Pragma' => 'no-cache',
             ]);
+        } catch (\Throwable $e) {
+            report($e);
+            abort(404, 'Evidence file could not be retrieved.');
         }
-
-        $temporaryUrl = $disk->temporaryUrl($target->attachment_path, now()->addMinutes(30));
-
-        return redirect($temporaryUrl)->withHeaders([
-            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
-        ]);
     }
 
     public function destroyTarget(WeeklyBookkeeping $bookkeeping, WeeklyBookkeepingTarget $target): RedirectResponse
@@ -1936,12 +1951,8 @@ $targetDate = match ($taskType) {
             $path = $file->store("weekly-bookkeeping/{$taskType}", $this->evidenceDisk());
         } catch (\Throwable $e) {
             report($e);
-            $path = false;
-        }
-
-        if ($path === false) {
             throw ValidationException::withMessages([
-                'attachment' => 'Evidence could not be uploaded. Please try again.',
+                'attachment' => 'Evidence upload failed: '.$e->getMessage(),
             ]);
         }
 

@@ -30,6 +30,75 @@ class AchievementAnalysisService
         return 'Needs Further Development';
     }
 
+    /**
+     * Assess an Admin Concern using the existing AI/rule-based assessment engine.
+     *
+     * Builds assessment data from the concern, its progress updates, and
+     * attached evidence, then runs AI analysis (with rule-based fallback).
+     *
+     * @return array{score:int, category:string, explanation:string, tags:array<int, string>, source:string, context_data:array}
+     */
+    public function assessAdminConcern(
+        \App\Models\KaizenConcern $concern,
+        bool $force = false
+    ): array {
+        $progressUpdates = $concern->progressUpdates
+            ->map(fn ($u) => [
+                'actions_taken' => $u->actions_taken,
+                'current_situation' => $u->current_situation,
+                'remaining_issues' => $u->remaining_issues,
+                'created_at' => $u->created_at?->toDateTimeString(),
+            ])
+            ->values()
+            ->all();
+
+        $evidenceCount = $concern->evidences->count();
+
+        $data = [
+            'challenge' => $concern->challenge,
+            'solution' => $concern->recommended_solution,
+            'target_date' => $concern->target_date?->toDateString(),
+            'date_identified' => $concern->date_identified?->toDateString(),
+            'resolved_at' => $concern->resolved_at?->toDateTimeString(),
+            'status' => $concern->effectiveStatus(),
+            'progress_updates' => $progressUpdates,
+            'evidence_files' => $evidenceCount,
+            'context_type' => 'admin_concern',
+        ];
+
+        $hash = hash('sha256', json_encode($data, JSON_UNESCAPED_UNICODE));
+
+        $aiConfigured = $this->ai->isConfigured();
+        $result = null;
+
+        try {
+            $result = $this->ai->analyzeArray($data);
+        } catch (\Throwable $exception) {
+            \Illuminate\Support\Facades\Log::warning('Admin Concern AI assessment failed; using rule-based fallback.', [
+                'kaizen_concern_id' => $concern->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+
+        if ($result === null) {
+            $result = $this->rules->analyzeArray($data);
+
+            if ($aiConfigured) {
+                $result['explanation'] = 'Rule-based assessment (AI unavailable or invalid response): '
+                    .$result['explanation'];
+            }
+        }
+
+        $score = max(0, min(100, (int) ($result['score'] ?? 0)));
+
+        $result['score'] = $score;
+        $result['context_data'] = $data;
+        $result['assessment_hash'] = $hash;
+        $result['assessed_at'] = now();
+
+        return $result;
+    }
+
     public function analyze(DailyJournal $journal, bool $force = false): DailyJournal
     {
         // Automatic analysis must never silently replace a reviewer's manual

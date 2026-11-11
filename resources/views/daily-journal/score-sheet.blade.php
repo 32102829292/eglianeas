@@ -242,11 +242,12 @@
     <div class="eas-score-card-head">
         <div>
             <h2 id="eas-score-why-title">Why did I receive this score?</h2>
-            <p class="eas-score-card-sub">A plain-language summary of your performance across all criteria.</p>
+            <p class="eas-score-card-sub">A plain-language breakdown of how your final score was calculated.</p>
         </div>
     </div>
 
     <div class="eas-score-why-body">
+
         @if ($finalScore === null)
         <div class="eas-score-why-empty">
             <svg class="eas-score-why-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -256,99 +257,359 @@
             </div>
         </div>
         @else
-        <!-- Positive Contributions -->
-        <div class="eas-score-why-section">
+
+        <!-- A. Your Overall Score -->
+        <div class="eas-score-why-section eas-score-why-section--overall">
             <div class="eas-score-why-section-header">
                 <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <h3 class="eas-score-why-subhead">Positive contributions</h3>
+                <h3 class="eas-score-why-subhead">A. Your Overall Score</h3>
+            </div>
+            <div class="eas-score-why-overall-grid">
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Final score</span>
+                    <span class="eas-score-why-metric-value">{{ number_format((float) $finalScore, 1) }} / 100</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Classification</span>
+                    <span class="eas-score-why-metric-value">{{ $assessmentLevel ?? 'Not yet assessed' }}</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Assessment method</span>
+                    <span class="eas-score-why-metric-value">{{ $assessmentMethodLabel }}</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Assessed on</span>
+                    <span class="eas-score-why-metric-value">{{ $assessedAt?->format('F j, Y') ?? '—' }}</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Reporting period</span>
+                    <span class="eas-score-why-metric-value">{{ $journal->required_date?->format('F j, Y') }}</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Submitted on</span>
+                    <span class="eas-score-why-metric-value">{{ $submittedAt?->format('F j, Y') ?? '—' }}</span>
+                </div>
+            </div>
+            <p class="eas-score-why-summary-text">{{ $scoreMeaning }}</p>
+            <p class="eas-score-why-method-text">{{ $assessmentMethodDetail }}</p>
+        </div>
+
+        <!-- Score Composition Visualization -->
+        <div class="eas-score-why-section eas-score-why-section--composition">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
+                <h3 class="eas-score-why-subhead">Score Composition</h3>
+            </div>
+            <div class="eas-score-composition-grid">
+                @php
+                    $compCriteria = [
+                        ['key' => 'quality', 'name' => 'Accomplishment Quality', 'color' => '#2563eb'],
+                        ['key' => 'timeliness', 'name' => 'Timeliness', 'color' => '#7c3aed'],
+                        ['key' => 'responsiveness', 'name' => 'Immediate Responsiveness', 'color' => '#059669'],
+                        ['key' => 'client_feedback', 'name' => 'Client Feedback', 'color' => '#0891b2'],
+                    ];
+                    $compWeights = [
+                        'quality' => (float) config('achievements.scoring_weights.quality', 50),
+                        'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
+                        'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
+                        'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+                    ];
+                @endphp
+                @foreach ($compCriteria as $criterion)
+                    @php
+                        $key = $criterion['key'];
+                        $score = $criteria[$key] ?? null;
+                        $meta = $criteria[$key.'_meta'] ?? [];
+                        $weight = $compWeights[$key] ?? 0;
+                        $isEvaluated = $score !== null;
+                        $weightedPoints = $isEvaluated ? round((float) $score * $weight, 2) : null;
+                    @endphp
+                    <div class="eas-score-comp-card {{ $isEvaluated ? 'eas-score-comp-card--evaluated' : 'eas-score-comp-card--unevaluated' }}">
+                        <div class="eas-score-comp-header">
+                            <span class="eas-score-comp-name">{{ $criterion['name'] }}</span>
+                            <span class="eas-score-comp-weight">{{ number_format((float) $weight, 0) }}%</span>
+                        </div>
+                        <div class="eas-score-comp-bar">
+                            <div class="eas-score-comp-track"></div>
+                            @if ($isEvaluated)
+                                <div class="eas-score-comp-fill" style="width: {{ (float) $score }}%; background: {{ $criterion['color'] }};"></div>
+                            @else
+                                <div class="eas-score-comp-fill eas-score-comp-fill--empty"></div>
+                            @endif
+                        </div>
+                        <div class="eas-score-comp-values">
+                            <span class="eas-score-comp-score">
+                                @if ($isEvaluated)
+                                    {{ number_format((float) $score, 1) }} / 100
+                                @else
+                                    —
+                                @endif
+                            </span>
+                            <span class="eas-score-comp-contribution">
+                                @if ($isEvaluated)
+                                    {{ number_format((float) $weightedPoints, 2) }} pts
+                                @else
+                                    Excluded
+                                @endif
+                            </span>
+                        </div>
+                        <span class="eas-score-comp-status {{ $isEvaluated ? 'eas-score-comp-status--evaluated' : 'eas-score-comp-status--unevaluated' }}">
+                            @if ($isEvaluated)
+                                Evaluated
+                            @else
+                                No data
+                            @endif
+                        </span>
+                    </div>
+                @endforeach
+            </div>
+            <p class="eas-score-comp-note">
+                Bars show the criterion score out of 100. Weighted points = score × weight. Criteria with no data are excluded and do not contribute to the final score.
+            </p>
+        </div>
+
+        <!-- B. How Your Score Was Calculated -->
+        <div class="eas-score-why-section eas-score-why-section--calculation">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/></svg>
+                <h3 class="eas-score-why-subhead">B. How Your Score Was Calculated</h3>
+            </div>
+
+            <table class="eas-score-calc-table">
+                <thead>
+                    <tr>
+                        <th>Criterion</th>
+                        <th class="text-end">Score</th>
+                        <th class="text-end">Weight</th>
+                        <th class="text-end">Weighted Points</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($calculationCriteria as $criterion)
+                    <tr class="{{ $criterion['status'] === 'Evaluated' ? 'eas-score-calc-row--evaluated' : 'eas-score-calc-row--unevaluated' }}">
+                        <td class="eas-score-calc-criterion">{{ $criterion['name'] }}</td>
+                        <td class="text-end">
+                            @if ($criterion['score'] !== null)
+                                {{ number_format((float) $criterion['score'], 1) }} / 100
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td class="text-end">{{ number_format((float) $criterion['weight'], 0) }}%</td>
+                        <td class="text-end">
+                            @if ($criterion['weighted_points'] !== null)
+                                {{ number_format((float) $criterion['weighted_points'], 2) }}
+                            @else
+                                <span class="text-muted">—</span>
+                            @endif
+                        </td>
+                        <td>
+                            <span class="eas-score-calc-status eas-score-calc-status--{{ $criterion['status'] === 'Evaluated' ? 'evaluated' : 'unevaluated' }}">
+                                {{ $criterion['status'] === 'Evaluated' ? 'Evaluated' : 'Not evaluated' }}
+                            </span>
+                        </td>
+                    </tr>
+                    @endforeach
+                    <tr class="eas-score-calc-row--total">
+                        <td>Total</td>
+                        <td class="text-end"></td>
+                        <td class="text-end">{{ number_format($totalOriginalWeight, 0) }}% original</td>
+                        <td class="text-end">{{ number_format($totalWeightedPoints, 2) }}</td>
+                        <td></td>
+                    </tr>
+                    @if ($totalAvailableWeight < $totalOriginalWeight)
+                    <tr class="eas-score-calc-row--available">
+                        <td>Available (after exclusions)</td>
+                        <td class="text-end"></td>
+                        <td class="text-end">{{ number_format($totalAvailableWeight, 0) }}%</td>
+                        <td class="text-end">{{ number_format($totalWeightedPoints, 2) }}</td>
+                        <td></td>
+                    </tr>
+                    @endif
+                    @if ($normalizedScore !== null)
+                    <tr class="eas-score-calc-row--final">
+                        <td>Final score (normalized)</td>
+                        <td class="text-end">{{ number_format($normalizedScore, 1) }} / 100</td>
+                        <td class="text-end">100%</td>
+                        <td class="text-end">{{ number_format($normalizedScore, 1) }}</td>
+                        <td></td>
+                    </tr>
+                    @endif
+                </tbody>
+            </table>
+
+            <div class="eas-score-calc-note">
+                <strong>How this works:</strong> Criteria with insufficient data are excluded (shown as "Not evaluated").
+                Their weight is removed from the total, and the remaining weights are used to calculate your score.
+                For example, if only Accomplishment Quality (50% weight) has data, your quality score becomes your final
+                score because it is the only criterion being measured.
+            </div>
+            @if ($normalizationExplanation)
+            <p class="eas-score-calc-detail">{{ $normalizationExplanation }}</p>
+            @endif
+        </div>
+
+        <!-- C. What You Did Well -->
+        <div class="eas-score-why-section eas-score-why-section--positive">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <h3 class="eas-score-why-subhead">C. What You Did Well</h3>
             </div>
             <ul class="eas-score-why-list">
                 @php
-                    $contribs = [];
+                    $positiveFindings = [];
+                    $qualityMeta = $criteria['quality_meta'] ?? [];
                     $tMeta = $criteria['timeliness_meta'] ?? [];
                     $rMeta = $criteria['responsiveness_meta'] ?? [];
-                    if ((int) ($tMeta['on_time'] ?? 0) > 0) { $contribs[] = (int) ($tMeta['on_time'] ?? 0) . ' task(s) completed on time'; }
-                    if ((int) ($tMeta['early'] ?? 0) > 0) { $contribs[] = (int) ($tMeta['early'] ?? 0) . ' task(s) completed early'; }
-                    if ((int) ($rMeta['prompt'] ?? 0) > 0) { $contribs[] = (int) ($rMeta['prompt'] ?? 0) . ' prompt response(s)'; }
-                    if ($evidenceCount > 0) { $contribs[] = $evidenceCount . ' evidence file(s) attached'; }
-                    if (empty($contribs)) { $contribs[] = 'No specific positive contributions identified'; }
+
+                    // Quality-based positive findings from actual data
+                    if ((int) ($qualityMeta['entries'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Accomplishment Quality assessed',
+                            'detail' => 'Based on ' . (int) $qualityMeta['entries'] . ' assessed daily accomplishment report(s) in this period.',
+                            'finding' => 'Your quality score of ' . number_format((float) ($criteria['quality'] ?? 0), 1) . ' / 100 was recorded from your submitted accomplishments.',
+                            'date' => $journal->required_date?->format('F j, Y'),
+                        ];
+                    }
+
+                    // Timeliness positive findings
+                    if ((int) ($tMeta['on_time'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'On-time task completion',
+                            'detail' => (int) ($tMeta['on_time'] ?? 0) . ' task(s) completed on or before the deadline.',
+                            'finding' => 'Completing tasks on time contributes positively to your timeliness score.',
+                        ];
+                    }
+                    if ((int) ($tMeta['early'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Early task completion',
+                            'detail' => (int) ($tMeta['early'] ?? 0) . ' task(s) completed before the deadline.',
+                            'finding' => 'Completing tasks early earns the maximum timeliness score.',
+                        ];
+                    }
+
+                    // Responsiveness positive findings
+                    if ((int) ($rMeta['prompt'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Prompt responses',
+                            'detail' => (int) ($rMeta['prompt'] ?? 0) . ' response(s) within 24 hours.',
+                            'finding' => 'Responding promptly contributes positively to your responsiveness score.',
+                        ];
+                    }
+
+                    if ($evidenceCount > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Supporting evidence attached',
+                            'detail' => $evidenceCount . ' evidence file(s) attached to your accomplishment reports.',
+                            'finding' => 'Evidence helps verify the work you completed.',
+                        ];
+                    }
+
+                    if (empty($positiveFindings)) {
+                        $positiveFindings[] = [
+                            'title' => 'No specific positive contributions identified',
+                            'detail' => 'The available assessment data does not contain specific positive findings for this period.',
+                            'finding' => 'This may be because few or no records were available for evaluation.',
+                        ];
+                    }
                 @endphp
-                @foreach ($contribs as $contrib)
-                    <li>
-                        <svg class="eas-score-why-list-icon eas-score-why-list-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span>{{ $contrib }}</span>
-                    </li>
+                @foreach ($positiveFindings as $finding)
+                <li class="eas-score-why-list-item--positive">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>{{ $finding['title'] }}</strong>
+                            @if (isset($finding['date']))
+                            <span class="eas-score-why-finding-date">{{ $finding['date'] }}</span>
+                            @endif
+                        </div>
+                        <p class="eas-score-why-finding-detail">{{ $finding['detail'] }}</p>
+                        @if (isset($finding['finding']))
+                        <p class="eas-score-why-finding-why">{{ $finding['finding'] }}</p>
+                        @endif
+                    </div>
+                </li>
                 @endforeach
             </ul>
         </div>
 
-        <!-- Deductions and Reasons -->
-        <div class="eas-score-why-section">
+        <!-- D. What Affected Your Score -->
+        <div class="eas-score-why-section eas-score-why-section--negative">
             <div class="eas-score-why-section-header">
                 <svg class="eas-score-why-section-icon eas-score-why-section-icon--negative" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <h3 class="eas-score-why-subhead">Deductions and reasons</h3>
+                <h3 class="eas-score-why-subhead">D. What Affected Your Score</h3>
             </div>
             <ul class="eas-score-why-list">
                 @foreach ($blockers as $blocker)
-                    <li>
-                        <svg class="eas-score-why-list-icon eas-score-why-list-icon--negative" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        <span>{{ $blocker }}</span>
-                    </li>
+                <li class="eas-score-why-list-item--negative">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>Assessment finding</strong>
+                        </div>
+                        <p class="eas-score-why-finding-detail">{{ $blocker }}</p>
+                    </div>
+                </li>
                 @endforeach
             </ul>
         </div>
 
-        <!-- Criteria Not Yet Evaluated -->
-        <div class="eas-score-why-section">
+        <!-- E. Criteria Not Yet Evaluated -->
+        <div class="eas-score-why-section eas-score-why-section--excluded">
             <div class="eas-score-why-section-header">
                 <svg class="eas-score-why-section-icon eas-score-why-section-icon--muted" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <h3 class="eas-score-why-subhead">Criteria not yet evaluated</h3>
+                <h3 class="eas-score-why-subhead">E. Criteria Not Yet Evaluated</h3>
             </div>
             <ul class="eas-score-why-list">
                 @php
-                    $notEvaluated = [];
-                    foreach ($criteriaList as $c) {
-                        $key = $c['key'];
-                        $score = $criteria[$key] ?? null;
-                        if ($score === null) {
-                            $notEvaluated[$key] = $criteria[$key . '_explanation'] ?? 'No data available.';
+                    $excludedCriteria = [];
+                    foreach ($calculationCriteria as $criterion) {
+                        if ($criterion['status'] !== 'Evaluated') {
+                            $excludedCriteria[] = $criterion;
                         }
                     }
                 @endphp
-                @if (count($notEvaluated) > 0)
-                    @foreach ($notEvaluated as $key => $reason)
-                    <li>
-                        <svg class="eas-score-why-list-icon eas-score-why-list-icon--muted" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                        <div>
-                            <strong>{{ ucfirst(str_replace('_', ' ', $key)) }}</strong>
-                            <span class="eas-score-why-reason">{{ $reason }}</span>
+                @if (count($excludedCriteria) > 0)
+                @foreach ($excludedCriteria as $criterion)
+                <li class="eas-score-why-list-item--excluded">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>{{ $criterion['name'] }}</strong>
+                            <span class="eas-score-why-finding-weight">{{ number_format((float) $criterion['weight'], 0) }}% weight excluded</span>
                         </div>
-                    </li>
-                    @endforeach
+                        <p class="eas-score-why-finding-detail">{{ $criterion['explanation'] }}</p>
+                        <p class="eas-score-why-finding-note">N/A means this criterion had no data to measure — it is not counted as zero.</p>
+                    </div>
+                </li>
+                @endforeach
                 @else
-                    <li>
-                        <svg class="eas-score-why-list-icon eas-score-why-list-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span>All criteria have been evaluated.</span>
-                    </li>
+                <li>
+                    <svg class="eas-score-why-list-icon eas-score-why-list-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>All criteria have been evaluated.</span>
+                </li>
                 @endif
             </ul>
         </div>
 
-        <!-- Areas for Improvement -->
-        <div class="eas-score-why-section">
+        <!-- F. How You Can Improve -->
+        <div class="eas-score-why-section eas-score-why-section--improvement">
             <div class="eas-score-why-section-header">
                 <svg class="eas-score-why-section-icon eas-score-why-section-icon--warning" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                <h3 class="eas-score-why-subhead">Areas for improvement</h3>
+                <h3 class="eas-score-why-subhead">F. How You Can Improve</h3>
             </div>
             <ul class="eas-score-why-list">
                 @foreach ($improvements as $improvement)
-                    <li>
-                        <svg class="eas-score-why-list-icon eas-score-why-list-icon--warning" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                        <span>{{ $improvement }}</span>
-                    </li>
+                <li class="eas-score-why-list-item--improvement">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>Recommended action</strong>
+                        </div>
+                        <p class="eas-score-why-finding-detail">{{ $improvement }}</p>
+                    </div>
+                </li>
                 @endforeach
             </ul>
         </div>
+
         @endif
     </div>
 </section>
@@ -454,6 +715,81 @@
             </div>
         @endforeach
     </div>
+</section>
+
+<!-- Kaizen Strategy and Admin Concern Sources -->
+<section class="eas-score-card" aria-labelledby="eas-score-tasks-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-tasks-title">Kaizen Strategy &amp; Admin Concern Sources</h2>
+            <p class="eas-score-card-sub">
+                Tasks that feed this Score Sheet. Only evaluations marked
+                <strong>ADDED TO SCORE SHEET</strong> contribute weighted points; reversed or
+                pending items are shown so every score stays traceable.
+            </p>
+        </div>
+        @if ($scoreSheetTasks->isNotEmpty())
+            <div class="eas-score-task-summary">
+                <span class="eas-score-weight-chip">
+                    <span class="eas-score-chip-name">Included</span>
+                    <span class="eas-score-chip-value">{{ $scoreSheetTasks->filter(fn ($evaluation) => $evaluation->isIncludedInScoreSheet())->count() }}</span>
+                </span>
+                <span class="eas-score-weight-chip">
+                    <span class="eas-score-chip-name">Weighted points</span>
+                    <span class="eas-score-chip-value">{{ number_format((float) $scoreSheetTasksTotal, 2) }}</span>
+                </span>
+            </div>
+        @endif
+    </div>
+
+    @if ($scoreSheetTasks->isEmpty())
+        <p class="eas-score-task-empty">
+            No Kaizen Strategy or Admin Concern evaluations are linked to this Score Sheet period yet.
+        </p>
+    @else
+        <div class="eas-score-task-list">
+            @foreach ($scoreSheetTasks as $taskEvaluation)
+                @php
+                    $taskBadge = $taskEvaluation->integrationBadge();
+                @endphp
+                <div class="eas-score-task">
+                    <div class="eas-score-task-main">
+                        <div class="eas-score-task-title-row">
+                            @if ($taskEvaluation->taskReferenceUrl())
+                                <a href="{{ $taskEvaluation->taskReferenceUrl() }}" class="eas-score-task-title">
+                                    {{ $taskEvaluation->taskTitle() }}
+                                </a>
+                            @else
+                                <span class="eas-score-task-title">{{ $taskEvaluation->taskTitle() }}</span>
+                            @endif
+                            <span class="badge {{ $taskBadge['class'] }}">{{ $taskBadge['label'] }}</span>
+                        </div>
+                        <div class="eas-score-task-meta">
+                            <span>{{ $taskEvaluation->sourceLabel() }} #{{ $taskEvaluation->source_id }}</span>
+                            <span>{{ $taskEvaluation->evaluationPeriod?->name ?? 'No evaluation period' }}</span>
+                            @if ($taskEvaluation->isIncludedInScoreSheet())
+                                <span>{{ $taskEvaluation->criterionLabel() }} · {{ number_format((float) $taskEvaluation->score_sheet_weighted_points, 2) }} weighted points</span>
+                                <span>Added {{ $taskEvaluation->score_sheet_added_at?->format('M j, Y') }}</span>
+                            @elseif ($taskEvaluation->score_sheet_reversed_at)
+                                <span>Excluded {{ $taskEvaluation->score_sheet_reversed_at->format('M j, Y') }}</span>
+                            @elseif ($taskEvaluation->overall_score === null)
+                                <span>Score not calculated yet</span>
+                            @else
+                                <span>Not linked to the Score Sheet</span>
+                            @endif
+                        </div>
+                        @if ($taskEvaluation->score_sheet_reversal_reason)
+                            <p class="eas-score-task-note">Reason: {{ $taskEvaluation->score_sheet_reversal_reason }}</p>
+                        @endif
+                    </div>
+                    <div class="eas-score-task-score">
+                        <span class="eas-score-task-score-value">{{ $taskEvaluation->overall_score !== null ? number_format((float) $taskEvaluation->overall_score, 1) : '—' }}</span>
+                        <span class="eas-score-task-score-label">/ 100</span>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+    @endif
 </section>
 
 <!-- Assessment History -->
@@ -929,6 +1265,240 @@
 
 .eas-score-adjustment--negative {
     color: #ef4444;
+}
+
+/* ---------- Overall Score Section ---------- */
+.eas-score-why-section--overall {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 20px;
+}
+
+.eas-score-why-overall-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.eas-score-why-metric {
+    padding: 12px 16px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.eas-score-why-metric-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+    margin: 0;
+}
+
+.eas-score-why-metric-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.eas-score-why-summary-text {
+    font-size: 14px;
+    color: var(--text);
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+}
+
+.eas-score-why-method-text {
+    font-size: 13px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+/* ---------- Calculation Table ---------- */
+.eas-score-why-section--calculation {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 20px;
+}
+
+.eas-score-calc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.eas-score-calc-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-text);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-table th.text-end {
+    text-align: right;
+}
+
+.eas-score-calc-table td {
+    padding: 10px 12px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-table td.text-end {
+    text-align: right;
+}
+
+.eas-score-calc-row--evaluated {
+    background: #f0fdf4;
+}
+
+.eas-score-calc-row--unevaluated {
+    background: #f8fafc;
+}
+
+.eas-score-calc-row--total {
+    font-weight: 700;
+    background: var(--surface-raised);
+    border-top: 2px solid var(--border-subtle);
+}
+
+.eas-score-calc-row--available {
+    background: #fef3c7;
+}
+
+.eas-score-calc-row--final {
+    font-weight: 800;
+    background: #dbeafe;
+    border-top: 2px solid #2563eb;
+}
+
+.eas-score-calc-criterion {
+    font-weight: 600;
+}
+
+.eas-score-calc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.eas-score-calc-status--evaluated {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.eas-score-calc-status--unevaluated {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.eas-score-calc-note {
+    font-size: 13px;
+    color: var(--muted-text);
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+    padding: 12px 16px;
+    background: var(--surface-raised);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-detail {
+    font-size: 13px;
+    color: var(--text);
+    margin: 0 0 10px 0;
+    font-style: italic;
+}
+
+/* ---------- Finding Items ---------- */
+.eas-score-why-finding {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.eas-score-why-finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.eas-score-why-finding-detail {
+    font-size: 13px;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.eas-score-why-finding-why {
+    font-size: 12px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+.eas-score-why-finding-date {
+    font-size: 11px;
+    color: var(--muted-text);
+}
+
+.eas-score-why-finding-weight {
+    font-size: 11px;
+    color: var(--muted-text);
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.eas-score-why-finding-note {
+    font-size: 11px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+/* ---------- Section Variants ---------- */
+.eas-score-why-section--positive .eas-score-why-list-item--positive {
+    background: #f0fdf4;
+    border-left: 3px solid #10b981;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--negative .eas-score-why-list-item--negative {
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--excluded .eas-score-why-list-item--excluded {
+    background: #f8fafc;
+    border-left: 3px solid #94a3b8;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--improvement .eas-score-why-list-item--improvement {
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding-left: 12px;
 }
 
 /* Weights / Calculation Breakdown */
@@ -1613,6 +2183,122 @@
 
     .eas-score-progress-label {
         min-width: auto;
+    }
+}
+
+/* ---------- Score Composition ---------- */
+.eas-score-composition-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.eas-score-comp-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--surface);
+}
+.eas-score-comp-card--evaluated {
+    background: #f0fdf4;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+.eas-score-comp-card--unevaluated {
+    background: #f8fafc;
+    border-color: var(--border-subtle);
+}
+.eas-score-comp-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.eas-score-comp-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 0;
+}
+.eas-score-comp-weight {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted-text);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.eas-score-comp-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+    position: relative;
+}
+.eas-score-comp-track {
+    height: 100%;
+    width: 100%;
+}
+.eas-score-comp-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+}
+.eas-score-comp-fill--empty {
+    background: #cbd5e1;
+    animation: eas-score-comp-pulse 2s infinite;
+}
+@keyframes eas-score-comp-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+.eas-score-comp-values {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.eas-score-comp-score {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+}
+.eas-score-comp-contribution {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2563eb;
+}
+.eas-score-comp-card--unevaluated .eas-score-comp-contribution {
+    color: var(--muted-text);
+}
+.eas-score-comp-status {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    width: fit-content;
+}
+.eas-score-comp-status--evaluated {
+    background: #dcfce7;
+    color: #166534;
+}
+.eas-score-comp-status--unevaluated {
+    background: #f1f5f9;
+    color: #64748b;
+}
+.eas-score-comp-note {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted-text);
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .eas-score-composition-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 </style>

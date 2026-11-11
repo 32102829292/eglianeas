@@ -81,6 +81,10 @@ return [
             'driver' => 's3',
             'key' => env('SUPABASE_S3_ACCESS_KEY'),
             'secret' => env('SUPABASE_S3_SECRET_KEY'),
+            'credentials' => [
+                'key' => env('SUPABASE_S3_ACCESS_KEY'),
+                'secret' => env('SUPABASE_S3_SECRET_KEY'),
+            ],
             'region' => env('SUPABASE_S3_REGION', 'us-east-1'),
             'bucket' => env('SUPABASE_S3_BUCKET', 'eas-files'),
             'endpoint' => env('SUPABASE_S3_ENDPOINT'),
