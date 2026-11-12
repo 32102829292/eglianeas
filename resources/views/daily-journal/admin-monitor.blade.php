@@ -290,25 +290,29 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($journals as $journal)
-                        @php
-                            $tone = $statusTones[$journal->status] ?? 'info';
-                            $initial = mb_strtoupper(mb_substr($journal->user->name, 0, 1));
-                        @endphp
-                        <tr>
-                            <td>
-                                <div class="djam-person">
-                                    <span class="djam-avatar" aria-hidden="true">{{ $initial }}</span>
-                                    <span class="djam-person-text">
-                                        <span class="djam-person-name">{{ $journal->user->name }}</span>
-                                        <span class="djam-person-email">{{ $journal->user->email }}</span>
-                                    </span>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="djam-chip djam-chip--role">{{ ucfirst($journal->user->role) }}</span>
-                            </td>
-                            <td>
+@foreach ($journals as $journal)
+                    @php
+                        $tone = $statusTones[$journal->status] ?? 'info';
+                        $user = $journal->user ?: null;
+                        $initial = $user ? mb_strtoupper(mb_substr($user->name, 0, 1)) : '?';
+                        $userName = $user ? $user->name : 'Unknown / Deleted User';
+                        $userEmail = $user ? $user->email : '';
+                        $userRole = $user ? $user->role : '';
+                    @endphp
+                    <tr>
+                        <td>
+                            <div class="djam-person">
+                                <span class="djam-avatar" aria-hidden="true">{{ $initial }}</span>
+                                <span class="djam-person-text">
+                                    <span class="djam-person-name">{{ $userName }}</span>
+                                    <span class="djam-person-email">{{ $userEmail }}</span>
+                                </span>
+                            </div>
+                        </td>
+<td>
+                            <span class="djam-chip djam-chip--role">{{ ucfirst($userRole) }}</span>
+                        </td>
+                        <td>
                                 <span class="djam-chip djam-chip--{{ $tone }}">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                         @if ($journal->status === 'submitted')

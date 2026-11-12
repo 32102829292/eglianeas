@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\DistributionController as AdminDistributionContro
 use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\KaizenConcernController;
 use App\Http\Controllers\Admin\DailyGoalController;
+use App\Http\Controllers\Admin\WorkPlanController;
 use App\Http\Controllers\Admin\MonthlyBookkeepingController as AdminMonthlyBookkeepingController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\PriorityItemController;
@@ -541,6 +542,19 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
         Route::put('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'update'])->name('daily-goals.update');
         Route::delete('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'destroy'])->name('daily-goals.destroy');
         Route::get('/daily-goals/for-date', [DailyGoalController::class, 'goalsForDate'])->name('daily-goals.for-date');
+
+        // Work Plan management (admin only)
+        Route::get('/daily-work-plan', [WorkPlanController::class, 'index'])->name('daily-work-plan.index');
+        Route::post('/daily-work-plan', [WorkPlanController::class, 'store'])->name('daily-work-plan.store');
+        Route::post('/daily-work-plan/toggle-lock', [WorkPlanController::class, 'toggleLock'])->name('daily-work-plan.toggle-lock');
+        Route::get('/daily-work-plan/tasks-for-date', [WorkPlanController::class, 'tasksForDate'])->name('daily-work-plan.tasks-for-date');
+        Route::get('/daily-work-plan/tasks-with-targets', [WorkPlanController::class, 'tasksWithTargets'])->name('daily-work-plan.tasks-with-targets');
+        Route::get('/daily-work-plan/incomplete-tasks', [WorkPlanController::class, 'incompleteTasks'])->name('daily-work-plan.incomplete-tasks');
+        Route::get('/daily-work-plan/performance-score', [WorkPlanController::class, 'performanceScore'])->name('daily-work-plan.performance-score');
+        Route::get('/daily-work-plan/incomplete-summary', [WorkPlanController::class, 'incompleteTasksSummary'])->name('daily-work-plan.incomplete-summary');
+        Route::get('/daily-work-plan/{task}', [WorkPlanController::class, 'edit'])->name('daily-work-plan.edit');
+        Route::put('/daily-work-plan/{task}', [WorkPlanController::class, 'update'])->name('daily-work-plan.update');
+        Route::delete('/daily-work-plan/{task}', [WorkPlanController::class, 'destroy'])->name('daily-work-plan.destroy');
     });
 });
 

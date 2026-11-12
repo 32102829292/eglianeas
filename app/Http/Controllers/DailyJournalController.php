@@ -6,6 +6,7 @@ use App\Models\DailyGoal;
 use App\Models\DailyJournal;
 use App\Models\StaffTaskEvaluation;
 use App\Models\User;
+use App\Models\WorkPlanTask;
 use App\Services\AchievementAnalysisService;
 use App\Services\AchievementCriteriaService;
 use App\Services\AchievementRankingService;
@@ -68,6 +69,14 @@ class DailyJournalController extends Controller
             ->orderBy('id')
             ->get();
 
+        // Work plan tasks for the selected date
+        $workPlanTasks = WorkPlanTask::query()
+            ->where('user_id', $user->id)
+            ->where('work_date', $date->toDateString())
+            ->with(['legend', 'creator'])
+            ->orderBy('id')
+            ->get();
+
         return view('daily-journal.create', [
             'journal' => $journal,
             'date' => $date,
@@ -77,6 +86,7 @@ class DailyJournalController extends Controller
             'requiresReport' => $requiresReport,
             'user' => $user,
             'dailyGoals' => $dailyGoals,
+            'workPlanTasks' => $workPlanTasks,
         ]);
     }
 
@@ -667,7 +677,7 @@ class DailyJournalController extends Controller
         $this->authorizeAdmin();
 
         $date = $dailyJournal->required_date;
-        $userName = $dailyJournal->user->name;
+        $userName = $dailyJournal->user ? $dailyJournal->user->name : 'Unknown / Deleted User';
 
         $dailyJournal->delete();
 

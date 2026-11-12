@@ -46,14 +46,16 @@
         <h1>Daily Accomplishment Report</h1>
         <p>
             {{ $dayHeading }} &middot; {{ $date->format('l, F j, Y') }}
-            @if (! $requiresReport)
-                <span class="badge badge-info ms-2">Not required (weekend)</span>
-            @elseif ($isSubmitted)
-                <span class="badge {{ $statusBadge }} ms-2">{{ $statusIcon }} {{ $statusLabel }}</span>
-            @elseif ($isFuture)
-                <span class="badge badge-info ms-2">Not due yet</span>
+            @if ($requiresReport)
+                @if ($isSubmitted)
+                    <span class="badge badge-success ms-2">{{ $statusIcon }} {{ $statusLabel }}</span>
+                @elseif ($isFuture)
+                    <span class="badge badge-info ms-2">Not due yet</span>
+                @elseif ($isPast)
+                    <span class="badge badge-danger ms-2">&#9888; Not submitted</span>
+                @endif
             @else
-                <span class="badge badge-danger ms-2">&#9888; Not submitted</span>
+                <span class="badge badge-info ms-2">Not required (weekend)</span>
             @endif
         </p>
     </div>
@@ -73,37 +75,87 @@
     </div>
 </div>
 
-@if (! $requiresReport)
+@if ($requiresReport)
+    @if ($isSubmitted)
+        <div class="alert alert-success mb-4">
+            <strong>Report submitted.</strong>
+            @if ($journal->submitted_at)
+                Sent {{ $journal->submitted_at->format('F j, Y g:i A') }}.
+            @endif
+            You can read your answers below. To change something, please contact your supervisor.
+        </div>
+    @endif
+    @if ($isFuture)
+        <div class="alert alert-info mb-4">
+            <strong>Not due yet.</strong> This report covers {{ $date->format('l, F j, Y') }}. Come back on that day to fill it in.
+        </div>
+    @endif
+    @if ($isPast)
+        <div class="alert alert-info mb-4">
+            <strong>This report is overdue.</strong>
+            Nothing was submitted for {{ $date->format('l, F j, Y') }}. Fill it in now and describe what happened.
+        </div>
+    @endif
+@else
     <div class="alert alert-info mb-4">
         <strong>No report required.</strong>
         Daily Accomplishment Reports are only required Monday through Friday.
         {{ $date->format('l, F j, Y') }} falls on a weekend, so nothing is due.
     </div>
-@elseif ($isSubmitted)
-    <div class="alert alert-success mb-4">
-        <strong>Report submitted.</strong>
-        @if ($journal->submitted_at)
-            Sent {{ $journal->submitted_at->format('F j, Y g:i A') }}.
-        @endif
-        You can read your answers below. To change something, please contact your supervisor.
-    </div>
-@elseif ($isFuture)
-    <div class="alert alert-info mb-4">
-        <strong>Not due yet.</strong> This report covers {{ $date->format('l, F j, Y') }}. Come back on that day to fill it in.
-    </div>
-@elseif ($isPast)
-    <div class="alert alert-info mb-4">
-        <strong>This report is overdue.</strong>
-        Nothing was submitted for {{ $date->format('l, F j, Y') }}. Fill it in now and describe what happened.
-    </div>
 @endif
 
+<!-- Work Plan Tasks Panel -->
 @if ($requiresReport)
-<div class="dg-panel" aria-label="Goals for the Day">
+<div class="dg-panel" aria-label="Work Plan Tasks for Today">
     <div class="dg-panel-head">
         <div class="dg-panel-title">
             <span class="dg-panel-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
+            </span>
+            <div>
+                <h2>Work Plan Tasks</h2>
+                <p>Your assigned tasks for {{ $date->format('l, F j, Y') }}.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="dg-goals-container">
+        @if ($workPlanTasks->isEmpty())
+            <div class="dg-empty-state">
+                <span class="dg-empty-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/></svg>
+                </span>
+                <div class="dg-empty-text">
+                    <strong>No work plan tasks assigned for today.</strong>
+                    <p>No work plan tasks have been assigned for {{ $date->format('F j, Y') }}.</p>
+                </div>
+            </div>
+        @else
+            <ul class="wp-task-list">
+                @foreach ($workPlanTasks as $task)
+                    <li class="wp-task-item">
+                        <span class="wp-task-title">{{ $task->getLegendLabel() }}</span>
+                        @if ($task->description)
+                            <span class="wp-task-desc">{{ $task->description }}</span>
+                        @endif
+                        @if ($task->success_criteria)
+                            <span class="wp-task-meta">
+                                <span class="wp-criteria-tag">Criteria: {{ $task->success_criteria }}</span>
+                            </span>
+                        @endif
+                        <span class="wp-task-date">{{ $task->statusLabel() }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </div>
+</div>
+
+<div class="dg-panel" aria-label="Goals for the Day">
+    <div class="dg-panel-head">
+        <div class="dg-panel-title">
+            <span class="dg-panel-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="12" y2="9"/><line x1="9" y1="21" x2="9" y2="21"/></svg>
             </span>
             <div>
                 <h2>Goals for the Day</h2>
@@ -143,7 +195,6 @@
         @endif
     </div>
 </div>
-
 <form method="POST" action="{{ route('daily-journal.store') }}" enctype="multipart/form-data" class="daily-journal-form" data-journal-form>
     @csrf
     <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}">
@@ -217,7 +268,6 @@
                         @if ($isFuture) disabled @endif
                         placeholder="{{ $prompt['placeholder'] }}"
                         aria-describedby="{{ $field }}-hint @error($field) {{ $field }}-error @enderror"
-                        @error($field) aria-invalid="true" @enderror
                         data-journal-input>{{ old($field, $journal->{$field}) }}</textarea>
                     <div class="form-hint" id="{{ $field }}-hint">{{ $prompt['hint'] }}</div>
                     @unless ($isSubmitted || $isFuture)
@@ -393,7 +443,6 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
 }
 .journal-file-list .jf-size {
     flex: 0 0 auto;
@@ -406,7 +455,7 @@
     text-overflow: ellipsis;
     max-width: 250px;
 }
-    .journal-actions {
+.journal-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
@@ -441,9 +490,20 @@
 .dg-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
 .dg-goal-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
 
+/* ---------- Work Plan Tasks Panel (scoped to .wp-task-*) ---------- */
+.wp-task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; }
+.wp-task-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem .75rem; background: #f8fafc; border-radius: 8px; font-size: .88rem; flex-wrap: wrap; }
+.wp-task-title { font-weight: 700; color: var(--text, #1f2937); overflow-wrap: anywhere; }
+.wp-task-desc { color: var(--muted, #64748b); font-size: .82rem; overflow-wrap: anywhere; }
+.wp-task-meta { display: inline-flex; gap: .3rem; align-items: center; }
+.wp-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
+.wp-task-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
+
 @media (max-width: 640px) {
     .dg-goal-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
     .dg-goal-date { margin-top: .25rem; }
+    .wp-task-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
+    .wp-task-date { margin-top: .25rem; }
 }
 </style>
 @endpush
@@ -516,4 +576,5 @@
     }
 })();
 </script>
+
 @endpush
