@@ -1448,7 +1448,6 @@
                 }
 
                 fetch(url, {
-                    headers: { 'Accept': 'application/pdf,image/*' },
                     credentials: 'same-origin'
                 })
                     .then(function(response){
@@ -1457,10 +1456,22 @@
                             if(response.status === 415) throw new Error('This file type cannot be previewed. Use Download to open it.');
                             throw new Error('Unable to load this receipt (' + response.status + ').');
                         }
-                        return response.blob();
+                        return response.json();
                     })
-                    .then(function(blob){
-                        const objectUrl = URL.createObjectURL(blob);
+                    .then(function(data){
+                        if(typeof data === 'object' && data.url){
+                            // Server returned a signed temporary URL – follow it.
+                            window.location = data.url;
+                            // Also set the download button so the user can save the file.
+                            if(downloadBtn){
+                                downloadBtn.href = data.url;
+                                downloadBtn.download = data.fileName || 'receipt';
+                                downloadBtn.hidden = false;
+                            }
+                            return;
+                        }
+                        // Fallback: treat as blob preview (original behaviour).
+                        const objectUrl = URL.createObjectURL(data);
                         if(requestId !== previewRequestId){
                             URL.revokeObjectURL(objectUrl);
                             return;
@@ -1468,7 +1479,7 @@
                         currentPreviewUrl = objectUrl;
                         if(previewLoading) previewLoading.hidden = true;
 
-                        const blobType = (blob.type || '').toLowerCase();
+                        const blobType = (data.type || '').toLowerCase();
                         const isImage = /^image\/(jpeg|png)$/.test(blobType) || /^(jpg|jpeg|png)$/.test(type);
                         const isPdf = blobType.indexOf('application/pdf') !== -1 || type === 'pdf';
 
@@ -1506,6 +1517,11 @@
                         }
 
                         showPreviewError('This file type cannot be previewed. Use Download to open it.');
+
+                        // Ensure the download button is hidden when we fall back to blob preview.
+                        if(downloadBtn){
+                            downloadBtn.hidden = true;
+                        }
                     })
                     .catch(function(err){
                         if(requestId !== previewRequestId) return;

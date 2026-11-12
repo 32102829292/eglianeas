@@ -335,42 +335,28 @@ class CashDailyPositionController extends Controller
             ],
         ]);
 
-        $receiptDir = storage_path('app/private/cash_daily_receipts');
-        if (! File::isDirectory($receiptDir)) {
-            File::makeDirectory($receiptDir, 0755, true);
-        }
-
         $count = 0;
 
         foreach ($request->file('receipts') as $file) {
-            $extension = match ($file->getMimeType()) {
-                'image/jpeg' => 'jpg',
-                'image/png' => 'png',
-                'application/pdf' => 'pdf',
-                default => null,
-            };
+            // Store on the persistent Supabase disk; the returned relative path
+            // (e.g. cash_daily_receipts/uniqid.ext) is saved in the database.
+            $storedName = $file->store('cash_daily_receipts', 'supabase');
 
-            if ($extension === null) {
-                continue;
-            }
+$originalName = basename($storedName, '.' . pathinfo($storedName, PATHINFO_EXTENSION));
 
-            $originalName = basename($file->getClientOriginalName());
-            $storedName = uniqid('receipt_', true).'.'.$extension;
-            $relativePath = 'private/cash_daily_receipts/'.$storedName;
-
-            $file->move($receiptDir, $storedName);
+            $extension = pathinfo($storedName, PATHINFO_EXTENSION); // jpg, png, pdf
 
             try {
                 CashDailyReceipt::create([
                     'cash_daily_position_id' => $position->id,
                     'file_name' => $originalName,
                     'file_type' => $extension,
-                    'file_path' => $relativePath,
+                    'file_path' => $storedName,
                 ]);
             } catch (\Throwable $e) {
-                // Never leave the just-written file behind if the row cannot
-                // be inserted; that would be an orphan with no owner.
-                File::delete($receiptDir.DIRECTORY_SEPARATOR.$storedName);
+                // If the DB insert fails, remove the uploaded file so we don't
+                // leave orphaned data in Supabase.
+                $file->delete(); // Laravel's stored file delete helper
                 throw $e;
             }
 
@@ -385,65 +371,32 @@ class CashDailyPositionController extends Controller
      * requesting user may access the parent report before returning the file.
      * Never exposes private receipts through public storage URLs.
      */
-    public function viewReceipt(CashDailyReceipt $receipt): Response
+    public function viewReceipt(CashDailyReceipt $receipt): JsonResponse
     {
         $position = $receipt->position;
         abort_if($position === null, 404);
 
         $this->assertCanAccessPosition($position);
 
-        $filePath = storage_path('app/'.$receipt->file_path);
+        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($receipt->file_path, now()->addMinutes(30));
 
-        if (! File::exists($filePath)) {
-            abort(404);
-        }
-
-        $mime = File::mimeType($filePath);
-        $allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-        abort_if(! in_array($mime, $allowed, true), 415);
-
-        $contents = File::get($filePath);
-        $fileName = str_replace(['"', "\r", "\n"], '', basename((string) $receipt->file_name));
-
-        return response($contents, 200, [
-            'Content-Type' => $mime,
-            'Content-Disposition' => 'inline; filename="'.$fileName.'"',
-            'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'no-cache, private',
-        ]);
+        return response()->json(['url' => $temporaryUrl]);
     }
 
     /**
      * Download a receipt file as an attachment. Reuses the same private file
      * path and authorization checks as the inline preview.
      */
-    public function downloadReceipt(CashDailyReceipt $receipt): Response
+    public function downloadReceipt(CashDailyReceipt $receipt): JsonResponse
     {
         $position = $receipt->position;
         abort_if($position === null, 404);
 
         $this->assertCanAccessPosition($position);
 
-        $filePath = storage_path('app/'.$receipt->file_path);
+        $temporaryUrl = Storage::disk('supabase')->temporaryUrl($receipt->file_path, now()->addMinutes(30));
 
-        if (! File::exists($filePath)) {
-            abort(404);
-        }
-
-        $mime = File::mimeType($filePath);
-        $allowed = ['image/jpeg', 'image/png', 'application/pdf'];
-        abort_if(! in_array($mime, $allowed, true), 415);
-
-        $fileName = str_replace(['"', "\r", "\n"], '', basename((string) $receipt->file_name));
-        if ($fileName === '') {
-            $fileName = 'receipt.'.$receipt->file_type;
-        }
-
-        return response()->download($filePath, $fileName, [
-            'Content-Type' => $mime,
-            'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'no-cache, private',
-        ]);
+        return response()->json(['url' => $temporaryUrl, 'fileName' => $receipt->file_name ?? 'receipt.'.$receipt->file_type]);
     }
 
     /**
