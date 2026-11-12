@@ -10,6 +10,7 @@ use App\Models\Notification;
 use App\Models\StaffTaskEvaluation;
 use App\Models\User;
 use App\Services\AchievementAnalysisService;
+use App\Services\KaizenEvidenceStorage;
 use App\Services\PushNotificationService;
 use App\Services\StaffScoringService;
 use Closure;
@@ -18,7 +19,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -28,6 +28,7 @@ class KaizenConcernController extends Controller
     public function __construct(
         private StaffScoringService $scoringService,
         private AchievementAnalysisService $assessmentService,
+        private KaizenEvidenceStorage $evidenceStorage,
     ) {}
     /**
      * The Improvement Suggestions board.
@@ -619,7 +620,7 @@ class KaizenConcernController extends Controller
                 'kaizen_concern_id' => $concern->id,
                 'uploaded_by' => auth()->id(),
                 'original_name' => $file->getClientOriginalName(),
-                'path' => $file->store('kaizen-evidence', 'local'),
+                'path' => $this->evidenceStorage->store($file),
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
             ]);
@@ -1135,7 +1136,7 @@ class KaizenConcernController extends Controller
         $concern->evidences()->create([
             'uploaded_by' => auth()->id(),
             'original_name' => $file->getClientOriginalName(),
-            'path' => $file->store('kaizen-evidence', 'local'),
+            'path' => $this->evidenceStorage->store($file),
             'mime_type' => $file->getClientMimeType(),
             'size' => $file->getSize(),
         ]);
@@ -1153,7 +1154,7 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk($this->evidenceDisk())->response($evidence->path, $evidence->original_name, [
+        return $this->evidenceStorage->response($evidence->path, $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'Pragma' => 'no-cache',
@@ -1165,7 +1166,7 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk($this->evidenceDisk())->download($evidence->path, $evidence->original_name, [
+        return $this->evidenceStorage->download($evidence->path, $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
@@ -1179,7 +1180,7 @@ class KaizenConcernController extends Controller
 
         $storageDeleted = false;
         try {
-            $storageDeleted = Storage::disk($this->evidenceDisk())->delete($evidence->path);
+            $storageDeleted = $this->evidenceStorage->delete($evidence->path);
         } catch (\Throwable $e) {
             report($e);
             if ($request->expectsJson()) {
@@ -1190,10 +1191,10 @@ class KaizenConcernController extends Controller
             return back()->withErrors(['evidence' => 'The evidence file could not be removed from storage.']);
         }
 
-        if (! $storageDeleted && Storage::disk($this->evidenceDisk())->exists($evidence->path)) {
+        if (! $storageDeleted && $this->evidenceStorage->exists($evidence->path)) {
             // Storage reported success but file still exists; try once more
             try {
-                Storage::disk($this->evidenceDisk())->delete($evidence->path);
+                $this->evidenceStorage->delete($evidence->path);
             } catch (\Throwable $e) {
                 report($e);
                 if ($request->expectsJson()) {
@@ -1394,10 +1395,5 @@ class KaizenConcernController extends Controller
             $action,
             $description." (Challenge: {$concern->challenge})"
         );
-    }
-
-    private function evidenceDisk(): string
-    {
-        return (string) config('filesystems.evidence_disk', 'local');
     }
 }

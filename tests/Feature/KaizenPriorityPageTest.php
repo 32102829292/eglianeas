@@ -8,6 +8,7 @@ use App\Models\PriorityItem;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -614,6 +615,113 @@ class KaizenPriorityPageTest extends TestCase
         $this->actingAs($admin)
             ->get(route('admin.kaizen-concerns.evidence.download', [$concern, $evidence]))
             ->assertForbidden();
+    }
+
+    public function test_kaizen_evidence_uploads_and_accesses_the_configured_disk(): void
+    {
+        Storage::fake('local');
+        Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $this->actingAs($admin)->post(route('admin.kaizen-concerns.evidence.add', $concern), [
+            'evidence' => UploadedFile::fake()->create('configured-proof.pdf', 120, 'application/pdf'),
+        ])->assertRedirect();
+
+        $evidence = $concern->evidences()->firstOrFail();
+
+        Storage::disk('supabase')->assertExists($evidence->path);
+        Storage::disk('local')->assertMissing($evidence->path);
+
+        $view = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.view', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+        $download = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.download', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+
+        $this->actingAs($admin)->get($view)->assertOk();
+        $this->actingAs($admin)->get($download)->assertOk()->assertDownload('configured-proof.pdf');
+
+        $this->actingAs($admin)
+            ->delete(route('admin.kaizen-concerns.evidence.delete', [$concern, $evidence]))
+            ->assertRedirect();
+
+        Storage::disk('supabase')->assertMissing($evidence->path);
+    }
+
+    public function test_legacy_kaizen_evidence_on_the_local_disk_is_still_viewable(): void
+    {
+        Storage::fake('local');
+        Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+        $path = 'kaizen-evidence/legacy-proof.pdf';
+
+        Storage::disk('local')->put($path, 'legacy evidence');
+
+        $evidence = $concern->evidences()->create([
+            'uploaded_by' => $admin->id,
+            'original_name' => 'legacy-proof.pdf',
+            'path' => $path,
+            'mime_type' => 'application/pdf',
+            'size' => 15,
+        ]);
+
+        $view = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.view', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+        $download = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.download', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+
+        $this->actingAs($admin)->get($view)->assertOk();
+        $this->actingAs($admin)->get($download)->assertOk()->assertDownload('legacy-proof.pdf');
+    }
+
+    public function test_missing_kaizen_evidence_returns_not_found_instead_of_a_server_error(): void
+    {
+        Storage::fake('local');
+        Storage::fake('supabase');
+        config(['filesystems.evidence_disk' => 'supabase']);
+
+        $admin = $this->user(User::ROLE_ADMIN);
+        $concern = $this->concern($admin);
+
+        $evidence = $concern->evidences()->create([
+            'uploaded_by' => $admin->id,
+            'original_name' => 'missing-proof.pdf',
+            'path' => 'kaizen-evidence/missing-proof.pdf',
+            'mime_type' => 'application/pdf',
+            'size' => 15,
+        ]);
+
+        $view = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.view', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+        $download = URL::temporarySignedRoute('admin.kaizen-concerns.evidence.download', now()->addMinutes(30), [
+            'concern' => $concern->id,
+            'evidence' => $evidence->id,
+        ]);
+
+        Log::spy();
+
+        $this->actingAs($admin)->get($view)->assertNotFound();
+        $this->actingAs($admin)->get($download)->assertNotFound();
+
+        Log::shouldHaveReceived('warning')
+            ->withArgs(fn (string $message, array $context): bool => $message === 'Kaizen evidence file is missing.'
+                && $context['path'] === $evidence->path)
+            ->twice();
     }
 
     public function test_admin_can_delete_evidence_but_staff_cannot(): void

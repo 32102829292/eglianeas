@@ -588,8 +588,8 @@ class ClientController extends Controller
         $profile = $client->getClientProfile();
 
         abort_unless(
-            $profile->cor_document_path && Storage::disk('local')->exists($profile->cor_document_path),
-            404
+            $profile->cor_document_path && Storage::disk(env('FILESYSTEM_DISK', 'local'))->exists($profile->cor_document_path),
+            404, 'Certificate of Registration not found.'
         );
 
         $name = trim((string) $profile->cor_document_name) ?: basename($profile->cor_document_path);
@@ -607,8 +607,8 @@ class ClientController extends Controller
         }
 
         return $download
-            ? Storage::disk('local')->download($profile->cor_document_path, $name, $headers)
-            : Storage::disk('local')->response($profile->cor_document_path, $name, $headers);
+            ? Storage::disk(env('FILESYSTEM_DISK', 'local'))->download($profile->cor_document_path, $name, $headers)
+            : Storage::disk(env('FILESYSTEM_DISK', 'local'))->response($profile->cor_document_path, $name, $headers);
     }
 
     public function update(Request $request, User $client): RedirectResponse

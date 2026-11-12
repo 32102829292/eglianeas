@@ -2,10 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\KaizenEvidenceStorage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 class KaizenEvidence extends Model
 {
@@ -40,6 +40,6 @@ class KaizenEvidence extends Model
 
     public function existsOnDisk(): bool
     {
-        return Storage::disk("local")->exists($this->path);
+        return app(KaizenEvidenceStorage::class)->exists($this->path);
     }
 }
