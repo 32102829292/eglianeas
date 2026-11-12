@@ -21,7 +21,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\In;
 use Illuminate\View\View;
@@ -1159,7 +1158,7 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk(config('filesystems.evidence_disk'))->response($evidence->path, null, [
+        return $this->evidenceStorage->response($evidence->path, null, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'Pragma' => 'no-cache',
@@ -1167,11 +1166,11 @@ class KaizenConcernController extends Controller
         ]);
     }
 
-    public function downloadEvidence(KaizenConcern $concern, KaizenEvidence $evidence): HttpResponse
+    public function downloadEvidence(KaizenConcern $concern, KaizenEvidence $evidence): StreamedResponse
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return Storage::disk(config('filesystems.evidence_disk'))->download($evidence->path, $evidence->file_name ?: $evidence->original_name, [
+        return $this->evidenceStorage->download($evidence->path, $evidence->file_name ?: $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',

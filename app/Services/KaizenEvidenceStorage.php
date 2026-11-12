@@ -94,7 +94,7 @@ class KaizenEvidenceStorage
         return $this->diskFor($path) !== null;
     }
 
-    public function response(string $path, string $name, array $headers): StreamedResponse
+    public function response(string $path, ?string $name, array $headers): StreamedResponse
     {
         return Storage::disk($this->diskOrAbort($path))->response($path, $name, $headers);
     }
