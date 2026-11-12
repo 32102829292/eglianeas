@@ -13,13 +13,17 @@ use App\Services\AchievementAnalysisService;
 use App\Services\KaizenEvidenceStorage;
 use App\Services\PushNotificationService;
 use App\Services\StaffScoringService;
+use Carbon\Carbon;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\In;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -30,6 +34,7 @@ class KaizenConcernController extends Controller
         private AchievementAnalysisService $assessmentService,
         private KaizenEvidenceStorage $evidenceStorage,
     ) {}
+
     /**
      * The Improvement Suggestions board.
      *
@@ -709,7 +714,7 @@ class KaizenConcernController extends Controller
 
         // Wrap the concern update and AI assessment in a transaction so that
         // either both succeed or neither leaves partial state behind.
-        \Illuminate\Support\Facades\DB::transaction(function () use ($concern, $notes, $wasResolved) {
+        DB::transaction(function () use ($concern, $notes, $wasResolved) {
             $concern->update([
                 'status' => KaizenConcern::STATUS_RESOLVED,
                 'resolution_notes' => $notes,
@@ -755,7 +760,7 @@ class KaizenConcernController extends Controller
                     'assessed_at' => now(),
                     'finalized_at' => now(),
                     'evaluated_by' => auth()->id(),
-                    'completed_at' => $concern->implementation_date ? \Carbon\Carbon::parse($concern->implementation_date) : null,
+                    'completed_at' => $concern->implementation_date ? Carbon::parse($concern->implementation_date) : null,
                     'adjustment_reason' => 'AI-assisted assessment on Admin Concern resolution.',
                 ]);
 
@@ -844,7 +849,7 @@ class KaizenConcernController extends Controller
                 'staff_id' => $staff->id,
                 'source_type' => StaffTaskEvaluation::SOURCE_ADMIN_CONCERN,
                 'source_id' => $concern->id,
-                'evaluation_period_id' => $this->scoringService instanceof \App\Services\StaffScoringService
+                'evaluation_period_id' => $this->scoringService instanceof StaffScoringService
                     ? $this->scoringService->currentPeriod()?->id
                     : null,
                 'evaluation_status' => StaffTaskEvaluation::STATUS_PROVISIONAL,
@@ -1154,7 +1159,7 @@ class KaizenConcernController extends Controller
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return $this->evidenceStorage->response($evidence->path, $evidence->original_name, [
+        return Storage::disk(config('filesystems.evidence_disk'))->response($evidence->path, null, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'Pragma' => 'no-cache',
@@ -1162,11 +1167,11 @@ class KaizenConcernController extends Controller
         ]);
     }
 
-    public function downloadEvidence(KaizenConcern $concern, KaizenEvidence $evidence): StreamedResponse
+    public function downloadEvidence(KaizenConcern $concern, KaizenEvidence $evidence): HttpResponse
     {
         $this->authorizeEvidence($concern, $evidence);
 
-        return $this->evidenceStorage->download($evidence->path, $evidence->original_name, [
+        return Storage::disk(config('filesystems.evidence_disk'))->download($evidence->path, $evidence->file_name ?: $evidence->original_name, [
             'Content-Type' => $evidence->mime_type ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
@@ -1188,6 +1193,7 @@ class KaizenConcernController extends Controller
                     'message' => 'Storage deletion failed: '.$e->getMessage(),
                 ], 500);
             }
+
             return back()->withErrors(['evidence' => 'The evidence file could not be removed from storage.']);
         }
 
@@ -1202,6 +1208,7 @@ class KaizenConcernController extends Controller
                         'message' => 'Storage deletion failed on retry.',
                     ], 500);
                 }
+
                 return back()->withErrors(['evidence' => 'Storage deletion failed on retry.']);
             }
         }
@@ -1240,7 +1247,7 @@ class KaizenConcernController extends Controller
      * Admin Concerns accept the four new states plus the old stored values so
      * existing records can still be edited without breaking validation.
      */
-    private function adminStatusRule(): \Illuminate\Validation\Rules\In
+    private function adminStatusRule(): In
     {
         return Rule::in(array_values(array_unique(array_merge(
             array_keys(KaizenConcern::ADMIN_CONCERN_STATUSES),
