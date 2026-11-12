@@ -477,6 +477,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/priority-items/{item}', [PriorityItemController::class, 'show'])->name('priority-items.show');
     Route::get('/priority-items/{item}/edit', [PriorityItemController::class, 'edit'])->name('priority-items.edit');
     Route::put('/priority-items/{item}', [PriorityItemController::class, 'update'])->name('priority-items.update');
+    Route::post('/priority-items/{item}/complete', [PriorityItemController::class, 'complete'])->name('priority-items.complete');
+    Route::post('/priority-items/{item}/reopen', [PriorityItemController::class, 'reopen'])->name('priority-items.reopen');
     Route::post('/priority-items/{item}/assign-staff', [PriorityItemController::class, 'assignStaff'])->name('priority-items.assign-staff');
     Route::delete('/priority-items/{item}', [PriorityItemController::class, 'destroy'])->name('priority-items.destroy');
     Route::post('/priority-items/{item}/checklist/toggle', [PriorityItemController::class, 'toggleChecklistItem'])->name('priority-items.checklist.toggle');

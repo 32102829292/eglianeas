@@ -12,6 +12,8 @@
         $evidenceCount = $item->evidences->count();
         $canAssign = $item->canAssignStaff(auth()->user());
         $canManageChecklist = $item->canManageChecklist(auth()->user());
+        $canComplete = $item->canComplete(auth()->user());
+        $canReopen = $item->canReopen(auth()->user());
     @endphp
 
     {{-- Task Hero Header --}}
@@ -33,6 +35,24 @@
                 </div>
             </div>
             <div class="pri-task-hero-actions">
+                @if ($canComplete)
+                    <form method="POST" action="{{ route('admin.priority-items.complete', $item) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Mark as Done?', message: 'Are you sure you want to mark this task as completed?', confirmLabel: 'Mark as Done' });">
+                        @csrf
+                        <button type="submit" class="btn btn-success pri-task-hero-btn-complete">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                            Mark as Done
+                        </button>
+                    </form>
+                @endif
+                @if ($canReopen)
+                    <form method="POST" action="{{ route('admin.priority-items.reopen', $item) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Reopen this task?', message: 'This will set the task back to Pending and clear its completion record.', confirmLabel: 'Reopen Task' });">
+                        @csrf
+                        <button type="submit" class="btn btn-outline pri-task-hero-btn-back">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.36 2.64L3 8"/><path d="M3 3v5h5"/></svg>
+                            Reopen Task
+                        </button>
+                    </form>
+                @endif
                 @if (auth()->user()->isAdmin())
                     <a href="{{ route('admin.priority-items.edit', $item) }}" class="btn btn-primary pri-task-hero-btn-edit">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -76,9 +96,9 @@
         <div class="pri-status-strip pri-status-strip-complete priority-complete-banner">
             <span class="pri-status-strip-icon" aria-hidden="true">&#10003;</span>
             <span class="pri-status-strip-text">
-                <strong>Completed</strong> on {{ $item->completionDateFormatted() ?? '—' }}
+                <strong>Completed on:</strong> {{ $item->completionDateTimeFormatted() ?? '—' }}
                 @if ($item->completer)
-                    by <strong>{{ $item->completer->name }}</strong>
+                    &middot; <strong>Completed by:</strong> {{ $item->completer->name }}
                 @endif
             </span>
         </div>
@@ -145,7 +165,9 @@
                 </div>
                 <div class="pri-detail-urgency">
                     <span class="pri-detail-urgency-label">Urgency</span>
-                    <span class="pri-detail-guidance-label">Priority guidance</span>
+                    @if (! $item->isCompleted())
+                        <span class="pri-detail-guidance-label">Priority guidance</span>
+                    @endif
                     <div class="pri-detail-urgency-value">
                         <span class="badge {{ $item->urgencyBadgeClass() }}">{{ $item->urgencyLabel() }}</span>
                         @if ($item->urgencyInstruction() && ! $item->isCompleted())
@@ -372,6 +394,57 @@
         </div>
     </div>
 
+    {{-- Completion Action --}}
+    <div class="pri-detail-card pri-completion-card {{ $item->isCompleted() ? 'is-completed' : '' }}">
+        <div class="pri-detail-card-body pri-completion-body">
+            <div class="pri-completion-info">
+                <span class="pri-completion-icon" aria-hidden="true">
+                    @if ($item->isCompleted())
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                    @else
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+                    @endif
+                </span>
+                <div>
+                    <h2 class="pri-completion-title">{{ $item->isCompleted() ? 'Task Completed' : 'Complete This Task' }}</h2>
+                    <p class="pri-completion-text">
+                        @if ($item->isCompleted())
+                            Completed on {{ $item->completionDateTimeFormatted() ?? '—' }}
+                            @if ($item->completer)
+                                by {{ $item->completer->name }}
+                            @endif
+                        @elseif ($canComplete)
+                            Finished the work? Mark this task as done to record the completion date, time and staff member.
+                        @else
+                            Only the assigned staff member, an administrator or a supervisor can complete this task.
+                        @endif
+                    </p>
+                </div>
+            </div>
+            <div class="pri-completion-actions">
+                @if ($canComplete)
+                    <form method="POST" action="{{ route('admin.priority-items.complete', $item) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Mark as Done?', message: 'Are you sure you want to mark this task as completed?', confirmLabel: 'Mark as Done' });">
+                        @csrf
+                        <button type="submit" class="btn btn-success pri-completion-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+                            Mark as Done
+                        </button>
+                    </form>
+                @elseif ($canReopen)
+                    <form method="POST" action="{{ route('admin.priority-items.reopen', $item) }}" class="d-inline" onsubmit="return egliane.confirm.form(this, { title: 'Reopen this task?', message: 'This will set the task back to Pending and clear its completion record.', confirmLabel: 'Reopen Task' });">
+                        @csrf
+                        <button type="submit" class="btn btn-outline pri-completion-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.36 2.64L3 8"/><path d="M3 3v5h5"/></svg>
+                            Reopen Task
+                        </button>
+                    </form>
+                @else
+                    <span class="badge {{ $item->statusBadgeClass() }} pri-completion-badge">{{ $item->statusLabel() }}</span>
+                @endif
+            </div>
+        </div>
+    </div>
+
     {{-- Record Information --}}
     <div class="pri-detail-card pri-detail-card-record">
         <div class="pri-detail-card-head">
@@ -379,10 +452,11 @@
         </div>
         <div class="pri-detail-card-body">
             <ul class="pri-detail-list">
+                <li><span class="pri-detail-k">Status</span><span class="pri-detail-v"><span class="badge {{ $item->statusBadgeClass() }}">{{ $item->statusLabel() }}</span></span></li>
                 <li><span class="pri-detail-k">Created By</span><span class="pri-detail-v">{{ $item->creator->name ?? '—' }}</span></li>
                 <li><span class="pri-detail-k">Created At</span><span class="pri-detail-v">{{ $item->created_at?->format('F j, Y g:i A') }}</span></li>
-                <li><span class="pri-detail-k">Completed On</span><span class="pri-detail-v">{{ $item->completionDateFormatted() ?? '—' }}</span></li>
-                <li><span class="pri-detail-k">Completed By</span><span class="pri-detail-v">{{ $item->completer?->name ?? '—' }}</span></li>
+                <li><span class="pri-detail-k">Completed on:</span><span class="pri-detail-v">{{ $item->completionDateTimeFormatted() ?? '—' }}</span></li>
+                <li><span class="pri-detail-k">Completed by:</span><span class="pri-detail-v">{{ $item->completer?->name ?? '—' }}</span></li>
             </ul>
         </div>
     </div>
@@ -1222,6 +1296,113 @@
     color: var(--text);
 }
 
+/* ---------- Completion Action --*/
+.pri-task-hero-actions .pri-task-hero-btn-complete {
+    background: #16A34A;
+    border-color: #16A34A;
+    color: #FFFFFF;
+}
+
+.pri-task-hero-actions .pri-task-hero-btn-complete:hover {
+    background: #15803D;
+    border-color: #15803D;
+    color: #FFFFFF;
+}
+
+.pri-task-hero-actions .pri-task-hero-btn-complete:focus-visible {
+    outline: 3px solid rgba(134, 239, 172, 0.65);
+    outline-offset: 2px;
+}
+
+.pri-completion-card {
+    margin-top: 20px;
+}
+
+.pri-completion-card.is-completed {
+    border-color: #A7F3D0;
+    background: #F0FDF4;
+}
+
+.pri-completion-body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.pri-completion-info {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.pri-completion-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: #DCFCE7;
+    color: #16A34A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pri-completion-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.pri-completion-title {
+    margin: 0 0 4px;
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+}
+
+.pri-completion-text {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted-text);
+    line-height: 1.5;
+}
+
+.pri-completion-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.pri-completion-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    padding: 11px 22px;
+    font-size: 14px;
+}
+
+.pri-completion-btn svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+}
+
+.pri-completion-badge {
+    font-size: 13px;
+    padding: 8px 16px;
+}
+
+.pri-detail-card-record {
+    margin-top: 20px;
+}
+
 /* ---------- Responsive --*/
 @media (max-width: 640px) {
     .pri-task-hero {
@@ -1249,6 +1430,28 @@
     }
 
     .pri-task-hero-actions .btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .pri-task-hero-actions form {
+        width: 100%;
+    }
+
+    .pri-completion-body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pri-completion-actions {
+        width: 100%;
+    }
+
+    .pri-completion-actions form {
+        width: 100%;
+    }
+
+    .pri-completion-actions .btn {
         width: 100%;
         justify-content: center;
     }

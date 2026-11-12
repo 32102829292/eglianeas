@@ -12,6 +12,7 @@ use App\Services\PushNotificationService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -217,6 +218,93 @@ class PriorityItemController extends Controller
         }
 
         return back()->with('status', 'Priority item updated.');
+    }
+
+    /**
+     * Staff-facing completion workflow. The assigned staff member, or an
+     * administrator / supervisor acting in a management role, may complete it.
+     *
+     * The row is locked for the duration of the status change so two rapid
+     * submissions cannot both stamp a completion time, and an already completed
+     * item is never re-stamped.
+     */
+    public function complete(PriorityItem $item): RedirectResponse
+    {
+        $user = auth()->user();
+
+        abort_unless($item->canBeCompletedBy($user), 403, 'You are not allowed to complete this task.');
+
+        $completed = DB::transaction(function () use ($item, $user) {
+            $locked = PriorityItem::query()->whereKey($item->getKey())->lockForUpdate()->firstOrFail();
+
+            abort_unless($locked->canBeCompletedBy($user), 403, 'You are not allowed to complete this task.');
+
+            if ($locked->isCompleted()) {
+                return false;
+            }
+
+            $locked->update([
+                'status' => PriorityItem::STATUS_COMPLETED,
+                'completed_at' => now(),
+                'completed_by' => $user->id,
+            ]);
+
+            return true;
+        });
+
+        if (! $completed) {
+            return back()->with('status', 'This task has already been completed.');
+        }
+
+        $item->refresh();
+
+        $this->logActivity(
+            $item,
+            'admin.priority_item_completed',
+            "Marked Priority item #{$item->id} as completed."
+        );
+
+        return back()->with('status', 'Task marked as completed.');
+    }
+
+    /**
+     * Authorised administrators may correct a completion made in error. The
+     * audit fields are cleared together with the status so the item does not
+     * keep a completion record while open.
+     */
+    public function reopen(PriorityItem $item): RedirectResponse
+    {
+        abort_unless($item->canReopen(auth()->user()), 403, 'Only administrators can reopen a completed task.');
+
+        $reopened = DB::transaction(function () use ($item) {
+            $locked = PriorityItem::query()->whereKey($item->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! $locked->isCompleted()) {
+                return false;
+            }
+
+            $locked->update([
+                'status' => PriorityItem::STATUS_PENDING,
+                'completed_at' => null,
+                'completed_by' => null,
+            ]);
+
+            return true;
+        });
+
+        if (! $reopened) {
+            return back()->with('status', 'This task is already open.');
+        }
+
+        $item->refresh();
+
+        $this->logActivity(
+            $item,
+            'admin.priority_item_reopened',
+            "Reopened completed Priority item #{$item->id}."
+        );
+
+        return back()->with('status', 'Task reopened.');
     }
 
     public function assignStaff(Request $request, PriorityItem $item): RedirectResponse

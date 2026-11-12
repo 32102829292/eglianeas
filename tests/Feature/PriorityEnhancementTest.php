@@ -905,4 +905,214 @@ class PriorityEnhancementTest extends TestCase
             ->assertOk()
             ->assertSee('Lesson Learned #1');
     }
+
+    /* ---------------------------------------------------------------
+     | Mark as Done workflow
+     * -------------------------------------------------------------- */
+
+    public function test_assigned_staff_can_mark_their_task_as_done(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $staff->id]);
+
+        $this->travelTo(Carbon::parse('2026-06-15 14:45:00'));
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.complete', $item))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Task marked as completed.');
+
+        $item->refresh();
+
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->status);
+        $this->assertTrue($item->isCompleted());
+        $this->assertSame($staff->id, $item->completed_by);
+        $this->assertNotNull($item->completed_at);
+        $this->assertSame('2026-06-15 14:45', $item->completed_at->format('Y-m-d H:i'));
+        $this->assertTrue($item->completer->is($staff));
+    }
+
+    public function test_unassigned_staff_cannot_complete_a_task(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(); // Unassigned but visible to operational staff.
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.complete', $item))
+            ->assertForbidden();
+
+        $item->refresh();
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->status);
+        $this->assertNull($item->completed_at);
+        $this->assertNull($item->completed_by);
+    }
+
+    public function test_staff_cannot_complete_another_staff_members_task(): void
+    {
+        $owner = $this->user(User::ROLE_STAFF);
+        $outsider = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $owner->id]);
+
+        $this->actingAs($outsider)
+            ->post(route('admin.priority-items.complete', $item))
+            ->assertForbidden();
+
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->refresh()->status);
+    }
+
+    public function test_admin_and_supervisor_can_complete_priority_tasks(): void
+    {
+        $owner = $this->user(User::ROLE_STAFF);
+        $admin = $this->user(User::ROLE_ADMIN);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+
+        $adminItem = $this->item([
+            'task_lesson' => 'Admin completes',
+            'assigned_staff_id' => $owner->id,
+        ]);
+        $supervisorItem = $this->item([
+            'task_lesson' => 'Supervisor completes',
+            'assigned_staff_id' => $owner->id,
+        ]);
+
+        $this->actingAs($admin)->post(route('admin.priority-items.complete', $adminItem))->assertRedirect();
+        $this->actingAs($supervisor)->post(route('admin.priority-items.complete', $supervisorItem))->assertRedirect();
+
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $adminItem->refresh()->status);
+        $this->assertSame($admin->id, $adminItem->completed_by);
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $supervisorItem->refresh()->status);
+        $this->assertSame($supervisor->id, $supervisorItem->completed_by);
+    }
+
+    public function test_a_completed_task_cannot_be_completed_again(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $staff->id]);
+
+        $this->travelTo(Carbon::parse('2026-06-15 14:45:00'));
+        $this->actingAs($staff)->post(route('admin.priority-items.complete', $item))->assertRedirect();
+
+        $firstCompletedAt = $item->refresh()->completed_at->format('Y-m-d H:i:s');
+
+        $this->travelTo(Carbon::parse('2026-06-15 16:00:00'));
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.complete', $item))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'This task has already been completed.');
+
+        $item->refresh();
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->status);
+        $this->assertSame($firstCompletedAt, $item->completed_at->format('Y-m-d H:i:s'));
+        $this->assertSame($staff->id, $item->completed_by);
+    }
+
+    public function test_only_an_admin_can_reopen_a_completed_task(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $item = $this->item([
+            'assigned_staff_id' => $staff->id,
+            'status' => PriorityItem::STATUS_COMPLETED,
+            'completed_at' => now(),
+            'completed_by' => $staff->id,
+        ]);
+
+        $this->actingAs($staff)
+            ->post(route('admin.priority-items.reopen', $item))
+            ->assertForbidden();
+        $this->actingAs($supervisor)
+            ->post(route('admin.priority-items.reopen', $item))
+            ->assertForbidden();
+
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->refresh()->status);
+
+        $this->actingAs($admin)
+            ->post(route('admin.priority-items.reopen', $item))
+            ->assertRedirect()
+            ->assertSessionHas('status', 'Task reopened.');
+
+        $item->refresh();
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->status);
+        $this->assertNull($item->completed_at);
+        $this->assertNull($item->completed_by);
+    }
+
+    public function test_detail_page_shows_mark_as_done_and_completion_record(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF);
+        $outsider = $this->user(User::ROLE_STAFF);
+        $item = $this->item([
+            'task_lesson' => 'Complete me',
+            'assigned_staff_id' => $staff->id,
+        ]);
+
+        $this->actingAs($staff)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('Mark as Done')
+            ->assertSee('Are you sure you want to mark this task as completed?')
+            ->assertDontSee('Reopen Task');
+
+        $this->actingAs($outsider)->get(route('admin.priority-items.show', $item))->assertForbidden();
+
+        $this->travelTo(Carbon::parse('2026-06-15 14:45:00'));
+        $this->actingAs($staff)->post(route('admin.priority-items.complete', $item))->assertRedirect();
+
+        $this->actingAs($staff)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('COMPLETED')
+            ->assertSee('Completed on:')
+            ->assertSee('Completed by:')
+            ->assertSee('June 15, 2026 2:45 PM')
+            ->assertSee($staff->name)
+            ->assertDontSee('Mark as Done')
+            ->assertDontSee('Reopen Task');
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('Reopen Task')
+            ->assertSee('Completed on:')
+            ->assertSee($staff->name);
+    }
+
+    public function test_staff_cannot_change_status_through_the_admin_update_route(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $staff->id]);
+
+        $this->actingAs($staff)->put(route('admin.priority-items.update', $item), [
+            'task_lesson' => $item->task_lesson,
+            'type' => $item->type,
+            'priority' => $item->priority,
+            'status' => PriorityItem::STATUS_COMPLETED,
+        ])->assertForbidden();
+
+        $this->assertSame(PriorityItem::STATUS_PENDING, $item->refresh()->status);
+    }
+
+    public function test_completing_a_task_preserves_evidence_and_checklist_items(): void
+    {
+        $admin = $this->user(User::ROLE_ADMIN);
+        $staff = $this->user(User::ROLE_STAFF);
+        $item = $this->item(['assigned_staff_id' => $staff->id]);
+
+        $this->actingAs($staff)->post(route('admin.priority-items.evidence.add', $item), [
+            'evidence' => UploadedFile::fake()->image('proof.png', 60, 60),
+        ])->assertRedirect();
+
+        $checklistItem = $item->checklistItems()->create(['title' => 'Prepare working papers', 'sort_order' => 1]);
+
+        $this->actingAs($staff)->post(route('admin.priority-items.complete', $item))->assertRedirect();
+
+        $item->refresh();
+        $this->assertSame(PriorityItem::STATUS_COMPLETED, $item->status);
+        $this->assertSame(1, $item->evidences()->count());
+        $this->assertDatabaseHas('checklist_items', ['id' => $checklistItem->id]);
+
+        $this->actingAs($admin)->get(route('admin.priority-items.show', $item))
+            ->assertOk()
+            ->assertSee('proof.png')
+            ->assertSee('Prepare working papers');
+    }
 }

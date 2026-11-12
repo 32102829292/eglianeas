@@ -119,7 +119,7 @@ class PriorityItem extends Model
     {
         return [
             'due_date' => 'date',
-            'completed_at' => 'date',
+            'completed_at' => 'datetime',
         ];
     }
 
@@ -199,6 +199,31 @@ class PriorityItem extends Model
     public function isAssignedTo(User $user): bool
     {
         return $this->assigned_staff_id === $user->id;
+    }
+
+    /**
+     * Who is allowed to move this item into the completed state: the assigned
+     * staff member, or an administrator / supervisor acting in a management
+     * role. Assignment is deliberately checked by id so an unassigned item is
+     * never completable by a regular staff member.
+     */
+    public function canBeCompletedBy(User $user): bool
+    {
+        if ($user->isAdmin() || $user->isSupervisor()) {
+            return true;
+        }
+
+        return $this->isVisibleTo($user) && $this->isAssignedTo($user);
+    }
+
+    public function canComplete(User $user): bool
+    {
+        return ! $this->isCompleted() && $this->canBeCompletedBy($user);
+    }
+
+    public function canReopen(User $user): bool
+    {
+        return $user->isAdmin() && $this->isCompleted();
     }
 
     public function isUnassigned(): bool
@@ -382,6 +407,11 @@ class PriorityItem extends Model
     public function completionDateFormatted(): ?string
     {
         return $this->completed_at?->format('F j, Y');
+    }
+
+    public function completionDateTimeFormatted(): ?string
+    {
+        return $this->completed_at?->format('F j, Y g:i A');
     }
 
     public function urgencyInstruction(): string
