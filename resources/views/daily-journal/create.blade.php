@@ -27,6 +27,9 @@
       data-draft-key="{{ $draftKey }}">
     @csrf
     <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}">
+    {{-- The script sets this right before every real submit, so "action" is always posted
+         even in browsers that do not report the clicked button (e.submitter). --}}
+    <input type="hidden" name="action" id="dar-action" value="draft">
 
     {{-- ===== Page header ===== --}}
     <header class="dar-head">
@@ -484,11 +487,13 @@
 
             <div class="dar-actions">
                 @if (! $isSubmitted)
-                    <button type="submit" name="action" value="submit" class="dar-btn dar-btn-primary dar-btn-lg" data-action="submit" @disabled($isFuture)>
+                    {{-- No name="action" here: the hidden #dar-action input carries the value,
+                         so a duplicate field can never override it. --}}
+                    <button type="submit" value="submit" class="dar-btn dar-btn-primary dar-btn-lg" data-action="submit" @disabled($isFuture)>
                         <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M22 2 11 13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
                         <span>Submit Report</span>
                     </button>
-                    <button type="submit" name="action" value="draft" class="dar-btn dar-btn-outline dar-btn-lg" data-action="draft" formnovalidate @disabled($isFuture)>
+                    <button type="submit" value="draft" class="dar-btn dar-btn-outline dar-btn-lg" data-action="draft" formnovalidate @disabled($isFuture)>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                         <span>Save Draft</span>
                     </button>
@@ -509,8 +514,8 @@
     @if (! $isSubmitted && $requiresReport)
         <div class="dar-mobile-bar" data-mobile-bar>
             <span class="dar-mobile-progress" data-mobile-progress></span>
-            <button type="submit" form="dar-form" name="action" value="draft" class="dar-btn dar-btn-outline dar-btn-sm" data-action="draft" formnovalidate @disabled($isFuture)>Save Draft</button>
-            <button type="submit" form="dar-form" name="action" value="submit" class="dar-btn dar-btn-primary dar-btn-sm" data-action="submit" @disabled($isFuture)>Submit</button>
+            <button type="submit" form="dar-form" value="draft" class="dar-btn dar-btn-outline dar-btn-sm" data-action="draft" formnovalidate @disabled($isFuture)>Save Draft</button>
+            <button type="submit" form="dar-form" value="submit" class="dar-btn dar-btn-primary dar-btn-sm" data-action="submit" @disabled($isFuture)>Submit</button>
         </div>
     @endif
 </form>
@@ -800,6 +805,7 @@
 
     var locked = form.getAttribute('data-locked') === '1';
     var draftKey = form.getAttribute('data-draft-key');
+    var actionInput = document.getElementById('dar-action');
     var submitting = false;
     var dirty = false;
 
@@ -1132,9 +1138,28 @@
         summaryList.appendChild(summaryRow('New attachments', String(fileState.length)));
     }
 
+    // Which action does a button stand for? data-action is the source of truth;
+    // value is only a fallback. No submitter at all (Enter key in an old browser) means draft.
+    function actionOf(btn) {
+        if (! btn) { return 'draft'; }
+        return btn.getAttribute('data-action') || btn.value || 'draft';
+    }
+
+    // Submit the form with an explicit action, independent of browser submitter support.
+    function submitWith(action, btn) {
+        actionInput.value = action;
+        if (typeof form.requestSubmit === 'function') {
+            try { btn ? form.requestSubmit(btn) : form.requestSubmit(); return; } catch (err) { /* fall through */ }
+        }
+        // Very old browsers: submit() skips the submit event, so run the cleanup ourselves.
+        submitting = true;
+        store(function (s) { s.removeItem(draftKey); });
+        form.submit();
+    }
+
     form.addEventListener('submit', function (e) {
-        var submitter = e.submitter;
-        var action = submitter ? submitter.value : '';
+        var submitter = e.submitter || pendingSubmitter;
+        var action = actionOf(submitter);
 
         if (action === 'submit' && ! confirmed) {
             e.preventDefault();
@@ -1145,20 +1170,25 @@
                 dialog.showModal();
             } else if (window.confirm('Submit your report? You will not be able to edit it afterwards.')) {
                 confirmed = true;
-                form.requestSubmit(submitter);
+                submitWith('submit', submitter);
             }
             return;
         }
 
+        // Always post the action, whatever the browser reports as the submitter.
+        actionInput.value = action;
+        confirmed = false;
+        pendingSubmitter = null;
+
         submitting = true;
         store(function (s) { s.removeItem(draftKey); });
-        // Wait a tick: disabling the clicked button earlier would drop its "action" value.
+        // Wait a tick so the form data (including the action) is captured before the UI changes.
         setTimeout(function () {
             $$('[data-action]').concat($$('[data-action]', document.querySelector('[data-mobile-bar]') || form)).forEach(function (btn) {
                 btn.classList.add('is-busy');
                 btn.setAttribute('aria-disabled', 'true');
             });
-            var label = submitter && submitter.querySelector('span');
+            var label = submitter && submitter.querySelector && submitter.querySelector('span');
             if (label) { label.textContent = action === 'submit' ? 'Submitting…' : 'Saving…'; }
             else if (submitter) { submitter.textContent = action === 'submit' ? 'Submitting…' : 'Saving…'; }
         }, 0);
@@ -1168,7 +1198,12 @@
         dialog.addEventListener('close', function () {
             if (dialog.returnValue === 'confirm' && pendingSubmitter) {
                 confirmed = true;
-                form.requestSubmit(pendingSubmitter);
+                submitWith('submit', pendingSubmitter);
+            } else {
+                // Cancelled or dismissed (Esc): forget the pending submit.
+                confirmed = false;
+                pendingSubmitter = null;
+                actionInput.value = 'draft';
             }
             dialog.returnValue = '';
         });
@@ -1180,7 +1215,7 @@
             var draftBtn = form.querySelector('.dar-actions [data-action="draft"]') || form.querySelector('[data-action="draft"]');
             if (draftBtn && ! draftBtn.disabled && ! locked) {
                 e.preventDefault();
-                form.requestSubmit(draftBtn);
+                submitWith('draft', draftBtn);
             }
         }
     });
