@@ -102,6 +102,19 @@ class DailyJournalController extends Controller
             'suggested_solutions' => ['label' => 'Suggested Solutions', 'placeholder' => 'Propose solutions for problems encountered, process improvements, or recommendations...', 'hint' => 'Required. Say what would stop this happening again, or what would make the job easier.', 'example' => 'Example: Ask clients to send source documents by the 5th so month-end closing is not compressed.'],
         ];
 
+        // Urgent tasks: restore what the employee just typed if validation
+        // failed (old input), otherwise nothing is pre-filled.
+        $urgentTasks = collect((array) old('urgent_tasks', []))
+            ->filter(fn ($task) => is_array($task)
+                && trim((string) ($task['description'] ?? '')) !== ''
+                && trim((string) ($task['reason'] ?? '')) !== '')
+            ->map(fn ($task) => [
+                'description' => trim((string) $task['description']),
+                'reason' => trim((string) $task['reason']),
+            ])
+            ->values()
+            ->all();
+
         return view('daily-journal.create', [
             'journal' => $journal,
             'date' => $date,
@@ -119,11 +132,18 @@ class DailyJournalController extends Controller
             'statusBadge' => $statusBadge,
             'statusLabel' => $statusLabel,
             'statusIcon' => $statusIcon,
+            'urgentTasks' => $urgentTasks,
         ]);
     }
 
     /**
-     * Store the journal submission.
+     * Store the journal.
+     *
+     * The form posts an "action" field:
+     *   - "submit" => validates every section and submits the report.
+     *   - anything else (normally "draft") => saves the text as a draft and
+     *     leaves the report editable (status stays "missing").
+     *
      * Only Staff and Supervisor can submit journals.
      */
     public function store(Request $request): RedirectResponse
@@ -140,44 +160,83 @@ class DailyJournalController extends Controller
             abort(403, 'Client users cannot access daily journals.');
         }
 
-        $date = $request->get('date') ? Carbon::parse($request->get('date')) : Carbon::today();
+        $date = $request->filled('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+        $back = fn (): RedirectResponse => redirect()
+            ->route('daily-journal.create', ['date' => $date->toDateString()]);
 
         // Reports are only required Monday to Friday; reject weekend submissions
         // so no weekend obligation is ever created.
         if (! DailyJournalService::isWorkingDay($date)) {
-            return redirect()
-                ->route('daily-journal.create', ['date' => $date->toDateString()])
-                ->withErrors(['date' => 'Daily Accomplishment Reports are only required Monday through Friday.']);
+            return $back()->withErrors(['date' => 'Daily Accomplishment Reports are only required Monday through Friday.']);
         }
 
+        // The form is disabled for future dates; enforce it on the server too.
+        if ($date->gt(Carbon::today())) {
+            return $back()->withErrors(['date' => 'This report is not due yet.']);
+        }
+
+        // Anything other than an explicit "submit" is treated as a draft.
+        $isSubmit = $request->input('action') === 'submit';
+
+        $journal = DailyJournalService::getOrCreateForUserAndDate($user->id, $date);
+
+        // A submitted report is locked; changes go through the supervisor.
+        if ($journal->isNotMissing()) {
+            return $back()->withErrors(['date' => 'This report was already submitted. Please contact your supervisor to change it.']);
+        }
+
+        // The three text sections are required only when actually submitting;
+        // a draft is allowed to be partly (or entirely) empty.
+        $textRule = $isSubmit ? 'required|string' : 'nullable|string';
+
         $request->validate([
-            'problems_encountered' => 'required|string',
-            'achievements' => 'required|string',
-            'suggested_solutions' => 'required|string',
+            'problems_encountered' => $textRule,
+            'achievements' => $textRule,
+            'suggested_solutions' => $textRule,
             'evidence' => 'nullable|array',
             'evidence.*' => 'file|mimes:jpg,jpeg,png,pdf,doc,docx|max:5120',
+            'urgent_tasks' => 'nullable|array',
+            'urgent_tasks.*.description' => 'nullable|string|max:255',
+            'urgent_tasks.*.reason' => 'nullable|string|max:255',
+            'achievement_codes' => 'nullable|array',
+            'achievement_codes.*' => 'string|max:20',
         ]);
 
         // Handle file uploads
-        $evidencePaths = [];
+        $newPaths = [];
         if ($request->hasFile('evidence')) {
             foreach ($request->file('evidence') as $file) {
-                $path = $file->store('daily-journals/'.$user->id.'/'.$date->format('Y-m-d'), 'supabase');
-                $evidencePaths[] = $path;
+                $newPaths[] = $file->store('daily-journals/'.$user->id.'/'.$date->format('Y-m-d'), 'supabase');
             }
         }
 
-        DailyJournalService::submitJournal(
-            $user->id,
-            $date,
-            $request->string('problems_encountered')->toString(),
-            $request->string('achievements')->toString(),
-            $request->string('suggested_solutions')->toString(),
-            $evidencePaths
-        );
+        // Keep any files attached by an earlier draft.
+        $allPaths = array_values(array_unique(array_merge($journal->evidencePaths(), $newPaths)));
 
-        return redirect()->route('daily-journal.create', ['date' => $date->toDateString()])
-            ->with('status', 'Daily journal submitted successfully.');
+        if ($isSubmit) {
+            DailyJournalService::submitJournal(
+                $user->id,
+                $date,
+                $request->string('problems_encountered')->toString(),
+                $request->string('achievements')->toString(),
+                $request->string('suggested_solutions')->toString(),
+                $allPaths
+            );
+
+            return $back()->with('status', 'Daily journal submitted successfully.');
+        }
+
+        // Draft: store the text only. The report stays "missing", so the form
+        // remains editable and the overdue/missing counters are unaffected.
+        $journal->forceFill([
+            'problems_encountered' => $request->input('problems_encountered'),
+            'achievements' => $request->input('achievements'),
+            'suggested_solutions' => $request->input('suggested_solutions'),
+            // Confirm this column name against DailyJournal::evidencePaths().
+            'evidence_paths' => $allPaths,
+        ])->save();
+
+        return $back()->with('status', 'Draft saved. You can come back and finish it.');
     }
 
     /**
@@ -392,18 +451,22 @@ class DailyJournalController extends Controller
             ->map(fn ($journals) => $journals->first());
 
         // Pending integrations: evaluations not yet linked to the Score Sheet.
+        // The two conditions are grouped so the OR cannot escape the rest of
+        // the query.
         $pendingIntegrations = StaffTaskEvaluation::query()
-            ->whereNotIn('evaluation_status', [
-                StaffTaskEvaluation::STATUS_FINALIZED,
-                StaffTaskEvaluation::STATUS_REVERSED,
-            ])
-            ->whereNull('score_sheet_included')
-            ->orWhere(function ($query) {
-                $query->where('score_sheet_included', false)
-                    ->whereIn('evaluation_status', [
+            ->where(function ($query) {
+                $query->where(function ($q) {
+                    $q->whereNotIn('evaluation_status', [
                         StaffTaskEvaluation::STATUS_FINALIZED,
-                        StaffTaskEvaluation::STATUS_ADJUSTED,
-                    ]);
+                        StaffTaskEvaluation::STATUS_REVERSED,
+                    ])->whereNull('score_sheet_included');
+                })->orWhere(function ($q) {
+                    $q->where('score_sheet_included', false)
+                        ->whereIn('evaluation_status', [
+                            StaffTaskEvaluation::STATUS_FINALIZED,
+                            StaffTaskEvaluation::STATUS_ADJUSTED,
+                        ]);
+                });
             })
             ->count();
 
@@ -485,10 +548,8 @@ class DailyJournalController extends Controller
     {
         $this->authorizeAdmin();
 
-        $levels = collect(config('achievements.levels', []))->pluck('label')->all();
-
         $validated = $request->validate([
-            'reason' => ['required', 'string', 'max:1000'],
+            'reason' => ['required', 'string', 'min:10', 'max:1000'],
             'criteria' => ['required', 'array'],
             'criteria.*.score' => ['required', 'numeric', 'between:0,100'],
             'criteria.*.max' => ['required', 'numeric', 'between:0,100'],
@@ -631,16 +692,15 @@ class DailyJournalController extends Controller
 
         // ------------------------------------------------------------------
         // Build transparent score-calculation data for the employee-facing
-        // explanation. We trace every number back to its source so an
-        // employee can independently verify how the final score was derived.
+        // explanation. Every number traces back to its source so an employee
+        // can independently verify how the final score was derived.
+        //
+        // Weighted points are expressed as points out of 100:
+        //   points = score x (weight / 100)
+        // so a score of 85 at a 50% weight contributes 42.5 points.
         // ------------------------------------------------------------------
         $finalScore = $dailyJournal->finalScore();
-        $originalAiScore = $dailyJournal->originalAiScore();
-        $hasManualOverride = $dailyJournal->hasManualOverride();
-        $manualAdjustment = $dailyJournal->manualAdjustment();
         $isManual = $dailyJournal->assessment_source === 'reviewer';
-        $assessmentType = $isManual ? 'Manual Reassessment' : 'Automatic Assessment';
-        $assessedAt = $dailyJournal->assessed_at;
 
         $criteriaNames = [
             'quality' => 'Accomplishment Quality',
@@ -649,69 +709,52 @@ class DailyJournalController extends Controller
             'client_feedback' => 'Client Feedback',
         ];
 
+        $order = ['quality', 'timeliness', 'responsiveness', 'client_feedback'];
+
         $calculationCriteria = [];
         $totalOriginalWeight = 0.0;
         $totalAvailableWeight = 0.0;
         $totalWeightedPoints = 0.0;
 
-        foreach ($criteria as $key => $scoreOrNull) {
-            if (! is_numeric($scoreOrNull) && $scoreOrNull !== 0 && $scoreOrNull !== '0') {
-                continue;
-            }
-            $score = (float) $scoreOrNull;
+        // Iterate the canonical criteria so the order is always the same and
+        // an unexpected key in $criteria can never create a bogus row.
+        foreach ($order as $key) {
+            $scoreOrNull = $criteria[$key] ?? null;
             $weight = (float) ($weights[$key] ?? 0);
             $totalOriginalWeight += $weight;
-            $weightedPoints = round($score * $weight, 2);
-            $totalAvailableWeight += $weight;
-            $totalWeightedPoints += $weightedPoints;
+
+            $evaluated = $scoreOrNull !== null && is_numeric($scoreOrNull);
+            $score = $evaluated ? (float) $scoreOrNull : null;
+            $weightedPoints = $evaluated ? round($score * ($weight / 100), 2) : null;
+
+            if ($evaluated) {
+                $totalAvailableWeight += $weight;
+                $totalWeightedPoints += $weightedPoints;
+            }
 
             $calculationCriteria[] = [
                 'key' => $key,
-                'name' => $criteriaNames[$key] ?? ucfirst(str_replace('_', ' ', $key)),
+                'name' => $criteriaNames[$key],
                 'score' => $score,
                 'weight' => $weight,
                 'weighted_points' => $weightedPoints,
-                'explanation' => $criteria[$key . '_explanation'] ?? 'Not yet evaluated.',
-                'meta' => $criteria[$key . '_meta'] ?? [],
-                'status' => 'Evaluated',
+                'explanation' => $criteria[$key.'_explanation'] ?? 'Not yet evaluated.',
+                'meta' => $criteria[$key.'_meta'] ?? [],
+                'status' => $evaluated ? 'Evaluated' : 'Not evaluated',
             ];
         }
 
-        // Add excluded (null) criteria with their reasons.
-        $addedKeys = array_column($calculationCriteria, 'key');
-        foreach (['quality', 'timeliness', 'responsiveness', 'client_feedback'] as $key) {
-            if (in_array($key, $addedKeys, true)) {
-                continue;
-            }
-            $weight = (float) ($weights[$key] ?? 0);
-            $totalOriginalWeight += $weight;
-            $calculationCriteria[] = [
-                'key' => $key,
-                'name' => $criteriaNames[$key] ?? ucfirst(str_replace('_', ' ', $key)),
-                'score' => null,
-                'weight' => $weight,
-                'weighted_points' => null,
-                'explanation' => $criteria[$key . '_explanation'] ?? 'Not yet evaluated.',
-                'meta' => $criteria[$key . '_meta'] ?? [],
-                'status' => 'Not evaluated',
-            ];
-        }
-
-        // Re-order to match canonical criterion order.
-        $order = ['quality', 'timeliness', 'responsiveness', 'client_feedback'];
-        usort($calculationCriteria, function ($a, $b) use ($order) {
-            return array_search($a['key'], $order) <=> array_search($b['key'], $order);
-        });
-
+        // Renormalize over the weight that was actually available.
         $normalizedScore = null;
         $normalizationExplanation = null;
         if ($finalScore !== null && $totalAvailableWeight > 0) {
-            $normalizedScore = round($totalWeightedPoints / $totalAvailableWeight, 1);
+            $normalizedScore = round($totalWeightedPoints / ($totalAvailableWeight / 100), 1);
             $normalizationExplanation = sprintf(
-                'Only %.0f%% of the total weight was available. Weighted points %.2f divided by available weight %.0f equals %.1f.',
+                'Only %.0f%% of the total weight had data. Weighted points %.2f divided by the available weight (%.0f%% = %.2f) equals %.1f.',
                 $totalAvailableWeight,
                 $totalWeightedPoints,
                 $totalAvailableWeight,
+                $totalAvailableWeight / 100,
                 $normalizedScore
             );
         }
@@ -721,8 +764,10 @@ class DailyJournalController extends Controller
             ? 'A reviewer manually set this score and may have overridden the automatic result.'
             : 'An automatic rule-based assessment computed this score from your submitted records.';
 
-        // Plain-language summary of what the score means.
+        // Plain-language summary of what the score means. $finalScore can be
+        // null (not yet assessed), so guard it before comparing.
         $scoreMeaning = match (true) {
+            $finalScore === null => 'This report has not been assessed yet.',
             $finalScore >= 90 => 'Outstanding performance across the evaluated criteria.',
             $finalScore >= 80 => 'Excellent performance with minor areas for improvement.',
             $finalScore >= 70 => 'Good performance meeting most expectations.',
@@ -743,7 +788,6 @@ class DailyJournalController extends Controller
             'scoreSheetTasksTotal' => $scoreSheetTasks->sum(fn ($evaluation) => $evaluation->isIncludedInScoreSheet()
                 ? (float) $evaluation->score_sheet_weighted_points
                 : 0),
-            // New: transparent calculation data
             'calculationCriteria' => $calculationCriteria,
             'totalOriginalWeight' => $totalOriginalWeight,
             'totalAvailableWeight' => $totalAvailableWeight,
@@ -764,11 +808,12 @@ class DailyJournalController extends Controller
         $this->authorizeAdmin();
 
         $date = $dailyJournal->required_date;
+        $userId = $dailyJournal->user_id;
         $userName = $dailyJournal->user ? $dailyJournal->user->name : 'Unknown / Deleted User';
 
         $dailyJournal->delete();
 
-        DailyJournalService::forgetMissingCount($dailyJournal->user_id);
+        DailyJournalService::forgetMissingCount($userId);
 
         return redirect()->route('daily-journal.admin-monitor', ['date' => $date->toDateString()])
             ->with('status', "Daily journal for {$userName} on {$date->format('F j, Y')} deleted.");

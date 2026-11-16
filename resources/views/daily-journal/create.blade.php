@@ -532,7 +532,7 @@
 
 @push('styles')
 <style>
-.dar {
+.dar, .dar-dialog {
     --dar-ink: #1b2447;
     --dar-muted: #5b6585;
     --dar-line: #e3e7f3;
