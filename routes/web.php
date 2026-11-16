@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\ImpersonateController;
 use App\Http\Controllers\Admin\KaizenConcernController;
 use App\Http\Controllers\Admin\DailyGoalController;
 use App\Http\Controllers\Admin\WorkPlanController;
+use App\Http\Controllers\Admin\WorkPlanLegendController;
 use App\Http\Controllers\Admin\MonthlyBookkeepingController as AdminMonthlyBookkeepingController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\PriorityItemController;
@@ -515,6 +516,9 @@ Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
     // Registered before the model-binding route so the literal segment wins.
     Route::get('/daily-journal/achievements', [DailyJournalController::class, 'achievements'])->name('daily-journal.achievements');
     Route::get('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'show'])->name('daily-journal.show');
+
+    // Work Plan legend reference board (view-only for all operational roles)
+    Route::get('/work-plan/reference-board', [WorkPlanLegendController::class, 'referenceBoard'])->name('work-plan.reference-board');
 });
 
 // Assessment corrections and manual reassessment are admin-only for modifications.
@@ -534,28 +538,38 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/daily-journal-monitor', [DailyJournalController::class, 'adminMonitor'])->name('daily-journal.admin-monitor');
     Route::delete('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'destroy'])->name('daily-journal.destroy');
 
-    // Daily Goals management (admin only)
     Route::middleware('role:admin')->group(function () {
+        // Daily Goals management (admin only)
         Route::get('/daily-goals', [DailyGoalController::class, 'index'])->name('daily-goals.index');
         Route::post('/daily-goals', [DailyGoalController::class, 'store'])->name('daily-goals.store');
+        Route::get('/daily-goals/for-date', [DailyGoalController::class, 'goalsForDate'])->name('daily-goals.for-date');
         Route::get('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'edit'])->name('daily-goals.edit');
         Route::put('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'update'])->name('daily-goals.update');
         Route::delete('/daily-goals/{dailyGoal}', [DailyGoalController::class, 'destroy'])->name('daily-goals.destroy');
-        Route::get('/daily-goals/for-date', [DailyGoalController::class, 'goalsForDate'])->name('daily-goals.for-date');
 
-        // Work Plan management (admin only)
-        Route::get('/daily-work-plan', [WorkPlanController::class, 'index'])->name('daily-work-plan.index');
-        Route::post('/daily-work-plan', [WorkPlanController::class, 'store'])->name('daily-work-plan.store');
-        Route::post('/daily-work-plan/toggle-lock', [WorkPlanController::class, 'toggleLock'])->name('daily-work-plan.toggle-lock');
-        Route::get('/daily-work-plan/tasks-for-date', [WorkPlanController::class, 'tasksForDate'])->name('daily-work-plan.tasks-for-date');
-        Route::get('/daily-work-plan/tasks-with-targets', [WorkPlanController::class, 'tasksWithTargets'])->name('daily-work-plan.tasks-with-targets');
-        Route::get('/daily-work-plan/incomplete-tasks', [WorkPlanController::class, 'incompleteTasks'])->name('daily-work-plan.incomplete-tasks');
-        Route::get('/daily-work-plan/performance-score', [WorkPlanController::class, 'performanceScore'])->name('daily-work-plan.performance-score');
-        Route::get('/daily-work-plan/incomplete-summary', [WorkPlanController::class, 'incompleteTasksSummary'])->name('daily-work-plan.incomplete-summary');
-        Route::get('/daily-work-plan/{task}', [WorkPlanController::class, 'edit'])->name('daily-work-plan.edit');
-        Route::put('/daily-work-plan/{task}', [WorkPlanController::class, 'update'])->name('daily-work-plan.update');
-        Route::delete('/daily-work-plan/{task}', [WorkPlanController::class, 'destroy'])->name('daily-work-plan.destroy');
+        // Work Plan Legends management (admin only)
+        Route::get('/work-plan-legends', [WorkPlanLegendController::class, 'index'])->name('work-plan-legends.index');
+        Route::post('/work-plan-legends', [WorkPlanLegendController::class, 'store'])->name('work-plan-legends.store');
+        Route::put('/work-plan-legends/{legend}', [WorkPlanLegendController::class, 'update'])->name('work-plan-legends.update');
+        Route::delete('/work-plan-legends/{legend}', [WorkPlanLegendController::class, 'destroy'])->name('work-plan-legends.destroy');
     });
+
+    // Work Plan (operational access; controller/service enforces scoping and write rules)
+    Route::get('/daily-work-plan', [WorkPlanController::class, 'index'])->name('daily-work-plan.index');
+    Route::post('/daily-work-plan', [WorkPlanController::class, 'store'])->name('daily-work-plan.store');
+    Route::post('/daily-work-plan/sync-day', [WorkPlanController::class, 'syncDay'])->name('daily-work-plan.sync-day');
+    Route::post('/daily-work-plan/toggle-lock', [WorkPlanController::class, 'toggleLock'])->name('daily-work-plan.toggle-lock');
+    Route::get('/daily-work-plan/tasks-for-date', [WorkPlanController::class, 'tasksForDate'])->name('daily-work-plan.tasks-for-date');
+    Route::get('/daily-work-plan/tasks-with-targets', [WorkPlanController::class, 'tasksWithTargets'])->name('daily-work-plan.tasks-with-targets');
+    Route::get('/daily-work-plan/incomplete-tasks', [WorkPlanController::class, 'incompleteTasks'])->name('daily-work-plan.incomplete-tasks');
+    Route::get('/daily-work-plan/performance-score', [WorkPlanController::class, 'performanceScore'])->name('daily-work-plan.performance-score');
+    Route::get('/daily-work-plan/incomplete-summary', [WorkPlanController::class, 'incompleteTasksSummary'])->name('daily-work-plan.incomplete-summary');
+    Route::get('/daily-work-plan/incomplete', [WorkPlanController::class, 'incompleteTasksPage'])->name('daily-work-plan.incomplete');
+    Route::get('/daily-work-plan/performance', [WorkPlanController::class, 'performancePage'])->name('daily-work-plan.performance');
+    Route::post('/daily-work-plan/problem-evaluation', [WorkPlanController::class, 'evaluateProblemSolving'])->name('daily-work-plan.problem-evaluation');
+    Route::get('/daily-work-plan/{task}', [WorkPlanController::class, 'edit'])->name('daily-work-plan.edit');
+    Route::put('/daily-work-plan/{task}', [WorkPlanController::class, 'update'])->name('daily-work-plan.update');
+    Route::delete('/daily-work-plan/{task}', [WorkPlanController::class, 'destroy'])->name('daily-work-plan.destroy');
 });
 
 // Supervisor monitoring routes

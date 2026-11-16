@@ -6,6 +6,7 @@ use App\Models\DailyGoal;
 use App\Models\DailyJournal;
 use App\Models\StaffTaskEvaluation;
 use App\Models\User;
+use App\Models\WorkPlanLegend;
 use App\Models\WorkPlanTask;
 use App\Services\AchievementAnalysisService;
 use App\Services\AchievementCriteriaService;
@@ -46,6 +47,12 @@ class DailyJournalController extends Controller
         // for days that are not actually required.
         $requiresReport = DailyJournalService::isWorkingDay($date);
 
+        $dayHeading = match (true) {
+            $date->isToday() => 'Today',
+            $date->isYesterday() => 'Yesterday',
+            default => $date->format('l'),
+        };
+
         if ($requiresReport) {
             // Employees can only submit for themselves
             $journal = DailyJournalService::getOrCreateForUserAndDate($user->id, $date);
@@ -60,6 +67,11 @@ class DailyJournalController extends Controller
         $isToday = $date->isToday();
         $isPast = $date->lt(Carbon::today());
         $isFuture = $date->gt(Carbon::today());
+
+        $isSubmitted = $journal ? $journal->isNotMissing() : false;
+        $statusBadge = $journal ? $journal->getStatusBadgeClass() : 'badge-info';
+        $statusLabel = $journal ? $journal->getStatusLabel() : 'Not required';
+        $statusIcon = $journal ? $journal->getStatusIcon() : '—';
 
         // Goals for the Day: active goals for the selected date
         $dailyGoals = DailyGoal::query()
@@ -77,6 +89,19 @@ class DailyJournalController extends Controller
             ->orderBy('id')
             ->get();
 
+        // Active Achievement Legend Codes
+        $achievementLegends = WorkPlanLegend::active()
+            ->orderBy('category')
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->get();
+
+        $prompt = [
+            'problems_encountered' => ['label' => 'Problems Encountered', 'placeholder' => 'Describe any problems, issues, or obstacles you encountered today...', 'hint' => 'Required. Include anything that delayed your work and why.', 'example' => 'Example: Client submitted the required documents late, so the filing could not be completed on schedule.'],
+            'achievements' => ['label' => 'Achievements', 'placeholder' => 'Select Activity Legend Codes for completed work', 'hint' => 'Required. Select the codes for work you have completed.', 'example' => 'Example: A, B, F - select the codes for tasks you finished.'],
+            'suggested_solutions' => ['label' => 'Suggested Solutions', 'placeholder' => 'Propose solutions for problems encountered, process improvements, or recommendations...', 'hint' => 'Required. Say what would stop this happening again, or what would make the job easier.', 'example' => 'Example: Ask clients to send source documents by the 5th so month-end closing is not compressed.'],
+        ];
+
         return view('daily-journal.create', [
             'journal' => $journal,
             'date' => $date,
@@ -87,6 +112,13 @@ class DailyJournalController extends Controller
             'user' => $user,
             'dailyGoals' => $dailyGoals,
             'workPlanTasks' => $workPlanTasks,
+            'achievementLegends' => $achievementLegends,
+            'prompt' => $prompt,
+            'dayHeading' => $dayHeading,
+            'isSubmitted' => $isSubmitted,
+            'statusBadge' => $statusBadge,
+            'statusLabel' => $statusLabel,
+            'statusIcon' => $statusIcon,
         ]);
     }
 
@@ -170,7 +202,7 @@ class DailyJournalController extends Controller
 
         $availableDates = DailyJournalService::getAvailableDates();
 
-        // Goals for the Day: active daily goals for the selected date, grouped by user
+        // Goals for the Day: active daily goals and Work Plan assignments for the selected date, grouped by user
         $dailyGoals = DailyGoal::query()
             ->where('target_date', $date->toDateString())
             ->where('status', DailyGoal::STATUS_ACTIVE)
@@ -179,7 +211,62 @@ class DailyJournalController extends Controller
             ->orderBy('id')
             ->get();
 
-        $goalsByUser = $dailyGoals->groupBy('user_id');
+        $workPlanGoals = WorkPlanTask::query()
+            ->where('work_date', $date->toDateString())
+            ->where('status', '!=', WorkPlanTask::STATUS_CANCELLED)
+            ->with(['user', 'legend'])
+            ->orderBy('user_id')
+            ->orderBy('id')
+            ->get();
+
+        $goalItems = collect();
+
+        foreach ($dailyGoals as $goal) {
+            $goalItems->push((object) [
+                'user_id' => $goal->user_id,
+                'user' => $goal->user,
+                'title' => $goal->title,
+                'description' => $goal->description,
+                'success_criteria' => $goal->success_criteria,
+                'target_date' => $goal->target_date,
+                'source' => 'daily_goal',
+                'dedupe_key' => mb_strtolower(trim((string) $goal->title)),
+            ]);
+        }
+
+        foreach ($workPlanGoals as $task) {
+            $label = $task->getLegendLabel();
+            $dedupeKey = mb_strtolower(trim(($task->legend_code ? $task->legend_code.'|' : '').$label));
+
+            $goalItems->push((object) [
+                'user_id' => $task->user_id,
+                'user' => $task->user,
+                'title' => $label,
+                'description' => $task->description,
+                'success_criteria' => $task->success_criteria,
+                'target_date' => $task->work_date,
+                'source' => 'work_plan',
+                'dedupe_key' => $dedupeKey,
+            ]);
+        }
+
+        $goalsByUser = $goalItems
+            ->filter(fn ($goal) => $goal->user !== null)
+            ->groupBy('user_id')
+            ->map(function ($items) {
+                $seen = [];
+
+                return $items->filter(function ($item) use (&$seen) {
+                    $key = $item->dedupe_key;
+                    if (isset($seen[$key])) {
+                        return false;
+                    }
+                    $seen[$key] = true;
+
+                    return true;
+                })->values();
+            })
+            ->filter(fn ($items) => $items->isNotEmpty());
 
         return view('daily-journal.admin-monitor', [
             'journals' => $journals,
@@ -532,7 +619,7 @@ class DailyJournalController extends Controller
             $improvements[] = 'Attach supporting evidence to accomplishment reports for stronger verification.';
         }
         if (empty($improvements)) {
-            $improvements[] = 'Maintain the current level of performance across all criteria.';
+            $improvements[] = 'Maintain the current level of performance across all evaluated criteria.';
         }
 
         // Kaizen Strategy and Admin Concern evaluations that are linked to
@@ -697,10 +784,10 @@ class DailyJournalController extends Controller
         abort_unless(Auth::user()->isSupervisor(), 403, 'Supervisor access required.');
     }
 
-    private function authorizeAssessmentReviewer(DailyJournal $journal): void
+    private function authorizeAssessmentReviewer(DailyJournal $dailyJournal): void
     {
         abort_unless(
-            $this->canReviewAssessment(Auth::user(), $journal),
+            $this->canReviewAssessment(Auth::user(), $dailyJournal),
             403,
             'You can only review assessments for your own team.'
         );

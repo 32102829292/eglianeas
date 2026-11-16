@@ -2,508 +2,595 @@
 
 @section('title', 'Daily Accomplishment Report')
 
+@section('content')
 @php
-    $requiresReport = $requiresReport ?? true;
-    $isSubmitted = $journal ? $journal->isNotMissing() : false;
-    $statusBadge = $journal ? $journal->getStatusBadgeClass() : 'badge-info';
-    $statusLabel = $journal ? $journal->getStatusLabel() : 'Not required';
-    $statusIcon = $journal ? $journal->getStatusIcon() : '—';
-
-    $dayHeading = match (true) {
-        $date->isToday() => 'Today',
-        $date->isYesterday() => 'Yesterday',
-        default => $date->format('l'),
-    };
-
-    $prompts = [
-        [
-            'name' => 'problems_encountered',
-            'label' => 'Problems Encountered',
-            'placeholder' => 'Describe any problems, issues, or obstacles you encountered today...',
-            'hint' => 'Required. Include anything that delayed your work and why.',
-            'example' => 'Example: Client submitted the required documents late, so the filing could not be completed on schedule.',
-        ],
-        [
-            'name' => 'achievements',
-            'label' => 'Achievements',
-            'placeholder' => 'List your accomplishments, completed tasks, and progress made today...',
-            'hint' => 'Required. Name the specific tasks you finished, so your supervisor does not have to guess what you did.',
-            'example' => 'Example: Finished monthly bookkeeping for two clients and sent the payroll summary for approval.',
-        ],
-        [
-            'name' => 'suggested_solutions',
-            'label' => 'Suggested Solutions',
-            'placeholder' => 'Propose solutions for problems encountered, process improvements, or recommendations...',
-            'hint' => 'Required. Say what would stop this happening again, or what would make the job easier.',
-            'example' => 'Example: Ask clients to send source documents by the 5th so month-end closing is not compressed.',
-        ],
-    ];
+    $locked        = $isSubmitted || $isFuture;
+    $checkedCodes  = array_filter(array_merge(
+        (array) old('achievement_codes', []),
+        explode(',', (string) ($journal?->achievements ?? ''))
+    ));
+    $showUrgent    = $requiresReport && ! auth()->user()->isAdmin();
 @endphp
 
-@section('content')
-<div class="page-head page-head-row">
-    <div>
-        <h1>Daily Accomplishment Report</h1>
-        <p>
-            {{ $dayHeading }} &middot; {{ $date->format('l, F j, Y') }}
-            @if ($requiresReport)
-                @if ($isSubmitted)
-                    <span class="badge badge-success ms-2">{{ $statusIcon }} {{ $statusLabel }}</span>
-                @elseif ($isFuture)
-                    <span class="badge badge-info ms-2">Not due yet</span>
-                @elseif ($isPast)
-                    <span class="badge badge-danger ms-2">&#9888; Not submitted</span>
-                @endif
-            @else
-                <span class="badge badge-info ms-2">Not required (weekend)</span>
-            @endif
-        </p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap justify-content-end">
-        <a href="{{ route('daily-journal.create', ['date' => $date->copy()->subDay()->format('Y-m-d')]) }}" class="btn btn-outline btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
-            Previous Day
-        </a>
-        <a href="{{ route('daily-journal.create', ['date' => $date->copy()->addDay()->format('Y-m-d')]) }}" class="btn btn-outline btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
-            Next Day
-        </a>
-        <a href="{{ route('daily-journal.create') }}" class="btn btn-primary btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/></svg>
-            Today
-        </a>
-    </div>
-</div>
-
-@if ($requiresReport)
-    @if ($isSubmitted)
-        <div class="alert alert-success mb-4">
-            <strong>Report submitted.</strong>
-            @if ($journal->submitted_at)
-                Sent {{ $journal->submitted_at->format('F j, Y g:i A') }}.
-            @endif
-            You can read your answers below. To change something, please contact your supervisor.
-        </div>
-    @endif
-    @if ($isFuture)
-        <div class="alert alert-info mb-4">
-            <strong>Not due yet.</strong> This report covers {{ $date->format('l, F j, Y') }}. Come back on that day to fill it in.
-        </div>
-    @endif
-    @if ($isPast)
-        <div class="alert alert-info mb-4">
-            <strong>This report is overdue.</strong>
-            Nothing was submitted for {{ $date->format('l, F j, Y') }}. Fill it in now and describe what happened.
-        </div>
-    @endif
-@else
-    <div class="alert alert-info mb-4">
-        <strong>No report required.</strong>
-        Daily Accomplishment Reports are only required Monday through Friday.
-        {{ $date->format('l, F j, Y') }} falls on a weekend, so nothing is due.
-    </div>
-@endif
-
-<!-- Work Plan Tasks Panel -->
-@if ($requiresReport)
-<div class="dg-panel" aria-label="Work Plan Tasks for Today">
-    <div class="dg-panel-head">
-        <div class="dg-panel-title">
-            <span class="dg-panel-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
-            </span>
-            <div>
-                <h2>Work Plan Tasks</h2>
-                <p>Your assigned tasks for {{ $date->format('l, F j, Y') }}.</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="dg-goals-container">
-        @if ($workPlanTasks->isEmpty())
-            <div class="dg-empty-state">
-                <span class="dg-empty-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/></svg>
-                </span>
-                <div class="dg-empty-text">
-                    <strong>No work plan tasks assigned for today.</strong>
-                    <p>No work plan tasks have been assigned for {{ $date->format('F j, Y') }}.</p>
-                </div>
-            </div>
-        @else
-            <ul class="wp-task-list">
-                @foreach ($workPlanTasks as $task)
-                    <li class="wp-task-item">
-                        <span class="wp-task-title">{{ $task->getLegendLabel() }}</span>
-                        @if ($task->description)
-                            <span class="wp-task-desc">{{ $task->description }}</span>
-                        @endif
-                        @if ($task->success_criteria)
-                            <span class="wp-task-meta">
-                                <span class="wp-criteria-tag">Criteria: {{ $task->success_criteria }}</span>
-                            </span>
-                        @endif
-                        <span class="wp-task-date">{{ $task->statusLabel() }}</span>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-    </div>
-</div>
-
-<div class="dg-panel" aria-label="Goals for the Day">
-    <div class="dg-panel-head">
-        <div class="dg-panel-title">
-            <span class="dg-panel-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="12" y2="9"/><line x1="9" y1="21" x2="9" y2="21"/></svg>
-            </span>
-            <div>
-                <h2>Goals for the Day</h2>
-                <p>Your targeted goals for {{ $date->format('l, F j, Y') }}. Use these as a reference when writing your Daily Accomplishment Report.</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="dg-goals-container">
-        @if ($dailyGoals->isEmpty())
-            <div class="dg-empty-state">
-                <span class="dg-empty-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
-                </span>
-                <div class="dg-empty-text">
-                    <strong>No goals set for today.</strong>
-                    <p>No targeted goals have been assigned for {{ $date->format('F j, Y') }}. Ask your supervisor to set goals for you.</p>
-                </div>
-            </div>
-        @else
-            <ul class="dg-goal-list">
-                @foreach ($dailyGoals as $goal)
-                    <li class="dg-goal-item">
-                        <span class="dg-goal-title">{{ $goal->title }}</span>
-                        @if ($goal->description)
-                            <span class="dg-goal-desc">{{ $goal->description }}</span>
-                        @endif
-                        @if ($goal->success_criteria)
-                            <span class="dg-goal-meta">
-                                <span class="dg-criteria-tag">Success: {{ $goal->success_criteria }}</span>
-                            </span>
-                        @endif
-                        <span class="dg-goal-date">{{ $goal->target_date?->format('D, M j') }}</span>
-                    </li>
-                @endforeach
-            </ul>
-        @endif
-    </div>
-</div>
-<form method="POST" action="{{ route('daily-journal.store') }}" enctype="multipart/form-data" class="daily-journal-form" data-journal-form>
+{{-- Form wraps the whole page so the summary sidebar buttons can submit it. --}}
+{{-- Adjust the route name below to whatever your controller uses to save. --}}
+<form method="POST"
+      action="{{ route('daily-journal.store') }}"
+      enctype="multipart/form-data"
+      class="dar"
+      data-journal-form>
     @csrf
     <input type="hidden" name="date" value="{{ $date->format('Y-m-d') }}">
 
-    <div class="card">
-        <div class="card-head">
-            <h2 class="card-title">Report Details</h2>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <span class="k">Name</span>
-                    <p class="form-control-static">{{ $user->name }}</p>
-                </div>
-                <div class="col-md-6">
-                    <span class="k">Role</span>
-                    <p class="form-control-static">{{ ucfirst($user->role) }}</p>
-                </div>
-                <div class="col-md-6">
-                    <span class="k">Date Covered</span>
-                    <p class="form-control-static">{{ $date->format('F j, Y') }}</p>
-                </div>
-                <div class="col-md-6">
-                    <span class="k">Status</span>
-                    <p class="form-control-static">
-                        <span class="badge {{ $statusBadge }}">{{ $statusIcon }} {{ $statusLabel }}</span>
-                    </p>
-                </div>
+    {{-- ===== Page header ===== --}}
+    <header class="dar-head">
+        <div class="dar-head-main">
+            <span class="dar-head-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+            </span>
+            <div>
+                <h1>Daily Accomplishment Report</h1>
+                <p>Track your daily work activities and accomplishments.</p>
             </div>
         </div>
-    </div>
 
-    @unless ($isSubmitted || $isFuture)
-        <div class="card journal-readiness">
-            <div class="card-head d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <h2 class="card-title mb-0">Before you submit</h2>
-                <span class="badge badge-info" data-readiness-count>0 of 3 answered</span>
+        <div class="dar-date-nav">
+            <a href="{{ route('daily-journal.create', ['date' => $date->copy()->subDay()->format('Y-m-d')]) }}"
+               class="dar-nav-btn" aria-label="Previous day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+            </a>
+            <div class="dar-date-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <span>{{ $date->format('l, F j, Y') }}</span>
             </div>
-            <div class="card-body">
-                <ul class="journal-checklist mb-0">
-                    @foreach ($prompts as $prompt)
-                        <li data-check="{{ $prompt['name'] }}">
-                            <svg class="journal-check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                            <span>{{ $prompt['label'] }} answered</span>
-                        </li>
-                    @endforeach
-                </ul>
-                <p class="form-hint mb-0 mt-2">All three answers are required. Attachments are optional.</p>
-            </div>
+            <a href="{{ route('daily-journal.create', ['date' => $date->copy()->addDay()->format('Y-m-d')]) }}"
+               class="dar-nav-btn" aria-label="Next day">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            </a>
+            <a href="{{ route('daily-journal.create') }}" class="dar-today-btn">Today</a>
         </div>
-    @endunless
+    </header>
 
-    <div class="card">
-        <div class="card-head">
-            <h2 class="card-title">Your Report</h2>
+    {{-- ===== Status banners ===== --}}
+    @if ($requiresReport)
+        @if ($isSubmitted)
+            <div class="dar-alert dar-alert-success">
+                <strong>Report submitted.</strong>
+                @if ($journal->submitted_at) Sent {{ $journal->submitted_at->format('F j, Y g:i A') }}. @endif
+                To change something, please contact your supervisor.
+            </div>
+        @elseif ($isFuture)
+            <div class="dar-alert dar-alert-info">
+                <strong>Not due yet.</strong> This report covers {{ $date->format('l, F j, Y') }}. Come back on that day to fill it in.
+            </div>
+        @elseif ($isPast)
+            <div class="dar-alert dar-alert-warn">
+                <strong>This report is overdue.</strong> Nothing was submitted for {{ $date->format('l, F j, Y') }}. Fill it in now and describe what happened.
+            </div>
+        @endif
+    @else
+        <div class="dar-alert dar-alert-info">
+            <strong>No report required.</strong> Daily Accomplishment Reports are only required Monday through Friday.
         </div>
-        <div class="card-body">
-            @foreach ($prompts as $prompt)
-                @php $field = $prompt['name']; @endphp
-                <div class="form-group journal-field">
-                    <label class="form-label fw-bold" for="{{ $field }}">
-                        {{ $prompt['label'] }} <span class="text-danger">*</span>
-                    </label>
-                    <textarea
-                        id="{{ $field }}"
-                        name="{{ $field }}"
-                        class="form-control journal-textarea @error($field) is-invalid @enderror"
-                        rows="5"
-                        required
-                        @if ($isSubmitted) readonly @endif
-                        @if ($isFuture) disabled @endif
-                        placeholder="{{ $prompt['placeholder'] }}"
-                        aria-describedby="{{ $field }}-hint @error($field) {{ $field }}-error @enderror"
-                        data-journal-input>{{ old($field, $journal->{$field}) }}</textarea>
-                    <div class="form-hint" id="{{ $field }}-hint">{{ $prompt['hint'] }}</div>
-                    @unless ($isSubmitted || $isFuture)
-                        <div class="journal-example">{{ $prompt['example'] }}</div>
-                    @endunless
-                    @error($field)
-                        <div class="form-error" id="{{ $field }}-error">{{ $message }}</div>
-                    @enderror
+    @endif
+
+    <div class="dar-grid">
+        {{-- ================= MAIN COLUMN ================= --}}
+        <div class="dar-main">
+
+            {{-- Goals + urgent tasks --}}
+            <section class="dar-card" aria-label="Goals for the Day">
+                <div class="dar-card-head">
+                    <div class="dar-title">
+                        <span class="dar-title-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                        </span>
+                        <div>
+                            <h2>Goals for the Day</h2>
+                            <p>Your targeted work activities for {{ $date->format('l, F j, Y') }}.</p>
+                        </div>
+                    </div>
+
+                    @if ($showUrgent && ! $locked)
+                        <button type="button" class="dar-btn dar-btn-primary" data-urgent-toggle aria-expanded="false" aria-controls="urgent-form">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                            Add Urgent Task
+                        </button>
+                    @endif
                 </div>
-            @endforeach
-        </div>
-    </div>
 
-    <div class="card">
-        <div class="card-head">
-            <h2 class="card-title">Attachments <span class="badge badge-info">Optional</span></h2>
-        </div>
-        <div class="card-body">
-            <p class="form-hint">
-                Add a screenshot, photo, or document that shows the work you described. This is what your supervisor
-                uses to verify your accomplishments. Maximum 5 MB per file. JPG, PNG, PDF, DOC, DOCX.
-            </p>
-            <input
-                type="file"
-                id="evidence"
-                name="evidence[]"
-                class="form-control @error('evidence') is-invalid @enderror @error('evidence.*') is-invalid @enderror"
-                accept="image/*,.pdf,.doc,.docx"
-                multiple
-                @if ($isSubmitted || $isFuture) disabled @endif
-                aria-describedby="evidence-hint"
-                @error('evidence') aria-invalid="true" @enderror
-                @error('evidence.*') aria-invalid="true" @enderror
-                data-journal-files>
-            <div class="form-hint" id="evidence-hint">You can attach more than one file.</div>
-            @error('evidence')<div class="form-error">{{ $message }}</div>@enderror
-            @error('evidence.*')<div class="form-error">{{ $message }}</div>@enderror
+                @if ($workPlanTasks->isEmpty())
+                    <div class="dar-empty">
+                        <strong>No work plan activities assigned for this date.</strong>
+                        <p>Nothing is scheduled in the Weekly Work Plan for {{ $date->format('F j, Y') }}. You can add an urgent task if needed.</p>
+                    </div>
+                @else
+                    <div class="dar-table-wrap">
+                        <table class="dar-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Activity Code</th>
+                                    <th scope="col">Assigned Task</th>
+                                    <th scope="col" class="dar-th-status">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($workPlanTasks as $activity)
+                                    <tr>
+                                        <td><span class="dar-code">{{ $activity->legend_code ?? '·' }}</span></td>
+                                        <td>{{ $activity->getLegendLabel() }}</td>
+                                        <td class="dar-td-status">
+                                            @if ($activity->isCompleted())
+                                                <span class="dar-status ok">Completed</span>
+                                            @elseif ($activity->isInProgress())
+                                                <span class="dar-status warn">In Progress</span>
+                                            @elseif ($activity->isOnHold())
+                                                <span class="dar-status warn">On Hold</span>
+                                            @elseif ($activity->isCancelled())
+                                                <span class="dar-status danger">Cancelled</span>
+                                            @else
+                                                <span class="dar-status pending">Scheduled</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
 
-            <ul class="journal-file-list" data-file-list hidden></ul>
+                @if ($showUrgent)
+                    <div class="dar-subhead">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        <h3>Additional Urgent Tasks</h3>
+                    </div>
 
-            @if ($journal->hasEvidence())
-                <div class="evidence-preview mt-3">
-                    <strong>Attached to this report:</strong>
-                    <div class="d-flex flex-wrap gap-2 mt-2">
-                        @foreach ($journal->evidencePaths() as $path)
-                            <a href="{{ Storage::disk('supabase')->temporaryUrl($path, now()->addHours(1)) }}" target="_blank" rel="noopener" class="btn btn-outline btn-sm">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" class="me-1"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                                {{ basename($path) }}
-                            </a>
+                    <div id="urgent-form" class="dar-urgent-form" hidden>
+                        <div class="dar-field">
+                            <label for="urgent-desc">Task</label>
+                            <input type="text" id="urgent-desc" class="dar-input" placeholder="What did you work on?">
+                        </div>
+                        <div class="dar-field">
+                            <label for="urgent-reason">Reason it was urgent</label>
+                            <input type="text" id="urgent-reason" class="dar-input" placeholder="Why couldn't it wait?">
+                        </div>
+                        <div class="dar-urgent-actions">
+                            <button type="button" class="dar-btn dar-btn-primary dar-btn-sm" data-urgent-add>Add task</button>
+                            <button type="button" class="dar-btn dar-btn-ghost dar-btn-sm" data-urgent-cancel>Cancel</button>
+                        </div>
+                    </div>
+
+                    <div class="dar-notice" data-urgent-empty @if (! empty($urgentTasks)) hidden @endif>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        No additional urgent tasks yet.
+                    </div>
+
+                    <ul class="dar-urgent-list" data-urgent-list>
+                        @foreach ($urgentTasks ?? [] as $i => $task)
+                            <li>
+                                <span class="dar-urgent-tag">Urgent</span>
+                                <span class="dar-urgent-desc">{{ $task['description'] }}</span>
+                                <span class="dar-urgent-reason">Reason: {{ $task['reason'] }}</span>
+                                <input type="hidden" name="urgent_tasks[{{ $i }}][description]" value="{{ $task['description'] }}">
+                                <input type="hidden" name="urgent_tasks[{{ $i }}][reason]" value="{{ $task['reason'] }}">
+                            </li>
                         @endforeach
+                    </ul>
+                @endif
+            </section>
+
+            {{-- Achievements --}}
+            @if ($requiresReport)
+                <section class="dar-card" aria-label="Achievements">
+                    <div class="dar-card-head">
+                        <div class="dar-title">
+                            <span class="dar-title-icon dar-title-icon-gold" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+                            </span>
+                            <div>
+                                <h2>Achievements</h2>
+                                <p>Select the Activity Legend Codes for the work you completed.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if ($achievementLegends && $achievementLegends->isNotEmpty())
+                        <div class="dar-legend-grid">
+                            @foreach ($achievementLegends as $legend)
+                                <label class="dar-legend">
+                                    <input type="checkbox"
+                                           name="achievement_codes[]"
+                                           value="{{ $legend->code }}"
+                                           @checked(in_array($legend->code, $checkedCodes, true))
+                                           @disabled($locked)>
+                                    <span><strong>{{ $legend->code }}</strong> &ndash; {{ $legend->name }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="dar-empty">
+                            <strong>No achievement legend codes available.</strong>
+                            <p>Codes will appear once activity legends are configured.</p>
+                        </div>
+                    @endif
+
+                    <div class="dar-field dar-field-pad">
+                        <label for="achievements">Achievement details</label>
+                        <textarea id="achievements"
+                                  name="achievements"
+                                  class="dar-input dar-textarea @error('achievements') is-invalid @enderror"
+                                  rows="3"
+                                  required
+                                  @readonly($isSubmitted)
+                                  @disabled($isFuture)
+                                  placeholder="Describe or list completed activities…"
+                                  data-journal-input>{{ old('achievements', $journal?->achievements) }}</textarea>
+                        @if (! empty($prompt['achievements']['hint']))
+                            <div class="dar-hint">{{ $prompt['achievements']['hint'] }}</div>
+                        @endif
+                        @error('achievements')<div class="dar-error">{{ $message }}</div>@enderror
+                    </div>
+                </section>
+            @endif
+
+            {{-- Problems + Solutions side by side --}}
+            <div class="dar-pair">
+                <section class="dar-card" aria-label="Problems Encountered">
+                    <div class="dar-card-head dar-card-head-tight">
+                        <div class="dar-title">
+                            <span class="dar-title-icon dar-title-icon-violet" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                            </span>
+                            <h2>Problems Encountered <span class="dar-req" title="Required">*</span></h2>
+                        </div>
+                    </div>
+                    <div class="dar-card-pad">
+                        <textarea id="problems_encountered"
+                                  name="problems_encountered"
+                                  class="dar-input dar-textarea @error('problems_encountered') is-invalid @enderror"
+                                  rows="5"
+                                  required
+                                  @readonly($isSubmitted)
+                                  @disabled($isFuture)
+                                  placeholder="Describe any problems, issues, or obstacles you encountered today…"
+                                  data-journal-input>{{ old('problems_encountered', $journal?->problems_encountered) }}</textarea>
+                        @if ($requiresReport && ! empty($prompt['problems_encountered']['hint']))
+                            <div class="dar-hint">{{ $prompt['problems_encountered']['hint'] }}</div>
+                        @endif
+                        @if ($requiresReport && ! $locked && ! empty($prompt['problems_encountered']['example']))
+                            <div class="dar-example">{{ $prompt['problems_encountered']['example'] }}</div>
+                        @endif
+                        @error('problems_encountered')<div class="dar-error">{{ $message }}</div>@enderror
+                    </div>
+                </section>
+
+                <section class="dar-card" aria-label="Suggested Solutions">
+                    <div class="dar-card-head dar-card-head-tight">
+                        <div class="dar-title">
+                            <span class="dar-title-icon dar-title-icon-violet" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>
+                            </span>
+                            <h2>Suggested Solutions <span class="dar-req" title="Required">*</span></h2>
+                        </div>
+                    </div>
+                    <div class="dar-card-pad">
+                        <textarea id="suggested_solutions"
+                                  name="suggested_solutions"
+                                  class="dar-input dar-textarea @error('suggested_solutions') is-invalid @enderror"
+                                  rows="5"
+                                  required
+                                  @readonly($isSubmitted)
+                                  @disabled($isFuture)
+                                  placeholder="Propose solutions for problems encountered, process improvements…"
+                                  data-journal-input>{{ old('suggested_solutions', $journal?->suggested_solutions) }}</textarea>
+                        @if ($requiresReport && ! empty($prompt['suggested_solutions']['hint']))
+                            <div class="dar-hint">{{ $prompt['suggested_solutions']['hint'] }}</div>
+                        @endif
+                        @if ($requiresReport && ! $locked && ! empty($prompt['suggested_solutions']['example']))
+                            <div class="dar-example">{{ $prompt['suggested_solutions']['example'] }}</div>
+                        @endif
+                        @error('suggested_solutions')<div class="dar-error">{{ $message }}</div>@enderror
+                    </div>
+                </section>
+            </div>
+
+            {{-- Attachments --}}
+            <section class="dar-card" aria-label="Attachments">
+                <div class="dar-card-head dar-card-head-tight">
+                    <div class="dar-title">
+                        <span class="dar-title-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        </span>
+                        <h2>Attachments <span class="dar-optional">Optional</span></h2>
                     </div>
                 </div>
-            @endif
-        </div>
-    </div>
+                <div class="dar-card-pad">
+                    <p class="dar-hint dar-hint-top">
+                        Add a screenshot, photo, or document that shows the work you described. Your supervisor uses it to verify your accomplishments.
+                        Up to 5 MB per file: JPG, PNG, PDF, DOC, DOCX.
+                    </p>
+                    <label class="dar-drop @error('evidence') is-invalid @enderror @error('evidence.*') is-invalid @enderror @if ($locked) is-disabled @endif" data-drop>
+                        <input type="file"
+                               id="evidence"
+                               name="evidence[]"
+                               class="dar-drop-input"
+                               accept="image/*,.pdf,.doc,.docx"
+                               multiple
+                               @disabled($locked)
+                               data-journal-files>
+                        <span class="dar-drop-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        </span>
+                        <span class="dar-drop-text">
+                            <strong>Choose files</strong> or drag them here
+                            <small>JPG, PNG, PDF, DOC, DOCX &middot; up to 5 MB each</small>
+                        </span>
+                    </label>
+                    @error('evidence')<div class="dar-error">{{ $message }}</div>@enderror
+                    @error('evidence.*')<div class="dar-error">{{ $message }}</div>@enderror
 
-    <div class="journal-actions">
-        @if (! $isSubmitted)
-            <button type="submit" class="btn btn-primary btn-lg" @disabled($isFuture)>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" class="me-2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                Submit Daily Report
-            </button>
-            <a href="{{ route('admin.dashboard') }}" class="btn btn-outline btn-lg">Cancel</a>
-        @else
-            <a href="{{ route('admin.dashboard') }}" class="btn btn-outline btn-lg">Back to Dashboard</a>
-        @endif
+                    <ul class="dar-file-list" data-file-list hidden></ul>
+
+                    @if ($journal?->hasEvidence())
+                        <div class="dar-evidence">
+                            <strong>Attached to this report</strong>
+                            <div class="dar-evidence-links">
+                                @foreach ($journal->evidencePaths() as $path)
+                                    <a href="{{ Storage::disk('supabase')->temporaryUrl($path, now()->addHours(1)) }}"
+                                       target="_blank" rel="noopener" class="dar-btn dar-btn-ghost dar-btn-sm">
+                                        {{ basename($path) }}
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </section>
+        </div>
+
+        {{-- ================= SIDEBAR ================= --}}
+        <aside class="dar-side">
+            <section class="dar-card dar-summary" aria-label="Report Summary">
+                <div class="dar-summary-title">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="14"/></svg>
+                    <h2>Report Summary</h2>
+                </div>
+
+                <div class="dar-summary-box">
+                    <span class="dar-summary-icon {{ $isSubmitted ? 'is-done' : '' }}" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+                    </span>
+                    <strong class="dar-summary-state">
+                        @if ($isSubmitted) {{ $statusLabel }}
+                        @elseif ($requiresReport) Not Yet Submitted
+                        @else Not Required
+                        @endif
+                    </strong>
+                    <p>
+                        @if ($isSubmitted) Your report has been sent to your supervisor.
+                        @elseif ($requiresReport) Please complete all sections and submit your report.
+                        @else Reports are only needed Monday through Friday.
+                        @endif
+                    </p>
+                    <p class="dar-progress" data-readiness-count aria-live="polite"></p>
+                </div>
+
+                <dl class="dar-meta">
+                    <div>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <div>
+                            <dt>Submission Deadline</dt>
+                            <dd class="dar-deadline">{{ $date->format('F j, Y') }}</dd>
+                        </div>
+                    </div>
+                    <div>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                        <div>
+                            <dt>Last Updated</dt>
+                            <dd>{{ $journal?->updated_at?->format('M j, Y g:i A') ?? '—' }}</dd>
+                        </div>
+                    </div>
+                </dl>
+            </section>
+
+            <div class="dar-actions">
+                @if (! $isSubmitted)
+                    <button type="submit" name="action" value="submit" class="dar-btn dar-btn-primary dar-btn-lg" @disabled($isFuture)>
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20" aria-hidden="true"><path d="M22 2 11 13" stroke="currentColor" stroke-width="2" fill="none"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg>
+                        Submit Report
+                    </button>
+                    <button type="submit" name="action" value="draft" class="dar-btn dar-btn-outline dar-btn-lg" formnovalidate @disabled($isFuture)>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Save Draft
+                    </button>
+                @else
+                    <a href="{{ route('admin.dashboard') }}" class="dar-btn dar-btn-outline dar-btn-lg">Back to Dashboard</a>
+                @endif
+            </div>
+
+            <div class="dar-tip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <p>You can review and edit your report before submitting.</p>
+            </div>
+        </aside>
     </div>
 </form>
-@endif
-@endsection
 
 @push('styles')
 <style>
-.daily-journal-form {
-    max-width: 900px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+.dar {
+    --dar-ink: #1b2447;
+    --dar-muted: #5b6585;
+    --dar-line: #e3e7f3;
+    --dar-surface: #ffffff;
+    --dar-tint: #eef0fc;
+    --dar-brand: #4338ca;
+    --dar-brand-dark: #3730a3;
+    --dar-ok: #0b7a45;
+    --dar-warn-bg: #fff3dc;
+    --dar-warn-line: #f4c56a;
+    --dar-warn-ink: #8a5300;
+    color: var(--dar-ink);
 }
-.daily-journal-form .journal-textarea {
-    font-family: inherit;
-    line-height: 1.6;
-    resize: vertical;
-    min-height: 120px;
-}
-.daily-journal-form .card-body .journal-field:last-child {
-    margin-bottom: 0;
-}
-.journal-field + .journal-field {
-    border-top: 1px solid var(--border-subtle, #e5e7eb);
-    padding-top: 20px;
-    margin-top: 20px;
-}
-.form-control-static {
-    padding-top: 0.375rem;
-    padding-bottom: 0.375rem;
-    color: var(--text, #1f2937);
-    margin-bottom: 0;
-}
-.daily-journal-form .k {
-    display: block;
-    font-size: var(--text-xs, 11px);
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    color: var(--muted, #6b7280);
-    font-weight: 600;
-    margin-bottom: 2px;
-}
-.journal-checklist {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-.journal-checklist li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: var(--text-base, 14px);
-    color: var(--muted, #6b7280);
-}
-.journal-check-icon {
-    flex: 0 0 auto;
-    border-radius: 50%;
-    padding: 2px;
-    box-sizing: content-box;
-    background: var(--border-subtle, #e5e7eb);
-    color: #fff;
-    stroke: none;
-    transition: background var(--transition-fast, .15s ease);
-}
-.journal-checklist li.is-done {
-    color: var(--text, #1f2937);
-}
-.journal-checklist li.is-done .journal-check-icon {
-    background: var(--success, #27AE60);
-}
-.journal-readiness .badge-info.is-ready {
-    background: var(--success-soft, rgba(39,174,96,.12));
-    color: var(--success, #27AE60);
-}
-.journal-example {
-    margin-top: 6px;
-    padding: 8px 12px;
-    border-left: 3px solid var(--border-subtle, #e5e7eb);
-    background: var(--surface-sunken, #F6F8FB);
-    border-radius: 0 var(--radius-sm, 12px) var(--radius-sm, 12px) 0;
-    font-size: var(--text-sm, 12.5px);
-    color: var(--muted, #6b7280);
-}
-.journal-file-list {
-    list-style: none;
-    padding: 0;
-    margin: 12px 0 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-.journal-file-list li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--text-sm, 12.5px);
-    padding: 8px 12px;
-    background: var(--surface-sunken, #F6F8FB);
-    border: 1px solid var(--border-subtle, #e5e7eb);
-    border-radius: var(--radius-sm, 12px);
-}
-.journal-file-list .jf-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.journal-file-list .jf-size {
-    flex: 0 0 auto;
-    color: var(--muted, #6b7280);
-    font-variant-numeric: tabular-nums;
-}
-.evidence-preview a {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 250px;
-}
-.journal-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding-top: 4px;
-}
-@media (max-width: 640px) {
-    .daily-journal-form { gap: 16px; }
-    .journal-actions .btn { width: 100%; }
-    .daily-journal-form .journal-textarea { min-height: 96px; }
-    .evidence-preview a { max-width: 100%; }
-}
+.dar h1, .dar h2, .dar h3, .dar p { margin: 0; }
 
-/* ---------- Goals for the Day Panel (scoped to .dg-*) ---------- */
-.dg-panel { margin-bottom: 1.25rem; }
-.dg-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: #f8fafc; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 12px 12px 0 0; border-bottom: none; }
-.dg-panel-title { display: flex; align-items: center; gap: .75rem; }
-.dg-panel-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: #eef4fd; color: #2563eb; }
-.dg-panel-icon svg { width: 20px; height: 20px; flex: none; }
-.dg-panel-title h2 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
-.dg-panel-title p { margin: .2rem 0 0; color: var(--muted, #64748b); font-size: .8rem; }
-.dg-goals-container { padding: 1rem 1.25rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 0 0 12px 12px; border-top: none; }
-.dg-empty-state { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 2.5rem 1rem; text-align: center; color: var(--muted, #64748b); }
-.dg-empty-icon { width: 48px; height: 48px; border-radius: 14px; background: #f1f5f9; color: #64748b; display: inline-flex; align-items: center; justify-content: center; }
-.dg-empty-icon svg { width: 24px; height: 24px; flex: none; }
-.dg-empty-text strong { color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; display: block; margin-bottom: .25rem; }
-.dg-empty-text p { margin: 0; font-size: .85rem; }
-.dg-goal-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; }
-.dg-goal-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem .75rem; background: #f8fafc; border-radius: 8px; font-size: .88rem; flex-wrap: wrap; }
-.dg-goal-title { font-weight: 700; color: var(--text, #1f2937); overflow-wrap: anywhere; }
-.dg-goal-desc { color: var(--muted, #64748b); font-size: .82rem; overflow-wrap: anywhere; }
-.dg-goal-meta { display: inline-flex; gap: .3rem; align-items: center; }
-.dg-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
-.dg-goal-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
+/* Header */
+.dar-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.dar-head-main { display: flex; align-items: center; gap: 14px; }
+.dar-head-icon { display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 16px; background: var(--dar-tint); color: var(--dar-brand); flex: none; }
+.dar-head-icon svg { width: 30px; height: 30px; }
+.dar-head h1 { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
+.dar-head p { color: var(--dar-muted); font-size: .95rem; margin-top: 2px; }
+.dar-date-nav { display: flex; align-items: center; gap: 8px; }
+.dar-date-pill { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--dar-surface); border: 1px solid var(--dar-line); border-radius: 12px; font-weight: 600; font-size: .95rem; }
+.dar-nav-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: var(--dar-surface); border: 1px solid var(--dar-line); border-radius: 12px; color: var(--dar-ink); text-decoration: none; }
+.dar-nav-btn:hover { background: var(--dar-tint); }
+.dar-today-btn { padding: 10px 16px; border-radius: 12px; background: var(--dar-ink); color: #fff; font-weight: 700; font-size: .9rem; text-decoration: none; }
 
-/* ---------- Work Plan Tasks Panel (scoped to .wp-task-*) ---------- */
-.wp-task-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; }
-.wp-task-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem .75rem; background: #f8fafc; border-radius: 8px; font-size: .88rem; flex-wrap: wrap; }
-.wp-task-title { font-weight: 700; color: var(--text, #1f2937); overflow-wrap: anywhere; }
-.wp-task-desc { color: var(--muted, #64748b); font-size: .82rem; overflow-wrap: anywhere; }
-.wp-task-meta { display: inline-flex; gap: .3rem; align-items: center; }
-.wp-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
-.wp-task-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
+/* Alerts */
+.dar-alert { padding: 12px 16px; border-radius: 12px; margin-bottom: 16px; font-size: .92rem; border: 1px solid; }
+.dar-alert-success { background: #e7f6ee; border-color: #b6e3cb; color: #0b5f37; }
+.dar-alert-info { background: #eaf1ff; border-color: #c4d6fb; color: #1e40af; }
+.dar-alert-warn { background: var(--dar-warn-bg); border-color: var(--dar-warn-line); color: var(--dar-warn-ink); }
 
-@media (max-width: 640px) {
-    .dg-goal-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
-    .dg-goal-date { margin-top: .25rem; }
-    .wp-task-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
-    .wp-task-date { margin-top: .25rem; }
+/* Two-column layout */
+.dar-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.dar-main { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.dar-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.dar-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* Cards */
+.dar-card { background: var(--dar-surface); border: 1px solid var(--dar-line); border-radius: 18px; padding-bottom: 4px; min-width: 0; }
+.dar-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 18px 20px 12px; }
+.dar-card-head-tight { padding-bottom: 8px; }
+.dar-card-pad { padding: 0 20px 16px; }
+.dar-title { display: flex; align-items: center; gap: 12px; }
+.dar-title h2 { font-size: 1.05rem; font-weight: 800; }
+.dar-title p { color: var(--dar-muted); font-size: .85rem; margin-top: 2px; }
+.dar-title-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; background: var(--dar-tint); color: var(--dar-brand); flex: none; }
+.dar-title-icon svg { width: 22px; height: 22px; }
+.dar-title-icon-gold { background: #fff4d6; color: #b7791f; }
+.dar-title-icon-violet { background: #ece9fd; color: #5b3fd1; }
+.dar-req { color: #dc2626; }
+.dar-optional { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--dar-tint); color: var(--dar-brand); margin-left: 6px; vertical-align: middle; }
+
+/* Buttons */
+.dar-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 12px; border: 1px solid transparent; font-weight: 700; font-size: .92rem; cursor: pointer; text-decoration: none; line-height: 1.2; }
+.dar-btn:focus-visible, .dar-nav-btn:focus-visible, .dar-input:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.dar-btn:disabled { opacity: .5; cursor: not-allowed; }
+.dar-btn-primary { background: linear-gradient(180deg, #4f46e5, var(--dar-brand-dark)); color: #fff; }
+.dar-btn-primary:hover:not(:disabled) { background: var(--dar-brand-dark); }
+.dar-btn-outline { background: var(--dar-surface); border-color: var(--dar-brand); color: var(--dar-brand); }
+.dar-btn-outline:hover:not(:disabled) { background: var(--dar-tint); }
+.dar-btn-ghost { background: var(--dar-surface); border-color: var(--dar-line); color: var(--dar-ink); }
+.dar-btn-sm { padding: 7px 12px; font-size: .82rem; }
+.dar-btn-lg { width: 100%; padding: 15px 18px; font-size: 1rem; border-radius: 14px; }
+
+/* Goals table */
+.dar-table-wrap { margin: 4px 20px 8px; border: 1px solid var(--dar-line); border-radius: 12px; overflow: hidden; overflow-x: auto; }
+.dar-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.dar-table thead th { background: #e9ebfb; text-align: left; padding: 11px 16px; font-weight: 700; font-size: .9rem; }
+.dar-table tbody td { padding: 10px 16px; border-top: 1px solid var(--dar-line); vertical-align: middle; }
+.dar-th-status, .dar-td-status { text-align: right; white-space: nowrap; }
+.dar-code { display: inline-flex; align-items: center; justify-content: center; min-width: 46px; padding: 4px 12px; border-radius: 999px; background: #e4e6fb; color: var(--dar-brand); font-weight: 800; }
+.dar-status { font-weight: 600; font-size: .9rem; display: inline-flex; align-items: center; gap: 6px; }
+.dar-status::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; }
+.dar-status.pending { color: #1d4ed8; }
+.dar-status.ok { color: var(--dar-ok); }
+.dar-status.ok::before { background: currentColor; }
+.dar-status.warn { color: #92400e; }
+.dar-status.danger { color: #a5281a; }
+
+/* Urgent tasks */
+.dar-subhead { display: flex; align-items: center; gap: 10px; padding: 14px 20px 8px; color: var(--dar-brand); }
+.dar-subhead h3 { font-size: 1.02rem; font-weight: 800; color: var(--dar-ink); }
+.dar-notice { display: flex; align-items: center; gap: 10px; margin: 0 20px 14px; padding: 10px 14px; background: var(--dar-warn-bg); border: 1px solid var(--dar-warn-line); border-radius: 10px; color: var(--dar-warn-ink); font-size: .92rem; }
+.dar-urgent-form { margin: 0 20px 12px; padding: 14px; border: 1px dashed #b8bfee; border-radius: 12px; background: #f7f8ff; display: grid; gap: 10px; }
+.dar-urgent-actions { display: flex; gap: 8px; }
+.dar-urgent-list { list-style: none; margin: 0; padding: 0 20px 14px; display: flex; flex-direction: column; gap: 8px; }
+.dar-urgent-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; background: #fffaf0; border: 1px solid var(--dar-warn-line); border-radius: 10px; font-size: .92rem; }
+.dar-urgent-tag { font-weight: 800; color: #b45309; }
+.dar-urgent-desc { flex: 1 1 200px; overflow-wrap: anywhere; }
+.dar-urgent-reason { color: var(--dar-muted); font-size: .85rem; }
+.dar-urgent-remove { background: none; border: 0; color: #a5281a; font-weight: 700; cursor: pointer; font-size: .82rem; }
+
+/* Achievements */
+.dar-legend-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 4px 20px 8px; }
+.dar-legend { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--dar-line); border-radius: 10px; background: #fafbff; font-size: .88rem; cursor: pointer; }
+.dar-legend:hover { border-color: #b8bfee; }
+.dar-legend input { width: 18px; height: 18px; flex: none; accent-color: var(--dar-brand); }
+.dar-legend:has(input:checked) { background: var(--dar-tint); border-color: var(--dar-brand); }
+
+/* Fields */
+.dar-field { display: grid; gap: 6px; }
+.dar-field label { font-weight: 700; font-size: .88rem; }
+.dar-field-pad { padding: 8px 20px 16px; }
+.dar-input { width: 100%; padding: 10px 12px; border: 1px solid #cdd3ea; border-radius: 10px; background: #fff; font: inherit; color: var(--dar-ink); box-sizing: border-box; }
+.dar-textarea { min-height: 120px; line-height: 1.55; resize: vertical; }
+.dar-input.is-invalid { border-color: #dc2626; }
+.dar-input:disabled, .dar-input[readonly] { background: #f4f5fa; color: var(--dar-muted); }
+.dar-hint { margin-top: 6px; font-size: .8rem; color: var(--dar-muted); }
+.dar-hint-top { margin: 0 0 10px; }
+.dar-example { margin-top: 8px; padding: 8px 12px; border-left: 3px solid #b8bfee; background: #f7f8ff; border-radius: 0 10px 10px 0; font-size: .82rem; color: var(--dar-muted); }
+.dar-error { margin-top: 6px; color: #dc2626; font-size: .82rem; }
+
+/* Drop zone */
+.dar-drop { position: relative; display: flex; align-items: center; gap: 14px; padding: 18px 20px; border: 2px dashed #b8bfee; border-radius: 14px; background: #f7f8ff; cursor: pointer; transition: background .15s, border-color .15s; }
+.dar-drop:hover, .dar-drop.is-over { background: var(--dar-tint); border-color: var(--dar-brand); }
+.dar-drop:focus-within { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.dar-drop.is-invalid { border-color: #dc2626; }
+.dar-drop.is-disabled { opacity: .55; cursor: not-allowed; }
+.dar-drop-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.dar-drop.is-disabled .dar-drop-input { cursor: not-allowed; }
+.dar-drop-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 12px; background: #e4e6fb; color: var(--dar-brand); flex: none; }
+.dar-drop-icon svg { width: 22px; height: 22px; }
+.dar-drop-text { display: flex; flex-direction: column; gap: 2px; font-size: .95rem; }
+.dar-drop-text strong { color: var(--dar-brand); }
+.dar-drop-text small { color: var(--dar-muted); font-size: .8rem; }
+
+/* Files */
+.dar-file-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dar-file-list li { display: flex; gap: 8px; padding: 8px 12px; background: #f7f8ff; border: 1px solid var(--dar-line); border-radius: 10px; font-size: .84rem; }
+.dar-file-list .jf-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dar-file-list .jf-size { color: var(--dar-muted); font-variant-numeric: tabular-nums; }
+.dar-evidence { margin-top: 14px; font-size: .9rem; }
+.dar-evidence-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.dar-evidence-links a { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Sidebar */
+.dar-summary { padding: 18px 16px 8px; }
+.dar-summary-title { display: flex; align-items: center; gap: 10px; color: var(--dar-brand); margin-bottom: 12px; }
+.dar-summary-title h2 { font-size: 1.05rem; font-weight: 800; color: var(--dar-ink); }
+.dar-summary-box { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 18px 14px; background: #f0f2fd; border-radius: 14px; }
+.dar-summary-icon { display: inline-flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; background: #dfe3fa; color: var(--dar-brand); }
+.dar-summary-icon svg { width: 36px; height: 36px; }
+.dar-summary-icon.is-done { background: #d6f1e3; color: var(--dar-ok); }
+.dar-summary-state { font-size: 1.25rem; font-weight: 800; margin-top: 4px; }
+.dar-summary-box p { font-size: .85rem; color: var(--dar-muted); }
+.dar-progress { font-weight: 700; color: var(--dar-brand) !important; }
+.dar-progress.is-ready { color: var(--dar-ok) !important; }
+.dar-meta { margin: 14px 0 6px; display: grid; gap: 14px; }
+.dar-meta > div { display: flex; gap: 12px; align-items: flex-start; color: var(--dar-brand); }
+.dar-meta dt { font-size: .82rem; color: var(--dar-muted); }
+.dar-meta dd { margin: 2px 0 0; font-weight: 600; color: var(--dar-ink); }
+.dar-meta .dar-deadline { font-size: 1.05rem; font-weight: 800; color: var(--dar-brand); }
+.dar-actions { display: grid; gap: 12px; }
+.dar-tip { display: flex; gap: 10px; padding: 14px; background: #eef0fc; border-radius: 14px; color: var(--dar-brand); font-size: .85rem; }
+.dar-tip p { color: var(--dar-ink); }
+
+/* Responsive */
+@media (max-width: 1100px) {
+    .dar-grid { grid-template-columns: 1fr; }
+    .dar-side { position: static; }
+    .dar-legend-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+    .dar-pair { grid-template-columns: 1fr; }
+    .dar-date-nav { flex-wrap: wrap; }
+    .dar-head h1 { font-size: 1.3rem; }
+}
+@media (max-width: 480px) {
+    .dar-legend-grid { grid-template-columns: 1fr; }
 }
 </style>
 @endpush
@@ -514,67 +601,128 @@
     var form = document.querySelector('[data-journal-form]');
     if (! form) { return; }
 
-    var inputs = Array.prototype.slice.call(form.querySelectorAll('[data-journal-input]'));
-    var items = Array.prototype.slice.call(form.querySelectorAll('[data-check]'));
-    var counter = document.querySelector('[data-readiness-count]');
+    /* ---- Progress counter: how many required fields are filled ---- */
+    var required = Array.prototype.slice.call(form.querySelectorAll('[data-journal-input]'));
+    var counter  = form.querySelector('[data-readiness-count]');
 
     function sync() {
-        var done = 0;
-        items.forEach(function (item) {
-            var field = form.querySelector('[name="' + item.getAttribute('data-check') + '"]');
-            var filled = !! (field && field.value.trim().length > 0);
-            item.classList.toggle('is-done', filled);
-            if (filled) { done++; }
-        });
-
-        if (counter) {
-            counter.textContent = done + ' of ' + items.length + ' answered';
-            counter.classList.toggle('is-ready', done === items.length);
-        }
+        if (! counter || required.length === 0) { return; }
+        var done = required.filter(function (el) { return el.value.trim().length > 0; }).length;
+        counter.textContent = done + ' of ' + required.length + ' sections answered';
+        counter.classList.toggle('is-ready', done === required.length);
     }
-
-    inputs.forEach(function (input) {
-        input.addEventListener('input', sync);
-    });
+    required.forEach(function (el) { el.addEventListener('input', sync); });
     sync();
 
-    // Show what is queued for upload before the form is sent.
+    /* ---- Queued file preview ---- */
     var fileInput = form.querySelector('[data-journal-files]');
-    var fileList = form.querySelector('[data-file-list]');
+    var fileList  = form.querySelector('[data-file-list]');
 
     if (fileInput && fileList) {
         var render = function () {
             var files = fileInput.files;
             fileList.innerHTML = '';
-
-            if (! files || files.length === 0) {
-                fileList.hidden = true;
-                return;
-            }
+            if (! files || files.length === 0) { fileList.hidden = true; return; }
 
             Array.prototype.forEach.call(files, function (file) {
                 var li = document.createElement('li');
-
                 var name = document.createElement('span');
                 name.className = 'jf-name';
                 name.textContent = file.name;
-
                 var size = document.createElement('span');
                 size.className = 'jf-size';
                 size.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-
                 li.appendChild(name);
                 li.appendChild(size);
                 fileList.appendChild(li);
             });
-
             fileList.hidden = false;
         };
-
         fileInput.addEventListener('change', render);
         render();
+
+        var drop = form.querySelector('[data-drop]');
+        if (drop) {
+            ['dragenter', 'dragover'].forEach(function (ev) {
+                fileInput.addEventListener(ev, function () { drop.classList.add('is-over'); });
+            });
+            ['dragleave', 'drop'].forEach(function (ev) {
+                fileInput.addEventListener(ev, function () { drop.classList.remove('is-over'); });
+            });
+        }
+    }
+
+    /* ---- Add Urgent Task ---- */
+    var toggle  = form.querySelector('[data-urgent-toggle]');
+    var panel   = document.getElementById('urgent-form');
+    var list    = form.querySelector('[data-urgent-list]');
+    var empty   = form.querySelector('[data-urgent-empty]');
+    var descIn  = document.getElementById('urgent-desc');
+    var reasonIn = document.getElementById('urgent-reason');
+
+    if (toggle && panel && list) {
+        var nextIndex = list.querySelectorAll('li').length;
+
+        function setOpen(open) {
+            panel.hidden = ! open;
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) { descIn.focus(); }
+        }
+
+        function refreshEmpty() {
+            if (empty) { empty.hidden = list.querySelectorAll('li').length > 0; }
+        }
+
+        function hidden(name, value) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            return input;
+        }
+
+        function span(cls, text) {
+            var s = document.createElement('span');
+            s.className = cls;
+            s.textContent = text;
+            return s;
+        }
+
+        toggle.addEventListener('click', function () { setOpen(panel.hidden); });
+        form.querySelector('[data-urgent-cancel]').addEventListener('click', function () { setOpen(false); });
+
+        form.querySelector('[data-urgent-add]').addEventListener('click', function () {
+            var desc = descIn.value.trim();
+            var reason = reasonIn.value.trim();
+            if (! desc || ! reason) {
+                (desc ? reasonIn : descIn).focus();
+                return;
+            }
+
+            var li = document.createElement('li');
+            li.appendChild(span('dar-urgent-tag', 'Urgent'));
+            li.appendChild(span('dar-urgent-desc', desc));
+            li.appendChild(span('dar-urgent-reason', 'Reason: ' + reason));
+
+            var remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'dar-urgent-remove';
+            remove.textContent = 'Remove';
+            remove.addEventListener('click', function () { li.remove(); refreshEmpty(); });
+            li.appendChild(remove);
+
+            li.appendChild(hidden('urgent_tasks[' + nextIndex + '][description]', desc));
+            li.appendChild(hidden('urgent_tasks[' + nextIndex + '][reason]', reason));
+            nextIndex++;
+
+            list.appendChild(li);
+            descIn.value = '';
+            reasonIn.value = '';
+            refreshEmpty();
+            setOpen(false);
+        });
     }
 })();
 </script>
-
 @endpush
+@endsection

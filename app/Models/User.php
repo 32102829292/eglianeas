@@ -121,6 +121,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_SUPERVISOR;
     }
 
+    public function isAdminOrSupervisor(): bool
+    {
+        return $this->isAdmin() || $this->isSupervisor();
+    }
+
     public function isOperational(): bool
     {
         return $this->isAdmin() || $this->isStaff() || $this->isSupervisor();

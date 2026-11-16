@@ -4,20 +4,22 @@
 
 @php
     use Carbon\Carbon;
+    use Illuminate\Support\Str;
 
     $statusOptions = [
-        '' => 'All Status',
+        ''          => 'All Status',
         'submitted' => 'Submitted',
-        'late' => 'Late',
-        'missing' => 'Missing',
+        'late'      => 'Late',
+        'missing'   => 'Missing',
     ];
     $roleOptions = [
-        '' => 'All Roles',
-        'staff' => 'Staff',
+        ''           => 'All Roles',
+        'staff'      => 'Staff',
         'supervisor' => 'Supervisor',
     ];
 
     $selectedDate = $date->format('Y-m-d');
+    $isToday      = $date->isToday();
 
     // Keep the selected date selectable even when it has no journal rows yet
     // (reachable via Previous/Next), so applying another filter never jumps dates.
@@ -25,7 +27,7 @@
         ? $availableDates
         : $availableDates->prepend($selectedDate);
 
-    // Counts come straight from the controller's filtered collection.
+    // Counts come straight from the controller's (already filtered) collection.
     $totalCount     = $journals->count();
     $submittedCount = $journals->where('status', 'submitted')->count();
     $lateCount      = $journals->where('status', 'late')->count();
@@ -35,64 +37,72 @@
         ? (int) round($part / $totalCount * 100)
         : 0;
 
+    // Anyone who handed something in, on time or not.
+    $completionRate = $share($submittedCount + $lateCount);
+
+    $hasActiveFilters = (bool) ($selectedUserId || $selectedRole || $selectedStatus);
+    $monitorRoute     = 'admin.daily-journal.admin-monitor';
+    $resetUrl         = route($monitorRoute, ['date' => $selectedDate]);
+
+    // Stat cards double as status filters and keep the other active filters.
+    $statusUrl = static fn (?string $status): string => route($monitorRoute, array_filter([
+        'date'    => $selectedDate,
+        'user_id' => $selectedUserId,
+        'role'    => $selectedRole,
+        'status'  => $status,
+    ]));
+
     $summaryCards = [
-        ['label' => 'Submitted', 'value' => $submittedCount, 'tone' => 'ok',     'icon' => 'check', 'share' => $share($submittedCount)],
-        ['label' => 'Late',      'value' => $lateCount,      'tone' => 'warn',   'icon' => 'clock', 'share' => $share($lateCount)],
-        ['label' => 'Missing',   'value' => $missingCount,   'tone' => 'danger', 'icon' => 'alert', 'share' => $share($missingCount)],
-        ['label' => 'Total',     'value' => $totalCount,     'tone' => 'info',   'icon' => 'users', 'share' => 100],
+        ['label' => 'Submitted', 'status' => 'submitted', 'value' => $submittedCount, 'tone' => 'ok',     'icon' => 'check', 'share' => $share($submittedCount)],
+        ['label' => 'Late',      'status' => 'late',      'value' => $lateCount,      'tone' => 'warn',   'icon' => 'clock', 'share' => $share($lateCount)],
+        ['label' => 'Missing',   'status' => 'missing',   'value' => $missingCount,   'tone' => 'danger', 'icon' => 'alert', 'share' => $share($missingCount)],
+        ['label' => 'Total',     'status' => null,        'value' => $totalCount,     'tone' => 'info',   'icon' => 'users', 'share' => 100],
     ];
 
     $statusTones = ['submitted' => 'ok', 'late' => 'warn', 'missing' => 'danger'];
 
-    $hasActiveFilters = (bool) ($selectedUserId || $selectedRole || $selectedStatus);
-    $resetUrl = route('admin.daily-journal.admin-monitor', ['date' => $selectedDate]);
+    $goalCount = $goalsByUser->flatten(1)->count();
 @endphp
 
 @section('content')
-<div class="page-head page-head-row djam-head">
+<div class="djam">
+<header class="djam-head">
     <div class="djam-head-main">
-        <nav class="djam-crumbs" aria-label="Breadcrumb">
-            <span>Daily Journal</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-            <span class="is-current">Monitor</span>
-        </nav>
-        <h1>Daily Accomplishment Monitor</h1>
-        <p>Track employee journal submissions and follow up on anything late or missing.</p>
-    </div>
-
-    <div class="djam-head-side">
-        <div class="djam-datecard">
-            <span class="djam-datecard-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-            </span>
-            <span class="djam-datecard-text">
-                <span class="djam-datecard-label">Report date</span>
-                <span class="djam-datecard-value">{{ $date->format('l, F j, Y') }}</span>
-            </span>
-        </div>
-
-        <div class="djam-datenav">
-            <a href="{{ route('admin.daily-journal.admin-monitor', ['date' => $date->copy()->subDay()->format('Y-m-d')]) }}"
-               class="btn btn-outline btn-sm djam-datenav-btn" rel="prev" title="Previous day">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-                <span>Previous</span>
-            </a>
-            <a href="{{ route('admin.daily-journal.admin-monitor') }}" class="btn btn-outline btn-sm djam-datenav-btn" title="Jump to today">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
-                <span>Today</span>
-            </a>
-            <a href="{{ route('admin.daily-journal.admin-monitor', ['date' => $date->copy()->addDay()->format('Y-m-d')]) }}"
-               class="btn btn-outline btn-sm djam-datenav-btn" rel="next" title="Next day">
-                <span>Next</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-            </a>
+        <span class="djam-head-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><polyline points="9 16 11 18 15 14"/></svg>
+        </span>
+        <div>
+            <h1>Daily Accomplishment Monitor</h1>
+            <p>Track employee journal submissions and follow up on anything late or missing.</p>
         </div>
     </div>
-</div>
 
+    <div class="djam-datenav">
+        <a href="{{ route($monitorRoute, array_filter(['date' => $date->copy()->subDay()->format('Y-m-d'), 'user_id' => $selectedUserId, 'role' => $selectedRole, 'status' => $selectedStatus])) }}"
+           class="djam-nav-btn" rel="prev" title="Previous day" aria-label="Previous day">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        </a>
+        <div class="djam-date-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>{{ $date->format('l, F j, Y') }}</span>
+        </div>
+        <a href="{{ route($monitorRoute, array_filter(['date' => $date->copy()->addDay()->format('Y-m-d'), 'user_id' => $selectedUserId, 'role' => $selectedRole, 'status' => $selectedStatus])) }}"
+           class="djam-nav-btn" rel="next" title="Next day" aria-label="Next day">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+        <a href="{{ route($monitorRoute, array_filter(['user_id' => $selectedUserId, 'role' => $selectedRole, 'status' => $selectedStatus])) }}"
+           class="djam-today-btn {{ $isToday ? 'is-current' : '' }}" title="Jump to today" @if ($isToday) aria-current="date" @endif>Today</a>
+    </div>
+</header>
+
+{{-- ===== Summary: each card filters the list by that status ===== --}}
 <section class="djam-stats" aria-label="Daily summary">
     @foreach ($summaryCards as $card)
-        <article class="djam-stat djam-stat--{{ $card['tone'] }}">
+        @php $isActive = ($card['status'] ?? '') === (string) $selectedStatus; @endphp
+        <a href="{{ $statusUrl($card['status']) }}"
+           class="djam-stat djam-stat--{{ $card['tone'] }} {{ $isActive ? 'is-active' : '' }}"
+           @if ($isActive) aria-current="true" @endif
+           title="{{ $card['status'] ? 'Show only ' . strtolower($card['label']) : 'Show all statuses' }}">
             <div class="djam-stat-top">
                 <div class="djam-stat-text">
                     <div class="djam-stat-value">{{ $card['value'] }}</div>
@@ -115,30 +125,44 @@
                     @endswitch
                 </span>
             </div>
-            <div class="djam-stat-track" role="presentation">
-                <span class="djam-stat-fill" style="width: {{ $card['share'] }}%"></span>
+            <div class="djam-stat-foot">
+                <div class="djam-stat-track" role="presentation">
+                    <span class="djam-stat-fill" style="width: {{ $card['share'] }}%"></span>
+                </div>
+                <span class="djam-stat-share">{{ $card['share'] }}%</span>
             </div>
-        </article>
+        </a>
     @endforeach
 </section>
 
-<!-- Goals for the Day Panel -->
-<section class="dg-panel" aria-label="Goals for the Day">
-    <div class="dg-panel-head">
+{{-- ===== Goals for the Day (collapsible) ===== --}}
+<details class="dg-panel" aria-label="Goals for the Day" @if ($goalsByUser->isNotEmpty() && $goalsByUser->count() <= 4) open @endif>
+    <summary class="dg-panel-head">
         <div class="dg-panel-title">
             <span class="dg-panel-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
             </span>
             <div>
-                <h2>Goals for the Day</h2>
-                <p>Targeted goals for {{ $date->format('l, F j, Y') }}. These goals are used as the reference when evaluating Daily Accomplishment Reports.</p>
+                <h2>
+                    Goals for the Day
+                    @if ($goalCount > 0)
+                        <span class="dg-count">{{ $goalCount }}</span>
+                    @endif
+                </h2>
+                <p>Targeted goals for {{ $date->format('l, F j, Y') }}. Used as the reference when evaluating Daily Accomplishment Reports.</p>
             </div>
         </div>
-        <a href="{{ route('admin.daily-goals.index', ['week_start' => $date->copy()->startOfWeek(Carbon::MONDAY)->format('Y-m-d')]) }}" class="btn btn-primary btn-sm dg-edit-btn">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="vertical-align:-3px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Edit Goals
-        </a>
-    </div>
+        <div class="dg-head-actions">
+            <a href="{{ route('admin.daily-work-plan.index', ['week_start' => $date->copy()->startOfWeek(Carbon::MONDAY)->format('Y-m-d')]) }}"
+               class="djam-btn djam-btn-primary djam-btn-sm dg-edit-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                Edit Goals
+            </a>
+            <span class="dg-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </div>
+    </summary>
 
     <div class="dg-goals-container">
         @if ($goalsByUser->isEmpty())
@@ -147,61 +171,67 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
                 </span>
                 <div class="dg-empty-text">
-                    <strong>No goals set for today.</strong>
-                    <p>No targeted goals have been assigned for {{ $date->format('F j, Y') }}. Use "Edit Goals" to create them.</p>
+                    <strong>No goals set for this day.</strong>
+                    <p>No targeted goals have been assigned for {{ $date->format('F j, Y') }}. Use &ldquo;Edit Goals&rdquo; to create them.</p>
                 </div>
             </div>
         @else
-            @foreach ($goalsByUser as $userId => $userGoals)
-                @php
-                    $goalUser = $userGoals->first()->user;
-                @endphp
-                <div class="dg-employee-goals">
-                    <div class="dg-emp-header">
-                        <span class="dg-emp-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($goalUser->name, 0, 1)) }}</span>
-                        <span class="dg-emp-name">{{ $goalUser->name }}</span>
-                        <span class="dg-emp-role">{{ ucfirst($goalUser->role) }}</span>
+            <div class="dg-employee-grid">
+                @foreach ($goalsByUser as $userId => $userGoals)
+                    @php $goalUser = $userGoals->first()->user; @endphp
+                    <div class="dg-employee-goals">
+                        <div class="dg-emp-header">
+                            <span class="dg-emp-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($goalUser->name, 0, 1)) }}</span>
+                            <span class="dg-emp-name">{{ $goalUser->name }}</span>
+                            <span class="dg-emp-role">{{ ucfirst($goalUser->role) }} &middot; {{ $userGoals->count() }} {{ Str::plural('goal', $userGoals->count()) }}</span>
+                        </div>
+                        <ul class="dg-goal-list">
+                            @foreach ($userGoals as $goal)
+                                <li class="dg-goal-item">
+                                    <span class="dg-goal-title">{{ $goal->title }}</span>
+                                    @if ($goal->description)
+                                        <span class="dg-goal-desc">{{ $goal->description }}</span>
+                                    @endif
+                                    @if ($goal->success_criteria)
+                                        <span class="dg-goal-meta">
+                                            <span class="dg-criteria-tag">Success: {{ $goal->success_criteria }}</span>
+                                        </span>
+                                    @endif
+                                    @if ($goal->target_date)
+                                        <span class="dg-goal-date">{{ $goal->target_date->format('D, M j') }}</span>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
                     </div>
-                    <ul class="dg-goal-list">
-                        @foreach ($userGoals as $goal)
-                            <li class="dg-goal-item">
-                                <span class="dg-goal-title">{{ $goal->title }}</span>
-                                @if ($goal->description)
-                                    <span class="dg-goal-desc">{{ $goal->description }}</span>
-                                @endif
-                                @if ($goal->success_criteria)
-                                    <span class="dg-goal-meta">
-                                        <span class="dg-criteria-tag">Success: {{ $goal->success_criteria }}</span>
-                                    </span>
-                                @endif
-                                <span class="dg-goal-date">{{ $goal->target_date?->format('D, M j') }}</span>
-                            </li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endforeach
+                @endforeach
+            </div>
         @endif
     </div>
-</section>
+</details>
 
-<form method="GET" action="{{ route('admin.daily-journal.admin-monitor') }}" class="djam-filters">
+{{-- ===== Filters ===== --}}
+<form method="GET" action="{{ route($monitorRoute) }}" class="djam-filters" data-auto-submit>
     <div class="djam-filters-head">
         <div>
             <h2>Monitor Filters</h2>
-            <p>Narrow the monitor list by employee, role, submission status or report date.</p>
+            <p>Narrow the list by employee, role, submission status or report date. Changes apply as you pick them.</p>
         </div>
         @if ($hasActiveFilters)
-            <span class="djam-filters-flag">Filters active</span>
+            <a href="{{ $resetUrl }}" class="djam-filters-flag" title="Clear all filters">
+                Filters active
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </a>
         @endif
     </div>
 
     <div class="djam-filter-grid">
         <div class="djam-field">
             <label for="user_id" class="djam-label">Employee</label>
-            <select name="user_id" id="user_id" class="form-select djam-select">
+            <select name="user_id" id="user_id" class="djam-select">
                 <option value="">All Employees</option>
                 @foreach ($employees as $employee)
-                    <option value="{{ $employee->id }}" {{ $selectedUserId == $employee->id ? 'selected' : '' }}>
+                    <option value="{{ $employee->id }}" @selected($selectedUserId == $employee->id)>
                         {{ $employee->name }} ({{ ucfirst($employee->role) }})
                     </option>
                 @endforeach
@@ -210,27 +240,27 @@
 
         <div class="djam-field">
             <label for="role" class="djam-label">Role</label>
-            <select name="role" id="role" class="form-select djam-select">
+            <select name="role" id="role" class="djam-select">
                 @foreach ($roleOptions as $value => $label)
-                    <option value="{{ $value }}" {{ $selectedRole == $value ? 'selected' : '' }}>{{ $label }}</option>
+                    <option value="{{ $value }}" @selected($selectedRole == $value)>{{ $label }}</option>
                 @endforeach
             </select>
         </div>
 
         <div class="djam-field">
             <label for="status" class="djam-label">Submission status</label>
-            <select name="status" id="status" class="form-select djam-select">
+            <select name="status" id="status" class="djam-select">
                 @foreach ($statusOptions as $value => $label)
-                    <option value="{{ $value }}" {{ $selectedStatus == $value ? 'selected' : '' }}>{{ $label }}</option>
+                    <option value="{{ $value }}" @selected($selectedStatus == $value)>{{ $label }}</option>
                 @endforeach
             </select>
         </div>
 
         <div class="djam-field">
             <label for="date" class="djam-label">Report date</label>
-            <select name="date" id="date" class="form-select djam-select">
+            <select name="date" id="date" class="djam-select">
                 @foreach ($dateChoices as $availableDate)
-                    <option value="{{ $availableDate }}" {{ $availableDate == $selectedDate ? 'selected' : '' }}>
+                    <option value="{{ $availableDate }}" @selected($availableDate == $selectedDate)>
                         {{ Carbon::parse($availableDate)->format('D, M j, Y') }}
                     </option>
                 @endforeach
@@ -238,25 +268,56 @@
         </div>
     </div>
 
-    <div class="djam-filter-actions">
-        <button type="submit" class="btn btn-primary">
+    {{-- Visible without JavaScript; hidden once auto-submit is active. --}}
+    <div class="djam-filter-actions" data-filter-actions>
+        <button type="submit" class="djam-btn djam-btn-primary">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             <span>Apply filters</span>
         </button>
-        <a href="{{ $resetUrl }}" class="btn btn-outline">
+        <a href="{{ $resetUrl }}" class="djam-btn djam-btn-ghost">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
             <span>Reset</span>
         </a>
     </div>
 </form>
 
+{{-- ===== Submissions ===== --}}
 <section class="djam-card" aria-labelledby="djam-submissions-title">
     <div class="djam-card-head">
         <div>
             <h2 id="djam-submissions-title">Employee submissions</h2>
-            <p>{{ $totalCount }} {{ \Illuminate\Support\Str::plural('record', $totalCount) }} shown for {{ $date->format('F j, Y') }}</p>
+            <p data-record-count>
+                {{ $totalCount }} {{ Str::plural('record', $totalCount) }} shown for {{ $date->format('F j, Y') }}
+                @if ($totalCount > 0) &middot; {{ $completionRate }}% handed in @endif
+            </p>
         </div>
+
+        @if ($journals->isNotEmpty())
+            <div class="djam-card-tools">
+                <label class="djam-search">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span class="visually-hidden">Search employees</span>
+                    <input type="search" class="djam-search-input" placeholder="Search name or email" data-table-search autocomplete="off">
+                </label>
+
+                @if ($missingCount > 0)
+                    <button type="button" class="djam-btn djam-btn-ghost djam-btn-sm djam-copy-btn" data-copy-missing>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                        <span data-copy-label>Copy missing list</span>
+                    </button>
+                @endif
+            </div>
+        @endif
     </div>
+
+    @if ($totalCount > 0)
+        <div class="djam-split" role="img"
+             aria-label="{{ $submittedCount }} submitted, {{ $lateCount }} late, {{ $missingCount }} missing">
+            <span class="djam-split-seg djam-split-seg--ok"     style="width: {{ $share($submittedCount) }}%"></span>
+            <span class="djam-split-seg djam-split-seg--warn"   style="width: {{ $share($lateCount) }}%"></span>
+            <span class="djam-split-seg djam-split-seg--danger" style="width: {{ $share($missingCount) }}%"></span>
+        </div>
+    @endif
 
     @if ($journals->isEmpty())
         <div class="djam-empty">
@@ -265,8 +326,7 @@
             </span>
             <h3>No matching journal records</h3>
             <p>
-                No employee journal records match the selected filters
-                for {{ $date->format('F j, Y') }}.
+                No employee journal records match the selected filters for {{ $date->format('F j, Y') }}.
                 @if ($hasActiveFilters)
                     Try clearing the filters to see every journal recorded for this date.
                 @else
@@ -274,12 +334,12 @@
                 @endif
             </p>
             @if ($hasActiveFilters)
-                <a href="{{ $resetUrl }}" class="btn btn-outline btn-sm">Clear filters</a>
+                <a href="{{ $resetUrl }}" class="djam-btn djam-btn-ghost djam-btn-sm">Clear filters</a>
             @endif
         </div>
     @else
-        <div class="table-responsive">
-            <table class="table table-hover djam-table">
+        <div class="djam-table-wrap">
+            <table class="djam-table">
                 <thead>
                     <tr>
                         <th scope="col">Employee</th>
@@ -290,29 +350,39 @@
                     </tr>
                 </thead>
                 <tbody>
-@foreach ($journals as $journal)
-                    @php
-                        $tone = $statusTones[$journal->status] ?? 'info';
-                        $user = $journal->user ?: null;
-                        $initial = $user ? mb_strtoupper(mb_substr($user->name, 0, 1)) : '?';
-                        $userName = $user ? $user->name : 'Unknown / Deleted User';
-                        $userEmail = $user ? $user->email : '';
-                        $userRole = $user ? $user->role : '';
-                    @endphp
-                    <tr>
-                        <td>
-                            <div class="djam-person">
-                                <span class="djam-avatar" aria-hidden="true">{{ $initial }}</span>
-                                <span class="djam-person-text">
-                                    <span class="djam-person-name">{{ $userName }}</span>
-                                    <span class="djam-person-email">{{ $userEmail }}</span>
-                                </span>
-                            </div>
-                        </td>
-<td>
-                            <span class="djam-chip djam-chip--role">{{ ucfirst($userRole) }}</span>
-                        </td>
-                        <td>
+                    @foreach ($journals as $journal)
+                        @php
+                            $tone      = $statusTones[$journal->status] ?? 'info';
+                            $user      = $journal->user ?: null;
+                            $initial   = $user ? mb_strtoupper(mb_substr($user->name, 0, 1)) : '?';
+                            $userName  = $user ? $user->name : 'Unknown / Deleted User';
+                            $userEmail = $user ? $user->email : '';
+                            $userRole  = $user ? $user->role : '';
+                        @endphp
+                        <tr class="djam-row djam-row--{{ $tone }}"
+                            data-row
+                            data-status="{{ $journal->status }}"
+                            data-name="{{ $userName }}"
+                            data-search="{{ Str::lower($userName . ' ' . $userEmail) }}">
+                            <td>
+                                <div class="djam-person">
+                                    <span class="djam-avatar" aria-hidden="true">{{ $initial }}</span>
+                                    <span class="djam-person-text">
+                                        <span class="djam-person-name">{{ $userName }}</span>
+                                        @if ($userEmail)
+                                            <span class="djam-person-email">{{ $userEmail }}</span>
+                                        @endif
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
+                                @if ($userRole)
+                                    <span class="djam-chip djam-chip--role">{{ ucfirst($userRole) }}</span>
+                                @else
+                                    <span class="djam-none">&mdash;</span>
+                                @endif
+                            </td>
+                            <td>
                                 <span class="djam-chip djam-chip--{{ $tone }}">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                                         @if ($journal->status === 'submitted')
@@ -338,14 +408,14 @@
                             </td>
                             <td class="djam-td-actions">
                                 <div class="djam-row-actions">
-                                    <a href="{{ route('daily-journal.show', $journal) }}" class="btn btn-outline btn-sm djam-action-btn" title="View details" aria-label="View details">
+                                    <a href="{{ route('daily-journal.show', $journal) }}" class="djam-btn djam-btn-ghost djam-action-btn" title="View details" aria-label="View details for {{ $userName }}">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                                     </a>
                                     @if (auth()->user()->isAdmin())
-                                        <form method="POST" action="{{ route('admin.daily-journal.destroy', $journal) }}" class="djam-inline-form" onsubmit="return confirm('Delete this journal entry?');">
+                                        <form method="POST" action="{{ route('admin.daily-journal.destroy', $journal) }}" class="djam-inline-form" data-confirm="Delete the journal entry for {{ $userName }}?">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-outline btn-sm text-danger djam-action-btn" title="Delete" aria-label="Delete">
+                                            <button type="submit" class="djam-btn djam-btn-ghost djam-btn-danger djam-action-btn" title="Delete" aria-label="Delete entry for {{ $userName }}">
                                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                                             </button>
                                         </form>
@@ -357,170 +427,289 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="djam-empty djam-empty--search" data-search-empty hidden>
+            <h3>No one matches that search</h3>
+            <p>Check the spelling, or clear the search box to see everyone again.</p>
+        </div>
     @endif
 </section>
+</div>
 @endsection
 
 @push('styles')
 <style>
-/* Scoped to .djam-* so no shared dashboard class (.filter-bar, .stat-card) is overridden. */
-.djam-head { align-items: flex-start; gap: 1rem; }
-.djam-head-main { min-width: 0; }
-.djam-crumbs { display: flex; align-items: center; gap: .3rem; margin-bottom: .4rem; color: var(--muted, #64748b); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
-.djam-crumbs svg { width: 12px; height: 12px; flex: none; opacity: .6; }
-.djam-crumbs .is-current { color: var(--navy, #1e3a5f); }
-.djam-head h1 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1.55rem; font-weight: 800; letter-spacing: -.015em; line-height: 1.2; }
-.djam-head p { margin: .35rem 0 0; color: var(--muted, #64748b); font-size: .9rem; }
+.djam {
+    --djam-ink: #1b2447;
+    --djam-muted: #5b6585;
+    --djam-line: #e3e7f3;
+    --djam-surface: #ffffff;
+    --djam-sunken: #f7f8ff;
+    --djam-tint: #eef0fc;
+    --djam-brand: #4338ca;
+    --djam-brand-dark: #3730a3;
+    color: var(--djam-ink);
+}
+.djam h1, .djam h2, .djam h3, .djam h4, .djam p { margin: 0; }
+.visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-.djam-head-side { display: flex; flex-direction: column; align-items: flex-end; gap: .6rem; flex: none; }
-.djam-datecard { display: flex; align-items: center; gap: .6rem; padding: .55rem .8rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 12px; box-shadow: 0 4px 14px rgba(15, 47, 91, .05); }
-.djam-datecard-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; border-radius: 9px; background: #eef4fd; color: #2563eb; }
-.djam-datecard-icon svg { width: 17px; height: 17px; flex: none; }
-.djam-datecard-text { display: flex; flex-direction: column; line-height: 1.25; }
-.djam-datecard-label { color: var(--muted, #64748b); font-size: .65rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
-.djam-datecard-value { color: var(--navy, #1e3a5f); font-size: .875rem; font-weight: 700; white-space: nowrap; }
-.djam-datenav { display: flex; gap: .4rem; }
-.djam-datenav-btn { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
-.djam-datenav-btn svg { width: 15px; height: 15px; flex: none; }
+/* ---------- Header ---------- */
+.djam-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.djam-head-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.djam-head-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 16px; background: var(--djam-tint); color: var(--djam-brand); }
+.djam-head-icon svg { width: 30px; height: 30px; }
+.djam-head h1 { font-size: 1.6rem; font-weight: 800; line-height: 1.2; }
+.djam-head p { margin-top: 2px; color: var(--djam-muted); font-size: .95rem; }
+.djam-datenav { display: flex; align-items: center; gap: 8px; }
+.djam-date-pill { display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 12px; font-weight: 600; font-size: .95rem; white-space: nowrap; }
+.djam-nav-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 12px; color: var(--djam-ink); text-decoration: none; }
+.djam-nav-btn:hover { background: var(--djam-tint); }
+.djam-today-btn { padding: 10px 16px; border-radius: 12px; background: var(--djam-surface); border: 1px solid var(--djam-line); color: var(--djam-ink); font-weight: 700; font-size: .9rem; text-decoration: none; }
+.djam-today-btn:hover { background: var(--djam-tint); }
+.djam-today-btn.is-current { background: var(--djam-ink); border-color: var(--djam-ink); color: #fff; }
 
-.djam-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
-.djam-stat { position: relative; display: flex; flex-direction: column; gap: .75rem; padding: 1rem 1.1rem .9rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 14px; box-shadow: 0 6px 18px rgba(15, 47, 91, .05); overflow: hidden; }
-.djam-stat::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--djam-accent, #2563eb); }
-.djam-stat-top { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; }
-.djam-stat-text { min-width: 0; }
-.djam-stat-value { color: var(--navy, #1e3a5f); font-size: 1.85rem; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
-.djam-stat-label { margin-top: .2rem; color: var(--muted, #64748b); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-.djam-stat-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: none; border-radius: 11px; background: var(--djam-soft, #eef4fd); color: var(--djam-accent, #2563eb); }
-.djam-stat-icon svg { width: 19px; height: 19px; flex: none; }
-.djam-stat-track { height: 4px; border-radius: 999px; background: #eef1f6; overflow: hidden; }
-.djam-stat-fill { display: block; height: 100%; border-radius: 999px; background: var(--djam-accent, #2563eb); }
+/* ---------- Buttons ---------- */
+.djam-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border: 1px solid transparent; border-radius: 12px; font: inherit; font-weight: 700; font-size: .88rem; line-height: 1.2; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.djam-btn svg { width: 15px; height: 15px; flex: none; }
+.djam-btn-primary { background: linear-gradient(180deg, #4f46e5, var(--djam-brand-dark)); color: #fff; }
+.djam-btn-primary:hover { background: var(--djam-brand-dark); color: #fff; }
+.djam-btn-ghost { background: var(--djam-surface); border-color: var(--djam-line); color: var(--djam-ink); }
+.djam-btn-ghost:hover { background: var(--djam-tint); }
+.djam-btn-sm { padding: 7px 12px; font-size: .82rem; }
+.djam-btn-danger { color: #a93226; }
+.djam-btn-danger:hover { background: #fdecea; border-color: #f1b5ae; }
+.djam-btn:focus-visible, .djam-nav-btn:focus-visible, .djam-today-btn:focus-visible, .djam-stat:focus-visible, .djam-select:focus-visible, .djam-search-input:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
 
+/* ---------- Stat cards (links) ---------- */
+.djam-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.djam-stat { display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 18px; color: inherit; text-decoration: none; transition: border-color .15s, background .15s; }
+.djam-stat:hover { border-color: var(--djam-accent, var(--djam-brand)); }
+.djam-stat.is-active { border-color: var(--djam-accent, var(--djam-brand)); background: var(--djam-soft, var(--djam-tint)); }
+.djam-stat-top { display: flex; flex-direction: row-reverse; justify-content: flex-end; align-items: center; gap: 14px; }
+.djam-stat-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 12px; background: var(--djam-soft, var(--djam-tint)); color: var(--djam-accent, var(--djam-brand)); }
+.djam-stat.is-active .djam-stat-icon { background: #fff; }
+.djam-stat-icon svg { width: 22px; height: 22px; }
+.djam-stat-value { font-size: 1.9rem; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.djam-stat-label { margin-top: 4px; color: var(--djam-muted); font-size: .85rem; font-weight: 700; }
+.djam-stat-foot { display: flex; align-items: center; gap: 10px; }
+.djam-stat-track { flex: 1; height: 6px; border-radius: 999px; background: #e9ebf7; overflow: hidden; }
+.djam-stat-fill { display: block; height: 100%; border-radius: 999px; background: var(--djam-accent, var(--djam-brand)); }
+.djam-stat-share { color: var(--djam-muted); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .djam-stat--ok { --djam-accent: #0f9d58; --djam-soft: #e7f6ee; }
 .djam-stat--warn { --djam-accent: #b45309; --djam-soft: #fdf1e2; }
 .djam-stat--danger { --djam-accent: #c0392b; --djam-soft: #fdecea; }
-.djam-stat--info { --djam-accent: #2563eb; --djam-soft: #eef4fd; }
+.djam-stat--info { --djam-accent: var(--djam-brand); --djam-soft: var(--djam-tint); }
 
-.djam-filters { margin-bottom: 1.25rem; padding: 1.1rem 1.25rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 47, 91, .05); }
-.djam-filters-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
-.djam-filters-head h2 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
-.djam-filters-head p { margin: .2rem 0 0; color: var(--muted, #64748b); font-size: .8rem; }
-.djam-filters-flag { flex: none; padding: .25rem .6rem; border-radius: 999px; background: #eef4fd; color: #2563eb; font-size: .7rem; font-weight: 700; letter-spacing: .03em; }
-.djam-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .9rem; }
+/* ---------- Goals for the Day (collapsible) ---------- */
+.dg-panel { margin-bottom: 20px; background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 18px; overflow: hidden; }
+.dg-panel > summary { list-style: none; cursor: pointer; }
+.dg-panel > summary::-webkit-details-marker { display: none; }
+.dg-panel > summary:focus-visible { outline: 3px solid #a5b4fc; outline-offset: -3px; }
+.dg-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; }
+.dg-panel[open] > .dg-panel-head { border-bottom: 1px solid var(--djam-line); }
+.dg-panel-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.dg-panel-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 40px; width: 40px; height: 40px; border-radius: 12px; background: var(--djam-tint); color: var(--djam-brand); }
+.dg-panel-icon svg { width: 22px; height: 22px; }
+.dg-panel-title h2 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; font-weight: 800; }
+.dg-panel-title p { margin-top: 2px; color: var(--djam-muted); font-size: .85rem; }
+.dg-count { padding: 1px 9px; border-radius: 999px; background: var(--djam-tint); color: var(--djam-brand); font-size: .75rem; font-weight: 700; }
+.dg-head-actions { display: flex; align-items: center; gap: 10px; flex: none; }
+.dg-edit-btn svg { width: 14px; height: 14px; }
+.dg-chevron { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--djam-muted); transition: transform .2s; }
+.dg-chevron svg { width: 18px; height: 18px; }
+.dg-panel[open] .dg-chevron { transform: rotate(180deg); }
+.dg-goals-container { padding: 16px 20px 20px; }
+.dg-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 12px; text-align: center; border: 1px dashed #c9cff0; border-radius: 14px; background: var(--djam-sunken); }
+.dg-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #e7e9f7; color: var(--djam-muted); }
+.dg-empty-icon svg { width: 24px; height: 24px; }
+.dg-empty-text strong { display: block; margin-bottom: 4px; font-size: 1rem; font-weight: 800; }
+.dg-empty-text p { color: var(--djam-muted); font-size: .85rem; }
+.dg-employee-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start; }
+.dg-employee-goals { border: 1px solid var(--djam-line); border-radius: 14px; overflow: hidden; background: var(--djam-surface); }
+.dg-emp-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--djam-sunken); border-bottom: 1px solid var(--djam-line); }
+.dg-emp-avatar { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 50%; background: var(--djam-tint); color: var(--djam-brand); font-weight: 800; font-size: .8rem; }
+.dg-emp-name { font-weight: 800; font-size: .92rem; }
+.dg-emp-role { margin-left: auto; color: var(--djam-muted); font-size: .75rem; white-space: nowrap; }
+.dg-goal-list { list-style: none; margin: 0; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.dg-goal-item { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; padding: 10px 12px; background: var(--djam-sunken); border-radius: 10px; font-size: .88rem; }
+.dg-goal-title { font-weight: 700; overflow-wrap: anywhere; }
+.dg-goal-desc { flex-basis: 100%; order: 3; color: var(--djam-muted); font-size: .82rem; overflow-wrap: anywhere; }
+.dg-goal-meta { order: 4; }
+.dg-criteria-tag { display: inline-flex; padding: 2px 8px; border-radius: 6px; background: var(--djam-tint); color: var(--djam-brand); font-size: .72rem; font-weight: 700; }
+.dg-goal-date { color: var(--djam-muted); font-size: .75rem; font-weight: 700; white-space: nowrap; }
+
+/* ---------- Filters ---------- */
+.djam-filters { margin-bottom: 20px; padding: 18px 20px; background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 18px; }
+.djam-filters-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.djam-filters-head h2 { font-size: 1.05rem; font-weight: 800; }
+.djam-filters-head p { margin-top: 2px; color: var(--djam-muted); font-size: .85rem; }
+.djam-filters-flag { display: inline-flex; align-items: center; gap: 4px; flex: none; padding: 4px 8px 4px 12px; border-radius: 999px; background: var(--djam-tint); color: var(--djam-brand); font-size: .75rem; font-weight: 700; text-decoration: none; }
+.djam-filters-flag:hover { background: #dfe3fa; }
+.djam-filters-flag svg { width: 13px; height: 13px; }
+.djam-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .djam-field { min-width: 0; }
-.djam-label { display: block; margin: 0 0 .35rem; color: var(--muted, #64748b); font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.djam-select { min-height: 2.55rem; font-size: .875rem; }
-.djam-filter-actions { display: flex; gap: .5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle, #e5e7eb); }
-.djam-filter-actions .btn { display: inline-flex; align-items: center; gap: .35rem; }
-.djam-filter-actions svg { width: 15px; height: 15px; flex: none; }
+.djam-label { display: block; margin-bottom: 6px; color: var(--djam-ink); font-size: .82rem; font-weight: 700; }
+.djam-select { width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid #cdd3ea; border-radius: 10px; background: #fff; color: var(--djam-ink); font: inherit; font-size: .9rem; box-sizing: border-box; }
+.djam-filter-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--djam-line); }
+.djam-filter-actions[hidden] { display: none; }
 
-.djam-card { background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 47, 91, .05); overflow: hidden; }
-.djam-card-head { padding: 1.05rem 1.25rem; border-bottom: 1px solid var(--border-subtle, #e5e7eb); }
-.djam-card-head h2 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
-.djam-card-head p { margin: .2rem 0 0; color: var(--muted, #64748b); font-size: .8rem; }
+/* ---------- Submissions card ---------- */
+.djam-card { background: var(--djam-surface); border: 1px solid var(--djam-line); border-radius: 18px; overflow: hidden; }
+.djam-card-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 18px 20px 14px; }
+.djam-card-head h2 { font-size: 1.05rem; font-weight: 800; }
+.djam-card-head p { margin-top: 2px; color: var(--djam-muted); font-size: .85rem; }
+.djam-card-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.djam-search { position: relative; display: block; margin: 0; }
+.djam-search svg { position: absolute; left: 12px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: #94a3b8; pointer-events: none; }
+.djam-search-input { width: 16rem; max-width: 100%; min-height: 38px; padding: 7px 12px 7px 34px; border: 1px solid #cdd3ea; border-radius: 10px; background: #fff; font: inherit; font-size: .88rem; color: var(--djam-ink); box-sizing: border-box; }
+.djam-split { display: flex; height: 8px; margin: 0 20px 16px; border-radius: 999px; overflow: hidden; background: #e9ebf7; }
+.djam-split-seg { display: block; height: 100%; }
+.djam-split-seg--ok { background: #0f9d58; }
+.djam-split-seg--warn { background: #f59e0b; }
+.djam-split-seg--danger { background: #dc4c3f; }
 
-.djam-table { margin: 0; min-width: 720px; }
-.djam-table thead th { padding: .75rem 1.25rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle, #e5e7eb); color: var(--muted, #64748b); font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; vertical-align: middle; }
-.djam-table tbody td { padding: .85rem 1.25rem; vertical-align: middle; }
+.djam-table-wrap { overflow-x: auto; border-top: 1px solid var(--djam-line); }
+.djam-table { width: 100%; min-width: 720px; border-collapse: collapse; margin: 0; }
+.djam-table thead th { padding: 12px 20px; background: #e9ebfb; text-align: left; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.djam-table tbody td { padding: 14px 20px; border-top: 1px solid var(--djam-line); vertical-align: middle; }
+.djam-table tbody tr:first-child td { border-top: 0; }
+.djam-table tbody tr:hover td { background: var(--djam-sunken); }
+.djam-table[hidden] { display: none; }
 .djam-th-actions, .djam-td-actions { text-align: right; }
+.djam-row--danger td:first-child { box-shadow: inset 3px 0 0 #dc4c3f; }
+.djam-row--warn td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
+.djam-row[hidden] { display: none; }
 
-.djam-person { display: flex; align-items: center; gap: .65rem; min-width: 0; }
-.djam-avatar { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex: none; border-radius: 50%; background: #eef4fd; color: #2563eb; font-size: .8rem; font-weight: 800; }
+.djam-person { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.djam-avatar { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 38px; width: 38px; height: 38px; border-radius: 50%; background: var(--djam-tint); color: var(--djam-brand); font-size: .85rem; font-weight: 800; }
 .djam-person-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
-.djam-person-name { color: var(--navy, #1e3a5f); font-weight: 700; }
-.djam-person-email { color: var(--muted, #64748b); font-size: .78rem; overflow-wrap: anywhere; }
+.djam-person-name { font-weight: 700; }
+.djam-person-email { color: var(--djam-muted); font-size: .8rem; overflow-wrap: anywhere; }
 
-.djam-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .3rem .6rem; border: 1px solid transparent; border-radius: 999px; font-size: .72rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.djam-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1px solid transparent; border-radius: 999px; font-size: .78rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
 .djam-chip svg { width: 13px; height: 13px; flex: none; }
-.djam-chip--role { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+.djam-chip--role { background: var(--djam-tint); border-color: #dde1f7; color: var(--djam-brand); }
 .djam-chip--ok { background: #e7f6ee; border-color: #c7ebd8; color: #0b7a45; }
 .djam-chip--warn { background: #fdf1e2; border-color: #f6ddb9; color: #92400e; }
 .djam-chip--danger { background: #fdecea; border-color: #f7cfca; color: #a5281a; }
-.djam-chip--info { background: #eef4fd; border-color: #d5e3f8; color: #1d4ed8; }
+.djam-chip--info { background: #eaf1ff; border-color: #d5e3f8; color: #1d4ed8; }
 
 .djam-submitted { display: flex; flex-direction: column; line-height: 1.3; }
-.djam-submitted-date { color: var(--navy, #1e3a5f); font-weight: 600; font-size: .85rem; }
-.djam-submitted-time { color: var(--muted, #64748b); font-size: .78rem; }
+.djam-submitted-date { font-weight: 600; font-size: .88rem; }
+.djam-submitted-time { color: var(--djam-muted); font-size: .8rem; }
 .djam-none { color: #94a3b8; }
-
-.djam-row-actions { display: flex; gap: .4rem; align-items: center; justify-content: flex-end; }
+.djam-row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .djam-inline-form { display: inline-flex; margin: 0; }
-.djam-action-btn { display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; padding: 0; }
-.djam-action-btn svg { width: 15px; height: 15px; flex: none; }
+.djam-action-btn { width: 36px; height: 36px; padding: 0; }
 
-.djam-empty { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 3rem 1.5rem; text-align: center; }
-.djam-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: none; border-radius: 14px; background: #f1f5f9; color: #64748b; }
-.djam-empty-icon svg { width: 24px; height: 24px; flex: none; }
-.djam-empty h3 { margin: .35rem 0 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
-.djam-empty p { max-width: 30rem; margin: 0; color: var(--muted, #64748b); font-size: .85rem; }
+.djam-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 4px 20px 20px; padding: 32px 20px; text-align: center; border: 1px dashed #c9cff0; border-radius: 14px; background: var(--djam-sunken); }
+.djam-empty[hidden] { display: none; }
+.djam-empty--search { margin-top: 12px; }
+.djam-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 50%; background: #e7e9f7; color: var(--djam-muted); }
+.djam-empty-icon svg { width: 24px; height: 24px; }
+.djam-empty h3 { margin-top: 4px; font-size: 1rem; font-weight: 800; }
+.djam-empty p { max-width: 30rem; color: var(--djam-muted); font-size: .88rem; }
 
+/* ---------- Responsive ---------- */
 @media (max-width: 1199px) {
     .djam-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .djam-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 900px) {
-    .djam-head { flex-direction: column; align-items: stretch; }
-    .djam-head-side { flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+@media (max-width: 800px) {
+    .djam-head h1 { font-size: 1.3rem; }
+    .djam-datenav { flex-wrap: wrap; }
 }
 @media (max-width: 640px) {
     .djam-filter-grid { grid-template-columns: minmax(0, 1fr); }
-    .djam-filters-head { flex-direction: column; gap: .5rem; }
-    .djam-filter-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
-    /* dashboard.css sets .btn-sm { min-height: 44px } under 560px; match the width so the
-       icon button stays square instead of being stretched into a tall rectangle. */
+    .djam-filters-head { flex-direction: column; gap: 8px; }
+    .djam-filter-actions .djam-btn { flex: 1; min-height: 44px; }
+    .djam-card-tools { width: 100%; }
+    .djam-search { flex: 1 1 100%; }
+    .djam-search-input { width: 100%; }
     .djam-action-btn { width: 44px; height: 44px; }
-    .djam-head-side { flex-direction: column; align-items: stretch; }
-    .djam-datenav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .djam-datenav-btn { justify-content: center; }
-    .djam-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
-    .djam-stat { padding: .85rem .9rem .8rem; }
-    .djam-stat-value { font-size: 1.5rem; }
-    .djam-stat-icon { width: 32px; height: 32px; }
-    .djam-stat-icon svg { width: 17px; height: 17px; }
-    .djam-card-head, .djam-filters { padding-left: 1rem; padding-right: 1rem; }
+    .dg-panel-head { flex-wrap: wrap; }
+    .dg-head-actions { width: 100%; justify-content: space-between; }
+    .dg-employee-grid { grid-template-columns: minmax(0, 1fr); }
+    .djam-card-head, .djam-filters { padding-left: 16px; padding-right: 16px; }
+    .djam-split { margin-left: 16px; margin-right: 16px; }
 }
 @media (max-width: 380px) {
     .djam-stats { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 380px) {
-    .djam-stats { grid-template-columns: minmax(0, 1fr); }
-}
-
-/* ---------- Goals for the Day Panel (scoped to .dg-*) ---------- */
-.dg-panel { margin-bottom: 1.25rem; }
-.dg-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem; background: #f8fafc; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 12px 12px 0 0; border-bottom: none; }
-.dg-panel-title { display: flex; align-items: center; gap: .75rem; }
-.dg-panel-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: none; border-radius: 10px; background: #eef4fd; color: #2563eb; }
-.dg-panel-icon svg { width: 20px; height: 20px; flex: none; }
-.dg-panel-title h2 { margin: 0; color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; }
-.dg-panel-title p { margin: .2rem 0 0; color: var(--muted, #64748b); font-size: .8rem; }
-.dg-edit-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; padding: .45rem .8rem; }
-.dg-edit-btn svg { width: 14px; height: 14px; flex: none; }
-
-.dg-goals-container { padding: 1rem 1.25rem; background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 0 0 12px 12px; border-top: none; }
-.dg-empty-state { display: flex; flex-direction: column; align-items: center; gap: .5rem; padding: 2.5rem 1rem; text-align: center; color: var(--muted, #64748b); }
-.dg-empty-icon { width: 48px; height: 48px; border-radius: 14px; background: #f1f5f9; color: #64748b; display: inline-flex; align-items: center; justify-content: center; }
-.dg-empty-icon svg { width: 24px; height: 24px; flex: none; }
-.dg-empty-text strong { color: var(--navy, #1e3a5f); font-size: 1rem; font-weight: 700; display: block; margin-bottom: .25rem; }
-.dg-empty-text p { margin: 0; font-size: .85rem; }
-
-.dg-employee-goals { border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; overflow: hidden; margin-bottom: 1rem; background: var(--surface, #fff); }
-.dg-emp-header { display: flex; align-items: center; gap: .65rem; padding: .75rem 1rem; background: #f8fafc; border-bottom: 1px solid var(--border-subtle, #e5e7eb); }
-.dg-emp-avatar { width: 30px; height: 30px; border-radius: 50%; background: #eef4fd; color: #2563eb; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: .75rem; flex: none; }
-.dg-emp-name { color: var(--navy, #1e3a5f); font-weight: 700; font-size: .9rem; }
-.dg-emp-role { color: var(--muted, #64748b); font-size: .72rem; margin-left: auto; }
-.dg-goal-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem 1rem; }
-.dg-goal-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem .75rem; background: #f8fafc; border-radius: 8px; font-size: .88rem; flex-wrap: wrap; }
-.dg-goal-title { font-weight: 700; color: var(--text, #1f2937); overflow-wrap: anywhere; }
-.dg-goal-desc { color: var(--muted, #64748b); font-size: .82rem; overflow-wrap: anywhere; }
-.dg-goal-meta { display: inline-flex; gap: .3rem; align-items: center; }
-.dg-criteria-tag { font-size: .72rem; font-weight: 700; color: #2563eb; background: #eef4fd; padding: .15rem .5rem; border-radius: 6px; white-space: nowrap; }
-.dg-goal-date { font-size: .75rem; font-weight: 700; color: #6b7280; white-space: nowrap; }
-
-@media (max-width: 640px) {
-    .dg-panel-head { flex-direction: column; align-items: stretch; gap: .75rem; }
-    .dg-edit-btn { width: 100%; justify-content: center; }
-    .dg-goal-item { flex-direction: column; align-items: flex-start; gap: .4rem; }
-    .dg-goal-date { margin-top: .25rem; }
+@media (prefers-reduced-motion: reduce) {
+    .djam-stat, .dg-chevron { transition: none; }
 }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+(function () {
+    /* ---- Filters apply as soon as a select changes ---- */
+    var filterForm = document.querySelector('form[data-auto-submit]');
+    if (filterForm) {
+        var actions = filterForm.querySelector('[data-filter-actions]');
+        if (actions) { actions.hidden = true; }
+        Array.prototype.forEach.call(filterForm.querySelectorAll('select'), function (select) {
+            select.addEventListener('change', function () { filterForm.submit(); });
+        });
+    }
+
+    /* ---- Confirm before deleting ---- */
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-confirm]'), function (form) {
+        form.addEventListener('submit', function (event) {
+            if (! window.confirm(form.getAttribute('data-confirm'))) { event.preventDefault(); }
+        });
+    });
+
+    /* ---- Search the rows already on the page ---- */
+    var search = document.querySelector('[data-table-search]');
+    var rows = Array.prototype.slice.call(document.querySelectorAll('[data-row]'));
+    var emptyState = document.querySelector('[data-search-empty]');
+    var table = document.querySelector('.djam-table');
+    var countLine = document.querySelector('[data-record-count]');
+    var originalCount = countLine ? countLine.innerHTML : '';
+
+    if (search && rows.length) {
+        search.addEventListener('input', function () {
+            var term = search.value.trim().toLowerCase();
+            var shown = 0;
+
+            rows.forEach(function (row) {
+                var match = term === '' || row.getAttribute('data-search').indexOf(term) !== -1;
+                row.hidden = ! match;
+                if (match) { shown++; }
+            });
+
+            if (table) { table.hidden = shown === 0; }
+            if (emptyState) { emptyState.hidden = shown !== 0; }
+            if (countLine) {
+                countLine.innerHTML = term === ''
+                    ? originalCount
+                    : 'Showing ' + shown + ' of ' + rows.length + ' records';
+            }
+        });
+    }
+
+    /* ---- Copy everyone who is missing a report ---- */
+    var copyBtn = document.querySelector('[data-copy-missing]');
+    if (copyBtn) {
+        var label = copyBtn.querySelector('[data-copy-label]');
+        var original = label.textContent;
+
+        copyBtn.addEventListener('click', function () {
+            var names = rows
+                .filter(function (row) { return row.getAttribute('data-status') === 'missing'; })
+                .map(function (row) { return row.getAttribute('data-name'); });
+
+            if (! names.length || ! navigator.clipboard) { return; }
+
+            navigator.clipboard.writeText(names.join('\n')).then(function () {
+                label.textContent = 'Copied ' + names.length + ' ' + (names.length === 1 ? 'name' : 'names');
+                setTimeout(function () { label.textContent = original; }, 2000);
+            });
+        });
+    }
+})();
+</script>
 @endpush

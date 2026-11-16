@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ActivityLog;
 use App\Models\DailyGoal;
 use App\Models\DailyGoalVersion;
 use App\Models\User;
@@ -10,7 +11,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
 
 class DailyGoalController extends Controller
@@ -86,7 +86,7 @@ class DailyGoalController extends Controller
         // Validate target_date falls within the week_start week (Mon-Fri)
         if ($targetDate->lt($weekStart) || $targetDate->gt((clone $weekStart)->addDays(4))) {
             return back()->withErrors([
-                'target_date' => 'Target date must fall within the selected workweek (Monday–Friday).',
+                'target_date' => 'Target date must fall within the selected workweek (Monday-Friday).',
             ])->withInput();
         }
 
@@ -114,22 +114,22 @@ class DailyGoalController extends Controller
     /**
      * Return goal data for the edit form (AJAX).
      */
-    public function edit(DailyGoal $goal)
+    public function edit(DailyGoal $dailyGoal)
     {
         Gate::authorize('adminOnly');
 
-        $goal->load(['user', 'creator', 'editor', 'versions.changer']);
+        $dailyGoal->load(['user', 'creator', 'editor', 'versions.changer']);
 
         return response()->json([
-            'id' => $goal->id,
-            'user_id' => $goal->user_id,
-            'week_start_date' => $goal->week_start_date?->format('Y-m-d'),
-            'target_date' => $goal->target_date?->format('Y-m-d'),
-            'title' => $goal->title,
-            'description' => $goal->description,
-            'success_criteria' => $goal->success_criteria,
-            'status' => $goal->status,
-            'versions' => $goal->versions->map(function ($v) {
+            'id' => $dailyGoal->id,
+            'user_id' => $dailyGoal->user_id,
+            'week_start_date' => $dailyGoal->week_start_date?->format('Y-m-d'),
+            'target_date' => $dailyGoal->target_date?->format('Y-m-d'),
+            'title' => $dailyGoal->title,
+            'description' => $dailyGoal->description,
+            'success_criteria' => $dailyGoal->success_criteria,
+            'status' => $dailyGoal->status,
+            'versions' => $dailyGoal->versions->map(function ($v) {
                 return [
                     'changed_at' => $v->changed_at?->format('Y-m-d H:i'),
                     'changed_by' => $v->changer?->name,
@@ -144,7 +144,7 @@ class DailyGoalController extends Controller
     /**
      * Update an existing goal. Records version history before changing values.
      */
-    public function update(Request $request, DailyGoal $goal): RedirectResponse
+    public function update(Request $request, DailyGoal $dailyGoal): RedirectResponse
     {
         Gate::authorize('adminOnly');
 
@@ -158,22 +158,22 @@ class DailyGoalController extends Controller
         ]);
 
         $targetDate = Carbon::parse($validated['target_date']);
-        $weekStart = $goal->week_start_date;
+        $weekStart = $dailyGoal->week_start_date;
 
         // Validate target_date still falls within the goal's week
         if ($targetDate->lt($weekStart) || $targetDate->gt((clone $weekStart)->addDays(4))) {
             return back()->withErrors([
-                'target_date' => 'Target date must fall within the goal\'s workweek (Monday–Friday).',
+                'target_date' => 'Target date must fall within the goal\'s workweek (Monday-Friday).',
             ])->withInput();
         }
 
         // Capture previous values for version history
         $previousValues = [
-            'title' => $goal->title,
-            'description' => $goal->description,
-            'success_criteria' => $goal->success_criteria,
-            'target_date' => $goal->target_date?->format('Y-m-d'),
-            'status' => $goal->status,
+            'title' => $dailyGoal->title,
+            'description' => $dailyGoal->description,
+            'success_criteria' => $dailyGoal->success_criteria,
+            'target_date' => $dailyGoal->target_date?->format('Y-m-d'),
+            'status' => $dailyGoal->status,
         ];
 
         $newValues = [
@@ -184,7 +184,7 @@ class DailyGoalController extends Controller
             'status' => $validated['status'],
         ];
 
-        $goal->update([
+        $dailyGoal->update([
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'success_criteria' => $validated['success_criteria'] ?? null,
@@ -197,7 +197,7 @@ class DailyGoalController extends Controller
 
         // Record version history
         DailyGoalVersion::create([
-            'daily_goal_id' => $goal->id,
+            'daily_goal_id' => $dailyGoal->id,
             'previous_values' => $previousValues,
             'new_values' => $newValues,
             'change_reason' => $validated['change_reason'] ?? null,
@@ -208,7 +208,7 @@ class DailyGoalController extends Controller
         ActivityLog::record(
             auth()->user(),
             'daily_goal.updated',
-            "Updated daily goal '{$goal->title}' for {$goal->user->name} on {$goal->target_date->format('F j, Y')}."
+            "Updated daily goal '{$dailyGoal->title}' for {$dailyGoal->user->name} on {$dailyGoal->target_date->format('F j, Y')}."
         );
 
         return back()->with('status', 'Goal updated successfully.');
@@ -217,11 +217,11 @@ class DailyGoalController extends Controller
     /**
      * Delete (cancel) a goal.
      */
-    public function destroy(DailyGoal $goal): RedirectResponse
+    public function destroy(DailyGoal $dailyGoal): RedirectResponse
     {
         Gate::authorize('adminOnly');
 
-        $goal->update([
+        $dailyGoal->update([
             'status' => DailyGoal::STATUS_CANCELLED,
             'edited_by' => auth()->id(),
             'effective_from' => now(),
@@ -230,7 +230,7 @@ class DailyGoalController extends Controller
         ActivityLog::record(
             auth()->user(),
             'daily_goal.cancelled',
-            "Cancelled daily goal '{$goal->title}' for {$goal->user->name} on {$goal->target_date->format('F j, Y')}."
+            "Cancelled daily goal '{$dailyGoal->title}' for {$dailyGoal->user->name} on {$dailyGoal->target_date->format('F j, Y')}."
         );
 
         return back()->with('status', 'Goal cancelled.');
@@ -242,6 +242,8 @@ class DailyGoalController extends Controller
      */
     public function goalsForDate(Request $request): \Illuminate\Http\JsonResponse
     {
+        Gate::authorize('adminOnly');
+
         $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'date' => ['required', 'date'],

@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Services\DailyJournalService;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\ServiceProvider;
 use Symfony\Component\Mailer\Bridge\Brevo\Transport\BrevoTransportFactory;
@@ -23,6 +24,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::define('adminOnly', function ($user): bool {
+            return $user->isAdmin();
+        });
+
         Mail::extend('brevo', function () {
             return (new BrevoTransportFactory)->create(
                 new Dsn(

@@ -313,7 +313,7 @@ class DailyJournalService
         // Analyze on submission/update only. The analyzer caches by a content
         // hash, so opening pages or re-saving unchanged text never calls AI.
         try {
-            $goalsForDate = DailyGoal::query()
+            $dailyGoalItems = DailyGoal::query()
                 ->where('user_id', $userId)
                 ->where('target_date', $date->toDateString())
                 ->where('status', DailyGoal::STATUS_ACTIVE)
@@ -325,8 +325,33 @@ class DailyJournalService
                         'success_criteria' => $g->success_criteria,
                         'target_date' => $g->target_date?->format('Y-m-d'),
                         'status' => $g->status,
+                        'dedupe_key' => mb_strtolower(trim((string) $g->title)),
                     ];
-                })
+                });
+
+            $workPlanGoalItems = \App\Models\WorkPlanTask::query()
+                ->where('user_id', $userId)
+                ->where('work_date', $date->toDateString())
+                ->where('status', '!=', \App\Models\WorkPlanTask::STATUS_CANCELLED)
+                ->with('legend')
+                ->get()
+                ->map(function ($task) use ($date) {
+                    $label = $task->getLegendLabel();
+
+                    return [
+                        'title' => $label,
+                        'description' => $task->description,
+                        'success_criteria' => $task->success_criteria,
+                        'target_date' => $date->toDateString(),
+                        'status' => $task->status,
+                        'dedupe_key' => mb_strtolower(trim(($task->legend_code ? $task->legend_code.'|' : '').$label)),
+                    ];
+                });
+
+            $goalsForDate = $dailyGoalItems
+                ->concat($workPlanGoalItems)
+                ->unique('dedupe_key')
+                ->map(fn ($goal) => collect($goal)->except('dedupe_key')->all())
                 ->values()
                 ->all();
 

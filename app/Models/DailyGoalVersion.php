@@ -16,6 +16,8 @@ class DailyGoalVersion extends Model
 {
     use HasFactory;
 
+    public $timestamps = false;
+
     protected $fillable = [
         'daily_goal_id',
         'previous_values',
