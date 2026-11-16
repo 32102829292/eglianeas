@@ -7,17 +7,25 @@ use Illuminate\Support\Carbon;
 
 class DateOnlyCast implements CastsAttributes
 {
-    public function get($model, string $key, $value, array $attributes): Carbon
+    public function get($model, string $key, $value, array $attributes): ?Carbon
     {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
         return Carbon::parse($value)->startOfDay();
     }
 
-    public function set($model, string $key, $value, array $attributes): string
+    public function set($model, string $key, $value, array $attributes): ?string
     {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
         if ($value instanceof Carbon) {
             return $value->format('Y-m-d');
         }
-        
+
         return Carbon::parse($value)->format('Y-m-d');
     }
 }

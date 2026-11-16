@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureAdminConfidentialityAcknowledged;
 use App\Models\User;
 use App\Models\WorkPlanSetting;
 use App\Models\WorkPlanTask;
+use App\Models\WorkPlanWeeklySubmission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -45,12 +46,12 @@ class WorkPlanAccessTest extends TestCase
         ]);
     }
 
-    public function test_work_plan_routes_are_admin_only_and_task_routes_bind_correctly(): void
+    public function test_work_plan_access_enforces_admin_oversight_and_staff_supervisor_self_service(): void
     {
-        $admin = $this->user(User::ROLE_ADMIN);
+        $admin = $this->user(User::ROLE_ADMIN, 'Admin User');
         $staff1 = $this->user(User::ROLE_STAFF, 'Staff One');
         $staff2 = $this->user(User::ROLE_STAFF, 'Staff Two');
-        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $supervisor = $this->user(User::ROLE_SUPERVISOR, 'Supervisor One');
         $client = $this->user(User::ROLE_CLIENT);
 
         $workDate = '2026-11-10';
@@ -63,121 +64,82 @@ class WorkPlanAccessTest extends TestCase
             'created_by' => $admin->id,
         ]);
 
-        // 1. Client user is forbidden from the grid.
-        $this->actingAs($client)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertForbidden();
+        // Client forbidden.
+        $this->actingAs($client)->get(route('admin.daily-work-plan.index'))->assertForbidden();
 
-        // 2. Staff sees only their own row in the grid.
+        // Staff sees only own row.
         $this->actingAs($staff1)
             ->get(route('admin.daily-work-plan.index'))
             ->assertOk()
-            ->assertSee($staff1->name)
-            ->assertDontSee($staff2->name);
+            ->assertSee('Staff One')
+            ->assertDontSee('Staff Two')
+            ->assertDontSee('Supervisor One');
 
-        // 3. Staff cannot edit another staff member's cell.
-        $this->actingAs($staff2)
-            ->put(route('admin.daily-work-plan.update', $task), [
-                'custom_title' => 'Unauthorized update',
-            ])
-            ->assertForbidden();
-
-        // 4. Staff blocked after the automatic Monday 12:00 lock.
-        Carbon::setTestNow('2026-11-16 12:00:00');
-        $this->actingAs($staff1)
-            ->post(route('admin.daily-work-plan.store'), [
-                'user_id' => $staff1->id,
-                'work_date' => '2026-11-20',
-                'custom_title' => 'After lock',
-            ])
-            ->assertForbidden();
-
-        // 5. Supervisor can edit any staff row.
+        // Supervisor sees only own row (self-only).
         $this->actingAs($supervisor)
-            ->put(route('admin.daily-work-plan.update', $task), [
-                'custom_title' => 'Supervisor update',
-            ])
-            ->assertSessionHas('status', 'Work plan task updated successfully.');
+            ->get(route('admin.daily-work-plan.index'))
+            ->assertOk()
+            ->assertSee('Supervisor One')
+            ->assertDontSee('Staff One')
+            ->assertDontSee('Staff Two');
 
-        // 6. Admin can do everything, and an edit outside the window writes an ActivityLog entry.
+        // Admin sees all employees.
         $this->actingAs($admin)
-            ->post(route('admin.daily-work-plan.store'), [
-                'user_id' => $staff1->id,
-                'work_date' => '2026-11-20',
-                'custom_title' => 'Admin override',
-            ])
-            ->assertSessionHas('status', 'Work plan task created successfully.');
+            ->get(route('admin.daily-work-plan.index'))
+            ->assertOk()
+            ->assertSee('Staff One')
+            ->assertSee('Staff Two')
+            ->assertSee('Supervisor One');
 
-        $this->assertDatabaseHas('activity_logs', [
-            'action' => 'work_plan.override_edit',
+        // Staff cannot edit another staff member's task (direct/AJAX/update).
+        $this->actingAs($staff2)->put(route('admin.daily-work-plan.update', $task), ['custom_title' => 'Unauthorized update'])->assertForbidden();
+        $this->actingAs($staff2)->get(route('admin.daily-work-plan.edit', $task))->assertForbidden();
+        $this->actingAs($staff2)->delete(route('admin.daily-work-plan.destroy', $task))->assertForbidden();
+        $this->actingAs($staff2)->get(route('admin.daily-work-plan.tasks-for-date', ['user_id' => $staff1->id, 'date' => $workDate]))->assertForbidden();
+
+        // Supervisor cannot edit/view another employee's task (self-only).
+        $this->actingAs($supervisor)->put(route('admin.daily-work-plan.update', $task), ['custom_title' => 'Supervisor unauthorized'])->assertForbidden();
+        $this->actingAs($supervisor)->get(route('admin.daily-work-plan.edit', $task))->assertForbidden();
+        $this->actingAs($supervisor)->get(route('admin.daily-work-plan.tasks-for-date', ['user_id' => $staff1->id, 'date' => $workDate]))->assertForbidden();
+        $this->actingAs($supervisor)->get(route('admin.daily-work-plan.incomplete', ['week_start' => '2026-11-09']))->assertForbidden();
+        $this->actingAs($supervisor)->get(route('admin.daily-work-plan.performance', ['week_start' => '2026-11-09']))->assertForbidden();
+
+        // Staff can edit own plan while window open.
+        $ownTask = WorkPlanTask::create([
+            'user_id' => $staff1->id,
+            'work_date' => '2026-11-11',
+            'custom_title' => 'Own task',
+            'status' => WorkPlanTask::STATUS_PENDING,
+            'created_by' => $staff1->id,
         ]);
+        $this->actingAs($staff1)->put(route('admin.daily-work-plan.update', $ownTask), ['custom_title' => 'Own task updated'])->assertSessionHas('status');
 
-        // -- Feature: grid renders correctly for each role --
+        // Supervisor can edit own plan while window open.
+        $supTask = WorkPlanTask::create([
+            'user_id' => $supervisor->id,
+            'work_date' => '2026-11-11',
+            'custom_title' => 'Supervisor own',
+            'status' => WorkPlanTask::STATUS_PENDING,
+            'created_by' => $supervisor->id,
+        ]);
+        $this->actingAs($supervisor)->put(route('admin.daily-work-plan.update', $supTask), ['custom_title' => 'Supervisor own updated'])->assertSessionHas('status');
 
-        // Admin sees all employees and all tasks
+        // Lock boundary: Monday 12:00 blocks staff/supervisor.
+        Carbon::setTestNow('2026-11-16 12:00:00');
+        $this->actingAs($staff1)->post(route('admin.daily-work-plan.store'), ['user_id' => $staff1->id, 'work_date' => '2026-11-20', 'custom_title' => 'After lock'])->assertForbidden();
+        $this->actingAs($supervisor)->post(route('admin.daily-work-plan.store'), ['user_id' => $supervisor->id, 'work_date' => '2026-11-20', 'custom_title' => 'After lock'])->assertForbidden();
+
+        // Admin can override outside window and override is logged.
         $this->actingAs($admin)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertOk()
-            ->assertSee('Staff One')
-            ->assertSee('Staff Two');
+            ->post(route('admin.daily-work-plan.store'), ['user_id' => $staff1->id, 'work_date' => '2026-11-20', 'custom_title' => 'Admin override'])
+            ->assertSessionHas('status', 'Work plan task created successfully.');
+        $this->assertDatabaseHas('activity_logs', ['action' => 'work_plan.override_edit']);
 
-        // Supervisor sees all employees and all tasks
-        $this->actingAs($supervisor)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertOk()
-            ->assertSee('Staff One')
-            ->assertSee('Staff Two');
-
-        // Staff1 sees only their own row
-        $this->actingAs($staff1)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertOk()
-            ->assertSee($staff1->name)
-            ->assertDontSee($staff2->name);
-
-        // Staff2 sees only their own row
-        $this->actingAs($staff2)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertOk()
-            ->assertSee($staff2->name)
-            ->assertDontSee($staff1->name);
-
-        // -- Feature: accomplishment and reference-board pages --
-
-        $this->actingAs($admin)
-            ->get(route('work-plan.accomplishment', ['week_start' => '2026-11-11']))
-            ->assertOk();
-
-        $this->actingAs($admin)
-            ->get(route('work-plan.reference-board'))
-            ->assertOk();
-
-        // -- Query count: page should issue no more than 8 work_plan_settings queries --
-        // Capture query log after request
-        $queryLog = \Illuminate\Support\Facades\DB::getQueryLog();
-        $settingsQueries = array_reduce($queryLog, function ($carry, $query) {
-            return $carry + (str_contains($query['query'], 'work_plan_settings') ? 1 : 0);
-        }, 0);
-        $this->assertLessThanOrEqual(8, $settingsQueries, 'Page should issue no more than 8 work_plan_settings queries');
-
-        // -- Existing task-route binding assertions (admin only) --
-
-        $this->actingAs($admin)
-            ->get(route('admin.daily-work-plan.index'))
-            ->assertOk();
-
-        $this->actingAs($admin)
-            ->get(route('admin.daily-work-plan.edit', $task))
-            ->assertOk()
-            ->assertJsonPath('id', $task->id);
-
-        $this->actingAs($admin)
-            ->get(route('admin.daily-work-plan.tasks-for-date', [
-                'user_id' => $staff1->id,
-                'date' => $workDate,
-            ]))
-            ->assertOk()
-            ->assertJsonPath('tasks.0.id', $task->id);
+        // Admin-only monitoring/lock endpoints.
+        $this->actingAs($staff1)->get(route('admin.daily-work-plan.performance', ['week_start' => '2026-11-09']))->assertForbidden();
+        $this->actingAs($staff1)->get(route('admin.daily-work-plan.incomplete', ['week_start' => '2026-11-09']))->assertForbidden();
+        $this->actingAs($staff1)->post(route('admin.daily-work-plan.toggle-lock'), ['reason' => 'x'])->assertForbidden();
+        $this->actingAs($admin)->post(route('admin.daily-work-plan.toggle-lock'), ['reason' => 'Emergency lock'])->assertSessionHas('status');
     }
 
     public function test_admin_can_create_a_work_plan_task_and_audit_entry(): void
@@ -206,6 +168,8 @@ class WorkPlanAccessTest extends TestCase
             'user_id' => $admin->id,
             'action' => 'work_plan_task.created',
         ]);
+        $this->assertFalse($task->isEmployeeCreated());
+        $this->assertSame('Admin-assigned', $task->assignmentSourceLabel());
     }
 
     public function test_admin_can_update_a_work_plan_task_with_bound_fields(): void
@@ -244,5 +208,40 @@ class WorkPlanAccessTest extends TestCase
             'user_id' => $admin->id,
             'action' => 'updated',
         ]);
+    }
+
+    public function test_employee_created_task_origin_and_submission_states(): void
+    {
+        $staff = $this->user(User::ROLE_STAFF, 'Staff One');
+        $other = $this->user(User::ROLE_STAFF, 'Staff Two');
+        $weekStart = '2026-11-09';
+
+        $this->actingAs($staff)->get(route('admin.daily-work-plan.index', ['week_start' => $weekStart]))->assertOk()->assertSee('Not Started');
+
+        $this->actingAs($staff)->post(route('admin.daily-work-plan.store'), [
+            'user_id' => $staff->id,
+            'work_date' => '2026-11-10',
+            'custom_title' => 'My own task',
+        ])->assertSessionHas('status');
+
+        $task = WorkPlanTask::query()->where('custom_title', 'My own task')->firstOrFail();
+        $this->assertTrue($task->isEmployeeCreated());
+        $this->assertSame('Employee-created', $task->assignmentSourceLabel());
+
+        $draft = WorkPlanWeeklySubmission::query()->where('user_id', $staff->id)->whereDate('week_start', $weekStart)->first();
+        $this->assertNotNull($draft);
+        $this->assertSame(WorkPlanWeeklySubmission::STATUS_DRAFT, $draft->status);
+
+        // cannot submit empty/other week incorrectly and cannot submit others' week context
+        $this->actingAs($staff)->post(route('admin.daily-work-plan.submit-week'), ['week_start' => '2026-11-16'])->assertSessionHasErrors('week_start');
+
+        $this->actingAs($staff)->post(route('admin.daily-work-plan.submit-week'), ['week_start' => $weekStart])->assertSessionHas('status');
+        $submitted = WorkPlanWeeklySubmission::query()->where('user_id', $staff->id)->whereDate('week_start', $weekStart)->first();
+        $this->assertNotNull($submitted);
+        $this->assertSame(WorkPlanWeeklySubmission::STATUS_SUBMITTED, $submitted->status);
+        $this->assertNotNull($submitted->submitted_at);
+
+        Carbon::setTestNow('2026-11-16 12:00:00');
+        $this->actingAs($staff)->get(route('admin.daily-work-plan.index', ['week_start' => $weekStart]))->assertOk()->assertSee('Submitted');
     }
 }

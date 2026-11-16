@@ -8,17 +8,16 @@
     use Illuminate\Support\Str;
     use App\Models\WorkPlanTask;
 
-    $weekStartLabel = $weekStart->format('M j') . ' — ' . $weekEnd->format('M j, Y');
+    $weekStartLabel = $weekStart->format('M j') . ' – ' . $weekEnd->format('M j, Y');
     $isCurrentWeek  = $weekStart->format('o-W') === now()->format('o-W');
     $isAdmin        = auth()->user()->isAdmin();
+    $actor          = auth()->user();
 
-    // Monday to Friday
     $weekDates = [];
     for ($i = 0; $i < 5; $i++) {
         $weekDates[] = $weekStart->copy()->addDays($i);
     }
 
-    // Week-wide numbers for the summary strip (cancelled tasks don't count).
     $liveTasks      = $tasks->where('status', '!=', WorkPlanTask::STATUS_CANCELLED);
     $plannedTotal   = $liveTasks->count();
     $completedTotal = $liveTasks->where('status', WorkPlanTask::STATUS_COMPLETED)->count();
@@ -27,6 +26,7 @@
 
     $updatedByName = $lastUpdatedBy ? \App\Models\User::find($lastUpdatedBy)?->name : null;
     $visibleLimit  = 3;
+    $actorWeekStatus = $weekStatuses[$actor->id] ?? ['key' => 'not_started', 'label' => 'Not Started', 'locked' => ! $editingEnabled];
 @endphp
 
 <div class="wp">
@@ -47,15 +47,30 @@
                 <span class="wp-lock-dot" aria-hidden="true"></span>
                 Editing {{ $editingEnabled ? 'open' : 'locked' }}
             </span>
-            <a href="{{ route('admin.daily-goals.index', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Goals Board</a>
-            <a href="{{ route('admin.work-plan-legends.index') }}" class="wp-btn wp-btn-ghost">Manage Legends</a>
-            <a href="{{ route('admin.daily-work-plan.incomplete', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Incomplete Tasks</a>
-            <a href="{{ route('admin.daily-work-plan.performance', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Performance</a>
-            @if ($editingEnabled)
-                <button type="button" class="wp-btn wp-btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal">
+            @if ($isAdmin)
+                <a href="{{ route('admin.daily-goals.index', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Goals Board</a>
+                <a href="{{ route('admin.work-plan-legends.index') }}" class="wp-btn wp-btn-ghost">Manage Legends</a>
+                <a href="{{ route('admin.daily-work-plan.incomplete', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Incomplete Tasks</a>
+                <a href="{{ route('admin.daily-work-plan.performance', ['week_start' => $weekStart->format('Y-m-d')]) }}" class="wp-btn wp-btn-ghost">Performance</a>
+            @endif
+            @if ($canEditNow)
+                <button type="button" class="wp-btn wp-btn-primary" data-bs-toggle="modal" data-bs-target="#addTaskModal" id="setWorkPlanBtn">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Task
+                    + SET WORK PLAN
                 </button>
+            @else
+                <button type="button" class="wp-btn wp-btn-primary" disabled aria-disabled="true" title="Work Plan editing is locked. Opens Friday; locks Monday 12:00 PM (Asia/Manila)." id="setWorkPlanBtnLocked">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    + SET WORK PLAN
+                </button>
+                <small class="wp-head-lock-note">Editing locked{{ $nextStateChange ? ' until ' . \Carbon\Carbon::parse($nextStateChange)->timezone(config('app.timezone','Asia/Manila'))->format('M j, g:i A') : '' }} (Asia/Manila)</small>
+            @endif
+            @if (! $isAdmin && $canEditNow && $actorWeekStatus['key'] !== 'submitted')
+                <form method="POST" action="{{ route('admin.daily-work-plan.submit-week') }}" style="margin:0">
+                    @csrf
+                    <input type="hidden" name="week_start" value="{{ $weekStart->toDateString() }}">
+                    <button type="submit" class="wp-btn wp-btn-ghost">Submit Week</button>
+                </form>
             @endif
         </div>
     </header>
@@ -74,6 +89,22 @@
         </a>
         <a href="{{ route('admin.daily-work-plan.index') }}" class="wp-today-btn {{ $isCurrentWeek ? 'is-current' : '' }}" @if ($isCurrentWeek) aria-current="date" @endif>This week</a>
     </div>
+
+    @if (! $isAdmin)
+        <section class="wp-lockbar" aria-label="My week status">
+            <div class="wp-lockbar-info">
+                <div>
+                    <span class="wp-k">Your week status</span>
+                    <strong>{{ $actorWeekStatus['label'] ?? 'Not Started' }}</strong>
+                    @if (! $editingEnabled)
+                        <small>Editing locked{{ $nextStateChange ? ' · Next window: '.\Carbon\Carbon::parse($nextStateChange)->format('M j, g:i A') : '' }}</small>
+                    @elseif ($nextStateChange)
+                        <small>Locks {{ \Carbon\Carbon::parse($nextStateChange)->format('l, M j, g:i A') }} (Asia/Manila)</small>
+                    @endif
+                </div>
+            </div>
+        </section>
+    @endif
 
     {{-- ===== Summary ===== --}}
     <section class="wp-stats" aria-label="Week summary">
@@ -126,15 +157,13 @@
                     </div>
                 @endif
             </div>
-            @unless ($editingEnabled)
-                <form method="POST" action="{{ route('admin.daily-work-plan.toggle-lock') }}">
-                    @csrf
-                    <button type="submit" class="wp-btn wp-btn-primary">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                        Unlock editing
-                    </button>
-                </form>
-            @endunless
+            <form method="POST" action="{{ route('admin.daily-work-plan.toggle-lock') }}" class="wp-lock-actions">
+                @csrf
+                <input type="text" name="reason" value="Manual admin toggle" class="wp-reason-input" aria-label="Lock reason">
+                <button type="submit" class="wp-btn wp-btn-primary">
+                    {{ $editingEnabled ? 'Lock editing' : 'Unlock editing' }}
+                </button>
+            </form>
         </section>
     @endif
 
@@ -166,13 +195,20 @@
                             $completedCount = $empTasks->where('status', WorkPlanTask::STATUS_COMPLETED)->count();
                             $totalCount     = $empTasks->where('status', '!=', WorkPlanTask::STATUS_CANCELLED)->count();
                             $empRate        = $totalCount > 0 ? (int) round($completedCount / $totalCount * 100) : 0;
+                            $empWeekStatus  = $weekStatuses[$employee->id] ?? ['key' => 'not_started', 'label' => 'Not Started'];
+                            $empCanEdit     = \App\Services\WorkPlanWindow::canEditUser($actor, $employee->id);
                         @endphp
                         <div class="wp-row">
                             <div class="wp-emp">
                                 <span class="wp-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($employee->name, 0, 1)) }}</span>
                                 <span class="wp-emp-text">
                                     <span class="wp-emp-name">{{ $employee->name }}</span>
-                                    <span class="wp-emp-role">{{ ucfirst($employee->role) }}</span>
+                                    <span class="wp-emp-meta">
+                                        <span class="wp-emp-role">{{ ucfirst($employee->role) }}</span>
+                                        @if ($isAdmin)
+                                            <span class="wp-status-badge wp-status-{{ $empWeekStatus['key'] }}">{{ $empWeekStatus['label'] }}</span>
+                                        @endif
+                                    </span>
                                 </span>
                             </div>
 
@@ -197,6 +233,9 @@
                                                 @if ($task->status === WorkPlanTask::STATUS_COMPLETED)
                                                     <span class="wp-chip-check" aria-label="Completed">✓</span>
                                                 @endif
+                                                @if ($isAdmin)
+                                                    <span class="wp-chip-origin {{ $task->isEmployeeCreated() ? 'is-self' : 'is-admin' }}" title="{{ $task->assignmentSourceLabel() }}">{{ $task->isEmployeeCreated() ? 'E' : 'A' }}</span>
+                                                @endif
                                             </span>
                                         @endforeach
                                         @if ($activeTasks->count() > $visibleLimit)
@@ -206,7 +245,7 @@
                                         @endif
                                     </div>
 
-                                    @if ($isAdmin && $editingEnabled)
+                                    @if ($empCanEdit)
                                         <button type="button" class="wp-cell-picker-btn" data-wp-picker-toggle aria-expanded="false">
                                             {{ $activeTasks->isEmpty() ? '+ Add codes' : 'Edit codes' }}
                                         </button>
@@ -256,6 +295,10 @@
                 <span class="wp-chip wp-chip-on_hold">On hold</span>
                 <span class="wp-chip wp-chip-returned_for_revision">Returned</span>
                 <span class="wp-key-item"><span class="wp-chip-additional" aria-hidden="true">+</span> Additional / urgent</span>
+                @if ($isAdmin)
+                    <span class="wp-key-item"><span class="wp-chip-origin is-admin" aria-hidden="true">A</span> Admin-assigned</span>
+                    <span class="wp-key-item"><span class="wp-chip-origin is-self" aria-hidden="true">E</span> Employee-created</span>
+                @endif
             </div>
         @endif
     </section>
@@ -303,19 +346,25 @@
                 <form method="POST" action="{{ route('admin.daily-work-plan.store') }}">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title" id="addTaskTitle">Add Work Plan Task</h5>
+                        <h5 class="modal-title" id="addTaskTitle">+ SET WORK PLAN</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="wp-form-grid">
                             <div class="wp-field">
                                 <label for="add_user_id">Employee <span class="wp-req">*</span></label>
-                                <select name="user_id" id="add_user_id" required>
-                                    <option value="">Select employee</option>
-                                    @foreach ($employees as $employee)
-                                        <option value="{{ $employee->id }}">{{ $employee->name }} ({{ ucfirst($employee->role) }})</option>
-                                    @endforeach
-                                </select>
+                                @if ($isAdmin)
+                                    <select name="user_id" id="add_user_id" required>
+                                        <option value="">Select employee</option>
+                                        @foreach ($employees as $employee)
+                                            <option value="{{ $employee->id }}">{{ $employee->name }} ({{ ucfirst($employee->role) }})</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <input type="hidden" name="user_id" value="{{ $actor->id }}">
+                                    <input type="text" id="add_user_id" value="{{ $actor->name }} ({{ ucfirst($actor->role) }})" disabled>
+                                    <small class="wp-help">You can only set your own work plan.</small>
+                                @endif
                             </div>
                             <div class="wp-field">
                                 <label for="add_work_date">Work date <span class="wp-req">*</span></label>
@@ -352,7 +401,7 @@
                             </div>
                             <label class="wp-check wp-span-2" for="add_is_additional">
                                 <input type="checkbox" name="is_additional" value="1" id="add_is_additional">
-                                <span>Additional / urgent activity <small>(kept separate from planned tasks)</small></span>
+                                <span>Additional / urgent priority activity <small>(kept separate from planned tasks)</small></span>
                             </label>
                         </div>
                     </div>
@@ -475,6 +524,8 @@
 .wp-btn-primary { background: linear-gradient(180deg, #4f46e5, var(--wp-brand-dark)); color: #fff; }
 .wp-btn-primary:hover { background: var(--wp-brand-dark); color: #fff; }
 .wp-btn-ghost { background: var(--wp-surface); border-color: var(--wp-line); color: var(--wp-ink); }
+.wp-btn:disabled, .wp-btn[aria-disabled="true"] { opacity: .55; cursor: not-allowed; box-shadow: none; }
+.wp-head-lock-note { font-size: .82rem; color: #a5281a; font-weight: 600; }
 .wp-btn-ghost:hover { background: var(--wp-tint); color: var(--wp-ink); }
 .wp-btn-sm { padding: 7px 12px; font-size: .8rem; }
 .wp-btn:focus-visible, .wp-nav-btn:focus-visible, .wp-today-btn:focus-visible, .wp-card-head:focus-visible, .wp-cell-picker-btn:focus-visible, .wp-cell-edit-btn:focus-visible, .wp-chip-more:focus-visible, .wp-search input:focus-visible, .wp-field input:focus-visible, .wp-field select:focus-visible, .wp-field textarea:focus-visible, .wp-picker-search:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
@@ -544,7 +595,18 @@
 .wp-avatar { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; background: var(--wp-tint); color: var(--wp-brand); font-weight: 800; font-size: .85rem; }
 .wp-emp-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .wp-emp-name { font-weight: 800; font-size: .92rem; overflow-wrap: anywhere; }
+.wp-emp-meta { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
 .wp-emp-role { color: var(--wp-muted); font-size: .76rem; }
+.wp-status-badge { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:.68rem; font-weight:700; border:1px solid; }
+.wp-status-not_started { background:#f1f5f9; color:#475569; border-color:#cbd5e1; }
+.wp-status-draft { background:#fff7ed; color:#9a3412; border-color:#fed7aa; }
+.wp-status-submitted { background:#ecfeff; color:#155e75; border-color:#a5f3fc; }
+.wp-status-locked { background:#fef2f2; color:#991b1b; border-color:#fecaca; }
+.wp-chip-origin { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:999px; font-size:.6rem; font-weight:800; line-height:1; border:1px solid; }
+.wp-chip-origin.is-admin { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; }
+.wp-chip-origin.is-self { background:#ecfdf5; color:#065f46; border-color:#a7f3d0; }
+.wp-lock-actions { display:flex; align-items:center; gap:8px; }
+.wp-reason-input { min-width:220px; padding:8px 10px; border:1px solid #cdd3ea; border-radius:10px; font:inherit; font-size:.85rem; }
 .wp-cell { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-height: 64px; padding: 10px 8px; border-bottom: 1px solid var(--wp-line); border-right: 1px solid var(--wp-line); background: var(--wp-sunken); }
 .wp-cell.has-tasks { background: #f1faf5; }
 .wp-cell.is-today { box-shadow: inset 0 0 0 2px rgba(67, 56, 202, .35); }

@@ -12,6 +12,7 @@ use App\Models\WorkPlanSetting;
 use App\Models\WorkPlanTask;
 use App\Models\WorkPlanTaskCarry;
 use App\Models\WorkPlanWeeklyEvaluation;
+use App\Models\WorkPlanWeeklySubmission;
 use App\Services\WorkPlanScoringService;
 use App\Services\WorkPlanWindow;
 use Illuminate\Http\JsonResponse;
@@ -35,8 +36,8 @@ class WorkPlanController extends Controller
     }
 
     /**
-     * Record an Admin/Supervisor override edit (outside the automatic window or
-     * on another employee's plan) with the before/after codes.
+     * Record an Admin override edit (outside the automatic window, during manual
+     * lock bypass, or on another employee's plan) with the before/after codes.
      *
      * @param  array<int, string>  $before
      * @param  array<int, string>  $after
@@ -60,6 +61,52 @@ class WorkPlanController extends Controller
                 implode(', ', $after)
             )
         );
+    }
+
+    private function resolveWeekStatus(int $userId, Carbon $weekStart, $tasks, $submissions, bool $editingEnabled): array
+    {
+        $weekEnd = (clone $weekStart)->addDays(4);
+        $hasTasks = $tasks->contains(function ($task) use ($userId, $weekStart, $weekEnd) {
+            return (int) $task->user_id === $userId
+                && $task->status !== WorkPlanTask::STATUS_CANCELLED
+                && $task->work_date
+                && $task->work_date->betweenIncluded($weekStart, $weekEnd);
+        });
+
+        $submission = $submissions->get($userId);
+        $isSubmitted = $submission && $submission->status === WorkPlanWeeklySubmission::STATUS_SUBMITTED;
+
+        if ($isSubmitted) {
+            return ['key' => 'submitted', 'label' => 'Submitted', 'locked' => ! $editingEnabled];
+        }
+
+        if (! $editingEnabled) {
+            return ['key' => 'locked', 'label' => 'Locked', 'locked' => true];
+        }
+
+        if ($hasTasks || ($submission && $submission->status === WorkPlanWeeklySubmission::STATUS_DRAFT)) {
+            return ['key' => 'draft', 'label' => 'Draft', 'locked' => false];
+        }
+
+        return ['key' => 'not_started', 'label' => 'Not Started', 'locked' => false];
+    }
+
+    private function touchDraft(int $userId, Carbon $weekStart): void
+    {
+        $week = $weekStart->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+
+        $submission = WorkPlanWeeklySubmission::query()
+            ->where('user_id', $userId)
+            ->whereDate('week_start', $week)
+            ->first() ?? new WorkPlanWeeklySubmission([
+                'user_id' => $userId,
+                'week_start' => $week,
+            ]);
+
+        if ($submission->status !== WorkPlanWeeklySubmission::STATUS_SUBMITTED) {
+            $submission->status = WorkPlanWeeklySubmission::STATUS_DRAFT;
+            $submission->save();
+        }
     }
 
     /**
@@ -120,13 +167,13 @@ class WorkPlanController extends Controller
         $weekEnd = (clone $weekStart)->addDays(4); // Friday
 
         $actor = $request->user();
-        $canEditAny = $actor->isAdminOrSupervisor();
+        $canManageAll = $actor->isAdmin();
 
         $employees = User::query()
             ->whereIn('role', [User::ROLE_STAFF, User::ROLE_SUPERVISOR])
             ->whereNull('deleted_at');
 
-        if (! $canEditAny) {
+        if (! $canManageAll) {
             $employees->where('id', $actor->id);
         }
 
@@ -134,27 +181,24 @@ class WorkPlanController extends Controller
             ->orderBy('name')
             ->get();
 
-        // Get all work plan tasks for the week
-        $tasks = WorkPlanTask::query()
+        $tasksQuery = WorkPlanTask::query()
             ->whereBetween('work_date', [$weekStart->toDateString(), $weekEnd->toDateString()]);
 
-        if (! $canEditAny) {
-            $tasks->where('user_id', $actor->id);
+        if (! $canManageAll) {
+            $tasksQuery->where('user_id', $actor->id);
         }
 
-        $tasks = $tasks->with(['user', 'creator', 'editor', 'completer', 'legend'])
+        $tasks = $tasksQuery->with(['user', 'creator', 'editor', 'completer', 'legend'])
             ->orderBy('user_id')
             ->orderBy('work_date')
             ->orderBy('id')
             ->get();
 
-        // Group by user and date
         $grouped = $tasks->groupBy('user_id');
         $groupedByUserAndDate = $tasks->groupBy(function ($task) {
             return $task->user_id.'|'.$task->work_date->toDateString();
         });
 
-        // Get daily goals for context
         $dailyGoals = DailyGoal::query()
             ->whereBetween('target_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
             ->where('status', DailyGoal::STATUS_ACTIVE)
@@ -167,15 +211,26 @@ class WorkPlanController extends Controller
             return $goal->user_id.'|'.$goal->target_date;
         });
 
-        // Get legends for dropdown
         $legends = WorkPlanLegend::active()->orderBy('code')->get();
 
-        // Get work plan settings
         $editingEnabled = WorkPlanSetting::isEditingEnabled();
         $nextStateChange = WorkPlanSetting::getNextStateChange();
         $lockedAt = WorkPlanSetting::getLockedAt();
         $lastUpdated = WorkPlanSetting::getLastUpdated();
         $lastUpdatedBy = WorkPlanSetting::getLastUpdatedBy();
+
+        $submissions = WorkPlanWeeklySubmission::query()
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->whereIn('user_id', $employees->pluck('id'))
+            ->get()
+            ->keyBy('user_id');
+
+        $weekStatuses = [];
+        foreach ($employees as $employee) {
+            $weekStatuses[$employee->id] = $this->resolveWeekStatus($employee->id, $weekStart, $tasks, $submissions, $editingEnabled);
+        }
+
+        $actorSubmission = $submissions->get($actor->id);
 
         return view('admin.work-plan.index', [
             'tasks' => $tasks,
@@ -194,10 +249,13 @@ class WorkPlanController extends Controller
             'lockedAt' => $lockedAt,
             'lastUpdated' => $lastUpdated,
             'lastUpdatedBy' => $lastUpdatedBy,
-            'canEditAny' => $canEditAny,
-            'canEditNow' => WorkPlanWindow::canEdit($actor),
+            'canEditAny' => $canManageAll,
+            'canEditNow' => WorkPlanWindow::canEditUser($actor, $actor->id),
             'isManuallyLocked' => WorkPlanSetting::isManuallyLocked(),
             'weekVersion' => $this->weekVersion($weekStart),
+            'weekStatuses' => $weekStatuses,
+            'submissions' => $submissions,
+            'actorSubmission' => $actorSubmission,
         ]);
     }
 
@@ -271,6 +329,14 @@ class WorkPlanController extends Controller
         ]);
 
         WorkPlanSetting::setLastUpdated(auth()->id());
+        $this->touchDraft((int) $task->user_id, Carbon::parse($task->work_date)->startOfWeek(Carbon::MONDAY));
+
+        $this->logOverride(
+            (int) $task->user_id,
+            $task->work_date->toDateString(),
+            [],
+            array_filter([$task->legend_code ?? $task->custom_title])
+        );
 
         ActivityLog::record(
             auth()->user(),
@@ -286,6 +352,8 @@ class WorkPlanController extends Controller
      */
     public function edit(WorkPlanTask $task)
     {
+        WorkPlanWindow::authorizeEdit(auth()->user(), (int) $task->user_id);
+
         $task->load(['user', 'creator', 'editor', 'completer', 'legend', 'audits.changer']);
 
         return response()->json([
@@ -468,6 +536,7 @@ class WorkPlanController extends Controller
         ]);
 
         WorkPlanSetting::setLastUpdated(auth()->id());
+        $this->touchDraft((int) $task->user_id, Carbon::parse($task->work_date)->startOfWeek(Carbon::MONDAY));
 
         ActivityLog::record(
             auth()->user(),
@@ -510,6 +579,7 @@ class WorkPlanController extends Controller
         ]);
 
         WorkPlanSetting::setLastUpdated(auth()->id());
+        $this->touchDraft((int) $task->user_id, Carbon::parse($task->work_date)->startOfWeek(Carbon::MONDAY));
 
         ActivityLog::record(
             auth()->user(),
@@ -634,6 +704,7 @@ class WorkPlanController extends Controller
         });
 
         WorkPlanSetting::setLastUpdated(auth()->id());
+        $this->touchDraft((int) $validated['user_id'], $workDate->copy()->startOfWeek(Carbon::MONDAY));
 
         $this->logOverride((int) $validated['user_id'], $dateString, $beforeCodes, $codes);
 
@@ -746,6 +817,14 @@ class WorkPlanController extends Controller
 
         WorkPlanSetting::setLastUpdated(auth()->id());
 
+        $affectedWeeks = collect($validated['changes'])
+            ->map(fn ($change) => [(int) $change['user_id'], Carbon::parse($change['work_date'])->startOfWeek(Carbon::MONDAY)->toDateString()])
+            ->unique(fn ($pair) => $pair[0].'|'.$pair[1]);
+
+        foreach ($affectedWeeks as [$userId, $week]) {
+            $this->touchDraft((int) $userId, Carbon::parse($week));
+        }
+
         $version = $this->weekVersion($weekStart);
 
         if ($request->expectsJson()) {
@@ -838,6 +917,8 @@ class WorkPlanController extends Controller
      */
     public function toggleLock(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->isAdmin(), 403);
+
         $request->validate([
             'reason' => ['required', 'string', 'max:1000'],
         ]);
@@ -850,21 +931,67 @@ class WorkPlanController extends Controller
             ActivityLog::record(
                 auth()->user(),
                 'work_plan.locked',
-                "Work plan editing locked by {$auth()->user()->name}. Reason: {$request->reason}"
+                "Work plan editing locked by {$request->user()->name}. Reason: {$request->reason}"
             );
 
             return back()->with('status', 'Work plan editing has been locked.');
-        } else {
-            WorkPlanSetting::unlock(auth()->id());
-
-            ActivityLog::record(
-                auth()->user(),
-                'work_plan.unlocked',
-                "Work plan editing unlocked by {$auth()->user()->name}. Reason: {$request->reason}"
-            );
-
-            return back()->with('status', 'Work plan editing has been unlocked.');
         }
+
+        WorkPlanSetting::unlock(auth()->id());
+
+        ActivityLog::record(
+            auth()->user(),
+            'work_plan.unlocked',
+            "Work plan editing unlocked by {$request->user()->name}. Reason: {$request->reason}"
+        );
+
+        return back()->with('status', 'Work plan editing has been unlocked.');
+    }
+
+    /**
+     * Mark an employee's weekly work plan as submitted (draft -> submitted).
+     */
+    public function submitWeek(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'week_start' => ['required', 'date'],
+        ]);
+
+        $actor = $request->user();
+        $weekStart = Carbon::parse($validated['week_start'])->startOfWeek(Carbon::MONDAY);
+        $weekEnd = (clone $weekStart)->addDays(4);
+
+        $this->authorizeWrite($actor->id);
+
+        $hasTasks = WorkPlanTask::query()
+            ->where('user_id', $actor->id)
+            ->whereBetween('work_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->where('status', '!=', WorkPlanTask::STATUS_CANCELLED)
+            ->exists();
+
+        if (! $hasTasks) {
+            return back()->withErrors(['week_start' => 'You must add at least one work plan task before submitting.'])->withInput();
+        }
+
+        $submission = WorkPlanWeeklySubmission::query()
+            ->where('user_id', $actor->id)
+            ->whereDate('week_start', $weekStart->toDateString())
+            ->first() ?? new WorkPlanWeeklySubmission([
+                'user_id' => $actor->id,
+                'week_start' => $weekStart->toDateString(),
+            ]);
+
+        $submission->status = WorkPlanWeeklySubmission::STATUS_SUBMITTED;
+        $submission->submitted_at = now();
+        $submission->save();
+
+        ActivityLog::record(
+            $actor,
+            'work_plan.week_submitted',
+            "Submitted weekly work plan for the week of {$weekStart->format('M j, Y')}."
+        );
+
+        return back()->with('status', 'Weekly work plan submitted.');
     }
 
     /**
@@ -880,7 +1007,7 @@ class WorkPlanController extends Controller
         $date = Carbon::parse($request->get('date'));
 
         abort_unless(
-            $request->user()->isAdminOrSupervisor() || (int) $request->user()->id === (int) $request->get('user_id'),
+            $request->user()->isAdmin() || (int) $request->user()->id === (int) $request->get('user_id'),
             403
         );
 
@@ -923,7 +1050,7 @@ class WorkPlanController extends Controller
         ]);
 
         abort_unless(
-            $request->user()->isAdminOrSupervisor() || (int) $request->user()->id === (int) $request->get('user_id'),
+            $request->user()->isAdmin() || (int) $request->user()->id === (int) $request->get('user_id'),
             403
         );
 
@@ -978,6 +1105,11 @@ class WorkPlanController extends Controller
             'date' => ['required', 'date'],
         ]);
 
+        abort_unless(
+            $request->user()->isAdmin() || (int) $request->user()->id === (int) $request->get('user_id'),
+            403
+        );
+
         $date = Carbon::parse($request->get('date'));
 
         $tasks = WorkPlanTask::query()
@@ -1018,6 +1150,11 @@ class WorkPlanController extends Controller
             'week_start' => ['required', 'date'],
         ]);
 
+        abort_unless(
+            $request->user()->isAdmin() || (int) $request->user()->id === (int) $request->get('user_id'),
+            403
+        );
+
         $weekStart = WorkPlanScoringService::normalizeWeekStart($request->get('week_start'));
         $userId = (int) $request->get('user_id');
 
@@ -1031,6 +1168,7 @@ class WorkPlanController extends Controller
      */
     public function incompleteTasksPage(Request $request): View
     {
+        abort_unless($request->user()->isAdmin(), 403);
         WorkPlanSetting::populateCache();
 
         $weekStart = $request->get('week_start')
@@ -1062,6 +1200,7 @@ class WorkPlanController extends Controller
      */
     public function performancePage(Request $request): View
     {
+        abort_unless($request->user()->isAdmin(), 403);
         WorkPlanSetting::populateCache();
 
         $weekStart = $request->get('week_start')
@@ -1105,6 +1244,11 @@ class WorkPlanController extends Controller
             'user_id' => ['required', 'exists:users,id'],
             'week_start' => ['required', 'date'],
         ]);
+
+        abort_unless(
+            $request->user()->isAdmin() || (int) $request->user()->id === (int) $request->get('user_id'),
+            403
+        );
 
         $weekStart = Carbon::parse($request->get('week_start'))->startOfWeek(Carbon::MONDAY);
         $weekEnd = $weekStart->copy()->addDays(4);

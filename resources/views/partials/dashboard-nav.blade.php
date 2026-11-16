@@ -49,6 +49,7 @@
         $missingJournalCount = \App\Services\DailyJournalService::getMissingCountForUser($user->id);
         $achievementsActive = $active('daily-journal.achievements');
         $dailyJournalActive = ! $achievementsActive && ($active('daily-journal') || $active('daily-journal.admin') || $active('daily-journal.supervisor'));
+        $workPlanActive = $active('admin.daily-work-plan');
     @endphp
     <a href="{{ route('daily-journal.create') }}" class="{{ $dailyJournalActive }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -56,6 +57,10 @@
         @if ($missingJournalCount > 0)
             <span class="nav-badge">{{ $missingJournalCount }}</span>
         @endif
+    </a>
+    <a href="{{ route('admin.daily-work-plan.index') }}" class="{{ $workPlanActive }}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="12" y1="14" x2="12" y2="18"/></svg>
+        Work Plan
     </a>
     <a href="{{ route('daily-journal.achievements') }}" class="{{ $achievementsActive }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a2 2 0 0 0 0 4h3"/><path d="M17 6h3a2 2 0 0 1 0 4h-3"/></svg>

@@ -310,6 +310,16 @@ class WorkPlanTask extends Model
         return $this->custom_title ?? 'Custom Task';
     }
 
+    public function isEmployeeCreated(): bool
+    {
+        return $this->created_by !== null && (int) $this->created_by === (int) $this->user_id;
+    }
+
+    public function assignmentSourceLabel(): string
+    {
+        return $this->isEmployeeCreated() ? 'Employee-created' : 'Admin-assigned';
+    }
+
     public function isOverdue(): bool
     {
         return $this->isUnfinished() && $this->work_date < Carbon::today();

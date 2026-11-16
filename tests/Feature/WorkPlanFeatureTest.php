@@ -224,7 +224,7 @@ class WorkPlanFeatureTest extends TestCase
 
         Carbon::setTestNow('2026-11-16 12:00:00'); // Monday noon lock
 
-        // Admin and Supervisor may still edit any employee's plan.
+        // Admin may still edit any employee's plan while locked (with audit log).
         $this->actingAs($admin)
             ->post(route('admin.daily-work-plan.store'), [
                 'user_id' => $staff->id,
@@ -250,6 +250,16 @@ class WorkPlanFeatureTest extends TestCase
         $this->assertDatabaseHas('activity_logs', [
             'action' => 'work_plan.override_edit',
         ]);
+
+        // Supervisor is self-only and cannot override others when locked.
+        $supervisor = $this->user(User::ROLE_SUPERVISOR);
+        $this->actingAs($supervisor)
+            ->post(route('admin.daily-work-plan.store'), [
+                'user_id' => $staff->id,
+                'work_date' => '2026-11-17',
+                'custom_title' => 'Supervisor override attempt',
+            ])
+            ->assertForbidden();
 
         // Staff may not plan outside the window.
         $this->actingAs($staff)
@@ -485,7 +495,7 @@ class WorkPlanFeatureTest extends TestCase
         $this->assertSame(WorkPlanScoringService::STATE_PENDING_EVALUATION, $score['score_state']);
 
         $this->actingAs($staff)
-            ->post(route('work-plan.problem-evaluation.store'), [
+            ->post(route('admin.daily-work-plan.problem-evaluation'), [
                 'user_id' => $staff->id,
                 'week_start' => self::WEEK_START,
                 'problem_solving_score' => 10,
@@ -493,7 +503,7 @@ class WorkPlanFeatureTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($admin)
-            ->post(route('work-plan.problem-evaluation.store'), [
+            ->post(route('admin.daily-work-plan.problem-evaluation'), [
                 'user_id' => $staff->id,
                 'week_start' => self::WEEK_START,
                 'problem_solving_score' => 9,
@@ -501,7 +511,7 @@ class WorkPlanFeatureTest extends TestCase
             ->assertSessionHasErrors('problem_solving_score');
 
         $this->actingAs($supervisor)
-            ->post(route('work-plan.problem-evaluation.store'), [
+            ->post(route('admin.daily-work-plan.problem-evaluation'), [
                 'user_id' => $staff->id,
                 'week_start' => self::WEEK_START,
                 'problem_solving_score' => 7,
@@ -596,15 +606,15 @@ class WorkPlanFeatureTest extends TestCase
         $this->assertSame(0.0, $score['planned_score']);
 
         $this->actingAs($staff)
-            ->post(route('work-plan.additional.rate', $additional), ['additional_rating' => 9])
+            ->post(route('admin.daily-work-plan.rate-additional', $additional), ['additional_rating' => 9])
             ->assertForbidden();
 
         $this->actingAs($admin)
-            ->post(route('work-plan.additional.rate', $additional), ['additional_rating' => 11])
+            ->post(route('admin.daily-work-plan.rate-additional', $additional), ['additional_rating' => 11])
             ->assertSessionHasErrors('additional_rating');
 
         $this->actingAs($supervisor)
-            ->post(route('work-plan.additional.rate', $additional), ['additional_rating' => 9])
+            ->post(route('admin.daily-work-plan.rate-additional', $additional), ['additional_rating' => 9])
             ->assertSessionHas('status', 'Additional activity rating saved.');
 
         $additional->refresh();
@@ -761,16 +771,15 @@ class WorkPlanFeatureTest extends TestCase
             ->assertSee($staff->name);
 
         $this->actingAs($supervisor)
-            ->get(route('work-plan.performance', ['week_start' => self::WEEK_START]))
-            ->assertOk()
-            ->assertSee('Problem-solving evaluation');
+            ->get(route('admin.daily-work-plan.performance', ['week_start' => self::WEEK_START]))
+            ->assertForbidden();
 
         $this->actingAs($supervisor)
             ->get(route('admin.daily-work-plan.incomplete', ['week_start' => self::WEEK_START]))
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->get(route('work-plan.performance', ['week_start' => self::WEEK_START]))
+            ->get(route('admin.daily-work-plan.performance', ['week_start' => self::WEEK_START]))
             ->assertForbidden();
 
         $this->actingAs($staff)
@@ -789,7 +798,7 @@ class WorkPlanFeatureTest extends TestCase
             ->get(route('admin.daily-work-plan.index', ['week_start' => self::WEEK_START]))
             ->assertOk()
             ->assertSee('data-user-id="'.$staff->id.'" data-date="2026-11-10"', false)
-            ->assertSee('wp-cell-has-tasks', false)
+            ->assertSee('has-tasks', false)
             ->assertSee('data-bs-target="#editTaskModal"', false);
     }
 

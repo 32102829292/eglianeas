@@ -11,10 +11,9 @@ use Illuminate\Support\Carbon;
  *
  * - Admin: may always edit any employee, including after the automatic Monday
  *   lock and even when the manual lock is on. Every such change is logged.
- * - Supervisor: may edit any employee at any time, bypassing the automatic
- *   window, but the manual lock still blocks them.
- * - Staff: may edit only their own row and only while the planning window is
- *   open (Friday through Monday 12:00 by default).
+ * - Staff/Supervisor: may create/edit only their own weekly work plan while the
+ *   automatic planning window is open (Friday 00:00 through Monday 11:59 by
+ *   default, Asia/Manila). The manual lock blocks them.
  */
 class WorkPlanWindow
 {
@@ -34,24 +33,24 @@ class WorkPlanWindow
             return false;
         }
 
-        if ($user->role === User::ROLE_SUPERVISOR) {
-            return true;
-        }
-
         return WorkPlanSetting::isEditingEnabled($at);
     }
 
     public static function canEditUser(?User $actor, int $targetUserId, ?Carbon $at = null): bool
     {
-        if (! self::canEdit($actor, $at)) {
+        if (! $actor) {
             return false;
         }
 
-        if ($actor->isAdminOrSupervisor()) {
+        if ($actor->isAdmin()) {
             return true;
         }
 
-        return (int) $actor->id === $targetUserId;
+        if ((int) $actor->id !== $targetUserId) {
+            return false;
+        }
+
+        return self::canEdit($actor, $at);
     }
 
     /**
@@ -63,16 +62,18 @@ class WorkPlanWindow
     }
 
     /**
-     * Whether this write is an override that must be logged (Admin/Supervisor
-     * writing outside the automatic window or on someone else's plan).
+     * Whether this write is an Admin override that must be logged (outside the
+     * automatic window, during a manual lock context the admin can bypass, or on
+     * another employee's plan).
      */
     public static function requiresOverrideLog(?User $actor, int $targetUserId, ?Carbon $at = null): bool
     {
-        if (! $actor || ! $actor->isAdminOrSupervisor()) {
+        if (! $actor || ! $actor->isAdmin()) {
             return false;
         }
 
         return ! WorkPlanSetting::isEditingEnabled($at)
+            || WorkPlanSetting::isManuallyLocked($at)
             || (int) $actor->id !== $targetUserId;
     }
 }

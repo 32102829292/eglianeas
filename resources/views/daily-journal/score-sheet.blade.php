@@ -4,15 +4,19 @@
 
 @section('content')
 @php
+    use Illuminate\Support\Str;
+
+    /* ------------------------------------------------------------------
+     | Core values
+     ------------------------------------------------------------------ */
     $assessmentLevel = $journal->achievement_level ?? null;
-    $assessmentLevelSlug = $assessmentLevel ? \Illuminate\Support\Str::slug($assessmentLevel) : null;
-    $assessmentLevelColor = match ($assessmentLevel) {
-        'Outstanding' => '#196F3D',
-        'Excellent' => '#1D4ED8',
-        'Very Good' => '#4338CA',
-        'Good' => '#475569',
-        'Needs Further Development' => '#92400E',
-        default => '#6B7280',
+    $levelColor = match ($assessmentLevel) {
+        'Outstanding' => '#34d399',
+        'Excellent' => '#60a5fa',
+        'Very Good' => '#a5b4fc',
+        'Good' => '#cbd5e1',
+        'Needs Further Development' => '#fbbf24',
+        default => '#cbd5e1',
     };
 
     $isManual = $journal->assessment_source === 'reviewer';
@@ -21,750 +25,557 @@
     $originalAiScore = $journal->originalAiScore();
     $finalScore = $journal->finalScore();
     $manualAdjustment = $journal->manualAdjustment();
-
-    $criteriaList = [
-        'quality' => [
-            'name' => 'Accomplishment Quality',
-            'key' => 'quality',
-            'max' => 100,
-            'explanation' => $criteria['quality_explanation'] ?? 'Not yet evaluated.',
-            'meta' => $criteria['quality_meta'] ?? [],
-            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/></svg>',
-            'color' => '#2563eb',
-        ],
-        'timeliness' => [
-            'name' => 'Timeliness',
-            'key' => 'timeliness',
-            'max' => 100,
-            'explanation' => $criteria['timeliness_explanation'] ?? 'Not yet evaluated.',
-            'meta' => $criteria['timeliness_meta'] ?? [],
-            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
-            'color' => '#7c3aed',
-        ],
-        'responsiveness' => [
-            'name' => 'Immediate Responsiveness',
-            'key' => 'responsiveness',
-            'max' => 100,
-            'explanation' => $criteria['responsiveness_explanation'] ?? 'Not yet evaluated.',
-            'meta' => $criteria['responsiveness_meta'] ?? [],
-            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 8 10"/></svg>',
-            'color' => '#059669',
-        ],
-        'client_feedback' => [
-            'name' => 'Client Feedback',
-            'key' => 'client_feedback',
-            'max' => 100,
-            'explanation' => $criteria['client_feedback_explanation'] ?? 'Not yet evaluated.',
-            'meta' => $criteria['client_feedback_meta'] ?? [],
-            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
-            'color' => '#0891b2',
-        ],
-    ];
-
-    $weightLabels = [
-        'quality' => 'Accomplishment Quality',
-        'timeliness' => 'Timeliness',
-        'responsiveness' => 'Immediate Responsiveness',
-        'client_feedback' => 'Client Feedback',
-    ];
-
     $evidenceCount = $journal->evidenceCount();
     $submittedAt = $journal->submitted_at;
     $assessedAt = $journal->assessed_at;
-    $reviewedAt = $journal->reviewed_at;
+    $criterionScores = $journal->criterionScores();
+    $criterionEvidence = $criterionEvidence ?? [];
+    $weightsUsed = $combined['weights_used'] ?? [];
 
-    $percentComplete = $finalScore !== null ? round((float) $finalScore, 1) : 0;
+    $tone = fn ($s) => $s === null ? '#cbd5e1' : ((float) $s >= 70 ? '#10b981' : ((float) $s >= 40 ? '#f59e0b' : '#ef4444'));
+    $fmt = fn ($v, int $d = 1) => $v !== null ? number_format((float) $v, $d) : '—';
+    $clamp = fn ($v) => max(0, min(100, (float) $v));
+
+    $configWeights = [
+        'quality' => (float) config('achievements.scoring_weights.quality', 50),
+        'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
+        'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
+        'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+    ];
+    $configWeightTotal = array_sum($configWeights);
+    $weightShare = fn (string $key) => $configWeightTotal > 0 ? ($configWeights[$key] / $configWeightTotal) * 100 : 0;
+
+    $criteriaList = [
+        'quality' => ['name' => 'Accomplishment Quality', 'short' => 'Quality', 'color' => '#2563eb',
+            'icon' => '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/>'],
+        'timeliness' => ['name' => 'Timeliness', 'short' => 'Timeliness', 'color' => '#7c3aed',
+            'icon' => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'],
+        'responsiveness' => ['name' => 'Immediate Responsiveness', 'short' => 'Responsiveness', 'color' => '#059669',
+            'icon' => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'],
+        'client_feedback' => ['name' => 'Client Feedback', 'short' => 'Client Feedback', 'color' => '#0891b2',
+            'icon' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'],
+    ];
+
+    /* ------------------------------------------------------------------
+     | Effective weights, contribution to the final score, insights
+     ------------------------------------------------------------------ */
+    $effective = [];
+    $totalEffective = 0.0;
+    foreach ($criteriaList as $k => $c) {
+        if (($criteria[$k] ?? null) !== null) {
+            $effective[$k] = (float) ($weightsUsed[$k] ?? $configWeights[$k]);
+            $totalEffective += $effective[$k];
+        }
+    }
+    $contribution = [];
+    $potentialGain = [];
+    foreach ($effective as $k => $w) {
+        $contribution[$k] = $totalEffective > 0 ? ((float) $criteria[$k] * $w) / $totalEffective : 0;
+        $potentialGain[$k] = $totalEffective > 0 ? ((100 - (float) $criteria[$k]) * $w) / $totalEffective : 0;
+    }
+    $evaluatedCount = count($effective);
+
+    $strongestKey = null;
+    $opportunityKey = null;
+    if ($evaluatedCount > 0) {
+        $byScore = collect(array_keys($effective))->sortByDesc(fn ($k) => (float) $criteria[$k])->values();
+        $strongestKey = $byScore->first();
+        if ($evaluatedCount > 1) {
+            // Biggest realistic upside = largest possible gain in final-score points.
+            $opportunityKey = collect($potentialGain)->sortDesc()->keys()->first();
+            if ($opportunityKey === $strongestKey && $evaluatedCount > 1) {
+                $opportunityKey = $byScore->last();
+            }
+        }
+    }
+
+    /* Radar geometry (viewBox 400 x 320, centre 200,160, radius 100). */
+    $cx = 200; $cy = 160; $R = 100;
+    $axes = ['quality' => [0, -1], 'timeliness' => [1, 0], 'responsiveness' => [0, 1], 'client_feedback' => [-1, 0]];
+    $pt = fn (string $k, float $v) => round($cx + $axes[$k][0] * $R * $v / 100, 1) . ',' . round($cy + $axes[$k][1] * $R * $v / 100, 1);
+    $ringPoints = fn (int $level) => implode(' ', array_map(fn ($k) => $pt($k, (float) $level), array_keys($axes)));
+    $radarPoints = implode(' ', array_map(fn ($k) => $pt($k, $clamp($criteria[$k] ?? 0)), array_keys($axes)));
+
+    /* Findings (what went well). */
+    $qualityMeta = $criteria['quality_meta'] ?? [];
+    $tMeta = $criteria['timeliness_meta'] ?? [];
+    $rMeta = $criteria['responsiveness_meta'] ?? [];
+    $positiveFindings = [];
+    if ((int) ($qualityMeta['entries'] ?? 0) > 0) {
+        $positiveFindings[] = ['title' => 'Accomplishment Quality assessed', 'detail' => 'Based on ' . (int) $qualityMeta['entries'] . ' assessed daily accomplishment report(s) in this period.', 'note' => 'Your quality score of ' . $fmt($criteria['quality'] ?? null) . ' / 100 was recorded from your submitted accomplishments.'];
+    }
+    if ((int) ($tMeta['on_time'] ?? 0) > 0) {
+        $positiveFindings[] = ['title' => 'On-time task completion', 'detail' => (int) $tMeta['on_time'] . ' task(s) completed on or before the deadline.', 'note' => 'Completing tasks on time contributes positively to your timeliness score.'];
+    }
+    if ((int) ($tMeta['early'] ?? 0) > 0) {
+        $positiveFindings[] = ['title' => 'Early task completion', 'detail' => (int) $tMeta['early'] . ' task(s) completed before the deadline.', 'note' => 'Completing tasks early earns the maximum timeliness score.'];
+    }
+    if ((int) ($rMeta['prompt'] ?? 0) > 0) {
+        $positiveFindings[] = ['title' => 'Prompt responses', 'detail' => (int) $rMeta['prompt'] . ' response(s) within 24 hours.', 'note' => 'Responding promptly contributes positively to your responsiveness score.'];
+    }
+    if ($evidenceCount > 0) {
+        $positiveFindings[] = ['title' => 'Supporting evidence attached', 'detail' => $evidenceCount . ' evidence file(s) attached to your accomplishment reports.', 'note' => 'Evidence helps verify the work you completed.'];
+    }
+    if (empty($positiveFindings)) {
+        $positiveFindings[] = ['title' => 'No specific positive contributions identified', 'detail' => 'The available assessment data does not contain specific positive findings for this period.', 'note' => 'This may be because few or no records were available for evaluation.'];
+    }
+    $excludedCriteria = isset($calculationCriteria) ? collect($calculationCriteria)->filter(fn ($c) => $c['status'] !== 'Evaluated')->values() : collect();
+
+    $tasksIncluded = $scoreSheetTasks->filter(fn ($e) => $e->isIncludedInScoreSheet())->count();
+    $hasHistory = $journal->assessmentRevisions->isNotEmpty();
+    $canReassess = $canReview && $journal->hasAssessment();
+
+    /* Section navigation. */
+    $nav = [['es-overview', 'Overview']];
+    if ($finalScore !== null) {
+        $nav[] = ['es-calculation', 'Calculation'];
+        $nav[] = ['es-findings', 'Findings'];
+    }
+    $nav[] = ['es-criteria', 'Criteria'];
+    $nav[] = ['es-sources', 'Sources'];
+    if ($hasHistory) { $nav[] = ['es-history', 'History']; }
+    if ($canReassess) { $nav[] = ['es-reassess', 'Reassess']; }
+
+    $copyText = $journal->user->name . ' — Score Sheet, ' . $journal->required_date->format('F j, Y') . "\n"
+        . 'Final score: ' . $fmt($finalScore) . ' / 100' . ($assessmentLevel ? ' (' . $assessmentLevel . ')' : '') . "\n"
+        . collect($criteriaList)->map(fn ($c, $k) => $c['name'] . ': ' . (($criteria[$k] ?? null) !== null ? number_format((float) $criteria[$k], 1) . ' / 100' : 'not evaluated'))->implode("\n");
 @endphp
 
-<!-- Page Header -->
-<header class="eas-score-head">
-    <div class="eas-score-head-content">
-        <div class="eas-score-head-label">
-            <span class="eas-score-eyebrow">AI Score Sheet</span>
-        </div>
-        <div class="eas-score-head-title">
-            <h1>{{ $journal->user->name }}</h1>
-            <div class="eas-score-head-meta">
-                <span class="eas-score-head-role">{{ ucfirst($journal->user->role) }}</span>
-                <span class="eas-score-divider"></span>
-                <span class="eas-score-period">{{ $journal->required_date->format('F j, Y') }}</span>
-            </div>
-        </div>
-    </div>
-    <div class="eas-score-head-actions">
-        <a href="{{ route('daily-journal.show', $journal) }}" class="btn btn-outline btn-sm eas-score-back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-            Back to Report
-        </a>
-    </div>
-</header>
+<div class="es">
 
-<!-- Assessment Information Panel -->
-<section class="eas-score-info" aria-label="Assessment information">
-    <div class="eas-score-info-panel">
-        <div class="eas-score-info-row">
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Staff member</span>
-                <span class="eas-score-info-value">{{ $journal->user->name }}</span>
-            </div>
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Assessment period</span>
-                <span class="eas-score-info-value">{{ $journal->required_date->format('F j, Y') }}</span>
-            </div>
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Submitted</span>
-                <span class="eas-score-info-value">{{ $submittedAt ? $submittedAt->format('M j, Y g:i A') : 'Not submitted' }}</span>
-            </div>
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Assessed</span>
-                <span class="eas-score-info-value">{{ $assessedAt ? $assessedAt->format('M j, Y g:i A') : 'Not assessed' }}</span>
-            </div>
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Type</span>
-                <span class="eas-score-info-value eas-score-badge eas-score-badge--{{ $isManual ? 'manual' : 'automatic' }}">{{ $assessmentType }}</span>
-            </div>
-            <div class="eas-score-info-item">
-                <span class="eas-score-info-label">Status</span>
-                <span class="eas-score-info-value eas-score-badge eas-score-badge--{{ $journal->isAssessmentVerified() ? 'verified' : 'provisional' }}">{{ $journal->assessmentStatusLabel() }}</span>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- Score Overview Section -->
-<section class="eas-score-card eas-score-card--summary" aria-labelledby="eas-score-summary-title">
-    <div class="eas-score-card-head">
-        <div>
-            <h2 id="eas-score-summary-title">Overall Score</h2>
-            <p class="eas-score-card-sub">
-                {{ $finalScore !== null ? number_format((float) $finalScore, 1) : 0 }} / 100
-                @if ($assessmentLevel)
-                    &nbsp;•&nbsp; {{ $assessmentLevel }}
-                @else
-                    &nbsp;•&nbsp; Not yet assessed
-                @endif
-            </p>
+{{-- ===================== HERO ===================== --}}
+<header class="es-hero">
+    <div class="es-hero-bg" aria-hidden="true"></div>
+    <div class="es-hero-top">
+        <span class="es-eyebrow">AI Score Sheet</span>
+        <div class="es-hero-actions">
+            <button type="button" class="es-btn es-btn--ghost" id="es-copy" data-copy="{{ $copyText }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span id="es-copy-label">Copy summary</span>
+            </button>
+            <button type="button" class="es-btn es-btn--ghost" onclick="window.print()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Print
+            </button>
+            <a href="{{ route('daily-journal.show', $journal) }}" class="es-btn es-btn--solid">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Back to Report
+            </a>
         </div>
     </div>
 
-    <div class="eas-score-overall">
-        <!-- Circular Score Indicator -->
-        <div class="eas-score-circle-wrapper">
-            <div class="eas-score-circle">
-                <svg class="eas-score-circle-svg" viewBox="0 0 36 36" width="96" height="96">
-                    <circle class="eas-score-circle-track" cx="18" cy="18" r="15.9155" stroke="#E5E7EB" stroke-width="3" fill="none"/>
+    <div class="es-hero-main">
+        <div class="es-hero-person">
+            <span class="es-avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($journal->user->name, 0, 1)) }}</span>
+            <div>
+                <h1>{{ $journal->user->name }}</h1>
+                <p class="es-hero-meta">
+                    {{ ucfirst($journal->user->role) }}
+                    <span class="es-dot" aria-hidden="true"></span>
+                    {{ $journal->required_date->format('F j, Y') }}
+                </p>
+                <div class="es-hero-badges">
+                    <span class="es-pill es-pill--{{ $isManual ? 'manual' : 'auto' }}">{{ $assessmentType }}</span>
+                    <span class="es-pill es-pill--{{ $journal->isAssessmentVerified() ? 'verified' : 'provisional' }}">{{ $journal->assessmentStatusLabel() }}</span>
+                    @if ($assessmentLevel)
+                        <span class="es-pill es-pill--level" style="--lv: {{ $levelColor }};">{{ $assessmentLevel }}</span>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <div class="es-hero-score">
+            <div class="es-gauge" role="img" aria-label="Final score {{ $fmt($finalScore) }} out of 100">
+                <svg viewBox="0 0 36 36" aria-hidden="true">
+                    <circle cx="18" cy="18" r="15.9155" class="es-gauge-track"/>
                     @if ($finalScore !== null)
-                    <circle class="eas-score-circle-progress-ring" cx="18" cy="18" r="15.9155"
-                        stroke="{{ $finalScore >= 70 ? '#10b981' : ($finalScore >= 40 ? '#f59e0b' : '#ef4444') }}"
-                        stroke-width="3" fill="none"
-                        stroke-dasharray="100"
-                        stroke-dashoffset="{{ 100 - (float) $finalScore }}"
-                        stroke-linecap="butt"
-                        transform="rotate(-90 18 18)"
-                        style="transition: stroke-dashoffset 0.8s ease;"></circle>
+                    <circle cx="18" cy="18" r="15.9155" class="es-gauge-ring" stroke="{{ $tone($finalScore) }}"
+                            stroke-dasharray="100" stroke-dashoffset="{{ round(100 - $clamp($finalScore), 2) }}" transform="rotate(-90 18 18)"/>
                     @endif
                 </svg>
-                <div class="eas-score-circle-text">
+                <div class="es-gauge-text">
                     @if ($finalScore !== null)
-                        <span class="eas-score-circle-value">{{ number_format((float) $finalScore, 1) }}</span>
-                        <span class="eas-score-circle-label">score</span>
+                        <span class="es-gauge-value" data-countup="{{ round((float) $finalScore, 1) }}" data-decimals="1">{{ $fmt($finalScore) }}</span>
+                        <span class="es-gauge-label">out of 100</span>
                     @else
-                        <span class="eas-score-circle-value">—</span>
-                        <span class="eas-score-circle-label">no score</span>
+                        <span class="es-gauge-value">—</span>
+                        <span class="es-gauge-label">no score yet</span>
                     @endif
                 </div>
             </div>
-            @if ($assessmentLevel)
-            <div class="eas-score-level-badge">
-                <span class="eas-score-level" style="background: {{ $assessmentLevelColor }}22; color: {{ $assessmentLevelColor }}; border: 1px solid {{ $assessmentLevelColor }}55;">
-                    {{ $assessmentLevel }}
-                </span>
-            </div>
-            @endif
-        </div>
-
-        <!-- Score Details -->
-        <div class="eas-score-details">
-            <div class="eas-score-detail">
-                <span class="eas-score-detail-label">Original AI score</span>
-                <span class="eas-score-detail-value">{{ $originalAiScore !== null ? number_format((float) $originalAiScore, 1) : '—' }}</span>
-            </div>
-            @if ($hasManualOverride)
-            <div class="eas-score-detail eas-score-detail--adjustment">
-                <span class="eas-score-detail-label">Manual adjustment</span>
-                <span class="eas-score-detail-value eas-score-adjustment eas-score-adjustment--{{ $manualAdjustment > 0 ? 'positive' : 'negative' }}">
-                    {{ $manualAdjustment > 0 ? '+' : '' }}{{ number_format((float) $manualAdjustment, 1) }}
-                </span>
-                <span class="eas-score-detail-note">by {{ $journal->reviewer?->name ?? 'Admin' }}</span>
-            </div>
-            @endif
-            <div class="eas-score-detail eas-score-detail--main">
-                <span class="eas-score-detail-label">Final score</span>
-                <span class="eas-score-detail-value eas-score-detail-value--main">{{ $finalScore !== null ? number_format((float) $finalScore, 1) : '—' }}</span>
-            </div>
-            <div class="eas-score-detail">
-                <span class="eas-score-detail-label">Assessment type</span>
-                <span class="eas-score-detail-value">{{ $assessmentType }}</span>
-            </div>
         </div>
     </div>
 
-    <!-- Score Calculation Breakdown -->
-    <div class="eas-score-weights-section">
-        <span class="eas-score-weights-label">Score calculation</span>
-        <div class="eas-score-weight-chips">
-            @if ($combined['weights_used'] !== [])
-                @foreach ($combined['weights_used'] as $criterion => $weight)
-                    <span class="eas-score-weight-chip">
-                        <span class="eas-score-chip-name">{{ $weightLabels[$criterion] }}</span>
-                        <span class="eas-score-chip-value">{{ number_format((float) $weight, 0) }}%</span>
-                    </span>
-                @endforeach
-                @if (count($combined['weights_used']) < 4)
-                    <span class="eas-score-weight-chip eas-score-weight-chip--muted">
-                        <span class="eas-score-chip-name">Missing criteria</span>
-                        <span class="eas-score-chip-value">excluded</span>
-                    </span>
+    <dl class="es-kpis">
+        <div class="es-kpi">
+            <dt>Criteria evaluated</dt>
+            <dd>{{ $evaluatedCount }} <small>/ {{ count($criteriaList) }}</small></dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Original AI score</dt>
+            <dd>{{ $fmt($originalAiScore) }}
+                @if ($hasManualOverride)
+                    <small class="es-kpi-delta es-kpi-delta--{{ $manualAdjustment > 0 ? 'up' : 'down' }}">{{ $manualAdjustment > 0 ? '+' : '' }}{{ number_format((float) $manualAdjustment, 1) }} manual</small>
                 @endif
-            @else
-                <span class="eas-score-weight-chip eas-score-weight-chip--muted">
-                    <span class="eas-score-chip-name">No assessable data</span>
-                    <span class="eas-score-chip-value">—</span>
-                </span>
-            @endif
+            </dd>
         </div>
-        <span class="eas-score-weights-note">Criteria with insufficient data are excluded and remaining weights are renormalized.</span>
+        <div class="es-kpi">
+            <dt>Evidence files</dt>
+            <dd>{{ $evidenceCount }}</dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Tasks on score sheet</dt>
+            <dd>{{ $tasksIncluded }} <small>/ {{ $scoreSheetTasks->count() }}</small></dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Submitted</dt>
+            <dd class="es-kpi-text">{{ $submittedAt ? $submittedAt->format('M j, g:i A') : 'Not submitted' }}</dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Assessed</dt>
+            <dd class="es-kpi-text">{{ $assessedAt ? $assessedAt->format('M j, g:i A') : 'Not assessed' }}</dd>
+        </div>
+    </dl>
+</header>
+
+{{-- ===================== SECTION NAV ===================== --}}
+<nav class="es-nav" aria-label="Score sheet sections">
+    @foreach ($nav as [$anchor, $label])
+        <a href="#{{ $anchor }}" class="es-nav-link" data-spy="{{ $anchor }}">{{ $label }}</a>
+    @endforeach
+</nav>
+
+{{-- ===================== OVERVIEW ===================== --}}
+<section class="es-section" id="es-overview" aria-labelledby="es-overview-title">
+    <div class="es-section-head">
+        <h2 id="es-overview-title">Overview</h2>
+        <p>Where the score comes from, and what moves it most.</p>
     </div>
+
+    @if ($finalScore === null)
+        <div class="es-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <strong>No assessment data available</strong>
+            <p>No assessment data is available for this reporting period. The score sheet will be populated once an automatic or manual assessment is completed.</p>
+        </div>
+    @else
+    <div class="es-overview-grid">
+        {{-- Radar --}}
+        <article class="es-card es-card--radar">
+            <h3 class="es-card-title">Performance profile</h3>
+            <svg class="es-radar" viewBox="0 0 400 320" role="img" aria-label="Radar chart of the four criterion scores">
+                @foreach ([25, 50, 75, 100] as $ring)
+                    <polygon points="{{ $ringPoints($ring) }}" class="es-radar-ring {{ $ring === 100 ? 'es-radar-ring--outer' : '' }}"/>
+                @endforeach
+                @foreach ($axes as $k => $dir)
+                    <line x1="{{ $cx }}" y1="{{ $cy }}" x2="{{ $cx + $dir[0] * $R }}" y2="{{ $cy + $dir[1] * $R }}" class="es-radar-axis"/>
+                @endforeach
+                <polygon points="{{ $radarPoints }}" class="es-radar-shape"/>
+                @foreach ($criteriaList as $k => $c)
+                    @php $s = $criteria[$k] ?? null; @endphp
+                    @if ($s !== null)
+                        @php [$px, $py] = explode(',', $pt($k, $clamp($s))); @endphp
+                        <circle cx="{{ $px }}" cy="{{ $py }}" r="5" fill="{{ $c['color'] }}" class="es-radar-dot"><title>{{ $c['name'] }}: {{ $fmt($s) }} / 100</title></circle>
+                    @endif
+                @endforeach
+                <text x="{{ $cx }}" y="38" text-anchor="middle" class="es-radar-label">{{ $criteriaList['quality']['short'] }} · {{ $fmt($criteria['quality'] ?? null, 0) }}</text>
+                <text x="{{ $cx + $R + 14 }}" y="{{ $cy + 4 }}" text-anchor="start" class="es-radar-label">{{ $criteriaList['timeliness']['short'] }} · {{ $fmt($criteria['timeliness'] ?? null, 0) }}</text>
+                <text x="{{ $cx }}" y="{{ $cy + $R + 28 }}" text-anchor="middle" class="es-radar-label">{{ $criteriaList['responsiveness']['short'] }} · {{ $fmt($criteria['responsiveness'] ?? null, 0) }}</text>
+                <text x="{{ $cx - $R - 14 }}" y="{{ $cy + 4 }}" text-anchor="end" class="es-radar-label">{{ $criteriaList['client_feedback']['short'] }} · {{ $fmt($criteria['client_feedback'] ?? null, 0) }}</text>
+            </svg>
+            <p class="es-card-foot">Criteria without data sit at the centre and are excluded from the score, never counted as zero.</p>
+        </article>
+
+        {{-- Build-up --}}
+        <article class="es-card es-card--build">
+            <h3 class="es-card-title">How the final score is built</h3>
+            <div class="es-stack" role="img" aria-label="Stacked bar showing each criterion's contribution to the final score">
+                @foreach ($contribution as $k => $pts)
+                    <span class="es-stack-seg" style="width: {{ round($pts, 2) }}%; background: {{ $criteriaList[$k]['color'] }};" title="{{ $criteriaList[$k]['name'] }}: {{ number_format($pts, 1) }} pts"></span>
+                @endforeach
+            </div>
+            <div class="es-stack-scale"><span>0</span><span>Final {{ $fmt($finalScore) }}</span><span>100</span></div>
+
+            <ul class="es-build-list">
+                @foreach ($criteriaList as $k => $c)
+                    @php $s = $criteria[$k] ?? null; @endphp
+                    <li class="es-build-row {{ $s === null ? 'is-empty' : '' }}">
+                        <span class="es-swatch" style="background: {{ $c['color'] }};"></span>
+                        <span class="es-build-name">{{ $c['name'] }}<small>{{ number_format($weightShare($k), 0) }}% weight</small></span>
+                        <span class="es-build-bar" role="presentation"><span style="width: {{ $s !== null ? $clamp($s) : 0 }}%; background: {{ $c['color'] }};"></span></span>
+                        <span class="es-build-score">{{ $s !== null ? $fmt($s) : '—' }}</span>
+                        <span class="es-build-pts">{{ $s !== null ? '+' . number_format($contribution[$k], 1) . ' pts' : 'Excluded' }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        </article>
+    </div>
+
+    {{-- Insights --}}
+    <div class="es-insights">
+        @if ($strongestKey)
+        <article class="es-insight es-insight--good">
+            <span class="es-insight-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
+            <div>
+                <span class="es-insight-label">Strongest criterion</span>
+                <strong>{{ $criteriaList[$strongestKey]['name'] }}</strong>
+                <p>{{ $fmt($criteria[$strongestKey]) }} / 100, contributing {{ number_format($contribution[$strongestKey], 1) }} points to the final score.</p>
+            </div>
+        </article>
+        @endif
+        @if ($opportunityKey)
+        <article class="es-insight es-insight--warn">
+            <span class="es-insight-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/></svg></span>
+            <div>
+                <span class="es-insight-label">Biggest opportunity</span>
+                <strong>{{ $criteriaList[$opportunityKey]['name'] }}</strong>
+                <p>At {{ $fmt($criteria[$opportunityKey]) }} / 100. Raising it to 100 would add up to {{ number_format($potentialGain[$opportunityKey], 1) }} points to the final score.</p>
+            </div>
+        </article>
+        @endif
+        <article class="es-insight es-insight--info">
+            <span class="es-insight-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>
+            <div>
+                <span class="es-insight-label">What this means</span>
+                <strong>{{ $assessmentLevel ?? 'Not yet assessed' }}</strong>
+                <p>{{ $scoreMeaning }}</p>
+            </div>
+        </article>
+    </div>
+    <p class="es-method">{{ $assessmentMethodLabel }}. {{ $assessmentMethodDetail }}</p>
+    @endif
 </section>
 
-<!-- Why You Received This Score -->
-<section class="eas-score-card eas-score-card--why" aria-labelledby="eas-score-why-title">
-    <div class="eas-score-card-head">
-        <div>
-            <h2 id="eas-score-why-title">Why did I receive this score?</h2>
-            <p class="eas-score-card-sub">A plain-language breakdown of how your final score was calculated.</p>
-        </div>
+@if ($finalScore !== null)
+{{-- ===================== CALCULATION ===================== --}}
+<section class="es-section" id="es-calculation" aria-labelledby="es-calc-title">
+    <div class="es-section-head">
+        <h2 id="es-calc-title">How your score was calculated</h2>
+        <p>Each criterion score is multiplied by its weight. Criteria with no data are excluded and the remaining weights are renormalized.</p>
     </div>
-
-    <div class="eas-score-why-body">
-
-        @if ($finalScore === null)
-        <div class="eas-score-why-empty">
-            <svg class="eas-score-why-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <div class="eas-score-why-empty-text">
-                <strong>No assessment data available</strong>
-                <p>No assessment data is available for this reporting period. The score sheet will be populated once an automatic or manual assessment is completed.</p>
-            </div>
-        </div>
-        @else
-
-        <!-- A. Your Overall Score -->
-        <div class="eas-score-why-section eas-score-why-section--overall">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <h3 class="eas-score-why-subhead">A. Your Overall Score</h3>
-            </div>
-            <div class="eas-score-why-overall-grid">
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Final score</span>
-                    <span class="eas-score-why-metric-value">{{ number_format((float) $finalScore, 1) }} / 100</span>
-                </div>
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Classification</span>
-                    <span class="eas-score-why-metric-value">{{ $assessmentLevel ?? 'Not yet assessed' }}</span>
-                </div>
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Assessment method</span>
-                    <span class="eas-score-why-metric-value">{{ $assessmentMethodLabel }}</span>
-                </div>
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Assessed on</span>
-                    <span class="eas-score-why-metric-value">{{ $assessedAt?->format('F j, Y') ?? '—' }}</span>
-                </div>
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Reporting period</span>
-                    <span class="eas-score-why-metric-value">{{ $journal->required_date?->format('F j, Y') }}</span>
-                </div>
-                <div class="eas-score-why-metric">
-                    <span class="eas-score-why-metric-label">Submitted on</span>
-                    <span class="eas-score-why-metric-value">{{ $submittedAt?->format('F j, Y') ?? '—' }}</span>
-                </div>
-            </div>
-            <p class="eas-score-why-summary-text">{{ $scoreMeaning }}</p>
-            <p class="eas-score-why-method-text">{{ $assessmentMethodDetail }}</p>
-        </div>
-
-        <!-- Score Composition Visualization -->
-        <div class="eas-score-why-section eas-score-why-section--composition">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
-                <h3 class="eas-score-why-subhead">Score Composition</h3>
-            </div>
-            <div class="eas-score-composition-grid">
-                @php
-                    $compCriteria = [
-                        ['key' => 'quality', 'name' => 'Accomplishment Quality', 'color' => '#2563eb'],
-                        ['key' => 'timeliness', 'name' => 'Timeliness', 'color' => '#7c3aed'],
-                        ['key' => 'responsiveness', 'name' => 'Immediate Responsiveness', 'color' => '#059669'],
-                        ['key' => 'client_feedback', 'name' => 'Client Feedback', 'color' => '#0891b2'],
-                    ];
-                    $compWeights = [
-                        'quality' => (float) config('achievements.scoring_weights.quality', 50),
-                        'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
-                        'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
-                        'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
-                    ];
-                @endphp
-                @foreach ($compCriteria as $criterion)
-                    @php
-                        $key = $criterion['key'];
-                        $score = $criteria[$key] ?? null;
-                        $meta = $criteria[$key.'_meta'] ?? [];
-                        $weight = $compWeights[$key] ?? 0;
-                        $isEvaluated = $score !== null;
-                        $weightedPoints = $isEvaluated ? round((float) $score * $weight, 2) : null;
-                    @endphp
-                    <div class="eas-score-comp-card {{ $isEvaluated ? 'eas-score-comp-card--evaluated' : 'eas-score-comp-card--unevaluated' }}">
-                        <div class="eas-score-comp-header">
-                            <span class="eas-score-comp-name">{{ $criterion['name'] }}</span>
-                            <span class="eas-score-comp-weight">{{ number_format((float) $weight, 0) }}%</span>
-                        </div>
-                        <div class="eas-score-comp-bar">
-                            <div class="eas-score-comp-track"></div>
-                            @if ($isEvaluated)
-                                <div class="eas-score-comp-fill" style="width: {{ (float) $score }}%; background: {{ $criterion['color'] }};"></div>
-                            @else
-                                <div class="eas-score-comp-fill eas-score-comp-fill--empty"></div>
-                            @endif
-                        </div>
-                        <div class="eas-score-comp-values">
-                            <span class="eas-score-comp-score">
-                                @if ($isEvaluated)
-                                    {{ number_format((float) $score, 1) }} / 100
-                                @else
-                                    —
-                                @endif
-                            </span>
-                            <span class="eas-score-comp-contribution">
-                                @if ($isEvaluated)
-                                    {{ number_format((float) $weightedPoints, 2) }} pts
-                                @else
-                                    Excluded
-                                @endif
-                            </span>
-                        </div>
-                        <span class="eas-score-comp-status {{ $isEvaluated ? 'eas-score-comp-status--evaluated' : 'eas-score-comp-status--unevaluated' }}">
-                            @if ($isEvaluated)
-                                Evaluated
-                            @else
-                                No data
-                            @endif
-                        </span>
-                    </div>
-                @endforeach
-            </div>
-            <p class="eas-score-comp-note">
-                Bars show the criterion score out of 100. Weighted points = score × weight. Criteria with no data are excluded and do not contribute to the final score.
-            </p>
-        </div>
-
-        <!-- B. How Your Score Was Calculated -->
-        <div class="eas-score-why-section eas-score-why-section--calculation">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/></svg>
-                <h3 class="eas-score-why-subhead">B. How Your Score Was Calculated</h3>
-            </div>
-
-            <table class="eas-score-calc-table">
+    <div class="es-card es-card--flush">
+        <div class="es-table-wrap">
+            <table class="es-table">
                 <thead>
                     <tr>
-                        <th>Criterion</th>
-                        <th class="text-end">Score</th>
-                        <th class="text-end">Weight</th>
-                        <th class="text-end">Weighted Points</th>
-                        <th>Status</th>
+                        <th scope="col">Criterion</th>
+                        <th scope="col" class="num">Score</th>
+                        <th scope="col" class="num">Weight</th>
+                        <th scope="col" class="num">Weighted points</th>
+                        <th scope="col">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($calculationCriteria as $criterion)
-                    <tr class="{{ $criterion['status'] === 'Evaluated' ? 'eas-score-calc-row--evaluated' : 'eas-score-calc-row--unevaluated' }}">
-                        <td class="eas-score-calc-criterion">{{ $criterion['name'] }}</td>
-                        <td class="text-end">
-                            @if ($criterion['score'] !== null)
-                                {{ number_format((float) $criterion['score'], 1) }} / 100
-                            @else
-                                <span class="text-muted">—</span>
-                            @endif
-                        </td>
-                        <td class="text-end">{{ number_format((float) $criterion['weight'], 0) }}%</td>
-                        <td class="text-end">
-                            @if ($criterion['weighted_points'] !== null)
-                                {{ number_format((float) $criterion['weighted_points'], 2) }}
-                            @else
-                                <span class="text-muted">—</span>
-                            @endif
-                        </td>
-                        <td>
-                            <span class="eas-score-calc-status eas-score-calc-status--{{ $criterion['status'] === 'Evaluated' ? 'evaluated' : 'unevaluated' }}">
-                                {{ $criterion['status'] === 'Evaluated' ? 'Evaluated' : 'Not evaluated' }}
-                            </span>
-                        </td>
+                    @php $rowEvaluated = $criterion['status'] === 'Evaluated'; @endphp
+                    <tr class="{{ $rowEvaluated ? 'is-evaluated' : 'is-excluded' }}">
+                        <th scope="row">{{ $criterion['name'] }}</th>
+                        <td class="num">{{ $criterion['score'] !== null ? number_format((float) $criterion['score'], 1) . ' / 100' : '—' }}</td>
+                        <td class="num">{{ number_format((float) $criterion['weight'], 0) }}%</td>
+                        <td class="num">{{ $criterion['weighted_points'] !== null ? number_format((float) $criterion['weighted_points'], 2) : '—' }}</td>
+                        <td><span class="es-tag es-tag--{{ $rowEvaluated ? 'ok' : 'muted' }}">{{ $rowEvaluated ? 'Evaluated' : 'Not evaluated' }}</span></td>
                     </tr>
                     @endforeach
-                    <tr class="eas-score-calc-row--total">
-                        <td>Total</td>
-                        <td class="text-end"></td>
-                        <td class="text-end">{{ number_format($totalOriginalWeight, 0) }}% original</td>
-                        <td class="text-end">{{ number_format($totalWeightedPoints, 2) }}</td>
+                </tbody>
+                <tfoot>
+                    <tr class="es-tr-total">
+                        <th scope="row">Total</th>
+                        <td></td>
+                        <td class="num">{{ number_format($totalOriginalWeight, 0) }}% original</td>
+                        <td class="num">{{ number_format($totalWeightedPoints, 2) }}</td>
                         <td></td>
                     </tr>
                     @if ($totalAvailableWeight < $totalOriginalWeight)
-                    <tr class="eas-score-calc-row--available">
-                        <td>Available (after exclusions)</td>
-                        <td class="text-end"></td>
-                        <td class="text-end">{{ number_format($totalAvailableWeight, 0) }}%</td>
-                        <td class="text-end">{{ number_format($totalWeightedPoints, 2) }}</td>
+                    <tr class="es-tr-available">
+                        <th scope="row">Available after exclusions</th>
+                        <td></td>
+                        <td class="num">{{ number_format($totalAvailableWeight, 0) }}%</td>
+                        <td class="num">{{ number_format($totalWeightedPoints, 2) }}</td>
                         <td></td>
                     </tr>
                     @endif
                     @if ($normalizedScore !== null)
-                    <tr class="eas-score-calc-row--final">
-                        <td>Final score (normalized)</td>
-                        <td class="text-end">{{ number_format($normalizedScore, 1) }} / 100</td>
-                        <td class="text-end">100%</td>
-                        <td class="text-end">{{ number_format($normalizedScore, 1) }}</td>
+                    <tr class="es-tr-final">
+                        <th scope="row">Final score (normalized)</th>
+                        <td class="num">{{ number_format($normalizedScore, 1) }} / 100</td>
+                        <td class="num">100%</td>
+                        <td class="num">{{ number_format($normalizedScore, 1) }}</td>
                         <td></td>
                     </tr>
                     @endif
-                </tbody>
+                </tfoot>
             </table>
-
-            <div class="eas-score-calc-note">
-                <strong>How this works:</strong> Criteria with insufficient data are excluded (shown as "Not evaluated").
-                Their weight is removed from the total, and the remaining weights are used to calculate your score.
-                For example, if only Accomplishment Quality (50% weight) has data, your quality score becomes your final
-                score because it is the only criterion being measured.
-            </div>
-            @if ($normalizationExplanation)
-            <p class="eas-score-calc-detail">{{ $normalizationExplanation }}</p>
+        </div>
+        <div class="es-callout">
+            <strong>How this works:</strong> criteria with insufficient data are shown as "Not evaluated". Their weight is removed from the total and the remaining weights are used. If only Accomplishment Quality ({{ number_format($weightShare('quality'), 0) }}% weight) has data, your quality score becomes your final score because it is the only criterion measured.
+            @if (!empty($normalizationExplanation))
+                <span class="es-callout-extra">{{ $normalizationExplanation }}</span>
             @endif
         </div>
-
-        <!-- C. What You Did Well -->
-        <div class="eas-score-why-section eas-score-why-section--positive">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <h3 class="eas-score-why-subhead">C. What You Did Well</h3>
-            </div>
-            <ul class="eas-score-why-list">
-                @php
-                    $positiveFindings = [];
-                    $qualityMeta = $criteria['quality_meta'] ?? [];
-                    $tMeta = $criteria['timeliness_meta'] ?? [];
-                    $rMeta = $criteria['responsiveness_meta'] ?? [];
-
-                    // Quality-based positive findings from actual data
-                    if ((int) ($qualityMeta['entries'] ?? 0) > 0) {
-                        $positiveFindings[] = [
-                            'title' => 'Accomplishment Quality assessed',
-                            'detail' => 'Based on ' . (int) $qualityMeta['entries'] . ' assessed daily accomplishment report(s) in this period.',
-                            'finding' => 'Your quality score of ' . number_format((float) ($criteria['quality'] ?? 0), 1) . ' / 100 was recorded from your submitted accomplishments.',
-                            'date' => $journal->required_date?->format('F j, Y'),
-                        ];
-                    }
-
-                    // Timeliness positive findings
-                    if ((int) ($tMeta['on_time'] ?? 0) > 0) {
-                        $positiveFindings[] = [
-                            'title' => 'On-time task completion',
-                            'detail' => (int) ($tMeta['on_time'] ?? 0) . ' task(s) completed on or before the deadline.',
-                            'finding' => 'Completing tasks on time contributes positively to your timeliness score.',
-                        ];
-                    }
-                    if ((int) ($tMeta['early'] ?? 0) > 0) {
-                        $positiveFindings[] = [
-                            'title' => 'Early task completion',
-                            'detail' => (int) ($tMeta['early'] ?? 0) . ' task(s) completed before the deadline.',
-                            'finding' => 'Completing tasks early earns the maximum timeliness score.',
-                        ];
-                    }
-
-                    // Responsiveness positive findings
-                    if ((int) ($rMeta['prompt'] ?? 0) > 0) {
-                        $positiveFindings[] = [
-                            'title' => 'Prompt responses',
-                            'detail' => (int) ($rMeta['prompt'] ?? 0) . ' response(s) within 24 hours.',
-                            'finding' => 'Responding promptly contributes positively to your responsiveness score.',
-                        ];
-                    }
-
-                    if ($evidenceCount > 0) {
-                        $positiveFindings[] = [
-                            'title' => 'Supporting evidence attached',
-                            'detail' => $evidenceCount . ' evidence file(s) attached to your accomplishment reports.',
-                            'finding' => 'Evidence helps verify the work you completed.',
-                        ];
-                    }
-
-                    if (empty($positiveFindings)) {
-                        $positiveFindings[] = [
-                            'title' => 'No specific positive contributions identified',
-                            'detail' => 'The available assessment data does not contain specific positive findings for this period.',
-                            'finding' => 'This may be because few or no records were available for evaluation.',
-                        ];
-                    }
-                @endphp
-                @foreach ($positiveFindings as $finding)
-                <li class="eas-score-why-list-item--positive">
-                    <div class="eas-score-why-finding">
-                        <div class="eas-score-why-finding-header">
-                            <strong>{{ $finding['title'] }}</strong>
-                            @if (isset($finding['date']))
-                            <span class="eas-score-why-finding-date">{{ $finding['date'] }}</span>
-                            @endif
-                        </div>
-                        <p class="eas-score-why-finding-detail">{{ $finding['detail'] }}</p>
-                        @if (isset($finding['finding']))
-                        <p class="eas-score-why-finding-why">{{ $finding['finding'] }}</p>
-                        @endif
-                    </div>
-                </li>
-                @endforeach
-            </ul>
-        </div>
-
-        <!-- D. What Affected Your Score -->
-        <div class="eas-score-why-section eas-score-why-section--negative">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--negative" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <h3 class="eas-score-why-subhead">D. What Affected Your Score</h3>
-            </div>
-            <ul class="eas-score-why-list">
-                @foreach ($blockers as $blocker)
-                <li class="eas-score-why-list-item--negative">
-                    <div class="eas-score-why-finding">
-                        <div class="eas-score-why-finding-header">
-                            <strong>Assessment finding</strong>
-                        </div>
-                        <p class="eas-score-why-finding-detail">{{ $blocker }}</p>
-                    </div>
-                </li>
-                @endforeach
-            </ul>
-        </div>
-
-        <!-- E. Criteria Not Yet Evaluated -->
-        <div class="eas-score-why-section eas-score-why-section--excluded">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--muted" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                <h3 class="eas-score-why-subhead">E. Criteria Not Yet Evaluated</h3>
-            </div>
-            <ul class="eas-score-why-list">
-                @php
-                    $excludedCriteria = [];
-                    foreach ($calculationCriteria as $criterion) {
-                        if ($criterion['status'] !== 'Evaluated') {
-                            $excludedCriteria[] = $criterion;
-                        }
-                    }
-                @endphp
-                @if (count($excludedCriteria) > 0)
-                @foreach ($excludedCriteria as $criterion)
-                <li class="eas-score-why-list-item--excluded">
-                    <div class="eas-score-why-finding">
-                        <div class="eas-score-why-finding-header">
-                            <strong>{{ $criterion['name'] }}</strong>
-                            <span class="eas-score-why-finding-weight">{{ number_format((float) $criterion['weight'], 0) }}% weight excluded</span>
-                        </div>
-                        <p class="eas-score-why-finding-detail">{{ $criterion['explanation'] }}</p>
-                        <p class="eas-score-why-finding-note">N/A means this criterion had no data to measure — it is not counted as zero.</p>
-                    </div>
-                </li>
-                @endforeach
-                @else
-                <li>
-                    <svg class="eas-score-why-list-icon eas-score-why-list-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span>All criteria have been evaluated.</span>
-                </li>
-                @endif
-            </ul>
-        </div>
-
-        <!-- F. How You Can Improve -->
-        <div class="eas-score-why-section eas-score-why-section--improvement">
-            <div class="eas-score-why-section-header">
-                <svg class="eas-score-why-section-icon eas-score-why-section-icon--warning" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                <h3 class="eas-score-why-subhead">F. How You Can Improve</h3>
-            </div>
-            <ul class="eas-score-why-list">
-                @foreach ($improvements as $improvement)
-                <li class="eas-score-why-list-item--improvement">
-                    <div class="eas-score-why-finding">
-                        <div class="eas-score-why-finding-header">
-                            <strong>Recommended action</strong>
-                        </div>
-                        <p class="eas-score-why-finding-detail">{{ $improvement }}</p>
-                    </div>
-                </li>
-                @endforeach
-            </ul>
-        </div>
-
-        @endif
     </div>
 </section>
 
-<!-- Criteria Breakdown -->
-<section class="eas-score-card" aria-labelledby="eas-score-criteria-title">
-    <div class="eas-score-card-head">
-        <div>
-            <h2 id="eas-score-criteria-title">Criteria Breakdown</h2>
-            <p class="eas-score-card-sub">Each criterion is scored out of 100. Expand a card to see its detailed breakdown and evidence.</p>
-        </div>
-        <button type="button" class="btn btn-outline btn-sm eas-score-toggle-all" onclick="toggleAllCriteria()">
-            <span id="eas-toggleAllText">Collapse all</span>
-        </button>
+{{-- ===================== FINDINGS ===================== --}}
+<section class="es-section" id="es-findings" aria-labelledby="es-findings-title">
+    <div class="es-section-head">
+        <h2 id="es-findings-title">Why did I receive this score?</h2>
+        <p>A plain-language breakdown of what helped, what held the score back, and what to do next.</p>
     </div>
 
-    <div class="eas-score-criteria-list">
-        @foreach ($criteriaList as $criterion)
-            <?php
-                $scoreKey = $criterion['key'];
+    <div class="es-findings-grid">
+        <article class="es-finding-card es-finding-card--good">
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>What you did well</h3>
+            <ul>
+                @foreach ($positiveFindings as $f)
+                <li>
+                    <strong>{{ $f['title'] }}</strong>
+                    <p>{{ $f['detail'] }}</p>
+                    <small>{{ $f['note'] }}</small>
+                </li>
+                @endforeach
+            </ul>
+        </article>
+
+        <article class="es-finding-card es-finding-card--bad">
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>What affected your score</h3>
+            <ul>
+                @forelse ($blockers as $blocker)
+                <li><strong>Assessment finding</strong><p>{{ $blocker }}</p></li>
+                @empty
+                <li><p>Nothing negatively affected this score in the assessed period.</p></li>
+                @endforelse
+            </ul>
+        </article>
+
+        <article class="es-finding-card es-finding-card--muted">
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>Criteria not yet evaluated</h3>
+            <ul>
+                @forelse ($excludedCriteria as $criterion)
+                <li>
+                    <strong>{{ $criterion['name'] }} <span class="es-tag es-tag--muted">{{ number_format((float) $criterion['weight'], 0) }}% excluded</span></strong>
+                    <p>{{ $criterion['explanation'] }}</p>
+                    <small>N/A means there was no data to measure. It is not counted as zero.</small>
+                </li>
+                @empty
+                <li><p>All criteria have been evaluated.</p></li>
+                @endforelse
+            </ul>
+        </article>
+
+        <article class="es-finding-card es-finding-card--next">
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>How you can improve</h3>
+            <ul>
+                @forelse ($improvements as $improvement)
+                <li><strong>Recommended action</strong><p>{{ $improvement }}</p></li>
+                @empty
+                <li><p>No specific improvements were recommended for this period. Keep up the current approach.</p></li>
+                @endforelse
+            </ul>
+        </article>
+    </div>
+</section>
+@endif
+
+{{-- ===================== CRITERIA ===================== --}}
+<section class="es-section" id="es-criteria" aria-labelledby="es-criteria-title">
+    <div class="es-section-head es-section-head--row">
+        <div>
+            <h2 id="es-criteria-title">Criteria breakdown</h2>
+            <p>Each criterion is scored out of 100. Open a card to see the reasoning and evidence.</p>
+        </div>
+        <button type="button" class="es-btn es-btn--outline" id="es-toggle-all">Expand all</button>
+    </div>
+
+    <div class="es-criteria">
+        @foreach ($criteriaList as $scoreKey => $criterion)
+            @php
                 $score = $criteria[$scoreKey] ?? null;
-                $meta = $criteria[$scoreKey . '_meta'] ?? [];
                 $isEvaluated = $score !== null;
-                $manualCriterion = $journal->criterionScores()[$scoreKey] ?? null;
-                $deduction = $isEvaluated ? (float) $criterion['max'] - (float) $score : null;
-                $percent = $isEvaluated ? round((float) $score, 1) : 0;
-                $weight = number_format((float) ($weights[$scoreKey] ?? 0), 0);
-            ?>
-            <div class="eas-score-criterion eas-score-criterion--collapsed" id="eas-criterion-{{ $scoreKey }}" data-key="{{ $scoreKey }}">
-                <div class="eas-score-criterion-head" onclick="toggleCriterion('{{ $scoreKey }}')">
-                    <div class="eas-score-criterion-row">
-                        <div class="eas-score-criterion-icon">
-                            {!! $criterion['icon'] !!}
-                        </div>
-                        <div class="eas-score-criterion-main">
-                            <div class="eas-score-criterion-name-row">
-                                <span class="eas-score-criterion-name">{{ $criterion['name'] }}</span>
-                                <span class="eas-score-criterion-weight">{{ $weight }}% weight</span>
-                            </div>
-                            <div class="eas-score-criterion-score">
-                                @if ($isEvaluated)
-                                    <span class="eas-score-points">{{ number_format((float) $score, 1) }}</span>
-                                    <span class="eas-score-points-max"> / {{ $criterion['max'] }}</span>
-                                    @if ($deduction > 0)
-                                        <span class="eas-score-points-deduction">−{{ number_format((float) $deduction, 1) }}</span>
-                                    @endif
-                                @else
-                                    <span class="eas-score-points eas-score-points--unevaluated">—</span>
-                                    <span class="eas-score-points-max"> / {{ $criterion['max'] }}</span>
-                                @endif
-                            </div>
-                        </div>
-                        <button type="button" class="eas-score-criterion-toggle" data-target="criterion-{{ $scoreKey }}" aria-expanded="false" aria-controls="eas-criterion-body-{{ $scoreKey }}">
-                            <svg class="eas-score-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="eas-score-criterion-progress">
-                    <div class="eas-score-progress-track">
-                        @if ($isEvaluated)
-                        <div class="eas-score-progress-fill" style="width: {{ $percent }}%; background: {{ $finalScore >= 70 ? '#10b981' : ($finalScore >= 40 ? '#f59e0b' : '#ef4444') }};"></div>
-                        @else
-                        <div class="eas-score-progress-fill eas-score-progress-fill--empty"></div>
-                        @endif
-                    </div>
-                    <span class="eas-score-progress-label">{{ $isEvaluated ? number_format((float) $score, 1) . ' / 100' : 'Not evaluated' }}</span>
-                </div>
-
-                <div class="eas-score-criterion-status">
-                    <span class="eas-score-status eas-score-status--{{ $isEvaluated ? 'evaluated' : 'unevaluated' }}">
-                        {{ $isEvaluated ? 'Evaluated' : 'Not yet evaluated' }}
+                $manualCriterion = $criterionScores[$scoreKey] ?? null;
+                $criterionWeight = $weightsUsed[$scoreKey] ?? $configWeights[$scoreKey];
+                $explanation = $criteria[$scoreKey . '_explanation'] ?? 'Not yet evaluated.';
+            @endphp
+            <article class="es-crit" id="es-criterion-{{ $scoreKey }}" style="--c: {{ $criterion['color'] }};">
+                <button type="button" class="es-crit-head" data-crit-toggle aria-expanded="false" aria-controls="es-crit-body-{{ $scoreKey }}">
+                    <span class="es-crit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{!! $criterion['icon'] !!}</svg></span>
+                    <span class="es-crit-main">
+                        <span class="es-crit-name">{{ $criterion['name'] }}</span>
+                        <span class="es-crit-meta">{{ number_format((float) $criterionWeight, 0) }}% weight
+                            <span class="es-tag es-tag--{{ $isEvaluated ? 'ok' : 'muted' }}">{{ $isEvaluated ? 'Evaluated' : 'Not yet evaluated' }}</span>
+                        </span>
                     </span>
-                </div>
+                    <span class="es-crit-score">
+                        <strong>{{ $isEvaluated ? $fmt($score) : '—' }}</strong><small>/ 100</small>
+                    </span>
+                    <svg class="es-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div class="es-crit-track" role="presentation"><span style="width: {{ $isEvaluated ? $clamp($score) : 0 }}%; background: {{ $isEvaluated ? $tone($score) : '#cbd5e1' }};"></span></div>
 
-                <div class="eas-score-criterion-body" id="eas-criterion-body-{{ $scoreKey }}" hidden>
-                    <div class="eas-score-criterion-body-inner">
-                        <div class="eas-score-field">
-                            <span class="eas-score-field-label">Reason</span>
-                            <p class="eas-score-field-value">{{ $criteria[$scoreKey . '_explanation'] ?? 'Not yet evaluated.' }}</p>
-                        </div>
-
-                        @if ($isEvaluated)
-                        <div class="eas-score-field">
-                            <span class="eas-score-field-label">Evidence used</span>
-                            <p class="eas-score-field-value">{{ $criterionEvidence[$scoreKey] ?? 'No evidence data available.' }}</p>
-                        </div>
-                        @else
-                        <div class="eas-score-field">
-                            <span class="eas-score-field-label">Missing requirements</span>
-                            <p class="eas-score-field-value eas-score-field-value--muted">{{ $criteria[$scoreKey . '_explanation'] ?? 'No evaluable data available for this criterion in the reporting period.' }}</p>
-                        </div>
-                        @endif
-
-                        @if ($manualCriterion)
-                            <div class="eas-score-field eas-score-field--manual">
-                                <span class="eas-score-field-label">Manual adjustment</span>
-                                <p class="eas-score-field-value">Adjusted to {{ number_format((float) $manualCriterion['score'], 1) }} / {{ $manualCriterion['max'] }}. Reason: {{ $manualCriterion['reason'] }}</p>
-                            </div>
-                        @endif
+                <div class="es-crit-body" id="es-crit-body-{{ $scoreKey }}" hidden>
+                    <div class="es-field">
+                        <span class="es-field-label">{{ $isEvaluated ? 'Reason' : 'Missing requirements' }}</span>
+                        <p class="{{ $isEvaluated ? '' : 'is-muted' }}">{{ $explanation }}</p>
                     </div>
+                    @if ($isEvaluated)
+                    <div class="es-field">
+                        <span class="es-field-label">Evidence used</span>
+                        <p>{{ $criterionEvidence[$scoreKey] ?? 'No evidence data available.' }}</p>
+                    </div>
+                    @if (($potentialGain[$scoreKey] ?? 0) > 0.05)
+                    <div class="es-field">
+                        <span class="es-field-label">Room to grow</span>
+                        <p>Raising this criterion to 100 would add up to <strong>{{ number_format($potentialGain[$scoreKey], 1) }}</strong> points to the final score.</p>
+                    </div>
+                    @endif
+                    @endif
+                    @if ($manualCriterion)
+                    <div class="es-field es-field--manual">
+                        <span class="es-field-label">Manual adjustment</span>
+                        <p>Adjusted to {{ number_format((float) $manualCriterion['score'], 1) }} / {{ $manualCriterion['max'] }}. Reason: {{ $manualCriterion['reason'] }}</p>
+                    </div>
+                    @endif
                 </div>
-            </div>
+            </article>
         @endforeach
     </div>
 </section>
 
-<!-- Kaizen Strategy and Admin Concern Sources -->
-<section class="eas-score-card" aria-labelledby="eas-score-tasks-title">
-    <div class="eas-score-card-head">
+{{-- ===================== SOURCES ===================== --}}
+<section class="es-section" id="es-sources" aria-labelledby="es-sources-title">
+    <div class="es-section-head es-section-head--row">
         <div>
-            <h2 id="eas-score-tasks-title">Kaizen Strategy &amp; Admin Concern Sources</h2>
-            <p class="eas-score-card-sub">
-                Tasks that feed this Score Sheet. Only evaluations marked
-                <strong>ADDED TO SCORE SHEET</strong> contribute weighted points; reversed or
-                pending items are shown so every score stays traceable.
-            </p>
+            <h2 id="es-sources-title">Kaizen Strategy &amp; Admin Concern sources</h2>
+            <p>Only evaluations marked <strong>ADDED TO SCORE SHEET</strong> contribute weighted points. Reversed or pending items stay visible so every score is traceable.</p>
         </div>
         @if ($scoreSheetTasks->isNotEmpty())
-            <div class="eas-score-task-summary">
-                <span class="eas-score-weight-chip">
-                    <span class="eas-score-chip-name">Included</span>
-                    <span class="eas-score-chip-value">{{ $scoreSheetTasks->filter(fn ($evaluation) => $evaluation->isIncludedInScoreSheet())->count() }}</span>
-                </span>
-                <span class="eas-score-weight-chip">
-                    <span class="eas-score-chip-name">Weighted points</span>
-                    <span class="eas-score-chip-value">{{ number_format((float) $scoreSheetTasksTotal, 2) }}</span>
-                </span>
-            </div>
+        <div class="es-chips">
+            <span class="es-chip">Included <strong>{{ $tasksIncluded }} / {{ $scoreSheetTasks->count() }}</strong></span>
+            <span class="es-chip">Weighted points <strong>{{ number_format((float) $scoreSheetTasksTotal, 2) }}</strong></span>
+        </div>
         @endif
     </div>
 
     @if ($scoreSheetTasks->isEmpty())
-        <p class="eas-score-task-empty">
-            No Kaizen Strategy or Admin Concern evaluations are linked to this Score Sheet period yet.
-        </p>
+        <div class="es-empty es-empty--compact"><p>No Kaizen Strategy or Admin Concern evaluations are linked to this Score Sheet period yet.</p></div>
     @else
-        <div class="eas-score-task-list">
+    <div class="es-card es-card--flush">
+        <ul class="es-tasks">
             @foreach ($scoreSheetTasks as $taskEvaluation)
                 @php
                     $taskBadge = $taskEvaluation->integrationBadge();
+                    $taskScore = $taskEvaluation->overall_score;
                 @endphp
-                <div class="eas-score-task">
-                    <div class="eas-score-task-main">
-                        <div class="eas-score-task-title-row">
+                <li class="es-task">
+                    <div class="es-task-main">
+                        <div class="es-task-title-row">
                             @if ($taskEvaluation->taskReferenceUrl())
-                                <a href="{{ $taskEvaluation->taskReferenceUrl() }}" class="eas-score-task-title">
-                                    {{ $taskEvaluation->taskTitle() }}
-                                </a>
+                                <a href="{{ $taskEvaluation->taskReferenceUrl() }}" class="es-task-title">{{ $taskEvaluation->taskTitle() }}</a>
                             @else
-                                <span class="eas-score-task-title">{{ $taskEvaluation->taskTitle() }}</span>
+                                <span class="es-task-title">{{ $taskEvaluation->taskTitle() }}</span>
                             @endif
                             <span class="badge {{ $taskBadge['class'] }}">{{ $taskBadge['label'] }}</span>
                         </div>
-                        <div class="eas-score-task-meta">
+                        <div class="es-task-meta">
                             <span>{{ $taskEvaluation->sourceLabel() }} #{{ $taskEvaluation->source_id }}</span>
                             <span>{{ $taskEvaluation->evaluationPeriod?->name ?? 'No evaluation period' }}</span>
                             @if ($taskEvaluation->isIncludedInScoreSheet())
@@ -772,1534 +583,575 @@
                                 <span>Added {{ $taskEvaluation->score_sheet_added_at?->format('M j, Y') }}</span>
                             @elseif ($taskEvaluation->score_sheet_reversed_at)
                                 <span>Excluded {{ $taskEvaluation->score_sheet_reversed_at->format('M j, Y') }}</span>
-                            @elseif ($taskEvaluation->overall_score === null)
+                            @elseif ($taskScore === null)
                                 <span>Score not calculated yet</span>
                             @else
                                 <span>Not linked to the Score Sheet</span>
                             @endif
                         </div>
                         @if ($taskEvaluation->score_sheet_reversal_reason)
-                            <p class="eas-score-task-note">Reason: {{ $taskEvaluation->score_sheet_reversal_reason }}</p>
+                            <p class="es-task-note">Reason: {{ $taskEvaluation->score_sheet_reversal_reason }}</p>
                         @endif
                     </div>
-                    <div class="eas-score-task-score">
-                        <span class="eas-score-task-score-value">{{ $taskEvaluation->overall_score !== null ? number_format((float) $taskEvaluation->overall_score, 1) : '—' }}</span>
-                        <span class="eas-score-task-score-label">/ 100</span>
+                    <div class="es-task-score" style="--t: {{ $tone($taskScore) }};">
+                        <strong>{{ $fmt($taskScore) }}</strong><small>/ 100</small>
+                        <span class="es-task-bar" role="presentation"><span style="width: {{ $taskScore !== null ? $clamp($taskScore) : 0 }}%;"></span></span>
                     </div>
-                </div>
+                </li>
             @endforeach
-        </div>
+        </ul>
+    </div>
     @endif
 </section>
 
-<!-- Assessment History -->
-@if ($journal->assessmentRevisions->isNotEmpty())
-<section class="eas-score-card" aria-labelledby="eas-score-history-title">
-    <div class="eas-score-card-head">
-        <div>
-            <h2 id="eas-score-history-title">Assessment History</h2>
-            <p class="eas-score-card-sub">Every assessment change is recorded and never deleted.</p>
-        </div>
+{{-- ===================== HISTORY ===================== --}}
+@if ($hasHistory)
+<section class="es-section" id="es-history" aria-labelledby="es-history-title">
+    <div class="es-section-head">
+        <h2 id="es-history-title">Assessment history</h2>
+        <p>Every assessment change is recorded and never deleted.</p>
     </div>
-    <div class="eas-score-history-list">
+    <ol class="es-timeline">
         @foreach ($journal->assessmentRevisions as $revision)
             @php
                 $actionLabel = match ($revision->action) {
                     'manually_reassessed' => 'Admin reassessment',
                     'reassessed' => 'Automatic reassessment',
                     'corrected' => 'Manual review',
-                    default => ucfirst((string) $revision->action),
+                    default => Str::headline((string) $revision->action),
                 };
-                $actionClass = $revision->action === 'manually_reassessed' ? 'eas-score-history-action--manual' : 'eas-score-history-action--auto';
+                $manualAction = $revision->action === 'manually_reassessed';
+                $prev = is_numeric($revision->previous_score) ? (float) $revision->previous_score : null;
+                $next = is_numeric($revision->new_score) ? (float) $revision->new_score : null;
+                $delta = ($prev !== null && $next !== null) ? $next - $prev : null;
             @endphp
-            <div class="eas-score-history-item">
-                <div class="eas-score-history-head">
-                    <span class="eas-score-history-action {{ $actionClass }}">{{ $actionLabel }}</span>
-                    <span class="eas-score-history-date">{{ $revision->created_at->format('M j, Y g:i A') }}</span>
-                </div>
-                <div class="eas-score-history-body">
+            <li class="es-tl-item es-tl-item--{{ $manualAction ? 'manual' : 'auto' }}">
+                <span class="es-tl-dot" aria-hidden="true"></span>
+                <div class="es-tl-card">
+                    <div class="es-tl-head">
+                        <strong>{{ $actionLabel }}</strong>
+                        <time datetime="{{ $revision->created_at->toIso8601String() }}">{{ $revision->created_at->format('M j, Y g:i A') }}</time>
+                    </div>
                     <p>
-                        <span class="eas-score-history-reviewer">{{ $revision->reviewer?->name ?? 'Unknown reviewer' }}</span>
+                        <span class="es-tl-who">{{ $revision->reviewer?->name ?? 'Unknown reviewer' }}</span>
                         changed the score from
-                        <span class="eas-score-history-score eas-score-history-score--prev">{{ $revision->previous_score ?? 'none' }}</span>
+                        <span class="es-tl-score">{{ $prev !== null ? number_format($prev, 1) : 'none' }}</span>
                         to
-                        <span class="eas-score-history-score eas-score-history-score--next">{{ $revision->new_score ?? 'none' }}</span>.
-                        @if ($revision->reason)
-                            <span class="eas-score-history-reason">Reason: {{ $revision->reason }}</span>
+                        <span class="es-tl-score es-tl-score--next">{{ $next !== null ? number_format($next, 1) : 'none' }}</span>
+                        @if ($delta !== null && $delta != 0)
+                            <span class="es-tl-delta es-tl-delta--{{ $delta > 0 ? 'up' : 'down' }}">{{ $delta > 0 ? '▲ +' : '▼ ' }}{{ number_format($delta, 1) }}</span>
                         @endif
                     </p>
+                    @if ($revision->reason)
+                        <p class="es-tl-reason">Reason: {{ $revision->reason }}</p>
+                    @endif
                 </div>
-            </div>
+            </li>
         @endforeach
+    </ol>
+</section>
+@endif
+
+{{-- ===================== REASSESS ===================== --}}
+@if ($canReassess)
+<section class="es-section" id="es-reassess" aria-labelledby="es-reassess-title">
+    <div class="es-section-head es-section-head--row">
+        <div>
+            <h2 id="es-reassess-title">Manual reassessment</h2>
+            <p>Admin only. Adjust criterion scores (0–100). A reason is mandatory for every change and is saved to the history.</p>
+        </div>
+        <button type="button" class="es-btn es-btn--outline" id="es-reassess-open" aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" aria-controls="es-reassess-panel">Manually reassess score</button>
+    </div>
+
+    <div id="es-reassess-panel" class="es-card es-reassess" @unless ($errors->any()) hidden @endunless>
+        <form method="POST" action="{{ route('daily-journal.assessment.manual-reassess', $journal) }}">
+            @csrf
+
+            @if ($errors->any())
+            <div class="es-alert" role="alert">
+                <strong>Please fix the following:</strong>
+                <ul>@foreach ($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul>
+            </div>
+            @endif
+
+            <div class="es-projection" aria-live="polite">
+                <div><span class="es-field-label">Current final score</span><strong id="es-proj-current" data-current="{{ $finalScore !== null ? round((float) $finalScore, 2) : '' }}">{{ $fmt($finalScore) }}</strong></div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <div><span class="es-field-label">Projected (estimate)</span><strong id="es-proj-value">—</strong><span id="es-proj-delta" class="es-proj-delta"></span></div>
+            </div>
+
+            <div class="es-reassess-grid">
+                @foreach ($criteriaList as $scoreKey => $criterion)
+                    @php
+                        $currentScore = $criterionScores[$scoreKey]['score'] ?? ($criteria[$scoreKey] ?? null);
+                        $currentReason = $criterionScores[$scoreKey]['reason'] ?? '';
+                        $w = (float) ($weightsUsed[$scoreKey] ?? $configWeights[$scoreKey]);
+                    @endphp
+                    <div class="es-input-group" style="--c: {{ $criterion['color'] }};">
+                        <label for="es-score-{{ $scoreKey }}"><span class="es-swatch" style="background: {{ $criterion['color'] }};"></span>{{ $criterion['name'] }}<small>{{ number_format($w, 0) }}% weight</small></label>
+                        <input type="number" id="es-score-{{ $scoreKey }}" name="criteria[{{ $scoreKey }}][score]" min="0" max="100" step="0.1" data-weight="{{ $w }}"
+                               value="{{ old('criteria.'.$scoreKey.'.score', $currentScore !== null ? number_format((float) $currentScore, 1, '.', '') : '') }}" required>
+                        <input type="hidden" name="criteria[{{ $scoreKey }}][max]" value="100">
+                        <input type="text" name="criteria[{{ $scoreKey }}][reason]" aria-label="Reason for {{ $criterion['name'] }} score" placeholder="Reason for this score"
+                               value="{{ old('criteria.'.$scoreKey.'.reason', $currentReason) }}">
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="es-input-group es-input-group--wide">
+                <label for="es-reassess-reason">Reason for reassessment (required)</label>
+                <textarea id="es-reassess-reason" name="reason" rows="3" required minlength="10" placeholder="Explain why the scores are being adjusted.">{{ old('reason') }}</textarea>
+            </div>
+
+            <div class="es-form-actions">
+                <button type="button" class="es-btn es-btn--outline" id="es-reassess-cancel">Cancel</button>
+                <button type="submit" class="es-btn es-btn--primary">Save manual reassessment</button>
+            </div>
+        </form>
     </div>
 </section>
 @endif
 
-<!-- Admin Reassessment Panel -->
-@if ($canReview && $journal->hasAssessment())
-<div class="eas-score-reassess">
-    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('eas-reassess-panel').hidden = false;">
-        Manually reassess score (Admin)
-    </button>
-
-    <div id="eas-reassess-panel" hidden class="eas-score-reassess-panel">
-        <form method="POST" action="{{ route('daily-journal.assessment.manual-reassess', $journal) }}">
-            @csrf
-            <h3 class="eas-score-reassess-title">Manual Reassessment</h3>
-            <p>Adjust individual criterion scores. A mandatory reason is required for every change.</p>
-            <div class="eas-score-reassess-grid">
-                @foreach ($criteriaList as $criterion)
-                    <?php
-                        $scoreKey = $criterion['key'];
-                        $currentScore = $journal->criterionScores()[$scoreKey]['score'] ?? ($criteria[$scoreKey] ?? null);
-                        $currentReason = $journal->criterionScores()[$scoreKey]['reason'] ?? '';
-                    ?>
-                    <div class="eas-score-reassess-field">
-                        <label>{{ $criterion['name'] }}</label>
-                        <input type="number" name="criteria[{{ $scoreKey }}][score]" min="0" max="100" step="0.1" value="{{ $currentScore !== null ? number_format((float) $currentScore, 1) : '' }}" required>
-                        <input type="hidden" name="criteria[{{ $scoreKey }}][max]" value="100">
-                        <input type="text" name="criteria[{{ $scoreKey }}][reason]" placeholder="Reason for this score" value="{{ old('criteria.'.$scoreKey.'.reason', $currentReason) }}">
-                    </div>
-                @endforeach
-            </div>
-            <div class="eas-score-reassess-field eas-score-reassess-field--wide">
-                <label>Reason for reassessment (required)</label>
-                <textarea name="reason" rows="3" required placeholder="Explain why the scores are being adjusted."></textarea>
-            </div>
-            <div class="eas-score-reassess-actions">
-                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('eas-reassess-panel').hidden = true;">Cancel</button>
-                <button type="submit" class="btn btn-primary btn-sm">Save manual reassessment</button>
-            </div>
-        </form>
-    </div>
 </div>
-@endif
+@endsection
 
+@push('scripts')
 <script>
-    function toggleCriterion(key) {
-        const card = document.getElementById('eas-criterion-' + key);
-        if (!card) return;
-        const body = card.querySelector('.eas-score-criterion-body');
-        const btn = card.querySelector('.eas-score-criterion-toggle');
-        const icon = btn.querySelector('.eas-score-toggle-icon');
-        const isCollapsed = card.classList.contains('eas-score-criterion--collapsed');
+(function () {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-        if (isCollapsed) {
-            card.classList.remove('eas-score-criterion--collapsed');
-            body.hidden = false;
-            btn.setAttribute('aria-expanded', 'true');
-            icon.innerHTML = '<polyline points="6 15 12 9 18 15"/>';
-        } else {
-            card.classList.add('eas-score-criterion--collapsed');
-            body.hidden = true;
-            btn.setAttribute('aria-expanded', 'false');
-            icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+    // ---- Count-up on the headline score ----
+    document.querySelectorAll('[data-countup]').forEach(function (el) {
+        if (reduce) return;
+        var target = parseFloat(el.getAttribute('data-countup'));
+        var decimals = parseInt(el.getAttribute('data-decimals') || '0', 10);
+        if (isNaN(target)) return;
+        var start = null, duration = 1100;
+        function step(ts) {
+            if (start === null) start = ts;
+            var p = Math.min((ts - start) / duration, 1);
+            var eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = (target * eased).toFixed(decimals);
+            if (p < 1) requestAnimationFrame(step);
         }
-    }
+        el.textContent = (0).toFixed(decimals);
+        requestAnimationFrame(step);
+    });
 
-    function toggleAllCriteria() {
-        const cards = document.querySelectorAll('.eas-score-criterion');
-        const anyCollapsed = Array.from(cards).some(c => c.classList.contains('eas-score-criterion--collapsed'));
-        const toggleBtn = document.querySelector('.eas-score-toggle-all');
-        const text = document.getElementById('eas-toggleAllText');
-
-        cards.forEach(card => {
-            const body = card.querySelector('.eas-score-criterion-body');
-            const toggleBtn = card.querySelector('.eas-score-criterion-toggle');
-            const icon = toggleBtn.querySelector('.eas-score-toggle-icon');
-
-            if (anyCollapsed) {
-                card.classList.remove('eas-score-criterion--collapsed');
-                body.hidden = false;
-                toggleBtn.setAttribute('aria-expanded', 'true');
-                icon.innerHTML = '<polyline points="6 15 12 9 18 15"/>';
+    // ---- Copy summary ----
+    var copyBtn = document.getElementById('es-copy');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function () {
+            var label = document.getElementById('es-copy-label');
+            var text = copyBtn.getAttribute('data-copy') || '';
+            var done = function (ok) {
+                label.textContent = ok ? 'Copied' : 'Copy failed';
+                setTimeout(function () { label.textContent = 'Copy summary'; }, 1800);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function () { done(true); }, function () { done(false); });
             } else {
-                card.classList.add('eas-score-criterion--collapsed');
-                body.hidden = true;
-                toggleBtn.setAttribute('aria-expanded', 'false');
-                icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+                done(false);
             }
         });
-
-        if (toggleBtn && text) {
-            text.textContent = anyCollapsed ? 'Collapse all' : 'Expand all';
-        }
     }
-</script>
 
-@endsection
+    // ---- Section nav scroll-spy ----
+    var links = Array.prototype.slice.call(document.querySelectorAll('[data-spy]'));
+    if (links.length && 'IntersectionObserver' in window) {
+        var map = {};
+        links.forEach(function (l) { map[l.getAttribute('data-spy')] = l; });
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    links.forEach(function (l) { l.classList.remove('is-active'); });
+                    var link = map[entry.target.id];
+                    if (link) link.classList.add('is-active');
+                }
+            });
+        }, { rootMargin: '-25% 0px -65% 0px' });
+        Object.keys(map).forEach(function (id) {
+            var section = document.getElementById(id);
+            if (section) observer.observe(section);
+        });
+    }
+
+    // ---- Criteria accordion ----
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.es-crit'));
+    var toggleAll = document.getElementById('es-toggle-all');
+
+    function setCard(card, open) {
+        var btn = card.querySelector('[data-crit-toggle]');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        card.querySelector('.es-crit-body').hidden = !open;
+        card.classList.toggle('is-open', open);
+    }
+    function allOpen() { return cards.length > 0 && cards.every(function (c) { return c.classList.contains('is-open'); }); }
+    function syncToggleAll() { if (toggleAll) toggleAll.textContent = allOpen() ? 'Collapse all' : 'Expand all'; }
+
+    cards.forEach(function (card) {
+        card.querySelector('[data-crit-toggle]').addEventListener('click', function () {
+            setCard(card, !card.classList.contains('is-open'));
+            syncToggleAll();
+        });
+    });
+    if (toggleAll) toggleAll.addEventListener('click', function () {
+        var open = !allOpen();
+        cards.forEach(function (c) { setCard(c, open); });
+        syncToggleAll();
+    });
+    syncToggleAll();
+
+    // ---- Reassessment panel + live projection ----
+    var panel = document.getElementById('es-reassess-panel');
+    var openBtn = document.getElementById('es-reassess-open');
+    var cancelBtn = document.getElementById('es-reassess-cancel');
+    if (panel) {
+        var inputs = Array.prototype.slice.call(panel.querySelectorAll('input[data-weight]'));
+        var projValue = document.getElementById('es-proj-value');
+        var projDelta = document.getElementById('es-proj-delta');
+        var current = parseFloat(document.getElementById('es-proj-current').getAttribute('data-current'));
+
+        function project() {
+            var sum = 0, weight = 0;
+            inputs.forEach(function (input) {
+                var v = parseFloat(input.value);
+                var w = parseFloat(input.getAttribute('data-weight'));
+                if (!isNaN(v) && !isNaN(w)) { sum += v * w; weight += w; }
+            });
+            if (weight === 0) { projValue.textContent = '—'; projDelta.textContent = ''; return; }
+            var result = sum / weight;
+            projValue.textContent = result.toFixed(1);
+            if (!isNaN(current)) {
+                var d = result - current;
+                projDelta.textContent = (d > 0 ? '+' : '') + d.toFixed(1);
+                projDelta.className = 'es-proj-delta ' + (d > 0.04 ? 'is-up' : (d < -0.04 ? 'is-down' : ''));
+            }
+        }
+        inputs.forEach(function (i) { i.addEventListener('input', project); });
+        project();
+
+        function setPanel(open) {
+            panel.hidden = !open;
+            openBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+                if (inputs[0]) inputs[0].focus({ preventScroll: true });
+            }
+        }
+        openBtn.addEventListener('click', function () { setPanel(panel.hidden); });
+        cancelBtn.addEventListener('click', function () {
+            panel.querySelector('form').reset();
+            project();
+            setPanel(false);
+            openBtn.focus();
+        });
+    }
+})();
+</script>
+@endpush
 
 @push('styles')
 <style>
 /* ============================================================
-   EAS Score Sheet - Premium Professional Design
-   Consistent with EAS design system
+   EAS Score Sheet — redesigned
+   Everything is scoped to .es so shared dashboard styles stay untouched.
+   Falls back gracefully when EAS design tokens are missing.
    ============================================================ */
-
-/* ---------- Page Header ---------- */
-.eas-score-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-    flex-wrap: wrap;
-    margin-bottom: 24px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.eas-score-head-content {
-    display: flex;
-    align-items: flex-start;
-    gap: 24px;
-    flex-wrap: wrap;
-}
-
-.eas-score-head-label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.eas-score-eyebrow {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-}
-
-.eas-score-divider {
-    width: 1px;
-    height: 12px;
-    background: var(--border-subtle);
-    flex: 0 0 1px;
-}
-
-.eas-score-period {
-    font-size: 13px;
-    color: var(--muted-text);
-    font-weight: 500;
-}
-
-.eas-score-head-title h1 {
-    margin: 0 0 6px;
-    font-family: var(--font-head);
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--navy);
-    letter-spacing: -0.01em;
-}
-
-.eas-score-head-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.eas-score-head-role {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted-text);
-}
-
-.eas-score-head-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
-.eas-score-head-actions .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.eas-score-head-actions .btn svg {
-    width: 16px;
-    height: 16px;
-    flex: none;
-}
-
-/* ---------- Assessment Information Panel ---------- */
-.eas-score-info {
-    margin-bottom: 24px;
-}
-
-.eas-score-info-panel {
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-}
-
-.eas-score-info-row {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    flex-wrap: wrap;
-}
-
-.eas-score-info-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 16px;
-    min-width: 0;
-    border-right: 1px solid var(--border-subtle);
-}
-
-.eas-score-info-item:last-child {
-    border-right: none;
-}
-
-.eas-score-info-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-}
-
-.eas-score-info-value {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--navy);
-    overflow-wrap: anywhere;
-}
-
-.eas-score-info-item .eas-score-badge {
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.eas-score-badge--automatic {
-    background: #EAF1FC;
-    color: #1D4ED8;
-    border-color: rgba(29,78,216,.18);
-}
-
-.eas-score-badge--manual {
-    background: #E6F7EE;
-    color: #196F3D;
-    border-color: rgba(25,111,61,.18);
-}
-
-.eas-score-badge--verified {
-    background: #E6F7EE;
-    color: #196F3D;
-    border-color: rgba(25,111,61,.18);
-}
-
-.eas-score-badge--provisional {
-    background: #FFF3E0;
-    color: #92400E;
-    border-color: rgba(146,64,14,.18);
-}
-
-/* ---------- Cards ---------- */
-.eas-score-card {
-    margin-bottom: 24px;
-    background: var(--surface);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
-    overflow: hidden;
-}
-
-.eas-score-card-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-raised);
-}
-
-.eas-score-card-head h2 {
-    margin: 0;
-    font-family: var(--font-head);
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-card-head p {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: var(--muted-text);
-}
-
-/* ---------- Overall Score Section ---------- */
-.eas-score-overall {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 24px;
-    flex-wrap: wrap;
-}
-
-.eas-score-circle-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    flex: 0 0 auto;
-}
-
-.eas-score-circle {
-    position: relative;
-    width: 96px;
-    height: 96px;
-    flex: none;
-}
-
-.eas-score-circle-svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-}
-
-.eas-score-circle-track {
-    fill: none;
-    stroke: #E5E7EB;
-}
-
-.eas-score-circle-progress-ring {
-    fill: none;
-    stroke-linecap: butt;
-}
-
-.eas-score-circle-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    line-height: 1.1;
-}
-
-.eas-score-circle-value {
-    display: block;
-    font-size: 32px;
-    font-weight: 800;
-    color: var(--navy);
-    letter-spacing: -0.02em;
-}
-
-.eas-score-circle-label {
-    display: block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-}
-
-.eas-score-level-badge {
-    text-align: center;
-}
-
-.eas-score-level {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-/* Score Details */
-.eas-score-details {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    flex: 1;
-    min-width: 0;
-}
-
-.eas-score-detail {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 0;
-}
-
-.eas-score-detail-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-    min-width: 130px;
-}
-
-.eas-score-detail-value {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-detail-value--main {
-    font-size: 18px;
-}
-
-.eas-score-detail-note {
-    font-size: 10px;
-    color: var(--muted-text);
-    margin-top: 2px;
-    display: block;
-}
-
-.eas-score-detail--adjustment .eas-score-detail-note {
-    font-size: 10px;
-}
-
-.eas-score-adjustment--positive {
-    color: #27AE60;
-}
-
-.eas-score-adjustment--negative {
-    color: #ef4444;
-}
-
-/* ---------- Overall Score Section ---------- */
-.eas-score-why-section--overall {
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    margin-bottom: 20px;
-}
-
-.eas-score-why-overall-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 16px;
-    margin-bottom: 16px;
-}
-
-.eas-score-why-metric {
-    padding: 12px 16px;
-    background: var(--surface-raised);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.eas-score-why-metric-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-    margin: 0;
-}
-
-.eas-score-why-metric-value {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-    margin: 0;
-}
-
-.eas-score-why-summary-text {
-    font-size: 14px;
-    color: var(--text);
-    margin: 0 0 10px 0;
-    line-height: 1.5;
-}
-
-.eas-score-why-method-text {
-    font-size: 13px;
-    color: var(--muted-text);
-    margin: 0;
-    font-style: italic;
-}
-
-/* ---------- Calculation Table ---------- */
-.eas-score-why-section--calculation {
-    padding-bottom: 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    margin-bottom: 20px;
-}
-
-.eas-score-calc-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 16px;
-    font-size: 13px;
-}
-
-.eas-score-calc-table th {
-    text-align: left;
-    padding: 10px 12px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted-text);
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.eas-score-calc-table th.text-end {
-    text-align: right;
-}
-
-.eas-score-calc-table td {
-    padding: 10px 12px;
-    color: var(--text);
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.eas-score-calc-table td.text-end {
-    text-align: right;
-}
-
-.eas-score-calc-row--evaluated {
-    background: #f0fdf4;
-}
-
-.eas-score-calc-row--unevaluated {
-    background: #f8fafc;
-}
-
-.eas-score-calc-row--total {
-    font-weight: 700;
-    background: var(--surface-raised);
-    border-top: 2px solid var(--border-subtle);
-}
-
-.eas-score-calc-row--available {
-    background: #fef3c7;
-}
-
-.eas-score-calc-row--final {
-    font-weight: 800;
-    background: #dbeafe;
-    border-top: 2px solid #2563eb;
-}
-
-.eas-score-calc-criterion {
-    font-weight: 600;
-}
-
-.eas-score-calc-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.eas-score-calc-status--evaluated {
-    background: #dcfce7;
-    color: #166534;
-}
-
-.eas-score-calc-status--unevaluated {
-    background: #f1f5f9;
-    color: #475569;
-}
-
-.eas-score-calc-note {
-    font-size: 13px;
-    color: var(--muted-text);
-    margin: 0 0 10px 0;
-    line-height: 1.5;
-    padding: 12px 16px;
-    background: var(--surface-raised);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-subtle);
-}
-
-.eas-score-calc-detail {
-    font-size: 13px;
-    color: var(--text);
-    margin: 0 0 10px 0;
-    font-style: italic;
-}
-
-/* ---------- Finding Items ---------- */
-.eas-score-why-finding {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.eas-score-why-finding-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    margin-bottom: 4px;
-}
-
-.eas-score-why-finding-detail {
-    font-size: 13px;
-    color: var(--text);
-    margin: 0;
-    line-height: 1.5;
-}
-
-.eas-score-why-finding-why {
-    font-size: 12px;
-    color: var(--muted-text);
-    margin: 0;
-    font-style: italic;
-}
-
-.eas-score-why-finding-date {
-    font-size: 11px;
-    color: var(--muted-text);
-}
-
-.eas-score-why-finding-weight {
-    font-size: 11px;
-    color: var(--muted-text);
-    background: #f1f5f9;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-}
-
-.eas-score-why-finding-note {
-    font-size: 11px;
-    color: var(--muted-text);
-    margin: 0;
-    font-style: italic;
-}
-
-/* ---------- Section Variants ---------- */
-.eas-score-why-section--positive .eas-score-why-list-item--positive {
-    background: #f0fdf4;
-    border-left: 3px solid #10b981;
-    padding-left: 12px;
-}
-
-.eas-score-why-section--negative .eas-score-why-list-item--negative {
-    background: #fef2f2;
-    border-left: 3px solid #ef4444;
-    padding-left: 12px;
-}
-
-.eas-score-why-section--excluded .eas-score-why-list-item--excluded {
-    background: #f8fafc;
-    border-left: 3px solid #94a3b8;
-    padding-left: 12px;
-}
-
-.eas-score-why-section--improvement .eas-score-why-list-item--improvement {
-    background: #fffbeb;
-    border-left: 3px solid #f59e0b;
-    padding-left: 12px;
-}
-
-/* Weights / Calculation Breakdown */
-.eas-score-weights-section {
-    margin-top: 24px;
-    padding: 20px 24px 0;
-    border-top: 1px solid var(--border-subtle);
-}
-
-.eas-score-weights-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-    display: block;
-    margin-bottom: 10px;
-}
-
-.eas-score-weight-chips {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-
-.eas-score-weight-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--navy);
-    font-size: 12px;
-    font-weight: 600;
-    border: 1px solid var(--border-subtle);
-    white-space: nowrap;
-}
-
-.eas-score-weight-chip--muted {
-    opacity: 0.6;
-}
-
-.eas-score-weight-chip-name {
-    font-size: 11.5px;
-}
-
-.eas-score-weight-chip-value {
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.eas-score-weights-note {
-    font-size: 10px;
-    color: var(--muted-text);
-    margin-top: 8px;
-    display: block;
-    font-style: italic;
-}
-
-/* ---------- Why Section ---------- */
-.eas-score-why-body {
-    padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.eas-score-why-section {
-    margin-bottom: 4px;
-}
-
-.eas-score-why-section-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-
-.eas-score-why-section-icon {
-    width: 20px;
-    height: 20px;
-    flex: none;
-}
-
-.eas-score-why-section-icon--positive { color: #10b981; }
-.eas-score-why-section-icon--negative { color: #ef4444; }
-.eas-score-why-section-icon--muted { color: #94a3b8; }
-.eas-score-why-section-icon--warning { color: #f59e0b; }
-
-.eas-score-why-subhead {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--navy);
-}
-
-.eas-score-why-list {
-    margin: 0;
-    padding-left: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.eas-score-why-list li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.5;
-    padding: 6px 0;
-}
-
-.eas-score-why-list-icon {
-    width: 18px;
-    height: 18px;
-    flex: none;
-}
-
-.eas-score-why-list-icon--positive { color: #10b981; }
-.eas-score-why-list-icon--negative { color: #ef4444; }
-.eas-score-why-list-icon--muted { color: #94a3b8; }
-.eas-score-why-list-icon--warning { color: #f59e0b; }
-
-.eas-score-why-reason {
-    font-size: 13px;
-    color: var(--muted-text);
-    font-style: italic;
-}
-
-.eas-score-why-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 48px 32px;
-    color: var(--muted-text);
-    background: var(--surface-raised);
-    border-radius: var(--radius-card);
-}
-
-.eas-score-why-empty-icon {
-    width: 56px;
-    height: 56px;
-    flex: none;
-    margin-bottom: 16px;
-    opacity: 0.4;
-}
-
-.eas-score-why-empty-text {
-    max-width: 400px;
-}
-
-.eas-score-why-empty-text strong {
-    display: block;
-    font-size: 16px;
-    color: var(--navy);
-    margin-bottom: 6px;
-}
-
-.eas-score-why-empty-text p {
-    margin: 0;
-    font-size: 14px;
-    color: var(--muted-text);
-}
-
-/* ---------- Criteria Breakdown ---------- */
-.eas-score-criteria-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0;
-}
-
-.eas-score-criterion {
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-card);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    background: var(--surface);
-}
-
-.eas-score-criterion--collapsed .eas-score-criterion-body {
-    display: none;
-}
-
-.eas-score-criterion-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: var(--surface-raised);
-    cursor: pointer;
-    transition: background 0.2s ease;
-}
-
-.eas-score-criterion-head:hover {
-    background: #F8FAFC;
-}
-
-.eas-score-criterion-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1;
-}
-
-.eas-score-criterion-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: #F1F5F9;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    color: var(--navy);
-}
-
-.eas-score-criterion-icon path,
-.eas-score-criterion-icon line,
-.eas-score-criterion-icon polyline,
-.eas-score-criterion-icon circle {
-    stroke: currentColor;
-    fill: none;
-}
-
-.eas-score-criterion-main {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.eas-score-criterion-name-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.eas-score-criterion-name {
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-criterion-weight {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--muted-text);
-}
-
-.eas-score-criterion-score {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-    flex: none;
-    min-width: 90px;
-    justify-content: flex-end;
-}
-
-.eas-score-points {
-    font-size: 20px;
-    font-weight: 800;
-    color: var(--navy);
-    line-height: 1;
-}
-
-.eas-score-points--unevaluated {
-    color: var(--muted-text);
-}
-
-.eas-score-points-max {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--muted-text);
-}
-
-.eas-score-points-deduction {
-    font-size: 16px;
-    font-weight: 700;
-    color: #ef4444;
-    margin-left: 6px;
-}
-
-.eas-score-criterion-toggle {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--muted-text);
-    cursor: pointer;
-    padding: 0;
-    font-size: 12px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-}
-
-.eas-score-criterion-toggle:hover {
-    border-color: #2563eb;
-    color: #2563eb;
-}
-
-.eas-score-criterion-toggle[aria-expanded="true"] {
-    background: #EAF1FC;
-    color: #2563eb;
-    border-color: #2563eb;
-}
-
-.eas-score-toggle-icon {
-    width: 16px;
-    height: 16px;
-    flex: none;
-}
-
-.eas-score-criterion-progress {
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-    background: #FAFBFC;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-}
-
-.eas-score-progress-track {
-    flex: 1;
-    height: 6px;
-    background: #E5E7EB;
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.eas-score-progress-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.5s ease;
-}
-
-.eas-score-progress-fill--empty {
-    background: #E5E7EB;
-    width: 100%;
-    opacity: 0.4;
-}
-
-.eas-score-progress-label {
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--navy);
-    white-space: nowrap;
-    min-width: 70px;
-    text-align: right;
-}
-
-.eas-score-criterion-status {
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.eas-score-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 700;
-    white-space: nowrap;
-}
-
-.eas-score-status--evaluated {
-    background: #E6F7EE;
-    color: #196F3D;
-}
-
-.eas-score-status--unevaluated {
-    background: #F1F5F9;
-    color: #6B7280;
-}
-
-.eas-score-criterion-body {
-    padding: 20px;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-    background: var(--surface);
-}
-
-.eas-score-field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.eas-score-field-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-}
-
-.eas-score-field-value {
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.55;
-}
-
-.eas-score-field-value--muted {
-    color: var(--muted-text);
-    font-style: italic;
-}
-
-.eas-score-field--manual {
-    border-top: 1px solid var(--border-subtle);
-    padding-top: 16px;
-    margin-top: 16px;
-    background: #FEF3C7;
-    border-radius: 8px;
-}
-
-/* ---------- Assessment History ---------- */
-.eas-score-history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 24px;
-}
-
-.eas-score-history-item {
-    padding: 12px 14px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-}
-
-.eas-score-history-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-.eas-score-history-action {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-history-action--manual {
-    color: #196F3D;
-}
-
-.eas-score-history-action--auto {
-    color: #1D4ED8;
-}
-
-.eas-score-history-date {
-    font-size: 11px;
-    color: var(--muted-text);
-}
-
-.eas-score-history-body p {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.55;
-    color: var(--muted-text);
-}
-
-.eas-score-history-reviewer {
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-history-score {
-    font-weight: 700;
-}
-
-.eas-score-history-score--prev {
-    color: #6B7280;
-}
-
-.eas-score-history-score--next {
-    color: var(--navy);
-}
-
-.eas-score-history-reason {
-    display: block;
-    margin-top: 4px;
-    font-size: 11px;
-    font-style: italic;
-    color: var(--muted-text);
-}
+.es {
+    --es-navy: var(--navy, #12305c);
+    --es-text: var(--text, #1f2937);
+    --es-muted: var(--muted-text, #64748b);
+    --es-border: var(--border-subtle, #e5e7eb);
+    --es-surface: var(--surface, #ffffff);
+    --es-raised: var(--surface-raised, #f8fafc);
+    --es-radius: var(--radius-card, 16px);
+    --es-shadow: 0 8px 28px rgba(15, 47, 91, .07);
+    --es-blue: #2563eb;
+    display: flex; flex-direction: column; gap: 28px; color: var(--es-text);
+}
+.es [hidden] { display: none !important; }
+.es *, .es *::before, .es *::after { box-sizing: border-box; }
+.es h1, .es h2, .es h3, .es p, .es ul, .es ol, .es dl, .es dd { margin: 0; padding: 0; }
+.es ul, .es ol { list-style: none; }
+.es svg { flex: none; }
+
+/* ---------- Buttons ---------- */
+.es-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px; border: 1px solid transparent; font: inherit; font-size: 13px; font-weight: 700; line-height: 1.2; text-decoration: none; cursor: pointer; transition: background .15s ease, border-color .15s ease, transform .15s ease; }
+.es-btn svg { width: 15px; height: 15px; }
+.es-btn:hover { transform: translateY(-1px); }
+.es-btn:focus-visible, .es-nav-link:focus-visible, .es-crit-head:focus-visible, .es-task-title:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.es-btn--ghost { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.22); }
+.es-btn--ghost:hover { background: rgba(255,255,255,.18); }
+.es-btn--solid { background: #fff; color: var(--es-navy); }
+.es-btn--solid:hover { background: #eef4fd; }
+.es-btn--outline { background: var(--es-surface); color: var(--es-navy); border-color: var(--es-border); }
+.es-btn--outline:hover { border-color: var(--es-blue); color: var(--es-blue); }
+.es-btn--primary { background: var(--es-blue); color: #fff; }
+.es-btn--primary:hover { background: #1d4ed8; }
+
+/* ---------- Hero ---------- */
+.es-hero { position: relative; overflow: hidden; border-radius: 22px; padding: 22px 28px 26px; color: #fff; background: linear-gradient(135deg, #0b1f3f 0%, #12305c 55%, #1d4ed8 130%); box-shadow: 0 18px 44px rgba(15, 47, 91, .28); }
+.es-hero-bg { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(520px 260px at 92% -10%, rgba(96,165,250,.35), transparent 70%), radial-gradient(380px 220px at 0% 110%, rgba(52,211,153,.16), transparent 70%); }
+.es-hero > * { position: relative; }
+.es-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.es-eyebrow { font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #bfdbfe; }
+.es-hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.es-hero-main { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; margin-top: 18px; }
+.es-hero-person { display: flex; align-items: center; gap: 18px; min-width: 0; }
+.es-avatar { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25); font-size: 26px; font-weight: 800; flex: none; }
+.es .es-hero h1 { font-family: var(--font-head, inherit); font-size: 30px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; color: #fff; text-shadow: 0 1px 12px rgba(0, 0, 0, .25); }
+.es .es-hero .es-hero-meta, .es .es-hero .es-kpi dd { color: #fff; }
+.es .es-hero .es-hero-meta { color: #cbd5e1; }
+.es .es-hero .es-kpi dt, .es .es-hero .es-eyebrow, .es .es-hero .es-gauge-label { color: #bfdbfe; }
+.es-hero-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; font-size: 14px; color: #cbd5e1; font-weight: 500; flex-wrap: wrap; }
+.es-dot { width: 4px; height: 4px; border-radius: 50%; background: #94a3b8; }
+.es-hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.es-pill { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.1); white-space: nowrap; }
+.es-pill--verified { background: rgba(52,211,153,.18); border-color: rgba(52,211,153,.45); color: #a7f3d0; }
+.es-pill--provisional { background: rgba(251,191,36,.16); border-color: rgba(251,191,36,.45); color: #fde68a; }
+.es-pill--manual { background: rgba(96,165,250,.18); border-color: rgba(96,165,250,.45); color: #bfdbfe; }
+.es-pill--level { background: color-mix(in srgb, var(--lv) 20%, transparent); border-color: color-mix(in srgb, var(--lv) 60%, transparent); color: var(--lv); }
+
+.es-gauge { position: relative; width: 168px; height: 168px; }
+.es-gauge svg { width: 100%; height: 100%; display: block; }
+.es-gauge-track { fill: none; stroke: rgba(255,255,255,.16); stroke-width: 3; }
+.es-gauge-ring { fill: none; stroke-width: 3; stroke-linecap: round; animation: es-gauge 1.2s cubic-bezier(.22,.8,.3,1) both; filter: drop-shadow(0 0 3px rgba(255,255,255,.25)); }
+@keyframes es-gauge { from { stroke-dashoffset: 100; } }
+.es-gauge-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; }
+.es-gauge-value { font-size: 44px; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.es-gauge-label { margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #bfdbfe; }
+
+.es-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+.es-kpi { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); min-width: 0; }
+.es-kpi dt { font-size: 10.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #bfdbfe; }
+.es-kpi dd { margin-top: 4px; font-size: 22px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.es-kpi dd small { font-size: 12px; font-weight: 600; color: #cbd5e1; }
+.es-kpi-text { font-size: 14px !important; font-weight: 700 !important; line-height: 1.35; }
+.es-kpi-delta { display: block; margin-top: 2px; }
+.es-kpi-delta--up { color: #6ee7b7 !important; }
+.es-kpi-delta--down { color: #fca5a5 !important; }
+
+/* ---------- Sticky section nav ---------- */
+.es-nav { position: sticky; top: 8px; z-index: 20; display: flex; gap: 4px; padding: 5px; overflow-x: auto; scrollbar-width: none; background: color-mix(in srgb, var(--es-surface) 88%, transparent); backdrop-filter: blur(10px); border: 1px solid var(--es-border); border-radius: 14px; box-shadow: 0 6px 20px rgba(15, 47, 91, .08); margin-top: -8px; }
+.es-nav::-webkit-scrollbar { display: none; }
+.es-nav-link { padding: 7px 14px; border-radius: 10px; color: var(--es-muted); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: background .15s ease, color .15s ease; }
+.es-nav-link:hover { color: var(--es-navy); background: #eef2f7; }
+.es-nav-link.is-active { background: var(--es-navy); color: #fff; }
+
+/* ---------- Sections ---------- */
+.es-section { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 76px; }
+.es-section-head h2 { font-family: var(--font-head, inherit); font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--es-navy); }
+.es-section-head p { margin-top: 4px; font-size: 13.5px; color: var(--es-muted); max-width: 70ch; }
+.es-section-head--row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+.es-card { background: var(--es-surface); border: 1px solid var(--es-border); border-radius: var(--es-radius); box-shadow: var(--es-shadow); padding: 20px; }
+.es-card--flush { padding: 0; overflow: hidden; }
+.es-card-title { font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--es-navy); margin-bottom: 14px; }
+.es-card-foot { margin-top: 10px; font-size: 12px; color: var(--es-muted); text-align: center; }
+.es-tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.es-tag--ok { background: #dcfce7; color: #166534; }
+.es-tag--muted { background: #f1f5f9; color: #64748b; }
+
+/* ---------- Overview ---------- */
+.es-overview-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; }
+.es-radar { width: 100%; height: auto; max-height: 330px; display: block; }
+.es-radar-ring { fill: none; stroke: #e2e8f0; stroke-width: 1; }
+.es-radar-ring--outer { stroke: #cbd5e1; }
+.es-radar-axis { stroke: #e2e8f0; stroke-width: 1; }
+.es-radar-shape { fill: rgba(37, 99, 235, .18); stroke: #2563eb; stroke-width: 2.2; stroke-linejoin: round; animation: es-fade .9s ease both; transform-origin: 200px 160px; }
+@keyframes es-fade { from { opacity: 0; transform: scale(.6); } }
+.es-radar-dot { stroke: #fff; stroke-width: 2; }
+.es-radar-label { font-size: 12px; font-weight: 700; fill: var(--es-navy); }
+
+.es-stack { display: flex; height: 18px; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
+.es-stack-seg { height: 100%; border-right: 2px solid var(--es-surface); transition: width .8s ease; }
+.es-stack-seg:last-child { border-right: 0; }
+.es-stack-scale { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; font-weight: 700; color: var(--es-muted); }
+.es-stack-scale span:nth-child(2) { color: var(--es-navy); }
+.es-build-list { display: flex; flex-direction: column; margin-top: 12px; }
+.es-build-row { display: grid; grid-template-columns: 12px minmax(0, 1.5fr) minmax(0, 1.2fr) 48px 74px; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--es-border); }
+.es-build-row.is-empty { opacity: .6; }
+.es-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.es-build-name { font-size: 13.5px; font-weight: 700; color: var(--es-navy); line-height: 1.25; }
+.es-build-name small { display: block; font-size: 11px; font-weight: 600; color: var(--es-muted); }
+.es-build-bar { height: 7px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.es-build-bar span { display: block; height: 100%; border-radius: 999px; transition: width .8s ease; }
+.es-build-score { text-align: right; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.es-build-pts { text-align: right; font-size: 12px; font-weight: 700; color: var(--es-blue); font-variant-numeric: tabular-nums; }
+.es-build-row.is-empty .es-build-pts { color: var(--es-muted); }
+
+.es-insights { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.es-insight { display: flex; gap: 14px; padding: 16px 18px; border-radius: var(--es-radius); border: 1px solid var(--es-border); background: var(--es-surface); box-shadow: var(--es-shadow); }
+.es-insight-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 12px; flex: none; }
+.es-insight-icon svg { width: 20px; height: 20px; }
+.es-insight-label { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--es-muted); }
+.es-insight strong { display: block; margin-top: 2px; font-size: 15px; color: var(--es-navy); }
+.es-insight p { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--es-text); }
+.es-insight--good { background: linear-gradient(180deg, #f0fdf4, #fff); border-color: #bbf7d0; }
+.es-insight--good .es-insight-icon { background: #dcfce7; color: #15803d; }
+.es-insight--warn { background: linear-gradient(180deg, #fffbeb, #fff); border-color: #fde68a; }
+.es-insight--warn .es-insight-icon { background: #fef3c7; color: #b45309; }
+.es-insight--info { background: linear-gradient(180deg, #eff6ff, #fff); border-color: #bfdbfe; }
+.es-insight--info .es-insight-icon { background: #dbeafe; color: #1d4ed8; }
+.es-method { font-size: 12.5px; color: var(--es-muted); font-style: italic; }
+
+.es-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 44px 28px; text-align: center; background: var(--es-raised); border: 1px dashed var(--es-border); border-radius: var(--es-radius); color: var(--es-muted); }
+.es-empty svg { width: 52px; height: 52px; opacity: .4; }
+.es-empty strong { font-size: 16px; color: var(--es-navy); }
+.es-empty p { max-width: 420px; font-size: 14px; }
+.es-empty--compact { padding: 24px; }
+
+/* ---------- Calculation table ---------- */
+.es-table-wrap { overflow-x: auto; }
+.es-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13.5px; }
+.es-table thead th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--es-muted); background: var(--es-raised); border-bottom: 1px solid var(--es-border); white-space: nowrap; }
+.es-table th.num, .es-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.es-table tbody th, .es-table tfoot th { text-align: left; font-weight: 700; color: var(--es-navy); }
+.es-table td, .es-table tbody th, .es-table tfoot th { padding: 13px 16px; border-bottom: 1px solid var(--es-border); }
+.es-table tr.is-evaluated { background: #f7fef9; }
+.es-table tr.is-excluded { background: var(--es-raised); color: var(--es-muted); }
+.es-tr-total th, .es-tr-total td { background: #eef4fd; font-weight: 800; border-top: 2px solid var(--es-border); }
+.es-tr-available th, .es-tr-available td { background: #fef9e7; font-weight: 700; }
+.es-tr-final th, .es-tr-final td { background: #dbeafe; font-weight: 800; border-top: 2px solid var(--es-blue); border-bottom: 0; }
+.es-callout { margin: 16px; padding: 14px 16px; border-radius: 12px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 13px; line-height: 1.6; }
+.es-callout-extra { display: block; margin-top: 6px; font-style: italic; color: #1e40af; }
+
+/* ---------- Findings ---------- */
+.es-findings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.es-finding-card { border-radius: var(--es-radius); border: 1px solid var(--es-border); background: var(--es-surface); box-shadow: var(--es-shadow); overflow: hidden; border-top: 4px solid var(--fc); }
+.es-finding-card--good { --fc: #10b981; --fb: #ecfdf5; --fi: #047857; }
+.es-finding-card--bad { --fc: #ef4444; --fb: #fef2f2; --fi: #b91c1c; }
+.es-finding-card--muted { --fc: #94a3b8; --fb: #f1f5f9; --fi: #475569; }
+.es-finding-card--next { --fc: #f59e0b; --fb: #fffbeb; --fi: #b45309; }
+.es-finding-card h3 { display: flex; align-items: center; gap: 10px; padding: 14px 18px; font-size: 14.5px; font-weight: 800; color: var(--es-navy); }
+.es-finding-icon { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; background: var(--fb); color: var(--fi); }
+.es-finding-icon svg { width: 15px; height: 15px; }
+.es-finding-card ul { display: flex; flex-direction: column; gap: 8px; padding: 0 18px 18px; }
+.es-finding-card li { padding: 11px 13px; border-radius: 10px; background: var(--fb); }
+.es-finding-card li strong { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13.5px; color: var(--es-navy); }
+.es-finding-card li p { margin-top: 3px; font-size: 13px; line-height: 1.5; }
+.es-finding-card li small { display: block; margin-top: 4px; font-size: 12px; font-style: italic; color: var(--es-muted); }
+
+/* ---------- Criteria ---------- */
+.es-criteria { display: flex; flex-direction: column; gap: 10px; }
+.es-crit { background: var(--es-surface); border: 1px solid var(--es-border); border-left: 4px solid var(--c); border-radius: var(--es-radius); box-shadow: var(--es-shadow); overflow: hidden; }
+.es-crit-head { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 18px; border: 0; background: transparent; font: inherit; text-align: left; cursor: pointer; transition: background .15s ease; }
+.es-crit-head:hover { background: var(--es-raised); }
+.es-crit-icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 12px; background: color-mix(in srgb, var(--c) 12%, #fff); color: var(--c); flex: none; }
+.es-crit-icon svg { width: 22px; height: 22px; }
+.es-crit-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.es-crit-name { font-size: 15px; font-weight: 800; color: var(--es-navy); }
+.es-crit-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; font-weight: 600; color: var(--es-muted); }
+.es-crit-score { display: inline-flex; align-items: baseline; gap: 4px; flex: none; }
+.es-crit-score strong { font-size: 24px; font-weight: 800; color: var(--es-navy); font-variant-numeric: tabular-nums; }
+.es-crit-score small { font-size: 12px; font-weight: 600; color: var(--es-muted); }
+.es-chevron { width: 18px; height: 18px; color: var(--es-muted); transition: transform .2s ease; }
+.es-crit.is-open .es-chevron { transform: rotate(180deg); color: var(--c); }
+.es-crit-track { height: 5px; background: #eef2f7; }
+.es-crit-track span { display: block; height: 100%; transition: width .8s ease; }
+.es-crit-body { display: grid; gap: 16px; padding: 18px 20px 20px; border-top: 1px solid var(--es-border); }
+.es-field { display: flex; flex-direction: column; gap: 5px; }
+.es-field-label { font-size: 10.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--es-muted); }
+.es-field p { font-size: 14px; line-height: 1.6; }
+.es-field p.is-muted { color: var(--es-muted); font-style: italic; }
+.es-field--manual { padding: 12px 14px; border-radius: 10px; background: #fef3c7; }
+
+/* ---------- Tasks ---------- */
+.es-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.es-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--es-border); background: var(--es-surface); font-size: 12px; font-weight: 600; color: var(--es-muted); }
+.es-chip strong { color: var(--es-navy); font-variant-numeric: tabular-nums; }
+.es-tasks { display: flex; flex-direction: column; }
+.es-task { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 20px; border-bottom: 1px solid var(--es-border); }
+.es-task:last-child { border-bottom: 0; }
+.es-task:hover { background: var(--es-raised); }
+.es-task-main { min-width: 0; flex: 1; }
+.es-task-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.es-task-title { font-size: 14.5px; font-weight: 700; color: var(--es-navy); text-decoration: none; overflow-wrap: anywhere; }
+a.es-task-title:hover { color: var(--es-blue); text-decoration: underline; }
+.es-task-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 5px; font-size: 12px; color: var(--es-muted); }
+.es-task-note { margin-top: 6px; font-size: 12px; font-style: italic; color: #92400e; }
+.es-task-score { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-end; gap: 4px; width: 96px; flex: none; }
+.es-task-score strong { font-size: 22px; font-weight: 800; color: var(--es-navy); font-variant-numeric: tabular-nums; }
+.es-task-score small { font-size: 12px; color: var(--es-muted); font-weight: 600; }
+.es-task-bar { flex-basis: 100%; height: 5px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.es-task-bar span { display: block; height: 100%; background: var(--t); border-radius: 999px; }
+
+/* ---------- Timeline ---------- */
+.es-timeline { position: relative; display: flex; flex-direction: column; gap: 14px; padding-left: 28px; }
+.es-timeline::before { content: ""; position: absolute; left: 8px; top: 8px; bottom: 8px; width: 2px; background: var(--es-border); }
+.es-tl-item { position: relative; }
+.es-tl-dot { position: absolute; left: -28px; top: 14px; width: 18px; height: 18px; border-radius: 50%; background: var(--es-surface); border: 4px solid #3b82f6; }
+.es-tl-item--manual .es-tl-dot { border-color: #10b981; }
+.es-tl-card { padding: 14px 16px; background: var(--es-surface); border: 1px solid var(--es-border); border-radius: 14px; box-shadow: var(--es-shadow); }
+.es-tl-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.es-tl-head strong { font-size: 14px; color: var(--es-navy); }
+.es-tl-head time { font-size: 12px; color: var(--es-muted); }
+.es-tl-card p { margin-top: 6px; font-size: 13.5px; line-height: 1.6; color: var(--es-muted); }
+.es-tl-who { font-weight: 800; color: var(--es-navy); }
+.es-tl-score { font-weight: 800; font-variant-numeric: tabular-nums; color: #64748b; }
+.es-tl-score--next { color: var(--es-navy); }
+.es-tl-delta { margin-left: 4px; font-weight: 800; font-size: 12.5px; }
+.es-tl-delta--up { color: #15803d; }
+.es-tl-delta--down { color: #b91c1c; }
+.es-tl-card .es-tl-reason { font-size: 12.5px; font-style: italic; }
 
 /* ---------- Reassessment ---------- */
-.eas-score-reassess {
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border-subtle);
-}
-
-.eas-score-reassess-panel {
-    margin-top: 12px;
-    padding: 20px;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    background: var(--surface-raised);
-}
-
-.eas-score-reassess-panel h3 {
-    margin: 0 0 8px;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--navy);
-}
-
-.eas-score-reassess-panel p {
-    margin: 0 0 16px;
-    font-size: 14px;
-    color: var(--muted-text);
-}
-
-.eas-score-reassess-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
-}
-
-.eas-score-reassess-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-}
-
-.eas-score-reassess-field--wide {
-    grid-column: 1 / -1;
-}
-
-.eas-score-reassess-field label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-}
-
-.eas-score-reassess-field input,
-.eas-score-reassess-field select,
-.eas-score-reassess-field textarea {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid var(--border-subtle);
-    border-radius: 9px;
-    background: var(--surface);
-    color: var(--text);
-    font: inherit;
-    font-size: 14px;
-}
-
-.eas-score-reassess-field textarea {
-    resize: vertical;
-    line-height: 1.5;
-}
-
-.eas-score-reassess-actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 16px;
-}
+.es-reassess { display: block; }
+.es-alert { margin-bottom: 16px; padding: 12px 14px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 13px; }
+.es-alert ul { margin-top: 6px; padding-left: 18px; list-style: disc; }
+.es-projection { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; padding: 14px 18px; border-radius: 14px; background: linear-gradient(135deg, #eff6ff, #f8fafc); border: 1px solid #bfdbfe; }
+.es-projection > div { display: flex; flex-direction: column; gap: 2px; }
+.es-projection strong { font-size: 28px; font-weight: 800; color: var(--es-navy); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.es-projection svg { width: 22px; height: 22px; color: var(--es-muted); }
+.es-proj-delta { font-size: 13px; font-weight: 800; color: var(--es-muted); }
+.es-proj-delta.is-up { color: #15803d; }
+.es-proj-delta.is-down { color: #b91c1c; }
+.es-reassess-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.es-input-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 14px; border-radius: 12px; background: var(--es-raised); border: 1px solid var(--es-border); border-left: 4px solid var(--c, var(--es-border)); }
+.es-input-group--wide { border-left-color: var(--es-border); }
+.es-input-group label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--es-navy); }
+.es-input-group label small { margin-left: auto; font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--es-muted); }
+.es-input-group input, .es-input-group textarea { width: 100%; padding: 9px 12px; border: 1px solid var(--es-border); border-radius: 10px; background: var(--es-surface); color: var(--es-text); font: inherit; font-size: 14px; }
+.es-input-group input[type="number"] { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.es-input-group input:focus-visible, .es-input-group textarea:focus-visible { outline: 2px solid var(--es-blue); outline-offset: 1px; }
+.es-input-group textarea { resize: vertical; line-height: 1.5; }
+.es-form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 900px) {
-    .eas-score-info-row {
-        flex-wrap: wrap;
-    }
-
-    .eas-score-info-item {
-        min-width: 50%;
-    }
-
-    .eas-score-overall {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 20px;
-    }
-
-    .eas-score-details {
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .eas-score-detail {
-        flex: none;
-        min-width: 0;
-    }
+@media (max-width: 1100px) {
+    .es-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .es-overview-grid, .es-findings-grid { grid-template-columns: minmax(0, 1fr); }
+    .es-insights { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+    .es-hero { padding: 18px 16px 20px; border-radius: 18px; }
+    .es-hero h1 { font-size: 24px; }
+    .es-hero-main { justify-content: center; }
+    .es-hero-person { width: 100%; }
+    .es-gauge { width: 140px; height: 140px; margin: 0 auto; }
+    .es-gauge-value { font-size: 36px; }
+    .es-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .es-build-row { grid-template-columns: 12px minmax(0, 1fr) 44px 70px; }
+    .es-build-bar { display: none; }
+    .es-crit-head { flex-wrap: wrap; padding: 12px 14px; }
+    .es-task { flex-direction: column; align-items: flex-start; }
+    .es-task-score { width: 100%; justify-content: flex-start; }
+    .es-reassess-grid { grid-template-columns: minmax(0, 1fr); }
+    .es-section-head--row { align-items: flex-start; }
 }
 
-@media (max-width: 640px) {
-    .eas-score-head {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-    }
-
-    .eas-score-head-content {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-    }
-
-    .eas-score-head h1 {
-        font-size: 22px;
-    }
-
-    .eas-score-head-actions {
-        width: 100%;
-        justify-content: flex-end;
-    }
-
-    .eas-score-circle {
-        width: 80px;
-        height: 80px;
-    }
-
-    .eas-score-overall {
-        flex-direction: column;
-        align-items: center;
-        gap: 16px;
-    }
-
-    .eas-score-details {
-        flex-direction: column;
-        gap: 8px;
-        align-items: center;
-        text-align: center;
-    }
-
-    .eas-score-detail-label {
-        min-width: auto;
-    }
-
-    .eas-score-criterion-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-
-    .eas-score-criterion-score {
-        justify-content: flex-start;
-        min-width: auto;
-        width: 100%;
-    }
-
-    .eas-score-criterion-toggle {
-        align-self: flex-start;
-    }
-
-    .eas-score-criterion-progress {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 6px;
-    }
-
-    .eas-score-progress-track {
-        width: 100%;
-    }
-
-    .eas-score-progress-label {
-        min-width: auto;
-    }
+@media (prefers-reduced-motion: reduce) {
+    .es *, .es *::before, .es *::after { animation: none !important; transition: none !important; }
 }
 
-/* ---------- Score Composition ---------- */
-.eas-score-composition-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 12px;
-}
-.eas-score-comp-card {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 14px 16px;
-    border-radius: 12px;
-    border: 1px solid var(--border-subtle);
-    background: var(--surface);
-}
-.eas-score-comp-card--evaluated {
-    background: #f0fdf4;
-    border-color: rgba(16, 185, 129, 0.2);
-}
-.eas-score-comp-card--unevaluated {
-    background: #f8fafc;
-    border-color: var(--border-subtle);
-}
-.eas-score-comp-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-}
-.eas-score-comp-name {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
-    min-width: 0;
-}
-.eas-score-comp-weight {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--muted-text);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-.eas-score-comp-bar {
-    height: 8px;
-    border-radius: 999px;
-    background: #e2e8f0;
-    overflow: hidden;
-    position: relative;
-}
-.eas-score-comp-track {
-    height: 100%;
-    width: 100%;
-}
-.eas-score-comp-fill {
-    height: 100%;
-    border-radius: 999px;
-    transition: width 0.5s ease;
-}
-.eas-score-comp-fill--empty {
-    background: #cbd5e1;
-    animation: eas-score-comp-pulse 2s infinite;
-}
-@keyframes eas-score-comp-pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
-}
-.eas-score-comp-values {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-}
-.eas-score-comp-score {
-    font-size: 14px;
-    font-weight: 800;
-    color: var(--text);
-}
-.eas-score-comp-contribution {
-    font-size: 12px;
-    font-weight: 700;
-    color: #2563eb;
-}
-.eas-score-comp-card--unevaluated .eas-score-comp-contribution {
-    color: var(--muted-text);
-}
-.eas-score-comp-status {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    padding: 2px 8px;
-    border-radius: 999px;
-    width: fit-content;
-}
-.eas-score-comp-status--evaluated {
-    background: #dcfce7;
-    color: #166534;
-}
-.eas-score-comp-status--unevaluated {
-    background: #f1f5f9;
-    color: #64748b;
-}
-.eas-score-comp-note {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--muted-text);
-    text-align: center;
-}
-
-@media (max-width: 640px) {
-    .eas-score-composition-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+@media print {
+    .es { gap: 16px; }
+    .es-nav, .es-hero-actions, #es-toggle-all, #es-reassess, .es-btn { display: none !important; }
+    .es-hero { background: #12305c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; }
+    .es-crit-body[hidden] { display: grid !important; }
+    .es-card, .es-insight, .es-crit, .es-finding-card, .es-tl-card { box-shadow: none; break-inside: avoid; }
+    .es-gauge-ring, .es-radar-shape { animation: none; }
 }
 </style>
 @endpush

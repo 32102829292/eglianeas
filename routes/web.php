@@ -19,6 +19,7 @@ use App\Http\Controllers\Admin\KaizenConcernController;
 use App\Http\Controllers\Admin\DailyGoalController;
 use App\Http\Controllers\Admin\WorkPlanController;
 use App\Http\Controllers\Admin\WorkPlanLegendController;
+use App\Http\Controllers\WorkPlanAccomplishmentController;
 use App\Http\Controllers\Admin\MonthlyBookkeepingController as AdminMonthlyBookkeepingController;
 use App\Http\Controllers\Admin\OtherServiceController as AdminOtherServiceController;
 use App\Http\Controllers\Admin\PriorityItemController;
@@ -322,8 +323,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::delete('/weekly-bookkeeping/{bookkeeping}/target/{target}', [AdminWeeklyBookkeepingController::class, 'destroyTarget'])->name('weekly-bookkeeping.destroy-target');
     Route::delete('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'destroy'])->name('weekly-bookkeeping.destroy');
 
-    // Weekly Tracker — the single weekly feature (the Google-Sheets-style board
-    // grouped Mon–Sun). It renders the existing weekly_bookkeeping and
+    // Weekly Tracker â€” the single weekly feature (the Google-Sheets-style board
+    // grouped Monâ€“Sun). It renders the existing weekly_bookkeeping and
     // weekly_bookkeeping_targets records, so it reuses that data instead of a
     // duplicate table. The old weekly-bookkeeping pages above stay fully
     // routable and functional; only their sidebar link was removed so the
@@ -519,6 +520,13 @@ Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
 
     // Work Plan legend reference board (view-only for all operational roles)
     Route::get('/work-plan/reference-board', [WorkPlanLegendController::class, 'referenceBoard'])->name('work-plan.reference-board');
+
+    // Daily accomplishment (planned vs actual) - employees record own, admin/supervisor authorized per controller
+    Route::get('/work-plan/accomplishment', [WorkPlanAccomplishmentController::class, 'index'])->name('work-plan.accomplishment');
+    Route::put('/work-plan/accomplishment/{task}', [WorkPlanAccomplishmentController::class, 'update'])->name('work-plan.accomplishment.update');
+    Route::post('/work-plan/accomplishment/{task}/problems', [WorkPlanAccomplishmentController::class, 'storeProblem'])->name('work-plan.accomplishment.problems.store');
+    Route::patch('/work-plan/accomplishment/{task}/problems/{problem}', [WorkPlanAccomplishmentController::class, 'resolveProblem'])->name('work-plan.accomplishment.problems.resolve');
+    Route::post('/work-plan/additional', [WorkPlanAccomplishmentController::class, 'storeAdditional'])->name('work-plan.additional.store');
 });
 
 // Assessment corrections and manual reassessment are admin-only for modifications.
@@ -558,6 +566,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/daily-work-plan', [WorkPlanController::class, 'index'])->name('daily-work-plan.index');
     Route::post('/daily-work-plan', [WorkPlanController::class, 'store'])->name('daily-work-plan.store');
     Route::post('/daily-work-plan/sync-day', [WorkPlanController::class, 'syncDay'])->name('daily-work-plan.sync-day');
+    Route::post('/daily-work-plan/save', [WorkPlanController::class, 'save'])->name('daily-work-plan.save');
+    Route::post('/daily-work-plan/submit-week', [WorkPlanController::class, 'submitWeek'])->name('daily-work-plan.submit-week');
     Route::post('/daily-work-plan/toggle-lock', [WorkPlanController::class, 'toggleLock'])->name('daily-work-plan.toggle-lock');
     Route::get('/daily-work-plan/tasks-for-date', [WorkPlanController::class, 'tasksForDate'])->name('daily-work-plan.tasks-for-date');
     Route::get('/daily-work-plan/tasks-with-targets', [WorkPlanController::class, 'tasksWithTargets'])->name('daily-work-plan.tasks-with-targets');
@@ -567,6 +577,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/daily-work-plan/incomplete', [WorkPlanController::class, 'incompleteTasksPage'])->name('daily-work-plan.incomplete');
     Route::get('/daily-work-plan/performance', [WorkPlanController::class, 'performancePage'])->name('daily-work-plan.performance');
     Route::post('/daily-work-plan/problem-evaluation', [WorkPlanController::class, 'evaluateProblemSolving'])->name('daily-work-plan.problem-evaluation');
+    Route::post('/daily-work-plan/tasks/{task}/rate-additional', [WorkPlanController::class, 'rateAdditional'])->name('daily-work-plan.rate-additional');
     Route::get('/daily-work-plan/{task}', [WorkPlanController::class, 'edit'])->name('daily-work-plan.edit');
     Route::put('/daily-work-plan/{task}', [WorkPlanController::class, 'update'])->name('daily-work-plan.update');
     Route::delete('/daily-work-plan/{task}', [WorkPlanController::class, 'destroy'])->name('daily-work-plan.destroy');
@@ -578,7 +589,7 @@ Route::middleware(['auth', 'role:supervisor', 'admin.confidentiality'])->prefix(
 });
 
 // Impersonation exit must stay reachable while the admin is logged in as a
-// client (role:client) — otherwise the "Exit" button would 403 and lock the
+// client (role:client) â€” otherwise the "Exit" button would 403 and lock the
 // admin in the impersonation session. The controller itself validates the
 // original admin session before switching back.
 Route::middleware('auth')->post('/admin/impersonate/stop', [ImpersonateController::class, 'stop'])->name('admin.impersonate.stop');
