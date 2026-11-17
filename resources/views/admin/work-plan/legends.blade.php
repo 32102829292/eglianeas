@@ -130,13 +130,43 @@
                     <textarea id="new_usage" name="usage_instructions" rows="2" maxlength="1000" placeholder="When should staff use this code?">{{ old('usage_instructions') }}</textarea>
                 </div>
             </div>
+            <div class="wl-clients" data-client-picker hidden>
+                <label for="new_client_pick">Clients for this code</label>
+                <select id="new_client_pick" data-client-select>
+                    <option value="">Add a client&hellip;</option>
+                    @foreach ($clients as $client)
+                        <option value="{{ $client->id }}">{{ $client->name }}</option>
+                    @endforeach
+                </select>
+                <ul class="wl-chips" data-client-chips>
+                    @foreach ((array) old('client_ids', []) as $oldId)
+                        @php $oldClient = $clients->firstWhere('id', (int) $oldId); @endphp
+                        @if ($oldClient)
+                            <li data-id="{{ $oldClient->id }}">
+                                <span>{{ $oldClient->name }}</span>
+                                <button type="button" data-client-remove aria-label="Remove {{ $oldClient->name }}">&times;</button>
+                                <input type="hidden" name="client_ids[]" value="{{ $oldClient->id }}">
+                            </li>
+                        @endif
+                    @endforeach
+                </ul>
+                <p class="wl-clients-empty" data-client-empty>No clients added yet. Staff will see every client until you add some.</p>
+            </div>
             <div class="wl-form-foot">
-                <label class="wl-switch">
-                    <input type="hidden" name="is_active" value="0">
-                    <input type="checkbox" name="is_active" value="1" id="new_legend_active" checked>
-                    <span class="wl-switch-track" aria-hidden="true"></span>
-                    <span>Active</span>
-                </label>
+                <div class="wl-switch-group">
+                    <label class="wl-switch">
+                        <input type="hidden" name="is_active" value="0">
+                        <input type="checkbox" name="is_active" value="1" id="new_legend_active" checked>
+                        <span class="wl-switch-track" aria-hidden="true"></span>
+                        <span>Active</span>
+                    </label>
+                    <label class="wl-switch">
+                        <input type="hidden" name="requires_client" value="0">
+                        <input type="checkbox" name="requires_client" value="1" id="new_requires_client" @checked(old('requires_client'))>
+                        <span class="wl-switch-track" aria-hidden="true"></span>
+                        <span>Requires client name</span>
+                    </label>
+                </div>
                 <button type="submit" class="wl-btn wl-btn-primary">Add code</button>
             </div>
         </form>
@@ -201,6 +231,9 @@
                                 @endif
                             </span>
                             <span class="wl-row-meta">
+                                @if ($legend->requires_client)
+                                    <span class="wl-pill wl-pill--client" title="Shows a client dropdown in the work plan">Client</span>
+                                @endif
                                 <span class="wl-pill {{ $legend->is_active ? 'wl-pill--ok' : 'wl-pill--muted' }}">{{ $legend->is_active ? 'Active' : 'Inactive' }}</span>
                                 <span class="wl-uses" title="Work plan tasks using this code">{{ $uses }} {{ Str::plural('task', $uses) }}</span>
                                 <span class="wl-order" title="Sort order">#{{ $legend->sort_order ?? '–' }}</span>
@@ -236,13 +269,42 @@
                                     <textarea id="usage_{{ $legend->id }}" name="usage_instructions" rows="2" maxlength="1000">{{ $legend->usage_instructions }}</textarea>
                                 </div>
                                 <div class="wl-col-12 wl-switch-row">
-                                    <label class="wl-switch">
-                                        <input type="hidden" name="is_active" value="0">
-                                        <input type="checkbox" name="is_active" value="1" id="active_{{ $legend->id }}" @checked($legend->is_active)>
-                                        <span class="wl-switch-track" aria-hidden="true"></span>
-                                        <span>Active</span>
-                                    </label>
+                                    <div class="wl-switch-group">
+                                        <label class="wl-switch">
+                                            <input type="hidden" name="is_active" value="0">
+                                            <input type="checkbox" name="is_active" value="1" id="active_{{ $legend->id }}" @checked($legend->is_active)>
+                                            <span class="wl-switch-track" aria-hidden="true"></span>
+                                            <span>Active</span>
+                                        </label>
+                                        <label class="wl-switch">
+                                            <input type="hidden" name="requires_client" value="0">
+                                            <input type="checkbox" name="requires_client" value="1" id="client_{{ $legend->id }}" @checked($legend->requires_client)>
+                                            <span class="wl-switch-track" aria-hidden="true"></span>
+                                            <span>Requires client name</span>
+                                        </label>
+                                    </div>
                                 </div>
+                                <div class="wl-col-12">
+                                    <div class="wl-clients" data-client-picker hidden>
+                                                    <label for="client_pick_{{ $legend->id }}">Clients for this code</label>
+                                                    <select id="client_pick_{{ $legend->id }}" data-client-select>
+                                                        <option value="">Add a client&hellip;</option>
+                                                        @foreach ($clients as $client)
+                                                            <option value="{{ $client->id }}">{{ $client->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <ul class="wl-chips" data-client-chips>
+                                                        @foreach ($legend->clients as $linked)
+                                                            <li data-id="{{ $linked->id }}">
+                                                                <span>{{ $linked->name }}</span>
+                                                                <button type="button" data-client-remove aria-label="Remove {{ $linked->name }}">&times;</button>
+                                                                <input type="hidden" name="client_ids[]" value="{{ $linked->id }}">
+                                                            </li>
+                                                        @endforeach
+                                                    </ul>
+                                                    <p class="wl-clients-empty" data-client-empty>No clients added yet. Staff will see every client until you add some.</p>
+                                                </div>
+                                    </div>
                             </form>
 
                             <div class="wl-panel-foot">
@@ -373,6 +435,7 @@
 .wl-switch input:checked ~ .wl-switch-track::after { transform: translateX(18px); }
 .wl-switch input:focus-visible ~ .wl-switch-track { outline: 3px solid #a5b4fc; outline-offset: 2px; }
 .wl-switch-row { padding-top: 2px; }
+.wl-switch-group { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 
 /* Toolbar */
 .wl-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 8px; }
@@ -409,6 +472,7 @@
 .wl-pill { display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: .74rem; font-weight: 700; }
 .wl-pill--ok { background: #e7f6ee; color: #0b7a45; }
 .wl-pill--muted { background: #eef0f6; color: #64748b; }
+.wl-pill--client { background: #e4e6fb; color: var(--wl-brand); }
 .wl-uses, .wl-order { color: var(--wl-muted); font-size: .8rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wl-edit-hint { display: inline-flex; align-items: center; gap: 4px; color: var(--wl-brand); font-size: .82rem; font-weight: 700; }
 .wl-edit-hint svg { width: 16px; height: 16px; transition: transform .2s; }
@@ -416,6 +480,18 @@
 .wl-panel { padding: 16px; border-top: 1px solid var(--wl-line); background: var(--wl-sunken); }
 .wl-panel-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--wl-line); }
 .wl-panel-foot form { margin: 0; }
+
+/* Client list per code */
+.wl-clients { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--wl-line); border-left: 3px solid var(--wl-brand); border-radius: 12px; background: #fff; }
+.wl-clients[hidden] { display: none; }
+.wl-clients label { font-size: .82rem; font-weight: 700; }
+.wl-clients select { width: 100%; padding: 9px 12px; border: 1px solid #cdd3ea; border-radius: 10px; background: #fff; color: var(--wl-ink); font: inherit; font-size: .9rem; box-sizing: border-box; }
+.wl-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.wl-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px; background: #e4e6fb; color: var(--wl-brand); font-size: .82rem; font-weight: 700; }
+.wl-chips button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: #a93226; font-size: 1rem; line-height: 1; cursor: pointer; }
+.wl-chips button:hover { background: #fdecea; }
+.wl-clients-empty { color: var(--wl-muted); font-size: .8rem; }
+.wl-clients-empty[hidden] { display: none; }
 
 /* Empty state */
 .wl-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 36px 20px; text-align: center; border: 1px dashed #c9cff0; border-radius: 16px; background: var(--wl-sunken); }
@@ -514,6 +590,56 @@
             pills.forEach(function (p) { p.classList.toggle('is-active', p === pill); });
             apply();
         });
+    });
+
+    /* Client list for codes that require a client name */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-client-picker]'), function (picker) {
+        var form = picker.closest('form');
+        var toggle = form ? form.querySelector('input[type="checkbox"][name="requires_client"]') : null;
+        var select = picker.querySelector('[data-client-select]');
+        var chips = picker.querySelector('[data-client-chips]');
+        var empty = picker.querySelector('[data-client-empty]');
+
+        function refresh() { if (empty) { empty.hidden = chips.children.length > 0; } }
+        function show() { picker.hidden = ! (toggle && toggle.checked); }
+
+        select.addEventListener('change', function () {
+            var id = select.value;
+            if (! id) { return; }
+            if (! chips.querySelector('li[data-id="' + id + '"]')) {
+                var name = select.options[select.selectedIndex].text;
+                var li = document.createElement('li');
+                li.setAttribute('data-id', id);
+
+                var label = document.createElement('span');
+                label.textContent = name;
+
+                var remove = document.createElement('button');
+                remove.type = 'button';
+                remove.setAttribute('data-client-remove', '');
+                remove.setAttribute('aria-label', 'Remove ' + name);
+                remove.textContent = '\u00d7';
+
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'client_ids[]';
+                hidden.value = id;
+
+                li.appendChild(label); li.appendChild(remove); li.appendChild(hidden);
+                chips.appendChild(li);
+            }
+            select.value = '';
+            refresh();
+        });
+
+        chips.addEventListener('click', function (e) {
+            var remove = e.target.closest('[data-client-remove]');
+            if (remove) { remove.closest('li').remove(); refresh(); }
+        });
+
+        if (toggle) { toggle.addEventListener('change', show); }
+        show();
+        refresh();
     });
 })();
 </script>

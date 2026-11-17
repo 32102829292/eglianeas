@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WorkPlanLegend extends Model
@@ -19,6 +20,7 @@ class WorkPlanLegend extends Model
         'is_active',
         'is_non_working',
         'requires_details',
+        'requires_client',
         'is_custom',
         'sort_order',
         'usage_instructions',
@@ -32,6 +34,7 @@ class WorkPlanLegend extends Model
             'is_active' => 'boolean',
             'is_non_working' => 'boolean',
             'requires_details' => 'boolean',
+            'requires_client' => 'boolean',
             'is_custom' => 'boolean',
             'sort_order' => 'integer',
             'created_at' => 'datetime',
@@ -63,6 +66,16 @@ class WorkPlanLegend extends Model
         return $this->belongsTo(User::class, 'edited_by');
     }
 
+    /**
+     * Clients offered in the dropdown for this code (only used when requires_client is on).
+     */
+    public function clients(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'work_plan_legend_clients', 'work_plan_legend_id', 'client_id')
+            ->withTimestamps()
+            ->orderBy('users.name');
+    }
+
     public function tasks(): HasMany
     {
         return $this->hasMany(WorkPlanTask::class, 'legend_code', 'code');
@@ -86,6 +99,19 @@ class WorkPlanLegend extends Model
     public static function getAllActiveCodes(): array
     {
         return self::active()->orderBy('code')->pluck('code')->all();
+    }
+
+    /**
+     * Codes of active legends that show the client-name dropdown.
+     * Pass this to the work plan form instead of hardcoding Q / R.
+     */
+    public static function getClientRequiredCodes(): array
+    {
+        return self::active()
+            ->where('requires_client', true)
+            ->orderBy('code')
+            ->pluck('code')
+            ->all();
     }
 
     public static function getLegendsByCategory(): array
@@ -113,7 +139,7 @@ class WorkPlanLegend extends Model
             ['code' => 'C', 'name' => 'Secure New Sales Invoice', 'category' => $activity, 'sort_order' => 3],
             ['code' => 'D', 'name' => 'Secure New Cash Voucher / PO', 'category' => $activity, 'sort_order' => 4],
             ['code' => 'E', 'name' => 'Secure New Books (CRJ/CDJ/Ledger/Journal)', 'category' => $activity, 'sort_order' => 5],
-            ['code' => 'F', 'name' => 'BOOKKEEPING', 'category' => $activity, 'sort_order' => 6],
+            ['code' => 'F', 'name' => 'BOOKKEEPING', 'category' => $activity, 'sort_order' => 6, 'requires_client' => true],
             ['code' => 'G', 'name' => 'BIR Closure', 'category' => $activity, 'sort_order' => 7],
             ['code' => 'H', 'name' => 'SSS / Pag-IBIG / PhilHealth Registration', 'category' => $activity, 'sort_order' => 8],
             ['code' => 'I', 'name' => 'Annual / Quarterly Income Tax Return', 'category' => $activity, 'sort_order' => 9],
@@ -124,8 +150,8 @@ class WorkPlanLegend extends Model
             ['code' => 'N', 'name' => 'Tax Clearance / ATP / TIN ID Processing', 'category' => $activity, 'sort_order' => 14],
             ['code' => 'O', 'name' => 'Weekly Bookkeeping Summary / Accomplishment', 'category' => $activity, 'sort_order' => 15],
             ['code' => 'P', 'name' => 'Photocopy Faded Receipts / Log Book Update', 'category' => $activity, 'sort_order' => 16],
-            ['code' => 'Q', 'name' => 'PICKUP OF DOCUMENTS ,BOOKS', 'category' => $activity, 'sort_order' => 17],
-            ['code' => 'R', 'name' => 'RETURN OF DOCUMENTS, BOOKS', 'category' => $activity, 'sort_order' => 18],
+            ['code' => 'Q', 'name' => 'PICKUP OF DOCUMENTS ,BOOKS', 'category' => $activity, 'sort_order' => 17, 'requires_client' => true],
+            ['code' => 'R', 'name' => 'RETURN OF DOCUMENTS, BOOKS', 'category' => $activity, 'sort_order' => 18, 'requires_client' => true],
             ['code' => 'S', 'name' => 'Rest Day / Leave / Holiday', 'category' => $activity, 'sort_order' => 19, 'is_non_working' => true, 'usage_instructions' => "Mark rest days / leave / holidays with 'S'."],
             ['code' => 'T', 'name' => 'Other (specify in remarks)', 'category' => $activity, 'sort_order' => 20, 'requires_details' => true, 'usage_instructions' => 'Use for other tasks and write the details in the remarks.'],
             ['code' => 'T1', 'name' => 'Priority / Rush Client', 'category' => $project, 'sort_order' => 21],
@@ -157,7 +183,9 @@ class WorkPlanLegend extends Model
                 continue;
             }
 
-            if (! $model) {
+            $isNew = ! $model;
+
+            if ($isNew) {
                 if (! $createdBy) {
                     continue;
                 }
@@ -176,6 +204,12 @@ class WorkPlanLegend extends Model
                 'is_custom' => false,
                 'usage_instructions' => $legend['usage_instructions'] ?? null,
             ]);
+
+            // Only set the default on first creation, so re-seeding never
+            // overwrites what an admin switched on or off in the legends page.
+            if ($isNew) {
+                $model->requires_client = $legend['requires_client'] ?? false;
+            }
 
             $model->save();
             $count++;
@@ -202,5 +236,10 @@ class WorkPlanLegend extends Model
     public function requiresDetails(): bool
     {
         return (bool) $this->requires_details;
+    }
+
+    public function requiresClient(): bool
+    {
+        return (bool) $this->requires_client;
     }
 }

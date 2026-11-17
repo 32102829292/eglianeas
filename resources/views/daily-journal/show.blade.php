@@ -84,6 +84,23 @@
         ? \App\Models\WorkPlanLegend::whereIn('code', $activityCodes->all())->get()->keyBy('code')
         : collect();
 
+    // Client names the employee chose for codes that need clients (e.g. F1 => [names]).
+    $clientNamesByCode = [];
+    $clientMap = (array) ($journal->achievement_clients ?? []);
+    if ($clientMap !== []) {
+        $clientNames = \App\Models\User::query()
+            ->withoutGlobalScopes()
+            ->whereIn('id', collect($clientMap)->flatten()->unique()->all())
+            ->pluck('name', 'id');
+
+        foreach ($clientMap as $code => $clientIds) {
+            $clientNamesByCode[$code] = collect($clientIds)
+                ->map(fn ($id) => $clientNames[$id] ?? null)
+                ->filter()
+                ->values();
+        }
+    }
+
     // Admin-only editing of the codes. The button is only offered once the route is registered,
     // so this page keeps working before the route has been added.
     $canEditCodes = auth()->user()->isAdmin()
@@ -214,6 +231,14 @@
                                                     <span class="djr-code-key">{{ $code }}</span>
                                                     @if ($legendsByCode->has($code))
                                                         <span class="djr-code-name">{{ $legendsByCode[$code]->name }}</span>
+                                                    @endif
+
+                                                    @if (! empty($clientNamesByCode[$code]) && $clientNamesByCode[$code]->isNotEmpty())
+                                                        <div class="djr-code-clients" aria-label="Clients for {{ $code }}">
+                                                            @foreach ($clientNamesByCode[$code] as $clientName)
+                                                                <span class="djr-client-chip">{{ $clientName }}</span>
+                                                            @endforeach
+                                                        </div>
                                                     @endif
                                                 </li>
                                             @endforeach
@@ -711,9 +736,11 @@
 .djr-head-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 .djr-card-head .djr-count { padding: 4px 12px; border-radius: 999px; background: var(--djr-tint); color: var(--djr-brand); font-size: .78rem; font-weight: 800; white-space: nowrap; }
 .djr-codes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-.djr-code { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: var(--djr-sunken); min-width: 0; }
+.djr-code { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: var(--djr-sunken); min-width: 0; }
 .djr-code-key { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; padding: 4px 10px; border-radius: 999px; background: #e4e6fb; color: var(--djr-brand); font-weight: 800; font-size: .85rem; }
 .djr-code-name { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
+.djr-code-clients { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+.djr-client-chip { padding: 3px 10px; border-radius: 999px; background: #fff; border: 1px solid #c9cff0; color: var(--djr-ink); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
 
 /* Admin code editor */
 .djr-codes-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--djr-line); border-left: 3px solid var(--djr-brand); border-radius: 12px; background: var(--djr-sunken); }

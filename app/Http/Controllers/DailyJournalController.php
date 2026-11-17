@@ -91,10 +91,19 @@ class DailyJournalController extends Controller
 
         // Active Achievement Legend Codes
         $achievementLegends = WorkPlanLegend::active()
+            ->with('clients:id,name')
             ->orderBy('category')
             ->orderBy('sort_order')
             ->orderBy('code')
             ->get();
+
+        // Clients offered in the picker for legend codes that require a client name.
+        // Assumes clients are User rows with the client role; adjust if your
+        // client names are stored somewhere else.
+        $clients = User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         $prompt = [
             'problems_encountered' => ['label' => 'Problems Encountered', 'placeholder' => 'Describe any problems, issues, or obstacles you encountered today...', 'hint' => 'Required. Include anything that delayed your work and why.', 'example' => 'Example: Client submitted the required documents late, so the filing could not be completed on schedule.'],
@@ -126,6 +135,7 @@ class DailyJournalController extends Controller
             'dailyGoals' => $dailyGoals,
             'workPlanTasks' => $workPlanTasks,
             'achievementLegends' => $achievementLegends,
+            'clients' => $clients,
             'prompt' => $prompt,
             'dayHeading' => $dayHeading,
             'isSubmitted' => $isSubmitted,
@@ -200,6 +210,9 @@ class DailyJournalController extends Controller
             'urgent_tasks.*.reason' => 'nullable|string|max:255',
             'achievement_codes' => 'nullable|array',
             'achievement_codes.*' => 'string|max:20',
+            'achievement_clients' => 'nullable|array',
+            'achievement_clients.*' => 'array',
+            'achievement_clients.*.*' => 'integer',
         ]);
 
         // Handle file uploads
@@ -221,9 +234,54 @@ class DailyJournalController extends Controller
             ->values()
             ->all();
 
+        // Clients are only kept for ticked codes that actually ask for a client,
+        // and only if the id belongs to a real client account.
+        $clientLegends = WorkPlanLegend::active()
+            ->where('requires_client', true)
+            ->with('clients:id')
+            ->get()
+            ->keyBy('code');
+        $clientCodes = $clientLegends->keys()->all();
+        $validClientIds = User::query()->where('role', User::ROLE_CLIENT)->pluck('id')->all();
+
+        $achievementClients = collect((array) $request->input('achievement_clients', []))
+            ->filter(fn ($ids, $code) => in_array($code, $codes, true) && in_array($code, $clientCodes, true))
+            ->map(function ($ids, $code) use ($clientLegends, $validClientIds) {
+                // Only the clients assigned to this code are allowed; if none are
+                // assigned yet, any client account is accepted.
+                $assigned = $clientLegends[$code]->clients->pluck('id')->all();
+                $allowed = $assigned !== [] ? $assigned : $validClientIds;
+
+                return collect((array) $ids)
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => in_array($id, $allowed, true))
+                    ->unique()
+                    ->values()
+                    ->all();
+            })
+            ->filter()
+            ->all();
+
+        // Submitting requires at least one client for each ticked client code.
+        if ($isSubmit) {
+            $missing = collect($codes)
+                ->intersect($clientCodes)
+                ->reject(fn ($code) => ! empty($achievementClients[$code]))
+                ->values();
+
+            if ($missing->isNotEmpty()) {
+                return $back()
+                    ->withInput()
+                    ->withErrors(['achievement_clients' => 'Select at least one client for: '.$missing->implode(', ').'.']);
+            }
+        }
+
         // Saved before the submit/draft branch so both paths keep the codes
-        // (submitJournal() does not need to know about them).
-        $journal->forceFill(['achievement_codes' => $codes])->save();
+        // and clients (submitJournal() does not need to know about them).
+        $journal->forceFill([
+            'achievement_codes' => $codes,
+            'achievement_clients' => $achievementClients,
+        ])->save();
 
         if ($isSubmit) {
             DailyJournalService::submitJournal(

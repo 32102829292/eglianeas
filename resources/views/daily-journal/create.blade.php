@@ -265,6 +265,47 @@
                                 </label>
                             @endforeach
                         </div>
+
+                        {{-- Client pickers: one block per code that has "Requires client name" switched on.
+                             Each block is revealed only while its code is ticked above. --}}
+                        @php
+                            $clientLegends = $achievementLegends->where('requires_client', true);
+                            $savedClients  = old('achievement_clients', $journal?->achievement_clients ?? []);
+                        @endphp
+                        @if ($clientLegends->isNotEmpty())
+                            <div class="dar-clients">
+                                @foreach ($clientLegends as $legend)
+                                    @php $clientOptions = $legend->clients->isNotEmpty() ? $legend->clients : $clients; @endphp
+                                    <div class="dar-client-block" data-client-block="{{ $legend->code }}" hidden>
+                                        <label for="client-pick-{{ $legend->code }}">
+                                            Client(s) for <strong>{{ $legend->code }}</strong> &ndash; {{ $legend->name }}
+                                        </label>
+                                        <select id="client-pick-{{ $legend->code }}" class="dar-input" data-client-select @disabled($locked)>
+                                            <option value="">Select a client…</option>
+                                            @foreach ($clientOptions as $client)
+                                                <option value="{{ $client->id }}">{{ $client->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <ul class="dar-chips" data-client-chips>
+                                            @foreach (($savedClients[$legend->code] ?? []) as $clientId)
+                                                @php $chosen = $clients->firstWhere('id', (int) $clientId); @endphp
+                                                @if ($chosen)
+                                                    <li data-id="{{ $chosen->id }}">
+                                                        <span>{{ $chosen->name }}</span>
+                                                        @unless ($locked)
+                                                            <button type="button" data-client-remove aria-label="Remove {{ $chosen->name }}">×</button>
+                                                        @endunless
+                                                        <input type="hidden" name="achievement_clients[{{ $legend->code }}][]" value="{{ $chosen->id }}">
+                                                    </li>
+                                                @endif
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endforeach
+                                @error('achievement_clients')<div class="dar-error">{{ $message }}</div>@enderror
+                            </div>
+                        @endif
+
                         <p class="dar-hint dar-legend-none" data-legend-none hidden>No codes match your filter.</p>
                     @else
                         <div class="dar-empty">
@@ -677,6 +718,15 @@
 .dar-legend:has(input:disabled) { cursor: default; }
 .dar-legend-none { padding: 0 20px 8px; }
 
+/* Client pickers for codes that require a client name */
+.dar-clients { display: grid; gap: 12px; padding: 4px 20px 12px; }
+.dar-client-block { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--dar-line); border-left: 3px solid var(--dar-brand); border-radius: 12px; background: #f7f8ff; }
+.dar-client-block label { font-size: .88rem; font-weight: 700; }
+.dar-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.dar-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px; background: var(--dar-tint); color: var(--dar-brand); font-size: .82rem; font-weight: 700; }
+.dar-chips button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: #a5281a; font-size: 1rem; line-height: 1; cursor: pointer; }
+.dar-chips button:hover { background: #fee2e2; }
+
 /* Fields */
 .dar-field { display: grid; gap: 6px; }
 .dar-field label { font-weight: 700; font-size: .88rem; }
@@ -895,9 +945,64 @@
     if (legendClear) {
         legendClear.addEventListener('click', function () {
             legendBoxes.forEach(function (b) { b.checked = false; });
-            syncLegend(); queueDraft(); dirty = true;
+            syncLegend(); syncClientBlocks(); queueDraft(); dirty = true;
         });
     }
+
+    /* ---------------- Client pickers for codes that need a client ---------------- */
+    var clientBlocks = $$('[data-client-block]');
+
+    // Show a picker only while its code is ticked. Hidden pickers keep their chips,
+    // but the server ignores clients for codes that are not ticked.
+    function syncClientBlocks() {
+        clientBlocks.forEach(function (block) {
+            var code = block.getAttribute('data-client-block');
+            var box = legendBoxes.filter(function (b) { return b.value === code; })[0];
+            block.hidden = ! (box && box.checked);
+        });
+    }
+
+    clientBlocks.forEach(function (block) {
+        var code = block.getAttribute('data-client-block');
+        var select = block.querySelector('[data-client-select]');
+        var chips = block.querySelector('[data-client-chips]');
+
+        select.addEventListener('change', function () {
+            var id = select.value;
+            if (! id) { return; }
+            if (! chips.querySelector('li[data-id="' + id + '"]')) {
+                var name = select.options[select.selectedIndex].text;
+                var li = document.createElement('li');
+                li.setAttribute('data-id', id);
+
+                var label = document.createElement('span');
+                label.textContent = name;
+
+                var remove = document.createElement('button');
+                remove.type = 'button';
+                remove.setAttribute('data-client-remove', '');
+                remove.setAttribute('aria-label', 'Remove ' + name);
+                remove.textContent = '×';
+
+                var hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'achievement_clients[' + code + '][]';
+                hidden.value = id;
+
+                li.appendChild(label); li.appendChild(remove); li.appendChild(hidden);
+                chips.appendChild(li);
+            }
+            select.value = '';
+            dirty = true;
+        });
+
+        chips.addEventListener('click', function (e) {
+            var remove = e.target.closest('[data-client-remove]');
+            if (remove) { remove.closest('li').remove(); dirty = true; }
+        });
+    });
+
+    legendBoxes.forEach(function (b) { b.addEventListener('change', syncClientBlocks); });
 
     /* ---------------- Attachments (validate, queue, remove) ---------------- */
     var fileInput = $('[data-journal-files]');
@@ -1112,7 +1217,7 @@
             legendBoxes.forEach(function (b) { b.checked = false; });
             store(function (s) { s.removeItem(draftKey); });
             restoreBanner.hidden = true;
-            syncProgress(); syncChars(); syncLegend();
+            syncProgress(); syncChars(); syncLegend(); syncClientBlocks();
         });
     }
 
@@ -1226,7 +1331,7 @@
         }
     });
 
-    syncProgress(); syncChars(); syncLegend();
+    syncProgress(); syncChars(); syncLegend(); syncClientBlocks();
 })();
 </script>
 @endpush
