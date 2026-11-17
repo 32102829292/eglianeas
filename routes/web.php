@@ -517,6 +517,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor'])->group(function () {
     // Registered before the model-binding route so the literal segment wins.
     Route::get('/daily-journal/achievements', [DailyJournalController::class, 'achievements'])->name('daily-journal.achievements');
     Route::get('/daily-journal/{dailyJournal}', [DailyJournalController::class, 'show'])->name('daily-journal.show');
+    Route::patch('/daily-journal/{dailyJournal}/achievement-codes', [DailyJournalController::class, 'updateAchievementCodes'])
+    ->name('daily-journal.achievement-codes.update');
 
     // Work Plan legend reference board (view-only for all operational roles)
     Route::get('/work-plan/reference-board', [WorkPlanLegendController::class, 'referenceBoard'])->name('work-plan.reference-board');

@@ -77,6 +77,40 @@
     $reviewMode = $manualErrors || $journal->isManuallyAssessed() ? 'manual' : 'automatic';
 
     $initial = mb_strtoupper(mb_substr($journal->user->name, 0, 1));
+
+    // Activity Legend codes the employee ticked, with their names for display.
+    $activityCodes = collect($journal->achievement_codes ?? [])->filter()->values();
+    $legendsByCode = $activityCodes->isNotEmpty()
+        ? \App\Models\WorkPlanLegend::whereIn('code', $activityCodes->all())->get()->keyBy('code')
+        : collect();
+
+    // Admin-only editing of the codes. The button is only offered once the route is registered,
+    // so this page keeps working before the route has been added.
+    $canEditCodes = auth()->user()->isAdmin()
+        && \Illuminate\Support\Facades\Route::has('daily-journal.achievement-codes.update');
+    $codesHaveErrors = $errors->has('achievement_codes') || $errors->has('achievement_codes.*');
+
+    $legendOptions = collect();
+    if ($canEditCodes) {
+        $legendOptions = \App\Models\WorkPlanLegend::active()
+            ->orderBy('category')
+            ->orderBy('sort_order')
+            ->orderBy('code')
+            ->get()
+            ->map(fn ($legend) => ['code' => $legend->code, 'name' => (string) $legend->name])
+            ->keyBy('code');
+
+        // Keep codes that are already on the report even if the legend has since been retired.
+        foreach ($activityCodes as $code) {
+            if (! $legendOptions->has($code)) {
+                $legendOptions->put($code, [
+                    'code' => $code,
+                    'name' => $legendsByCode->has($code) ? (string) $legendsByCode[$code]->name : 'Inactive code',
+                ]);
+            }
+        }
+    }
+    $selectedCodes = collect(old('achievement_codes', $activityCodes->all()))->filter()->values()->all();
 @endphp
 
 <div class="djr">
@@ -133,15 +167,6 @@
                             </div>
                         </header>
                         <div class="djr-card-body">
-                            {{-- Activity codes the employee ticked: shown above the text, even if the details box was left empty. --}}
-                            @if ($loop->first && ! empty($journal->achievement_codes))
-                                <div class="dja-tags" aria-label="Activity codes" style="margin: 0 0 10px;">
-                                    @foreach ($journal->achievement_codes as $code)
-                                        <span class="dja-tag">{{ $code }}</span>
-                                    @endforeach
-                                </div>
-                            @endif
-
                             @if ($answer === '')
                                 <p class="djr-empty">{{ $section['empty'] }}</p>
                             @else
@@ -149,6 +174,110 @@
                             @endif
                         </div>
                     </section>
+
+                    {{-- Activity Legend codes the employee ticked, shown right under the accomplishments. --}}
+                    @if ($loop->first)
+                        <section class="djr-card djr-card--wide" id="activity-codes" aria-label="Activity Codes">
+                            <header class="djr-card-head">
+                                <span class="djr-tile djr-tile--gold" aria-hidden="true">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                </span>
+                                <div>
+                                    <h2>Activity Codes</h2>
+                                    <p>Legend codes the employee selected for completed work.</p>
+                                </div>
+                                <div class="djr-head-tools">
+                                    @if ($activityCodes->isNotEmpty())
+                                        <span class="djr-count">{{ $activityCodes->count() }} selected</span>
+                                    @endif
+                                    @if ($canEditCodes)
+                                        <button type="button"
+                                                class="djr-btn djr-btn-ghost djr-btn-sm"
+                                                data-codes-edit
+                                                aria-expanded="{{ $codesHaveErrors ? 'true' : 'false' }}"
+                                                aria-controls="djr-codes-form">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                            <span data-codes-edit-label>Edit codes</span>
+                                        </button>
+                                    @endif
+                                </div>
+                            </header>
+                            <div class="djr-card-body">
+                                {{-- Read-only view --}}
+                                <div data-codes-view @if ($codesHaveErrors) hidden @endif>
+                                    @if ($activityCodes->isEmpty())
+                                        <p class="djr-empty">No activity codes were recorded for this report.</p>
+                                    @else
+                                        <ul class="djr-codes">
+                                            @foreach ($activityCodes as $code)
+                                                <li class="djr-code">
+                                                    <span class="djr-code-key">{{ $code }}</span>
+                                                    @if ($legendsByCode->has($code))
+                                                        <span class="djr-code-name">{{ $legendsByCode[$code]->name }}</span>
+                                                    @endif
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    @endif
+                                </div>
+
+                                {{-- Admin edit form --}}
+                                @if ($canEditCodes)
+                                    <form method="POST"
+                                          action="{{ route('daily-journal.achievement-codes.update', $journal) }}"
+                                          id="djr-codes-form"
+                                          class="djr-codes-form"
+                                          data-codes-form
+                                          @unless ($codesHaveErrors) hidden @endunless>
+                                        @csrf
+                                        @method('PATCH')
+
+                                        <p class="djr-codes-note">
+                                            Select the Activity Legend codes for the work this employee completed. Only the codes change; the report text and the assessment stay as they are.
+                                        </p>
+
+                                        @if ($codesHaveErrors)
+                                            <div class="djr-form-alert" role="alert">
+                                                @foreach (array_unique(array_merge($errors->get('achievement_codes'), $errors->get('achievement_codes.*'))) as $message)
+                                                    @foreach ((array) $message as $line)
+                                                        <p>{{ $line }}</p>
+                                                    @endforeach
+                                                @endforeach
+                                            </div>
+                                        @endif
+
+                                        @if ($legendOptions->isEmpty())
+                                            <p class="djr-empty">No activity legend codes are configured yet.</p>
+                                        @else
+                                            <div class="djr-picker">
+                                                @foreach ($legendOptions as $option)
+                                                    <label class="djr-pick">
+                                                        <input type="checkbox"
+                                                               name="achievement_codes[]"
+                                                               value="{{ $option['code'] }}"
+                                                               @checked(in_array($option['code'], $selectedCodes, true))
+                                                               data-codes-box>
+                                                        <span>
+                                                            <strong>{{ $option['code'] }}</strong>
+                                                            @if ($option['name'] !== '')&ndash; {{ $option['name'] }}@endif
+                                                        </span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        @endif
+
+                                        <div class="djr-codes-actions">
+                                            <span class="djr-codes-total"><strong data-codes-total>0</strong> selected</span>
+                                            <button type="button" class="djr-link-btn" data-codes-clear>Clear all</button>
+                                            <span class="djr-spacer"></span>
+                                            <button type="button" class="djr-btn djr-btn-ghost djr-btn-sm" data-codes-cancel>Cancel</button>
+                                            <button type="submit" class="djr-btn djr-btn-primary djr-btn-sm">Save codes</button>
+                                        </div>
+                                    </form>
+                                @endif
+                            </div>
+                        </section>
+                    @endif
                 @endforeach
 
                 @if ($journal->hasEvidence())
@@ -523,7 +652,9 @@
     --djr-ok: #0b7a45;
     color: var(--djr-ink);
 }
+.djr [hidden] { display: none !important; }
 .djr h1, .djr h2, .djr h3, .djr h4, .djr p { margin: 0; }
+.djr h1, .djr h2, .djr h3, .djr h4 { color: var(--djr-ink); }
 
 /* Header */
 .djr-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
@@ -542,7 +673,8 @@
 
 /* Buttons */
 .djr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border: 1px solid transparent; border-radius: 12px; font: inherit; font-weight: 700; font-size: .9rem; line-height: 1.2; cursor: pointer; text-decoration: none; }
-.djr-btn:focus-visible, .djr-card:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.djr-btn:focus-visible, .djr-card:focus-visible, .djr-link-btn:focus-visible, .djr-pick:focus-within { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.djr-btn-sm { padding: 7px 12px; font-size: .82rem; }
 .djr-btn-primary { background: linear-gradient(180deg, #4f46e5, var(--djr-brand-dark)); color: #fff; }
 .djr-btn-primary:hover { background: var(--djr-brand-dark); }
 .djr-btn-ghost { background: var(--djr-surface); border-color: var(--djr-line); color: var(--djr-ink); }
@@ -552,6 +684,8 @@
 .djr-btn-danger { background: #fff; border-color: #f1b5ae; color: #a93226; }
 .djr-btn-danger:hover { background: #fdecea; }
 .djr-btn-block { width: 100%; }
+.djr-link-btn { background: none; border: 0; padding: 0; font: inherit; font-size: .82rem; font-weight: 700; color: var(--djr-brand); text-decoration: underline; cursor: pointer; }
+.djr-link-btn:hover { color: var(--djr-brand-dark); }
 
 /* Layout */
 .djr-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
@@ -561,7 +695,7 @@
 .djr-card--wide { grid-column: 1 / -1; }
 
 /* Cards */
-.djr-card { display: block; background: var(--djr-surface); border: 1px solid var(--djr-line); border-radius: 18px; min-width: 0; overflow: hidden; color: inherit; text-decoration: none; }
+.djr-card { display: block; background: var(--djr-surface); border: 1px solid var(--djr-line); border-radius: 18px; min-width: 0; overflow: hidden; color: inherit; text-decoration: none; scroll-margin-top: 80px; }
 .djr-card-head { display: flex; align-items: center; gap: 12px; padding: 18px 20px 12px; }
 .djr-card-head h2 { font-size: 1.05rem; font-weight: 800; }
 .djr-card-head p { margin-top: 2px; color: var(--djr-muted); font-size: .85rem; }
@@ -572,6 +706,29 @@
 .djr-tile--violet { background: #ece9fd; color: #5b3fd1; }
 .djr-prose { line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
 .djr-empty { padding: 12px 14px; border: 1px dashed #c9cff0; border-radius: 12px; background: var(--djr-sunken); color: var(--djr-muted); font-size: .88rem; }
+
+/* Activity codes */
+.djr-head-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; flex-wrap: wrap; justify-content: flex-end; }
+.djr-card-head .djr-count { padding: 4px 12px; border-radius: 999px; background: var(--djr-tint); color: var(--djr-brand); font-size: .78rem; font-weight: 800; white-space: nowrap; }
+.djr-codes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.djr-code { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: var(--djr-sunken); min-width: 0; }
+.djr-code-key { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; padding: 4px 10px; border-radius: 999px; background: #e4e6fb; color: var(--djr-brand); font-weight: 800; font-size: .85rem; }
+.djr-code-name { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
+
+/* Admin code editor */
+.djr-codes-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--djr-line); border-left: 3px solid var(--djr-brand); border-radius: 12px; background: var(--djr-sunken); }
+.djr-codes-note { font-size: .82rem; line-height: 1.5; color: var(--djr-muted); }
+.djr-form-alert { padding: 10px 12px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: .82rem; }
+.djr-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; max-height: 360px; overflow-y: auto; padding-right: 2px; }
+.djr-pick { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: #fff; font-size: .86rem; cursor: pointer; transition: background .15s, border-color .15s; }
+.djr-pick:hover { border-color: #b8bfee; }
+.djr-pick input { width: 18px; height: 18px; flex: none; accent-color: var(--djr-brand); }
+.djr-pick:has(input:checked) { background: var(--djr-tint); border-color: var(--djr-brand); }
+.djr-pick strong { color: var(--djr-brand); }
+.djr-codes-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.djr-codes-total { font-size: .82rem; color: var(--djr-muted); }
+.djr-codes-total strong { color: var(--djr-brand); font-variant-numeric: tabular-nums; }
+.djr-spacer { flex: 1; }
 
 /* Callout */
 .djr-callout { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border: 1px solid rgba(169,50,38,.18); border-left: 3px solid #dc4c3f; border-radius: 14px; background: #fdecea; }
@@ -679,7 +836,6 @@ a.djr-file:hover { border-color: var(--djr-brand); background: var(--djr-tint); 
 .dja-mode-options input:focus-visible + label { outline: 3px solid #a5b4fc; outline-offset: 1px; }
 .dja-mode-panels { margin-top: 12px; }
 .dja-mode-panel { padding: 14px; border: 1px solid var(--djr-line); border-left: 3px solid #4f46e5; border-radius: 12px; background: var(--djr-sunken); }
-.dja-mode-panel[hidden] { display: none; }
 .dja-mode-panel--manual { border-left-color: #196f3d; }
 .dja-mode-panel-head h4 { font-size: .9rem; font-weight: 800; }
 .dja-mode-panel-head p { margin: 2px 0 12px; font-size: .8rem; color: var(--djr-muted); }
@@ -715,6 +871,8 @@ a.djr-file:hover { border-color: var(--djr-brand); background: var(--djr-tint); 
     .dja-form-grid { grid-template-columns: minmax(0, 1fr); }
     .dja-review-head { flex-direction: column; }
     .dja-scoreblock { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .djr-head-tools { margin-left: 0; width: 100%; justify-content: flex-start; }
+    .djr-card-head { flex-wrap: wrap; }
 }
 </style>
 @endpush
@@ -736,6 +894,43 @@ a.djr-file:hover { border-color: var(--djr-brand); background: var(--djr-tint); 
         automatic.addEventListener('change', sync);
         manual.addEventListener('change', sync);
         sync();
+    }
+
+    /* Admin: edit Activity Codes */
+    var codesForm = document.querySelector('[data-codes-form]');
+    var codesView = document.querySelector('[data-codes-view]');
+    var editBtn = document.querySelector('[data-codes-edit]');
+
+    if (codesForm && codesView && editBtn) {
+        var editLabel = editBtn.querySelector('[data-codes-edit-label]');
+        var boxes = Array.prototype.slice.call(codesForm.querySelectorAll('[data-codes-box]'));
+        var total = codesForm.querySelector('[data-codes-total]');
+
+        var count = function () {
+            if (total) { total.textContent = String(boxes.filter(function (b) { return b.checked; }).length); }
+        };
+        var setEditing = function (editing) {
+            codesForm.hidden = ! editing;
+            codesView.hidden = editing;
+            editBtn.setAttribute('aria-expanded', editing ? 'true' : 'false');
+            if (editLabel) { editLabel.textContent = editing ? 'Close' : 'Edit codes'; }
+            if (editing && boxes[0]) { boxes[0].focus({ preventScroll: true }); }
+        };
+
+        editBtn.addEventListener('click', function () { setEditing(codesForm.hidden); });
+        codesForm.querySelector('[data-codes-cancel]').addEventListener('click', function () {
+            codesForm.reset();      // back to the saved selection
+            count();
+            setEditing(false);
+            editBtn.focus();
+        });
+        codesForm.querySelector('[data-codes-clear]').addEventListener('click', function () {
+            boxes.forEach(function (b) { b.checked = false; });
+            count();
+        });
+        boxes.forEach(function (b) { b.addEventListener('change', count); });
+        count();
+        setEditing(! codesForm.hidden);
     }
 
     /* Confirm before deleting */

@@ -591,6 +591,53 @@ class DailyJournalController extends Controller
     }
 
     /**
+     * Admin-only edit of the Activity Legend codes recorded on a journal.
+     * Only the codes change: the report text and the assessment are untouched.
+     */
+    public function updateAchievementCodes(Request $request, DailyJournal $dailyJournal): RedirectResponse
+    {
+        $this->authorizeAdmin();
+
+        $current = collect((array) ($dailyJournal->achievement_codes ?? []))
+            ->filter(fn ($code) => is_string($code) && $code !== '')
+            ->values()
+            ->all();
+
+        // Active legend codes, plus codes already on this report, so a retired
+        // code that was previously selected is not rejected or silently dropped.
+        $allowed = WorkPlanLegend::active()
+            ->pluck('code')
+            ->merge($current)
+            ->unique()
+            ->values()
+            ->all();
+
+        $validated = $request->validate([
+            'achievement_codes' => ['nullable', 'array'],
+            'achievement_codes.*' => ['string', Rule::in($allowed)],
+        ]);
+
+        $codes = collect($validated['achievement_codes'] ?? [])
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        $dailyJournal->forceFill(['achievement_codes' => $codes])->save();
+
+        logger()->info('Admin updated journal activity codes.', [
+            'journal_id' => $dailyJournal->id,
+            'admin_id' => Auth::id(),
+            'before' => $current,
+            'after' => $codes,
+        ]);
+
+        return redirect()
+            ->to(route('daily-journal.show', $dailyJournal).'#activity-codes')
+            ->with('status', 'Activity codes updated.');
+    }
+
+    /**
      * Explicitly re-run analysis when a reviewer asks for it. Admin only.
      */
     public function reassessAssessment(Request $request, DailyJournal $dailyJournal): RedirectResponse
