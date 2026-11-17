@@ -20,6 +20,7 @@ class DailyJournal extends Model
         'required_date',
         'problems_encountered',
         'achievements',
+        'achievement_codes',
         'suggested_solutions',
         'evidence_paths',
         'status',
@@ -47,6 +48,7 @@ class DailyJournal extends Model
         return [
             'required_date' => DateOnlyCast::class,
             'evidence_paths' => 'array',
+            'achievement_codes' => 'array',
             'submitted_at' => 'datetime',
             'reminded_at' => 'datetime',
             'reminder_count' => 'integer',

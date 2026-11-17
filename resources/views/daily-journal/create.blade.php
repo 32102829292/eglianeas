@@ -5,9 +5,8 @@
 @section('content')
 @php
     $locked        = $isSubmitted || $isFuture;
-    $checkedCodes  = array_filter(array_merge(
-        (array) old('achievement_codes', []),
-        explode(',', (string) ($journal?->achievements ?? ''))
+    $checkedCodes  = array_values(array_filter(
+        (array) old('achievement_codes', $journal?->achievement_codes ?? [])
     ));
     $showUrgent    = $requiresReport && ! auth()->user()->isAdmin();
     $weekStart     = $date->copy()->startOfWeek();

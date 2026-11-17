@@ -213,6 +213,18 @@ class DailyJournalController extends Controller
         // Keep any files attached by an earlier draft.
         $allPaths = array_values(array_unique(array_merge($journal->evidencePaths(), $newPaths)));
 
+        // Keep only codes that exist as active legends, with no duplicates.
+        $validCodes = WorkPlanLegend::active()->pluck('code')->all();
+        $codes = collect((array) $request->input('achievement_codes', []))
+            ->filter(fn ($code) => is_string($code) && in_array($code, $validCodes, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        // Saved before the submit/draft branch so both paths keep the codes
+        // (submitJournal() does not need to know about them).
+        $journal->forceFill(['achievement_codes' => $codes])->save();
+
         if ($isSubmit) {
             DailyJournalService::submitJournal(
                 $user->id,

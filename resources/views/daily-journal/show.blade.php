@@ -133,6 +133,15 @@
                             </div>
                         </header>
                         <div class="djr-card-body">
+                            {{-- Activity codes the employee ticked: shown above the text, even if the details box was left empty. --}}
+                            @if ($loop->first && ! empty($journal->achievement_codes))
+                                <div class="dja-tags" aria-label="Activity codes" style="margin: 0 0 10px;">
+                                    @foreach ($journal->achievement_codes as $code)
+                                        <span class="dja-tag">{{ $code }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+
                             @if ($answer === '')
                                 <p class="djr-empty">{{ $section['empty'] }}</p>
                             @else
