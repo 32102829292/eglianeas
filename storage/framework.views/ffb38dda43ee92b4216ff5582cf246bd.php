@@ -1,0 +1,2312 @@
+<?php $__env->startSection('title', 'Score Sheet — ' . $journal->user->name); ?>
+
+<?php $__env->startSection('content'); ?>
+<?php
+    $assessmentLevel = $journal->achievement_level ?? null;
+    $assessmentLevelSlug = $assessmentLevel ? \Illuminate\Support\Str::slug($assessmentLevel) : null;
+    $assessmentLevelColor = match ($assessmentLevel) {
+        'Outstanding' => '#196F3D',
+        'Excellent' => '#1D4ED8',
+        'Very Good' => '#4338CA',
+        'Good' => '#475569',
+        'Needs Further Development' => '#92400E',
+        default => '#6B7280',
+    };
+
+    $isManual = $journal->assessment_source === 'reviewer';
+    $assessmentType = $isManual ? 'Manual Reassessment' : 'Automatic Assessment';
+    $hasManualOverride = $journal->hasManualOverride();
+    $originalAiScore = $journal->originalAiScore();
+    $finalScore = $journal->finalScore();
+    $manualAdjustment = $journal->manualAdjustment();
+
+    $criteriaList = [
+        'quality' => [
+            'name' => 'Accomplishment Quality',
+            'key' => 'quality',
+            'max' => 100,
+            'explanation' => $criteria['quality_explanation'] ?? 'Not yet evaluated.',
+            'meta' => $criteria['quality_meta'] ?? [],
+            'icon' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/></svg>',
+            'color' => '#2563eb',
+        ],
+        'timeliness' => [
+            'name' => 'Timeliness',
+            'key' => 'timeliness',
+            'max' => 100,
+            'explanation' => $criteria['timeliness_explanation'] ?? 'Not yet evaluated.',
+            'meta' => $criteria['timeliness_meta'] ?? [],
+            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+            'color' => '#7c3aed',
+        ],
+        'responsiveness' => [
+            'name' => 'Immediate Responsiveness',
+            'key' => 'responsiveness',
+            'max' => 100,
+            'explanation' => $criteria['responsiveness_explanation'] ?? 'Not yet evaluated.',
+            'meta' => $criteria['responsiveness_meta'] ?? [],
+            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 8 10"/></svg>',
+            'color' => '#059669',
+        ],
+        'client_feedback' => [
+            'name' => 'Client Feedback',
+            'key' => 'client_feedback',
+            'max' => 100,
+            'explanation' => $criteria['client_feedback_explanation'] ?? 'Not yet evaluated.',
+            'meta' => $criteria['client_feedback_meta'] ?? [],
+            'icon' => '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" preserveAspectRatio="xMidYMid meet"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+            'color' => '#0891b2',
+        ],
+    ];
+
+    $weightLabels = [
+        'quality' => 'Accomplishment Quality',
+        'timeliness' => 'Timeliness',
+        'responsiveness' => 'Immediate Responsiveness',
+        'client_feedback' => 'Client Feedback',
+    ];
+
+    $evidenceCount = $journal->evidenceCount();
+    $submittedAt = $journal->submitted_at;
+    $assessedAt = $journal->assessed_at;
+    $reviewedAt = $journal->reviewed_at;
+
+    $percentComplete = $finalScore !== null ? round((float) $finalScore, 1) : 0;
+?>
+
+<!-- Page Header -->
+<header class="eas-score-head">
+    <div class="eas-score-head-content">
+        <div class="eas-score-head-label">
+            <span class="eas-score-eyebrow">AI Score Sheet</span>
+        </div>
+        <div class="eas-score-head-title">
+            <h1><?php echo e($journal->user->name); ?></h1>
+            <div class="eas-score-head-meta">
+                <span class="eas-score-head-role"><?php echo e(ucfirst($journal->user->role)); ?></span>
+                <span class="eas-score-divider"></span>
+                <span class="eas-score-period"><?php echo e($journal->required_date->format('F j, Y')); ?></span>
+            </div>
+        </div>
+    </div>
+    <div class="eas-score-head-actions">
+        <a href="<?php echo e(route('daily-journal.show', $journal)); ?>" class="btn btn-outline btn-sm eas-score-back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Back to Report
+        </a>
+    </div>
+</header>
+
+<!-- Assessment Information Panel -->
+<section class="eas-score-info" aria-label="Assessment information">
+    <div class="eas-score-info-panel">
+        <div class="eas-score-info-row">
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Staff member</span>
+                <span class="eas-score-info-value"><?php echo e($journal->user->name); ?></span>
+            </div>
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Assessment period</span>
+                <span class="eas-score-info-value"><?php echo e($journal->required_date->format('F j, Y')); ?></span>
+            </div>
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Submitted</span>
+                <span class="eas-score-info-value"><?php echo e($submittedAt ? $submittedAt->format('M j, Y g:i A') : 'Not submitted'); ?></span>
+            </div>
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Assessed</span>
+                <span class="eas-score-info-value"><?php echo e($assessedAt ? $assessedAt->format('M j, Y g:i A') : 'Not assessed'); ?></span>
+            </div>
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Type</span>
+                <span class="eas-score-info-value eas-score-badge eas-score-badge--<?php echo e($isManual ? 'manual' : 'automatic'); ?>"><?php echo e($assessmentType); ?></span>
+            </div>
+            <div class="eas-score-info-item">
+                <span class="eas-score-info-label">Status</span>
+                <span class="eas-score-info-value eas-score-badge eas-score-badge--<?php echo e($journal->isAssessmentVerified() ? 'verified' : 'provisional'); ?>"><?php echo e($journal->assessmentStatusLabel()); ?></span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Score Overview Section -->
+<section class="eas-score-card eas-score-card--summary" aria-labelledby="eas-score-summary-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-summary-title">Overall Score</h2>
+            <p class="eas-score-card-sub">
+                <?php echo e($finalScore !== null ? number_format((float) $finalScore, 1) : 0); ?> / 100
+                <?php if($assessmentLevel): ?>
+                    &nbsp;•&nbsp; <?php echo e($assessmentLevel); ?>
+
+                <?php else: ?>
+                    &nbsp;•&nbsp; Not yet assessed
+                <?php endif; ?>
+            </p>
+        </div>
+    </div>
+
+    <div class="eas-score-overall">
+        <!-- Circular Score Indicator -->
+        <div class="eas-score-circle-wrapper">
+            <div class="eas-score-circle">
+                <svg class="eas-score-circle-svg" viewBox="0 0 36 36" width="96" height="96">
+                    <circle class="eas-score-circle-track" cx="18" cy="18" r="15.9155" stroke="#E5E7EB" stroke-width="3" fill="none"/>
+                    <?php if($finalScore !== null): ?>
+                    <circle class="eas-score-circle-progress-ring" cx="18" cy="18" r="15.9155"
+                        stroke="<?php echo e($finalScore >= 70 ? '#10b981' : ($finalScore >= 40 ? '#f59e0b' : '#ef4444')); ?>"
+                        stroke-width="3" fill="none"
+                        stroke-dasharray="100"
+                        stroke-dashoffset="<?php echo e(100 - (float) $finalScore); ?>"
+                        stroke-linecap="butt"
+                        transform="rotate(-90 18 18)"
+                        style="transition: stroke-dashoffset 0.8s ease;"></circle>
+                    <?php endif; ?>
+                </svg>
+                <div class="eas-score-circle-text">
+                    <?php if($finalScore !== null): ?>
+                        <span class="eas-score-circle-value"><?php echo e(number_format((float) $finalScore, 1)); ?></span>
+                        <span class="eas-score-circle-label">score</span>
+                    <?php else: ?>
+                        <span class="eas-score-circle-value">—</span>
+                        <span class="eas-score-circle-label">no score</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php if($assessmentLevel): ?>
+            <div class="eas-score-level-badge">
+                <span class="eas-score-level" style="background: <?php echo e($assessmentLevelColor); ?>22; color: <?php echo e($assessmentLevelColor); ?>; border: 1px solid <?php echo e($assessmentLevelColor); ?>55;">
+                    <?php echo e($assessmentLevel); ?>
+
+                </span>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Score Details -->
+        <div class="eas-score-details">
+            <div class="eas-score-detail">
+                <span class="eas-score-detail-label">Original AI score</span>
+                <span class="eas-score-detail-value"><?php echo e($originalAiScore !== null ? number_format((float) $originalAiScore, 1) : '—'); ?></span>
+            </div>
+            <?php if($hasManualOverride): ?>
+            <div class="eas-score-detail eas-score-detail--adjustment">
+                <span class="eas-score-detail-label">Manual adjustment</span>
+                <span class="eas-score-detail-value eas-score-adjustment eas-score-adjustment--<?php echo e($manualAdjustment > 0 ? 'positive' : 'negative'); ?>">
+                    <?php echo e($manualAdjustment > 0 ? '+' : ''); ?><?php echo e(number_format((float) $manualAdjustment, 1)); ?>
+
+                </span>
+                <span class="eas-score-detail-note">by <?php echo e($journal->reviewer?->name ?? 'Admin'); ?></span>
+            </div>
+            <?php endif; ?>
+            <div class="eas-score-detail eas-score-detail--main">
+                <span class="eas-score-detail-label">Final score</span>
+                <span class="eas-score-detail-value eas-score-detail-value--main"><?php echo e($finalScore !== null ? number_format((float) $finalScore, 1) : '—'); ?></span>
+            </div>
+            <div class="eas-score-detail">
+                <span class="eas-score-detail-label">Assessment type</span>
+                <span class="eas-score-detail-value"><?php echo e($assessmentType); ?></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Calculation Breakdown -->
+    <div class="eas-score-weights-section">
+        <span class="eas-score-weights-label">Score calculation</span>
+        <div class="eas-score-weight-chips">
+            <?php if($combined['weights_used'] !== []): ?>
+                <?php $__currentLoopData = $combined['weights_used']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion => $weight): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <span class="eas-score-weight-chip">
+                        <span class="eas-score-chip-name"><?php echo e($weightLabels[$criterion]); ?></span>
+                        <span class="eas-score-chip-value"><?php echo e(number_format((float) $weight, 0)); ?>%</span>
+                    </span>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <?php if(count($combined['weights_used']) < 4): ?>
+                    <span class="eas-score-weight-chip eas-score-weight-chip--muted">
+                        <span class="eas-score-chip-name">Missing criteria</span>
+                        <span class="eas-score-chip-value">excluded</span>
+                    </span>
+                <?php endif; ?>
+            <?php else: ?>
+                <span class="eas-score-weight-chip eas-score-weight-chip--muted">
+                    <span class="eas-score-chip-name">No assessable data</span>
+                    <span class="eas-score-chip-value">—</span>
+                </span>
+            <?php endif; ?>
+        </div>
+        <span class="eas-score-weights-note">Criteria with insufficient data are excluded and remaining weights are renormalized.</span>
+    </div>
+</section>
+
+<!-- Why You Received This Score -->
+<section class="eas-score-card eas-score-card--why" aria-labelledby="eas-score-why-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-why-title">Why did I receive this score?</h2>
+            <p class="eas-score-card-sub">A plain-language breakdown of how your final score was calculated.</p>
+        </div>
+    </div>
+
+    <div class="eas-score-why-body">
+
+        <?php if($finalScore === null): ?>
+        <div class="eas-score-why-empty">
+            <svg class="eas-score-why-empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="eas-score-why-empty-text">
+                <strong>No assessment data available</strong>
+                <p>No assessment data is available for this reporting period. The score sheet will be populated once an automatic or manual assessment is completed.</p>
+            </div>
+        </div>
+        <?php else: ?>
+
+        <!-- A. Your Overall Score -->
+        <div class="eas-score-why-section eas-score-why-section--overall">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <h3 class="eas-score-why-subhead">A. Your Overall Score</h3>
+            </div>
+            <div class="eas-score-why-overall-grid">
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Final score</span>
+                    <span class="eas-score-why-metric-value"><?php echo e(number_format((float) $finalScore, 1)); ?> / 100</span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Classification</span>
+                    <span class="eas-score-why-metric-value"><?php echo e($assessmentLevel ?? 'Not yet assessed'); ?></span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Assessment method</span>
+                    <span class="eas-score-why-metric-value"><?php echo e($assessmentMethodLabel); ?></span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Assessed on</span>
+                    <span class="eas-score-why-metric-value"><?php echo e($assessedAt?->format('F j, Y') ?? '—'); ?></span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Reporting period</span>
+                    <span class="eas-score-why-metric-value"><?php echo e($journal->required_date?->format('F j, Y')); ?></span>
+                </div>
+                <div class="eas-score-why-metric">
+                    <span class="eas-score-why-metric-label">Submitted on</span>
+                    <span class="eas-score-why-metric-value"><?php echo e($submittedAt?->format('F j, Y') ?? '—'); ?></span>
+                </div>
+            </div>
+            <p class="eas-score-why-summary-text"><?php echo e($scoreMeaning); ?></p>
+            <p class="eas-score-why-method-text"><?php echo e($assessmentMethodDetail); ?></p>
+        </div>
+
+        <!-- Score Composition Visualization -->
+        <div class="eas-score-why-section eas-score-why-section--composition">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y="9" x2="12" y="9"/><line x1="9" y="21" x2="9" y="21"/></svg>
+                <h3 class="eas-score-why-subhead">Score Composition</h3>
+            </div>
+            <div class="eas-score-composition-grid">
+                <?php
+                    $compCriteria = [
+                        ['key' => 'quality', 'name' => 'Accomplishment Quality', 'color' => '#2563eb'],
+                        ['key' => 'timeliness', 'name' => 'Timeliness', 'color' => '#7c3aed'],
+                        ['key' => 'responsiveness', 'name' => 'Immediate Responsiveness', 'color' => '#059669'],
+                        ['key' => 'client_feedback', 'name' => 'Client Feedback', 'color' => '#0891b2'],
+                    ];
+                    $compWeights = [
+                        'quality' => (float) config('achievements.scoring_weights.quality', 50),
+                        'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
+                        'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
+                        'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+                    ];
+                ?>
+                <?php $__currentLoopData = $compCriteria; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
+                        $key = $criterion['key'];
+                        $score = $criteria[$key] ?? null;
+                        $meta = $criteria[$key.'_meta'] ?? [];
+                        $weight = $compWeights[$key] ?? 0;
+                        $isEvaluated = $score !== null;
+                        $weightedPoints = $isEvaluated ? round((float) $score * $weight, 2) : null;
+                    ?>
+                    <div class="eas-score-comp-card <?php echo e($isEvaluated ? 'eas-score-comp-card--evaluated' : 'eas-score-comp-card--unevaluated'); ?>">
+                        <div class="eas-score-comp-header">
+                            <span class="eas-score-comp-name"><?php echo e($criterion['name']); ?></span>
+                            <span class="eas-score-comp-weight"><?php echo e(number_format((float) $weight, 0)); ?>%</span>
+                        </div>
+                        <div class="eas-score-comp-bar">
+                            <div class="eas-score-comp-track"></div>
+                            <?php if($isEvaluated): ?>
+                                <div class="eas-score-comp-fill" style="width: <?php echo e((float) $score); ?>%; background: <?php echo e($criterion['color']); ?>;"></div>
+                            <?php else: ?>
+                                <div class="eas-score-comp-fill eas-score-comp-fill--empty"></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="eas-score-comp-values">
+                            <span class="eas-score-comp-score">
+                                <?php if($isEvaluated): ?>
+                                    <?php echo e(number_format((float) $score, 1)); ?> / 100
+                                <?php else: ?>
+                                    —
+                                <?php endif; ?>
+                            </span>
+                            <span class="eas-score-comp-contribution">
+                                <?php if($isEvaluated): ?>
+                                    <?php echo e(number_format((float) $weightedPoints, 2)); ?> pts
+                                <?php else: ?>
+                                    Excluded
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                        <span class="eas-score-comp-status <?php echo e($isEvaluated ? 'eas-score-comp-status--evaluated' : 'eas-score-comp-status--unevaluated'); ?>">
+                            <?php if($isEvaluated): ?>
+                                Evaluated
+                            <?php else: ?>
+                                No data
+                            <?php endif; ?>
+                        </span>
+                    </div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </div>
+            <p class="eas-score-comp-note">
+                Bars show the criterion score out of 100. Weighted points = score × weight. Criteria with no data are excluded and do not contribute to the final score.
+            </p>
+        </div>
+
+        <!-- B. How Your Score Was Calculated -->
+        <div class="eas-score-why-section eas-score-why-section--calculation">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/></svg>
+                <h3 class="eas-score-why-subhead">B. How Your Score Was Calculated</h3>
+            </div>
+
+            <table class="eas-score-calc-table">
+                <thead>
+                    <tr>
+                        <th>Criterion</th>
+                        <th class="text-end">Score</th>
+                        <th class="text-end">Weight</th>
+                        <th class="text-end">Weighted Points</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $__currentLoopData = $calculationCriteria; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <tr class="<?php echo e($criterion['status'] === 'Evaluated' ? 'eas-score-calc-row--evaluated' : 'eas-score-calc-row--unevaluated'); ?>">
+                        <td class="eas-score-calc-criterion"><?php echo e($criterion['name']); ?></td>
+                        <td class="text-end">
+                            <?php if($criterion['score'] !== null): ?>
+                                <?php echo e(number_format((float) $criterion['score'], 1)); ?> / 100
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end"><?php echo e(number_format((float) $criterion['weight'], 0)); ?>%</td>
+                        <td class="text-end">
+                            <?php if($criterion['weighted_points'] !== null): ?>
+                                <?php echo e(number_format((float) $criterion['weighted_points'], 2)); ?>
+
+                            <?php else: ?>
+                                <span class="text-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="eas-score-calc-status eas-score-calc-status--<?php echo e($criterion['status'] === 'Evaluated' ? 'evaluated' : 'unevaluated'); ?>">
+                                <?php echo e($criterion['status'] === 'Evaluated' ? 'Evaluated' : 'Not evaluated'); ?>
+
+                            </span>
+                        </td>
+                    </tr>
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                    <tr class="eas-score-calc-row--total">
+                        <td>Total</td>
+                        <td class="text-end"></td>
+                        <td class="text-end"><?php echo e(number_format($totalOriginalWeight, 0)); ?>% original</td>
+                        <td class="text-end"><?php echo e(number_format($totalWeightedPoints, 2)); ?></td>
+                        <td></td>
+                    </tr>
+                    <?php if($totalAvailableWeight < $totalOriginalWeight): ?>
+                    <tr class="eas-score-calc-row--available">
+                        <td>Available (after exclusions)</td>
+                        <td class="text-end"></td>
+                        <td class="text-end"><?php echo e(number_format($totalAvailableWeight, 0)); ?>%</td>
+                        <td class="text-end"><?php echo e(number_format($totalWeightedPoints, 2)); ?></td>
+                        <td></td>
+                    </tr>
+                    <?php endif; ?>
+                    <?php if($normalizedScore !== null): ?>
+                    <tr class="eas-score-calc-row--final">
+                        <td>Final score (normalized)</td>
+                        <td class="text-end"><?php echo e(number_format($normalizedScore, 1)); ?> / 100</td>
+                        <td class="text-end">100%</td>
+                        <td class="text-end"><?php echo e(number_format($normalizedScore, 1)); ?></td>
+                        <td></td>
+                    </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+
+            <div class="eas-score-calc-note">
+                <strong>How this works:</strong> Criteria with insufficient data are excluded (shown as "Not evaluated").
+                Their weight is removed from the total, and the remaining weights are used to calculate your score.
+                For example, if only Accomplishment Quality (50% weight) has data, your quality score becomes your final
+                score because it is the only criterion being measured.
+            </div>
+            <?php if($normalizationExplanation): ?>
+            <p class="eas-score-calc-detail"><?php echo e($normalizationExplanation); ?></p>
+            <?php endif; ?>
+        </div>
+
+        <!-- C. What You Did Well -->
+        <div class="eas-score-why-section eas-score-why-section--positive">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <h3 class="eas-score-why-subhead">C. What You Did Well</h3>
+            </div>
+            <ul class="eas-score-why-list">
+                <?php
+                    $positiveFindings = [];
+                    $qualityMeta = $criteria['quality_meta'] ?? [];
+                    $tMeta = $criteria['timeliness_meta'] ?? [];
+                    $rMeta = $criteria['responsiveness_meta'] ?? [];
+
+                    // Quality-based positive findings from actual data
+                    if ((int) ($qualityMeta['entries'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Accomplishment Quality assessed',
+                            'detail' => 'Based on ' . (int) $qualityMeta['entries'] . ' assessed daily accomplishment report(s) in this period.',
+                            'finding' => 'Your quality score of ' . number_format((float) ($criteria['quality'] ?? 0), 1) . ' / 100 was recorded from your submitted accomplishments.',
+                            'date' => $journal->required_date?->format('F j, Y'),
+                        ];
+                    }
+
+                    // Timeliness positive findings
+                    if ((int) ($tMeta['on_time'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'On-time task completion',
+                            'detail' => (int) ($tMeta['on_time'] ?? 0) . ' task(s) completed on or before the deadline.',
+                            'finding' => 'Completing tasks on time contributes positively to your timeliness score.',
+                        ];
+                    }
+                    if ((int) ($tMeta['early'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Early task completion',
+                            'detail' => (int) ($tMeta['early'] ?? 0) . ' task(s) completed before the deadline.',
+                            'finding' => 'Completing tasks early earns the maximum timeliness score.',
+                        ];
+                    }
+
+                    // Responsiveness positive findings
+                    if ((int) ($rMeta['prompt'] ?? 0) > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Prompt responses',
+                            'detail' => (int) ($rMeta['prompt'] ?? 0) . ' response(s) within 24 hours.',
+                            'finding' => 'Responding promptly contributes positively to your responsiveness score.',
+                        ];
+                    }
+
+                    if ($evidenceCount > 0) {
+                        $positiveFindings[] = [
+                            'title' => 'Supporting evidence attached',
+                            'detail' => $evidenceCount . ' evidence file(s) attached to your accomplishment reports.',
+                            'finding' => 'Evidence helps verify the work you completed.',
+                        ];
+                    }
+
+                    if (empty($positiveFindings)) {
+                        $positiveFindings[] = [
+                            'title' => 'No specific positive contributions identified',
+                            'detail' => 'The available assessment data does not contain specific positive findings for this period.',
+                            'finding' => 'This may be because few or no records were available for evaluation.',
+                        ];
+                    }
+                ?>
+                <?php $__currentLoopData = $positiveFindings; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $finding): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <li class="eas-score-why-list-item--positive">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong><?php echo e($finding['title']); ?></strong>
+                            <?php if(isset($finding['date'])): ?>
+                            <span class="eas-score-why-finding-date"><?php echo e($finding['date']); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <p class="eas-score-why-finding-detail"><?php echo e($finding['detail']); ?></p>
+                        <?php if(isset($finding['finding'])): ?>
+                        <p class="eas-score-why-finding-why"><?php echo e($finding['finding']); ?></p>
+                        <?php endif; ?>
+                    </div>
+                </li>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </ul>
+        </div>
+
+        <!-- D. What Affected Your Score -->
+        <div class="eas-score-why-section eas-score-why-section--negative">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--negative" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <h3 class="eas-score-why-subhead">D. What Affected Your Score</h3>
+            </div>
+            <ul class="eas-score-why-list">
+                <?php $__currentLoopData = $blockers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $blocker): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <li class="eas-score-why-list-item--negative">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>Assessment finding</strong>
+                        </div>
+                        <p class="eas-score-why-finding-detail"><?php echo e($blocker); ?></p>
+                    </div>
+                </li>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </ul>
+        </div>
+
+        <!-- E. Criteria Not Yet Evaluated -->
+        <div class="eas-score-why-section eas-score-why-section--excluded">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--muted" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <h3 class="eas-score-why-subhead">E. Criteria Not Yet Evaluated</h3>
+            </div>
+            <ul class="eas-score-why-list">
+                <?php
+                    $excludedCriteria = [];
+                    foreach ($calculationCriteria as $criterion) {
+                        if ($criterion['status'] !== 'Evaluated') {
+                            $excludedCriteria[] = $criterion;
+                        }
+                    }
+                ?>
+                <?php if(count($excludedCriteria) > 0): ?>
+                <?php $__currentLoopData = $excludedCriteria; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <li class="eas-score-why-list-item--excluded">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong><?php echo e($criterion['name']); ?></strong>
+                            <span class="eas-score-why-finding-weight"><?php echo e(number_format((float) $criterion['weight'], 0)); ?>% weight excluded</span>
+                        </div>
+                        <p class="eas-score-why-finding-detail"><?php echo e($criterion['explanation']); ?></p>
+                        <p class="eas-score-why-finding-note">N/A means this criterion had no data to measure — it is not counted as zero.</p>
+                    </div>
+                </li>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <?php else: ?>
+                <li>
+                    <svg class="eas-score-why-list-icon eas-score-why-list-icon--positive" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>All criteria have been evaluated.</span>
+                </li>
+                <?php endif; ?>
+            </ul>
+        </div>
+
+        <!-- F. How You Can Improve -->
+        <div class="eas-score-why-section eas-score-why-section--improvement">
+            <div class="eas-score-why-section-header">
+                <svg class="eas-score-why-section-icon eas-score-why-section-icon--warning" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                <h3 class="eas-score-why-subhead">F. How You Can Improve</h3>
+            </div>
+            <ul class="eas-score-why-list">
+                <?php $__currentLoopData = $improvements; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $improvement): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <li class="eas-score-why-list-item--improvement">
+                    <div class="eas-score-why-finding">
+                        <div class="eas-score-why-finding-header">
+                            <strong>Recommended action</strong>
+                        </div>
+                        <p class="eas-score-why-finding-detail"><?php echo e($improvement); ?></p>
+                    </div>
+                </li>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </ul>
+        </div>
+
+        <?php endif; ?>
+    </div>
+</section>
+
+<!-- Criteria Breakdown -->
+<section class="eas-score-card" aria-labelledby="eas-score-criteria-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-criteria-title">Criteria Breakdown</h2>
+            <p class="eas-score-card-sub">Each criterion is scored out of 100. Expand a card to see its detailed breakdown and evidence.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm eas-score-toggle-all" onclick="toggleAllCriteria()">
+            <span id="eas-toggleAllText">Collapse all</span>
+        </button>
+    </div>
+
+    <div class="eas-score-criteria-list">
+        <?php $__currentLoopData = $criteriaList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <?php
+                $scoreKey = $criterion['key'];
+                $score = $criteria[$scoreKey] ?? null;
+                $meta = $criteria[$scoreKey . '_meta'] ?? [];
+                $isEvaluated = $score !== null;
+                $manualCriterion = $journal->criterionScores()[$scoreKey] ?? null;
+                $deduction = $isEvaluated ? (float) $criterion['max'] - (float) $score : null;
+                $percent = $isEvaluated ? round((float) $score, 1) : 0;
+                $weight = number_format((float) ($weights[$scoreKey] ?? 0), 0);
+            ?>
+            <div class="eas-score-criterion eas-score-criterion--collapsed" id="eas-criterion-<?php echo e($scoreKey); ?>" data-key="<?php echo e($scoreKey); ?>">
+                <div class="eas-score-criterion-head" onclick="toggleCriterion('<?php echo e($scoreKey); ?>')">
+                    <div class="eas-score-criterion-row">
+                        <div class="eas-score-criterion-icon">
+                            <?php echo $criterion['icon']; ?>
+
+                        </div>
+                        <div class="eas-score-criterion-main">
+                            <div class="eas-score-criterion-name-row">
+                                <span class="eas-score-criterion-name"><?php echo e($criterion['name']); ?></span>
+                                <span class="eas-score-criterion-weight"><?php echo e($weight); ?>% weight</span>
+                            </div>
+                            <div class="eas-score-criterion-score">
+                                <?php if($isEvaluated): ?>
+                                    <span class="eas-score-points"><?php echo e(number_format((float) $score, 1)); ?></span>
+                                    <span class="eas-score-points-max"> / <?php echo e($criterion['max']); ?></span>
+                                    <?php if($deduction > 0): ?>
+                                        <span class="eas-score-points-deduction">−<?php echo e(number_format((float) $deduction, 1)); ?></span>
+                                    <?php endif; ?>
+                                <?php else: ?>
+                                    <span class="eas-score-points eas-score-points--unevaluated">—</span>
+                                    <span class="eas-score-points-max"> / <?php echo e($criterion['max']); ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <button type="button" class="eas-score-criterion-toggle" data-target="criterion-<?php echo e($scoreKey); ?>" aria-expanded="false" aria-controls="eas-criterion-body-<?php echo e($scoreKey); ?>">
+                            <svg class="eas-score-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="eas-score-criterion-progress">
+                    <div class="eas-score-progress-track">
+                        <?php if($isEvaluated): ?>
+                        <div class="eas-score-progress-fill" style="width: <?php echo e($percent); ?>%; background: <?php echo e($finalScore >= 70 ? '#10b981' : ($finalScore >= 40 ? '#f59e0b' : '#ef4444')); ?>;"></div>
+                        <?php else: ?>
+                        <div class="eas-score-progress-fill eas-score-progress-fill--empty"></div>
+                        <?php endif; ?>
+                    </div>
+                    <span class="eas-score-progress-label"><?php echo e($isEvaluated ? number_format((float) $score, 1) . ' / 100' : 'Not evaluated'); ?></span>
+                </div>
+
+                <div class="eas-score-criterion-status">
+                    <span class="eas-score-status eas-score-status--<?php echo e($isEvaluated ? 'evaluated' : 'unevaluated'); ?>">
+                        <?php echo e($isEvaluated ? 'Evaluated' : 'Not yet evaluated'); ?>
+
+                    </span>
+                </div>
+
+                <div class="eas-score-criterion-body" id="eas-criterion-body-<?php echo e($scoreKey); ?>" hidden>
+                    <div class="eas-score-criterion-body-inner">
+                        <div class="eas-score-field">
+                            <span class="eas-score-field-label">Reason</span>
+                            <p class="eas-score-field-value"><?php echo e($criteria[$scoreKey . '_explanation'] ?? 'Not yet evaluated.'); ?></p>
+                        </div>
+
+                        <?php if($isEvaluated): ?>
+                        <div class="eas-score-field">
+                            <span class="eas-score-field-label">Evidence used</span>
+                            <p class="eas-score-field-value"><?php echo e($criterionEvidence[$scoreKey] ?? 'No evidence data available.'); ?></p>
+                        </div>
+                        <?php else: ?>
+                        <div class="eas-score-field">
+                            <span class="eas-score-field-label">Missing requirements</span>
+                            <p class="eas-score-field-value eas-score-field-value--muted"><?php echo e($criteria[$scoreKey . '_explanation'] ?? 'No evaluable data available for this criterion in the reporting period.'); ?></p>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php if($manualCriterion): ?>
+                            <div class="eas-score-field eas-score-field--manual">
+                                <span class="eas-score-field-label">Manual adjustment</span>
+                                <p class="eas-score-field-value">Adjusted to <?php echo e(number_format((float) $manualCriterion['score'], 1)); ?> / <?php echo e($manualCriterion['max']); ?>. Reason: <?php echo e($manualCriterion['reason']); ?></p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+    </div>
+</section>
+
+<!-- Kaizen Strategy and Admin Concern Sources -->
+<section class="eas-score-card" aria-labelledby="eas-score-tasks-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-tasks-title">Kaizen Strategy &amp; Admin Concern Sources</h2>
+            <p class="eas-score-card-sub">
+                Tasks that feed this Score Sheet. Only evaluations marked
+                <strong>ADDED TO SCORE SHEET</strong> contribute weighted points; reversed or
+                pending items are shown so every score stays traceable.
+            </p>
+        </div>
+        <?php if($scoreSheetTasks->isNotEmpty()): ?>
+            <div class="eas-score-task-summary">
+                <span class="eas-score-weight-chip">
+                    <span class="eas-score-chip-name">Included</span>
+                    <span class="eas-score-chip-value"><?php echo e($scoreSheetTasks->filter(fn ($evaluation) => $evaluation->isIncludedInScoreSheet())->count()); ?></span>
+                </span>
+                <span class="eas-score-weight-chip">
+                    <span class="eas-score-chip-name">Weighted points</span>
+                    <span class="eas-score-chip-value"><?php echo e(number_format((float) $scoreSheetTasksTotal, 2)); ?></span>
+                </span>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <?php if($scoreSheetTasks->isEmpty()): ?>
+        <p class="eas-score-task-empty">
+            No Kaizen Strategy or Admin Concern evaluations are linked to this Score Sheet period yet.
+        </p>
+    <?php else: ?>
+        <div class="eas-score-task-list">
+            <?php $__currentLoopData = $scoreSheetTasks; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $taskEvaluation): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <?php
+                    $taskBadge = $taskEvaluation->integrationBadge();
+                ?>
+                <div class="eas-score-task">
+                    <div class="eas-score-task-main">
+                        <div class="eas-score-task-title-row">
+                            <?php if($taskEvaluation->taskReferenceUrl()): ?>
+                                <a href="<?php echo e($taskEvaluation->taskReferenceUrl()); ?>" class="eas-score-task-title">
+                                    <?php echo e($taskEvaluation->taskTitle()); ?>
+
+                                </a>
+                            <?php else: ?>
+                                <span class="eas-score-task-title"><?php echo e($taskEvaluation->taskTitle()); ?></span>
+                            <?php endif; ?>
+                            <span class="badge <?php echo e($taskBadge['class']); ?>"><?php echo e($taskBadge['label']); ?></span>
+                        </div>
+                        <div class="eas-score-task-meta">
+                            <span><?php echo e($taskEvaluation->sourceLabel()); ?> #<?php echo e($taskEvaluation->source_id); ?></span>
+                            <span><?php echo e($taskEvaluation->evaluationPeriod?->name ?? 'No evaluation period'); ?></span>
+                            <?php if($taskEvaluation->isIncludedInScoreSheet()): ?>
+                                <span><?php echo e($taskEvaluation->criterionLabel()); ?> · <?php echo e(number_format((float) $taskEvaluation->score_sheet_weighted_points, 2)); ?> weighted points</span>
+                                <span>Added <?php echo e($taskEvaluation->score_sheet_added_at?->format('M j, Y')); ?></span>
+                            <?php elseif($taskEvaluation->score_sheet_reversed_at): ?>
+                                <span>Excluded <?php echo e($taskEvaluation->score_sheet_reversed_at->format('M j, Y')); ?></span>
+                            <?php elseif($taskEvaluation->overall_score === null): ?>
+                                <span>Score not calculated yet</span>
+                            <?php else: ?>
+                                <span>Not linked to the Score Sheet</span>
+                            <?php endif; ?>
+                        </div>
+                        <?php if($taskEvaluation->score_sheet_reversal_reason): ?>
+                            <p class="eas-score-task-note">Reason: <?php echo e($taskEvaluation->score_sheet_reversal_reason); ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <div class="eas-score-task-score">
+                        <span class="eas-score-task-score-value"><?php echo e($taskEvaluation->overall_score !== null ? number_format((float) $taskEvaluation->overall_score, 1) : '—'); ?></span>
+                        <span class="eas-score-task-score-label">/ 100</span>
+                    </div>
+                </div>
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+        </div>
+    <?php endif; ?>
+</section>
+
+<!-- Assessment History -->
+<?php if($journal->assessmentRevisions->isNotEmpty()): ?>
+<section class="eas-score-card" aria-labelledby="eas-score-history-title">
+    <div class="eas-score-card-head">
+        <div>
+            <h2 id="eas-score-history-title">Assessment History</h2>
+            <p class="eas-score-card-sub">Every assessment change is recorded and never deleted.</p>
+        </div>
+    </div>
+    <div class="eas-score-history-list">
+        <?php $__currentLoopData = $journal->assessmentRevisions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $revision): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <?php
+                $actionLabel = match ($revision->action) {
+                    'manually_reassessed' => 'Admin reassessment',
+                    'reassessed' => 'Automatic reassessment',
+                    'corrected' => 'Manual review',
+                    default => ucfirst((string) $revision->action),
+                };
+                $actionClass = $revision->action === 'manually_reassessed' ? 'eas-score-history-action--manual' : 'eas-score-history-action--auto';
+            ?>
+            <div class="eas-score-history-item">
+                <div class="eas-score-history-head">
+                    <span class="eas-score-history-action <?php echo e($actionClass); ?>"><?php echo e($actionLabel); ?></span>
+                    <span class="eas-score-history-date"><?php echo e($revision->created_at->format('M j, Y g:i A')); ?></span>
+                </div>
+                <div class="eas-score-history-body">
+                    <p>
+                        <span class="eas-score-history-reviewer"><?php echo e($revision->reviewer?->name ?? 'Unknown reviewer'); ?></span>
+                        changed the score from
+                        <span class="eas-score-history-score eas-score-history-score--prev"><?php echo e($revision->previous_score ?? 'none'); ?></span>
+                        to
+                        <span class="eas-score-history-score eas-score-history-score--next"><?php echo e($revision->new_score ?? 'none'); ?></span>.
+                        <?php if($revision->reason): ?>
+                            <span class="eas-score-history-reason">Reason: <?php echo e($revision->reason); ?></span>
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </div>
+        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+    </div>
+</section>
+<?php endif; ?>
+
+<!-- Admin Reassessment Panel -->
+<?php if($canReview && $journal->hasAssessment()): ?>
+<div class="eas-score-reassess">
+    <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('eas-reassess-panel').hidden = false;">
+        Manually reassess score (Admin)
+    </button>
+
+    <div id="eas-reassess-panel" hidden class="eas-score-reassess-panel">
+        <form method="POST" action="<?php echo e(route('daily-journal.assessment.manual-reassess', $journal)); ?>">
+            <?php echo csrf_field(); ?>
+            <h3 class="eas-score-reassess-title">Manual Reassessment</h3>
+            <p>Adjust individual criterion scores. A mandatory reason is required for every change.</p>
+            <div class="eas-score-reassess-grid">
+                <?php $__currentLoopData = $criteriaList; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $criterion): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php
+                        $scoreKey = $criterion['key'];
+                        $currentScore = $journal->criterionScores()[$scoreKey]['score'] ?? ($criteria[$scoreKey] ?? null);
+                        $currentReason = $journal->criterionScores()[$scoreKey]['reason'] ?? '';
+                    ?>
+                    <div class="eas-score-reassess-field">
+                        <label><?php echo e($criterion['name']); ?></label>
+                        <input type="number" name="criteria[<?php echo e($scoreKey); ?>][score]" min="0" max="100" step="0.1" value="<?php echo e($currentScore !== null ? number_format((float) $currentScore, 1) : ''); ?>" required>
+                        <input type="hidden" name="criteria[<?php echo e($scoreKey); ?>][max]" value="100">
+                        <input type="text" name="criteria[<?php echo e($scoreKey); ?>][reason]" placeholder="Reason for this score" value="<?php echo e(old('criteria.'.$scoreKey.'.reason', $currentReason)); ?>">
+                    </div>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+            </div>
+            <div class="eas-score-reassess-field eas-score-reassess-field--wide">
+                <label>Reason for reassessment (required)</label>
+                <textarea name="reason" rows="3" required placeholder="Explain why the scores are being adjusted."></textarea>
+            </div>
+            <div class="eas-score-reassess-actions">
+                <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('eas-reassess-panel').hidden = true;">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save manual reassessment</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<script>
+    function toggleCriterion(key) {
+        const card = document.getElementById('eas-criterion-' + key);
+        if (!card) return;
+        const body = card.querySelector('.eas-score-criterion-body');
+        const btn = card.querySelector('.eas-score-criterion-toggle');
+        const icon = btn.querySelector('.eas-score-toggle-icon');
+        const isCollapsed = card.classList.contains('eas-score-criterion--collapsed');
+
+        if (isCollapsed) {
+            card.classList.remove('eas-score-criterion--collapsed');
+            body.hidden = false;
+            btn.setAttribute('aria-expanded', 'true');
+            icon.innerHTML = '<polyline points="6 15 12 9 18 15"/>';
+        } else {
+            card.classList.add('eas-score-criterion--collapsed');
+            body.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+            icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+        }
+    }
+
+    function toggleAllCriteria() {
+        const cards = document.querySelectorAll('.eas-score-criterion');
+        const anyCollapsed = Array.from(cards).some(c => c.classList.contains('eas-score-criterion--collapsed'));
+        const toggleBtn = document.querySelector('.eas-score-toggle-all');
+        const text = document.getElementById('eas-toggleAllText');
+
+        cards.forEach(card => {
+            const body = card.querySelector('.eas-score-criterion-body');
+            const toggleBtn = card.querySelector('.eas-score-criterion-toggle');
+            const icon = toggleBtn.querySelector('.eas-score-toggle-icon');
+
+            if (anyCollapsed) {
+                card.classList.remove('eas-score-criterion--collapsed');
+                body.hidden = false;
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                icon.innerHTML = '<polyline points="6 15 12 9 18 15"/>';
+            } else {
+                card.classList.add('eas-score-criterion--collapsed');
+                body.hidden = true;
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                icon.innerHTML = '<polyline points="6 9 12 15 18 9"/>';
+            }
+        });
+
+        if (toggleBtn && text) {
+            text.textContent = anyCollapsed ? 'Collapse all' : 'Expand all';
+        }
+    }
+</script>
+
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('styles'); ?>
+<style>
+/* ============================================================
+   EAS Score Sheet - Premium Professional Design
+   Consistent with EAS design system
+   ============================================================ */
+
+/* ---------- Page Header ---------- */
+.eas-score-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-head-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.eas-score-head-label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.eas-score-eyebrow {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+}
+
+.eas-score-divider {
+    width: 1px;
+    height: 12px;
+    background: var(--border-subtle);
+    flex: 0 0 1px;
+}
+
+.eas-score-period {
+    font-size: 13px;
+    color: var(--muted-text);
+    font-weight: 500;
+}
+
+.eas-score-head-title h1 {
+    margin: 0 0 6px;
+    font-family: var(--font-head);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+}
+
+.eas-score-head-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.eas-score-head-role {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted-text);
+}
+
+.eas-score-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.eas-score-head-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.eas-score-head-actions .btn svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+
+/* ---------- Assessment Information Panel ---------- */
+.eas-score-info {
+    margin-bottom: 24px;
+}
+
+.eas-score-info-panel {
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+}
+
+.eas-score-info-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-wrap: wrap;
+}
+
+.eas-score-info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 16px;
+    min-width: 0;
+    border-right: 1px solid var(--border-subtle);
+}
+
+.eas-score-info-item:last-child {
+    border-right: none;
+}
+
+.eas-score-info-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+}
+
+.eas-score-info-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--navy);
+    overflow-wrap: anywhere;
+}
+
+.eas-score-info-item .eas-score-badge {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.eas-score-badge--automatic {
+    background: #EAF1FC;
+    color: #1D4ED8;
+    border-color: rgba(29,78,216,.18);
+}
+
+.eas-score-badge--manual {
+    background: #E6F7EE;
+    color: #196F3D;
+    border-color: rgba(25,111,61,.18);
+}
+
+.eas-score-badge--verified {
+    background: #E6F7EE;
+    color: #196F3D;
+    border-color: rgba(25,111,61,.18);
+}
+
+.eas-score-badge--provisional {
+    background: #FFF3E0;
+    color: #92400E;
+    border-color: rgba(146,64,14,.18);
+}
+
+/* ---------- Cards ---------- */
+.eas-score-card {
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+
+.eas-score-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
+}
+
+.eas-score-card-head h2 {
+    margin: 0;
+    font-family: var(--font-head);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-card-head p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--muted-text);
+}
+
+/* ---------- Overall Score Section ---------- */
+.eas-score-overall {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 24px;
+    flex-wrap: wrap;
+}
+
+.eas-score-circle-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    flex: 0 0 auto;
+}
+
+.eas-score-circle {
+    position: relative;
+    width: 96px;
+    height: 96px;
+    flex: none;
+}
+
+.eas-score-circle-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.eas-score-circle-track {
+    fill: none;
+    stroke: #E5E7EB;
+}
+
+.eas-score-circle-progress-ring {
+    fill: none;
+    stroke-linecap: butt;
+}
+
+.eas-score-circle-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    line-height: 1.1;
+}
+
+.eas-score-circle-value {
+    display: block;
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--navy);
+    letter-spacing: -0.02em;
+}
+
+.eas-score-circle-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+}
+
+.eas-score-level-badge {
+    text-align: center;
+}
+
+.eas-score-level {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* Score Details */
+.eas-score-details {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.eas-score-detail {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.eas-score-detail-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+    min-width: 130px;
+}
+
+.eas-score-detail-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-detail-value--main {
+    font-size: 18px;
+}
+
+.eas-score-detail-note {
+    font-size: 10px;
+    color: var(--muted-text);
+    margin-top: 2px;
+    display: block;
+}
+
+.eas-score-detail--adjustment .eas-score-detail-note {
+    font-size: 10px;
+}
+
+.eas-score-adjustment--positive {
+    color: #27AE60;
+}
+
+.eas-score-adjustment--negative {
+    color: #ef4444;
+}
+
+/* ---------- Overall Score Section ---------- */
+.eas-score-why-section--overall {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 20px;
+}
+
+.eas-score-why-overall-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.eas-score-why-metric {
+    padding: 12px 16px;
+    background: var(--surface-raised);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.eas-score-why-metric-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+    margin: 0;
+}
+
+.eas-score-why-metric-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+.eas-score-why-summary-text {
+    font-size: 14px;
+    color: var(--text);
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+}
+
+.eas-score-why-method-text {
+    font-size: 13px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+/* ---------- Calculation Table ---------- */
+.eas-score-why-section--calculation {
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 20px;
+}
+
+.eas-score-calc-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.eas-score-calc-table th {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-text);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-table th.text-end {
+    text-align: right;
+}
+
+.eas-score-calc-table td {
+    padding: 10px 12px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-table td.text-end {
+    text-align: right;
+}
+
+.eas-score-calc-row--evaluated {
+    background: #f0fdf4;
+}
+
+.eas-score-calc-row--unevaluated {
+    background: #f8fafc;
+}
+
+.eas-score-calc-row--total {
+    font-weight: 700;
+    background: var(--surface-raised);
+    border-top: 2px solid var(--border-subtle);
+}
+
+.eas-score-calc-row--available {
+    background: #fef3c7;
+}
+
+.eas-score-calc-row--final {
+    font-weight: 800;
+    background: #dbeafe;
+    border-top: 2px solid #2563eb;
+}
+
+.eas-score-calc-criterion {
+    font-weight: 600;
+}
+
+.eas-score-calc-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.eas-score-calc-status--evaluated {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.eas-score-calc-status--unevaluated {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.eas-score-calc-note {
+    font-size: 13px;
+    color: var(--muted-text);
+    margin: 0 0 10px 0;
+    line-height: 1.5;
+    padding: 12px 16px;
+    background: var(--surface-raised);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+
+.eas-score-calc-detail {
+    font-size: 13px;
+    color: var(--text);
+    margin: 0 0 10px 0;
+    font-style: italic;
+}
+
+/* ---------- Finding Items ---------- */
+.eas-score-why-finding {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.eas-score-why-finding-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.eas-score-why-finding-detail {
+    font-size: 13px;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.5;
+}
+
+.eas-score-why-finding-why {
+    font-size: 12px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+.eas-score-why-finding-date {
+    font-size: 11px;
+    color: var(--muted-text);
+}
+
+.eas-score-why-finding-weight {
+    font-size: 11px;
+    color: var(--muted-text);
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+}
+
+.eas-score-why-finding-note {
+    font-size: 11px;
+    color: var(--muted-text);
+    margin: 0;
+    font-style: italic;
+}
+
+/* ---------- Section Variants ---------- */
+.eas-score-why-section--positive .eas-score-why-list-item--positive {
+    background: #f0fdf4;
+    border-left: 3px solid #10b981;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--negative .eas-score-why-list-item--negative {
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--excluded .eas-score-why-list-item--excluded {
+    background: #f8fafc;
+    border-left: 3px solid #94a3b8;
+    padding-left: 12px;
+}
+
+.eas-score-why-section--improvement .eas-score-why-list-item--improvement {
+    background: #fffbeb;
+    border-left: 3px solid #f59e0b;
+    padding-left: 12px;
+}
+
+/* Weights / Calculation Breakdown */
+.eas-score-weights-section {
+    margin-top: 24px;
+    padding: 20px 24px 0;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.eas-score-weights-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+    display: block;
+    margin-bottom: 10px;
+}
+
+.eas-score-weight-chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.eas-score-weight-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--navy);
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border-subtle);
+    white-space: nowrap;
+}
+
+.eas-score-weight-chip--muted {
+    opacity: 0.6;
+}
+
+.eas-score-weight-chip-name {
+    font-size: 11.5px;
+}
+
+.eas-score-weight-chip-value {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.eas-score-weights-note {
+    font-size: 10px;
+    color: var(--muted-text);
+    margin-top: 8px;
+    display: block;
+    font-style: italic;
+}
+
+/* ---------- Why Section ---------- */
+.eas-score-why-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.eas-score-why-section {
+    margin-bottom: 4px;
+}
+
+.eas-score-why-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.eas-score-why-section-icon {
+    width: 20px;
+    height: 20px;
+    flex: none;
+}
+
+.eas-score-why-section-icon--positive { color: #10b981; }
+.eas-score-why-section-icon--negative { color: #ef4444; }
+.eas-score-why-section-icon--muted { color: #94a3b8; }
+.eas-score-why-section-icon--warning { color: #f59e0b; }
+
+.eas-score-why-subhead {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--navy);
+}
+
+.eas-score-why-list {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.eas-score-why-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.5;
+    padding: 6px 0;
+}
+
+.eas-score-why-list-icon {
+    width: 18px;
+    height: 18px;
+    flex: none;
+}
+
+.eas-score-why-list-icon--positive { color: #10b981; }
+.eas-score-why-list-icon--negative { color: #ef4444; }
+.eas-score-why-list-icon--muted { color: #94a3b8; }
+.eas-score-why-list-icon--warning { color: #f59e0b; }
+
+.eas-score-why-reason {
+    font-size: 13px;
+    color: var(--muted-text);
+    font-style: italic;
+}
+
+.eas-score-why-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 48px 32px;
+    color: var(--muted-text);
+    background: var(--surface-raised);
+    border-radius: var(--radius-card);
+}
+
+.eas-score-why-empty-icon {
+    width: 56px;
+    height: 56px;
+    flex: none;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+
+.eas-score-why-empty-text {
+    max-width: 400px;
+}
+
+.eas-score-why-empty-text strong {
+    display: block;
+    font-size: 16px;
+    color: var(--navy);
+    margin-bottom: 6px;
+}
+
+.eas-score-why-empty-text p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--muted-text);
+}
+
+/* ---------- Criteria Breakdown ---------- */
+.eas-score-criteria-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0;
+}
+
+.eas-score-criterion {
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+}
+
+.eas-score-criterion--collapsed .eas-score-criterion-body {
+    display: none;
+}
+
+.eas-score-criterion-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-raised);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.eas-score-criterion-head:hover {
+    background: #F8FAFC;
+}
+
+.eas-score-criterion-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.eas-score-criterion-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: #F1F5F9;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    color: var(--navy);
+}
+
+.eas-score-criterion-icon path,
+.eas-score-criterion-icon line,
+.eas-score-criterion-icon polyline,
+.eas-score-criterion-icon circle {
+    stroke: currentColor;
+    fill: none;
+}
+
+.eas-score-criterion-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.eas-score-criterion-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.eas-score-criterion-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-criterion-weight {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted-text);
+}
+
+.eas-score-criterion-score {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex: none;
+    min-width: 90px;
+    justify-content: flex-end;
+}
+
+.eas-score-points {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1;
+}
+
+.eas-score-points--unevaluated {
+    color: var(--muted-text);
+}
+
+.eas-score-points-max {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted-text);
+}
+
+.eas-score-points-deduction {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ef4444;
+    margin-left: 6px;
+}
+
+.eas-score-criterion-toggle {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted-text);
+    cursor: pointer;
+    padding: 0;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.eas-score-criterion-toggle:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.eas-score-criterion-toggle[aria-expanded="true"] {
+    background: #EAF1FC;
+    color: #2563eb;
+    border-color: #2563eb;
+}
+
+.eas-score-toggle-icon {
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+
+.eas-score-criterion-progress {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: #FAFBFC;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.eas-score-progress-track {
+    flex: 1;
+    height: 6px;
+    background: #E5E7EB;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.eas-score-progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.eas-score-progress-fill--empty {
+    background: #E5E7EB;
+    width: 100%;
+    opacity: 0.4;
+}
+
+.eas-score-progress-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--navy);
+    white-space: nowrap;
+    min-width: 70px;
+    text-align: right;
+}
+
+.eas-score-criterion-status {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.eas-score-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.eas-score-status--evaluated {
+    background: #E6F7EE;
+    color: #196F3D;
+}
+
+.eas-score-status--unevaluated {
+    background: #F1F5F9;
+    color: #6B7280;
+}
+
+.eas-score-criterion-body {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    background: var(--surface);
+}
+
+.eas-score-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.eas-score-field-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+}
+
+.eas-score-field-value {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.55;
+}
+
+.eas-score-field-value--muted {
+    color: var(--muted-text);
+    font-style: italic;
+}
+
+.eas-score-field--manual {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 16px;
+    margin-top: 16px;
+    background: #FEF3C7;
+    border-radius: 8px;
+}
+
+/* ---------- Assessment History ---------- */
+.eas-score-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 24px;
+}
+
+.eas-score-history-item {
+    padding: 12px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+}
+
+.eas-score-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.eas-score-history-action {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-history-action--manual {
+    color: #196F3D;
+}
+
+.eas-score-history-action--auto {
+    color: #1D4ED8;
+}
+
+.eas-score-history-date {
+    font-size: 11px;
+    color: var(--muted-text);
+}
+
+.eas-score-history-body p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--muted-text);
+}
+
+.eas-score-history-reviewer {
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-history-score {
+    font-weight: 700;
+}
+
+.eas-score-history-score--prev {
+    color: #6B7280;
+}
+
+.eas-score-history-score--next {
+    color: var(--navy);
+}
+
+.eas-score-history-reason {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    font-style: italic;
+    color: var(--muted-text);
+}
+
+/* ---------- Reassessment ---------- */
+.eas-score-reassess {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.eas-score-reassess-panel {
+    margin-top: 12px;
+    padding: 20px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-raised);
+}
+
+.eas-score-reassess-panel h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--navy);
+}
+
+.eas-score-reassess-panel p {
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: var(--muted-text);
+}
+
+.eas-score-reassess-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.eas-score-reassess-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.eas-score-reassess-field--wide {
+    grid-column: 1 / -1;
+}
+
+.eas-score-reassess-field label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted-text);
+}
+
+.eas-score-reassess-field input,
+.eas-score-reassess-field select,
+.eas-score-reassess-field textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 9px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+}
+
+.eas-score-reassess-field textarea {
+    resize: vertical;
+    line-height: 1.5;
+}
+
+.eas-score-reassess-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+    .eas-score-info-row {
+        flex-wrap: wrap;
+    }
+
+    .eas-score-info-item {
+        min-width: 50%;
+    }
+
+    .eas-score-overall {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 20px;
+    }
+
+    .eas-score-details {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .eas-score-detail {
+        flex: none;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 640px) {
+    .eas-score-head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+    }
+
+    .eas-score-head-content {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .eas-score-head h1 {
+        font-size: 22px;
+    }
+
+    .eas-score-head-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .eas-score-circle {
+        width: 80px;
+        height: 80px;
+    }
+
+    .eas-score-overall {
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .eas-score-details {
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+        text-align: center;
+    }
+
+    .eas-score-detail-label {
+        min-width: auto;
+    }
+
+    .eas-score-criterion-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .eas-score-criterion-score {
+        justify-content: flex-start;
+        min-width: auto;
+        width: 100%;
+    }
+
+    .eas-score-criterion-toggle {
+        align-self: flex-start;
+    }
+
+    .eas-score-criterion-progress {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .eas-score-progress-track {
+        width: 100%;
+    }
+
+    .eas-score-progress-label {
+        min-width: auto;
+    }
+}
+
+/* ---------- Score Composition ---------- */
+.eas-score-composition-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.eas-score-comp-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background: var(--surface);
+}
+.eas-score-comp-card--evaluated {
+    background: #f0fdf4;
+    border-color: rgba(16, 185, 129, 0.2);
+}
+.eas-score-comp-card--unevaluated {
+    background: #f8fafc;
+    border-color: var(--border-subtle);
+}
+.eas-score-comp-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.eas-score-comp-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 0;
+}
+.eas-score-comp-weight {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted-text);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+.eas-score-comp-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+    position: relative;
+}
+.eas-score-comp-track {
+    height: 100%;
+    width: 100%;
+}
+.eas-score-comp-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+}
+.eas-score-comp-fill--empty {
+    background: #cbd5e1;
+    animation: eas-score-comp-pulse 2s infinite;
+}
+@keyframes eas-score-comp-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+.eas-score-comp-values {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.eas-score-comp-score {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--text);
+}
+.eas-score-comp-contribution {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2563eb;
+}
+.eas-score-comp-card--unevaluated .eas-score-comp-contribution {
+    color: var(--muted-text);
+}
+.eas-score-comp-status {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 999px;
+    width: fit-content;
+}
+.eas-score-comp-status--evaluated {
+    background: #dcfce7;
+    color: #166534;
+}
+.eas-score-comp-status--unevaluated {
+    background: #f1f5f9;
+    color: #64748b;
+}
+.eas-score-comp-note {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted-text);
+    text-align: center;
+}
+
+@media (max-width: 640px) {
+    .eas-score-composition-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+</style>
+<?php $__env->stopPush(); ?>
+<?php echo $__env->make('layouts.dashboard', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\Users\USER\Documents\EAS\eglianeas\resources\views/daily-journal/score-sheet.blade.php ENDPATH**/ ?>

@@ -1,0 +1,107 @@
+
+
+<?php if(session('status')): ?>
+    <div class="alert alert-success"><?php echo e(session('status')); ?></div>
+<?php endif; ?>
+
+
+<div id="savedAccounts" class="saved-accounts" hidden></div>
+<p class="saved-accounts-alt" id="savedAccountsAlt" hidden>
+    <button type="button" class="link-style" id="diffAccountLink">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+        Log in with a different account
+    </button>
+</p>
+
+<div class="login-field-group" id="emailGroup" hidden>
+    <label class="form-label" for="authEmail">Gmail</label>
+    <input class="form-control" id="authEmail" type="email" name="email" value="<?php echo e(old('email')); ?>" required autocomplete="username" placeholder="you@gmail.com">
+    <?php $__errorArgs = ['email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+
+    <div class="remember-row" id="rememberRow">
+        <label class="checkbox-row remember-check">
+            <input type="checkbox" id="rememberEmail">
+            <span>Remember me on this device</span>
+        </label>
+        <a href="#" id="notYouLink" class="not-you" hidden>Not you? Use a different account</a>
+    </div>
+</div>
+
+
+<div class="auth-tabs login-tabs" role="tablist" aria-label="Sign in method">
+    <button type="button" class="auth-tab active" data-tab="pin" role="tab" aria-selected="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="8" width="20" height="12" rx="2"/><path d="M12 12v4M6 12v4M18 12v4"/></svg>
+        PIN
+    </button>
+    <button type="button" class="auth-tab" data-tab="face" role="tab" aria-selected="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 15v3a4 4 0 0 0 4 4h3"/><path d="M22 15v3a4 4 0 0 1-4 4h-3"/><path d="M2 9V6a4 4 0 0 1 4-4h3"/><path d="M22 9V6a4 4 0 0 0-4-4h-3"/><circle cx="12" cy="12" r="3"/></svg>
+        Face
+    </button>
+</div>
+
+
+<div class="auth-panel active" data-panel="pin" role="tabpanel">
+    <form method="POST" action="<?php echo e(route('login.pin')); ?>" id="pinForm" novalidate>
+        <?php echo csrf_field(); ?>
+        <input type="hidden" name="email" id="pinEmail">
+        <input type="hidden" name="pin" id="pinValue">
+        <div class="pin-panel">
+            <div class="pin-display">
+                <?php for($i = 0; $i < 4; $i++): ?><span class="pin-dot"></span><?php endfor; ?>
+            </div>
+            <div class="keypad" id="keypad">
+                <?php $__currentLoopData = [1, 2, 3, 4, 5, 6, 7, 8, 9]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $n): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <button type="button" class="key" data-key="<?php echo e($n); ?>"><?php echo e($n); ?></button>
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                <button type="button" class="key backspace" data-key="back" aria-label="Delete">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="m18 9-6 6M12 9l6 6"/></svg>
+                </button>
+                <button type="button" class="key" data-key="0">0</button>
+                <button type="button" class="key ok-key" data-key="ok" aria-label="Confirm PIN" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <p class="pin-hint">
+            <span>Enter your 4-digit PIN</span>
+            <a href="<?php echo e(route('forgot-pin')); ?>" class="link-style">Forgot your PIN?</a>
+        </p>
+        <div class="form-error text-center" id="pinError" hidden></div>
+        <?php $__errorArgs = ['pin'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error text-center"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+        <p class="text-center mt-1" id="verifyResendRow" hidden>
+            <button type="button" class="link-style" id="goVerifyBtn">Resend verification code</button>
+        </p>
+        <button type="submit" class="btn btn-primary btn-block login-submit" id="pinSubmitBtn">Log In</button>
+    </form>
+</div>
+
+
+<div class="auth-panel" data-panel="face" role="tabpanel">
+    <div class="face-error" id="faceError"></div>
+    <div class="face-box">
+        <div class="face-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2 15v3a4 4 0 0 0 4 4h3"/><path d="M22 15v3a4 4 0 0 1-4 4h-3"/><path d="M2 9V6a4 4 0 0 1 4-4h3"/><path d="M22 9V6a4 4 0 0 0-4-4h-3"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <button type="button" class="btn btn-primary btn-block" id="faceLoginBtn">Continue with face</button>
+        <p class="face-hint">Uses your device&rsquo;s Face ID / Windows Hello. Your face data never leaves your device.</p>
+    </div>
+</div>
+
+<p class="auth-switch-row">
+    <button type="button" class="link-style use-face-btn" id="useFaceLink">Use Face ID instead</button>
+</p>
+<p class="auth-footer">Don&rsquo;t have an account? <a href="<?php echo e(route('register')); ?>">Sign Up</a></p><?php /**PATH C:\Users\USER\Documents\EAS\eglianeas\resources\views/auth/partials/login-form.blade.php ENDPATH**/ ?>

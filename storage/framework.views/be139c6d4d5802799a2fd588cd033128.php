@@ -1,0 +1,550 @@
+<?php
+    $user = auth()->user();
+    $maskTin = function (?string $value): string {
+        if (! $value) {
+            return '';
+        }
+        $clean = preg_replace('/\D/', '', $value) ?? '';
+        return str_repeat('X', max(strlen($clean) - 3, 0)).substr($clean, -3);
+    };
+    $maskName = function (?string $value): string {
+        if (! $value) {
+            return '';
+        }
+        return mb_substr($value, 0, 1).str_repeat('•', max(mb_strlen($value) - 1, 0));
+    };
+    $tinFull = old('tin_no') ?? $profile->tin_no;
+    $maidenFull = old('mother_maiden_name') ?? $profile->mother_maiden_name;
+    $fatherFull = old('father_name') ?? $profile->father_name;
+
+    $modeFor = function (string $section) use ($hasData, $editSections): string {
+        return (! $hasData || in_array($section, $editSections, true)) ? 'edit' : 'view';
+    };
+    $editUrl = fn (string $section): string => route('client.profile.edit', ['edit' => $section]);
+    $editBtn = fn (string $section) => '<a href="'.$editUrl($section).'" class="btn btn-outline btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg> Edit</a>';
+
+    $lobOptions = \App\Models\ClientProfile::LINE_OF_BUSINESS_OPTIONS;
+    $lobSaved = old('line_of_business', $profile->line_of_business);
+    $lobIsOther = $lobSaved !== null && $lobSaved !== '' && ! in_array($lobSaved, $lobOptions, true);
+    $lobSelect = $lobIsOther ? 'Other' : (string) $lobSaved;
+    $lobOtherVal = $lobIsOther ? (string) $lobSaved : (string) old('line_of_business_other');
+?>
+
+
+
+<?php $__env->startSection('title', 'My Profile — Egliane Accounting Services'); ?>
+
+<?php $__env->startSection('content'); ?>
+    <div class="page-head page-head-row">
+        <div>
+            <h1>My profile</h1>
+            <p>Keep your business information up to date.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" data-onboarding-replay>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+            Take a tour
+        </button>
+    </div>
+
+    <?php if($hasData): ?>
+        <div class="form-hint profile-edit-hint">Use <b>Edit</b> on a section to change its details, then save.</div>
+    <?php endif; ?>
+
+    <div class="profile-meta">
+        <div class="profile-meta-chip">
+            <span class="meta-k">Client ID</span>
+            <span class="meta-v code-pill"><?php echo e($user->client_code ?? '—'); ?></span>
+        </div>
+        <div class="profile-meta-chip">
+            <span class="meta-k">Account Status</span>
+            <span class="badge badge-<?php echo e($profile->status); ?>"><?php echo e($profile->statusLabel()); ?></span>
+        </div>
+        <div class="profile-meta-chip">
+            <span class="meta-k">Payment Status</span>
+            <span class="badge badge-<?php echo e($profile->payment_status ?? 'unpaid'); ?>"><?php echo e($profile->paymentStatusLabel() ?? '—'); ?></span>
+        </div>
+        <div class="profile-meta-chip">
+            <span class="meta-k">Date Started</span>
+            <span class="meta-v"><?php echo e($profile->date_started?->format('M j, Y') ?? '—'); ?></span>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2 class="card-title">Business information</h2>
+            <?php if($modeFor('business') === 'view'): ?>
+                <?php echo $editBtn('business'); ?>
+
+            <?php endif; ?>
+        </div>
+
+        <?php if($modeFor('business') === 'edit'): ?>
+            <form method="POST" action="<?php echo e(route('client.profile.update')); ?>">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PATCH'); ?>
+                <div class="profile-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="client_name">Taxpayer name</label>
+                        <input class="form-control" id="client_name" type="text" value="<?php echo e($user->name); ?>" disabled>
+                        <div class="form-hint">Contact Egliane to change your registered name. <a href="<?php echo e(config('contact.messenger_url')); ?>" target="_blank" rel="noopener">Message us on Messenger</a>.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="business_name">Business name</label>
+                        <input class="form-control" id="business_name" type="text" name="business_name" value="<?php echo e(old('business_name', $user->business_name)); ?>">
+                        <?php $__errorArgs = ['business_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="taxpayer_name">Taxpayer's name</label>
+                        <input class="form-control" id="taxpayer_name" type="text" name="taxpayer_name" value="<?php echo e(old('taxpayer_name', $profile->taxpayer_name)); ?>" placeholder="If different from business name">
+                        <?php $__errorArgs = ['taxpayer_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="business_type">Business type</label>
+                        <select class="form-control" id="business_type" name="business_type">
+                            <option value="">Select business type</option>
+                            <?php $__currentLoopData = \App\Models\ClientProfile::BUSINESS_TYPES; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($type); ?>" <?php if((string) old('business_type', $profile->business_type) === $type): echo 'selected'; endif; ?>><?php echo e($type); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                        <?php $__errorArgs = ['business_type'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="taxpayer_type">Type of taxpayer</label>
+                        <select class="form-control" id="taxpayer_type" name="taxpayer_type">
+                            <option value="">Select taxpayer type</option>
+                            <?php $__currentLoopData = \App\Models\ClientProfile::TAXPAYER_TYPES; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $type): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($type); ?>" <?php if((string) old('taxpayer_type', $profile->taxpayer_type) === $type): echo 'selected'; endif; ?>><?php echo e($type); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                        <?php $__errorArgs = ['taxpayer_type'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="line_of_business">Line of business</label>
+                        <select class="form-control" id="line_of_business" name="line_of_business" data-lob-select>
+                            <option value="">Select line of business</option>
+                            <?php $__currentLoopData = $lobOptions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $lob): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($lob); ?>" <?php if((string) $lobSelect === (string) $lob): echo 'selected'; endif; ?>><?php echo e($lob); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                        <?php $__errorArgs = ['line_of_business'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group col-span-2" data-lob-other <?php if(! $lobIsOther): ?> hidden <?php endif; ?>>
+                        <label class="form-label" for="line_of_business_other">Other line of business</label>
+                        <input class="form-control" id="line_of_business_other" type="text" name="line_of_business_other" value="<?php echo e($lobOtherVal); ?>" placeholder="Describe your line of business">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="bir_registration_type">BIR registration type</label>
+                        <select class="form-control" id="bir_registration_type" name="bir_registration_type">
+                            <option value="">Select registration type</option>
+                            <?php $__currentLoopData = \App\Models\ClientProfile::BIR_REGISTRATION_TYPES; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $reg): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <option value="<?php echo e($reg); ?>" <?php if((string) old('bir_registration_type', $profile->bir_registration_type) === $reg): echo 'selected'; endif; ?>><?php echo e($reg); ?></option>
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                        </select>
+                        <?php $__errorArgs = ['bir_registration_type'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                </div>
+                <div class="btn-group-row">
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                    <?php if($hasData): ?>
+                        <a href="<?php echo e(route('client.profile.edit')); ?>" class="btn btn-outline">Cancel</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php else: ?>
+            <div class="profile-grid">
+                <div class="profile-row"><span class="profile-k">Taxpayer name</span><span class="profile-v"><?php echo e($user->name); ?></span></div>
+                <div class="profile-row"><span class="profile-k">Business name</span><span class="profile-v"><?php echo e($user->business_name ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">Taxpayer's name</span><span class="profile-v"><?php echo e($profile->taxpayer_name ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">Business type</span><span class="profile-v"><?php echo e($profile->business_type ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">Type of taxpayer</span><span class="profile-v"><?php echo e($profile->taxpayer_type ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">Line of business</span><span class="profile-v"><?php echo e($profile->line_of_business ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">BIR registration type</span><span class="profile-v"><?php echo e($profile->bir_registration_type ?: '—'); ?></span></div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2 class="card-title">Address &amp; location</h2>
+            <?php if($modeFor('address') === 'view'): ?>
+                <?php echo $editBtn('address'); ?>
+
+            <?php endif; ?>
+        </div>
+
+        <?php if($modeFor('address') === 'edit'): ?>
+            <form method="POST" action="<?php echo e(route('client.profile.update')); ?>">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PATCH'); ?>
+                <div class="profile-grid">
+                    <div class="form-group col-span-2">
+                        <label class="form-label" for="business_address">Business address</label>
+                        <input class="form-control" id="business_address" type="text" name="business_address" value="<?php echo e(old('business_address', $profile->business_address)); ?>" placeholder="e.g. 123 Rizal Avenue, Quezon City">
+                        <?php $__errorArgs = ['business_address'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <input type="hidden" id="latitude" name="latitude" value="<?php echo e(old('latitude', $profile->latitude)); ?>">
+                    <input type="hidden" id="longitude" name="longitude" value="<?php echo e(old('longitude', $profile->longitude)); ?>">
+                    <?php if (isset($component)) { $__componentOriginal65f196d74402b020f3b225ff78358233 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal65f196d74402b020f3b225ff78358233 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.address-map','data' => ['latitude' => null,'longitude' => null,'id' => 'profileMapLoader','hidden' => true]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('address-map'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['latitude' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(null),'longitude' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute(null),'id' => 'profileMapLoader','hidden' => true]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal65f196d74402b020f3b225ff78358233)): ?>
+<?php $attributes = $__attributesOriginal65f196d74402b020f3b225ff78358233; ?>
+<?php unset($__attributesOriginal65f196d74402b020f3b225ff78358233); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal65f196d74402b020f3b225ff78358233)): ?>
+<?php $component = $__componentOriginal65f196d74402b020f3b225ff78358233; ?>
+<?php unset($__componentOriginal65f196d74402b020f3b225ff78358233); ?>
+<?php endif; ?>
+                    <div class="form-group col-span-2">
+                        <button type="button" class="btn btn-outline btn-sm" id="locateAddressBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                            Locate address
+                        </button>
+                        <div class="form-hint">Coordinates are set automatically from the business address above. Drag the map pin to adjust.</div>
+                        <div class="form-hint geo-status" id="geoStatus" hidden></div>
+                        <div class="map-preview" id="mapPreview" hidden></div>
+                    </div>
+                </div>
+                <div class="btn-group-row">
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                    <?php if($hasData): ?>
+                        <a href="<?php echo e(route('client.profile.edit')); ?>" class="btn btn-outline">Cancel</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php else: ?>
+            <div class="profile-grid">
+                <div class="profile-row col-span-2"><span class="profile-k">Business address</span><span class="profile-v"><?php if($profile->business_address): ?><a href="https://www.google.com/maps/search/?api=1&query=<?php echo e(urlencode($profile->business_address)); ?>" target="_blank" rel="noopener" class="contact-link"><?php echo e($profile->business_address); ?></a><?php else: ?> — <?php endif; ?></span></div>
+                <?php if($profile->latitude !== null && $profile->longitude !== null && (float) $profile->latitude != 0 && (float) $profile->longitude != 0): ?>
+                    <div class="profile-row col-span-2"><span class="profile-k">Map</span><?php if (isset($component)) { $__componentOriginal65f196d74402b020f3b225ff78358233 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal65f196d74402b020f3b225ff78358233 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.address-map','data' => ['latitude' => $profile->latitude,'longitude' => $profile->longitude,'id' => 'mapView']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('address-map'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['latitude' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($profile->latitude),'longitude' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($profile->longitude),'id' => 'mapView']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal65f196d74402b020f3b225ff78358233)): ?>
+<?php $attributes = $__attributesOriginal65f196d74402b020f3b225ff78358233; ?>
+<?php unset($__attributesOriginal65f196d74402b020f3b225ff78358233); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal65f196d74402b020f3b225ff78358233)): ?>
+<?php $component = $__componentOriginal65f196d74402b020f3b225ff78358233; ?>
+<?php unset($__componentOriginal65f196d74402b020f3b225ff78358233); ?>
+<?php endif; ?></div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2 class="card-title">Contact information</h2>
+            <?php if($modeFor('contact') === 'view'): ?>
+                <?php echo $editBtn('contact'); ?>
+
+            <?php endif; ?>
+        </div>
+
+        <?php if($modeFor('contact') === 'edit'): ?>
+            <form method="POST" action="<?php echo e(route('client.profile.update')); ?>">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PATCH'); ?>
+                <div class="profile-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="contact_no">Contact number</label>
+                        <input class="form-control" id="contact_no" type="tel" name="contact_no" value="<?php echo e(old('contact_no', $profile->contact_no)); ?>" placeholder="+63 917 000 0000">
+                        <?php $__errorArgs = ['contact_no'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="second_contact_name">2nd contact name</label>
+                        <input class="form-control" id="second_contact_name" type="text" name="second_contact_name" value="<?php echo e(old('second_contact_name', $profile->second_contact_name)); ?>" placeholder="Name of 2nd contact person">
+                        <?php $__errorArgs = ['second_contact_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="second_contact_channel">2nd person contact channel</label>
+                        <div class="form-inline-row">
+                            <select class="form-control" id="second_contact_channel" name="second_contact_channel" data-second-channel>
+                                <?php $__currentLoopData = \App\Models\ClientProfile::SECOND_CONTACT_CHANNELS; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $ch): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <option value="<?php echo e($ch); ?>" <?php echo e(old('second_contact_channel', $profile->second_contact_channel ?? 'phone') === $ch ? 'selected' : ''); ?>><?php echo e(['phone' => 'Phone Number', 'viber' => 'Viber', 'facebook' => 'Facebook', 'telegram' => 'Telegram'][$ch]); ?></option>
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            </select>
+                            <input class="form-control" id="second_contact_no" type="text" name="second_contact_no" value="<?php echo e(old('second_contact_no', $profile->second_contact_no)); ?>" placeholder="0918 765 4321"
+                                <?php if(old('second_contact_channel', $profile->second_contact_channel ?? 'phone') === 'phone'): ?>
+                                    pattern="(?:\+63|0)[\d\s\-()]{7,17}" title="PH mobile or landline, e.g. 0918 765 4321"
+                                <?php endif; ?>>
+                        </div>
+                        <?php $__errorArgs = ['second_contact_channel'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                        <?php $__errorArgs = ['second_contact_no'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="second_email">2nd person email</label>
+                        <input class="form-control" id="second_email" type="email" name="second_email" value="<?php echo e(old('second_email', $profile->second_email)); ?>" placeholder="name@example.com">
+                        <?php $__errorArgs = ['second_email'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="birth_date">Birth date</label>
+                        <input class="form-control" id="birth_date" type="date" name="birth_date" value="<?php echo e(old('birth_date', $profile->birth_date?->format('Y-m-d'))); ?>">
+                        <?php $__errorArgs = ['birth_date'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                </div>
+                <div class="btn-group-row">
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                    <?php if($hasData): ?>
+                        <a href="<?php echo e(route('client.profile.edit')); ?>" class="btn btn-outline">Cancel</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php else: ?>
+            <div class="profile-grid">
+                <div class="profile-row"><span class="profile-k">Contact number</span><span class="profile-v"><?php if($profile->contact_no): ?><a href="tel:<?php echo e($profile->contact_no); ?>" class="contact-link"><?php echo e($profile->contact_no); ?></a><?php else: ?> — <?php endif; ?></span></div>
+                <div class="profile-row"><span class="profile-k">2nd contact name</span><span class="profile-v"><?php echo e($profile->second_contact_name ?: '—'); ?></span></div>
+                <div class="profile-row"><span class="profile-k">2nd person contact</span><span class="profile-v"><?php if($profile->second_contact_display): ?><?php if($profile->second_contact_channel === \App\Models\ClientProfile::SECOND_CONTACT_CHANNEL_PHONE): ?><a href="tel:<?php echo e($profile->second_contact_no); ?>" class="contact-link"><?php echo e($profile->second_contact_display); ?></a><?php else: ?><?php echo e($profile->secondContactChannelLabel()); ?>: <?php if (isset($component)) { $__componentOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.url-link','data' => ['value' => $profile->second_contact_no]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('url-link'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['value' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($profile->second_contact_no)]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24)): ?>
+<?php $attributes = $__attributesOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24; ?>
+<?php unset($__attributesOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24)): ?>
+<?php $component = $__componentOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24; ?>
+<?php unset($__componentOriginalf3dd7d4b5c900d0fe964c9d0e9e13d24); ?>
+<?php endif; ?><?php endif; ?>
+                    <?php else: ?> — <?php endif; ?></span></div>
+                <div class="profile-row"><span class="profile-k">2nd person email</span><span class="profile-v"><?php if($profile->second_email): ?><a href="mailto:<?php echo e($profile->second_email); ?>" class="contact-link"><?php echo e($profile->second_email); ?></a><?php else: ?> — <?php endif; ?></span></div>
+                <div class="profile-row"><span class="profile-k">Birth date</span><span class="profile-v"><?php echo e($profile->birth_date?->format('M j, Y') ?? '—'); ?></span></div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <div class="card">
+        <div class="card-head">
+            <h2 class="card-title">BIR details</h2>
+            <?php if($modeFor('bir') === 'view'): ?>
+                <?php echo $editBtn('bir'); ?>
+
+            <?php endif; ?>
+        </div>
+
+        <?php if($modeFor('bir') === 'edit'): ?>
+            <div class="form-hint mb-2">Sensitive fields are masked. Click &ldquo;Reveal&rdquo; to view or edit.</div>
+            <form method="POST" action="<?php echo e(route('client.profile.update')); ?>">
+                <?php echo csrf_field(); ?>
+                <?php echo method_field('PATCH'); ?>
+                <div class="profile-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="tin_no">TIN number</label>
+                        <div class="reveal-field">
+                            <input class="form-control" id="tin_no" type="text" name="tin_no" value="<?php echo e(old('tin_no', $maskTin($tinFull))); ?>" data-full="<?php echo e($tinFull); ?>" data-masked="<?php echo e($maskTin($tinFull)); ?>" placeholder="123-456-789-000">
+                            <button type="button" class="btn btn-outline btn-sm reveal-btn" data-target="tin_no">Reveal</button>
+                        </div>
+                        <?php $__errorArgs = ['tin_no'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="mother_maiden_name">Mother&rsquo;s maiden name</label>
+                        <div class="reveal-field">
+                            <input class="form-control" id="mother_maiden_name" type="text" name="mother_maiden_name" value="<?php echo e(old('mother_maiden_name', $maskName($maidenFull))); ?>" data-full="<?php echo e($maidenFull); ?>" data-masked="<?php echo e($maskName($maidenFull)); ?>">
+                            <button type="button" class="btn btn-outline btn-sm reveal-btn" data-target="mother_maiden_name">Reveal</button>
+                        </div>
+                        <?php $__errorArgs = ['mother_maiden_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="father_name">Father&rsquo;s name</label>
+                        <div class="reveal-field">
+                            <input class="form-control" id="father_name" type="text" name="father_name" value="<?php echo e(old('father_name', $maskName($fatherFull))); ?>" data-full="<?php echo e($fatherFull); ?>" data-masked="<?php echo e($maskName($fatherFull)); ?>">
+                            <button type="button" class="btn btn-outline btn-sm reveal-btn" data-target="father_name">Reveal</button>
+                        </div>
+                        <?php $__errorArgs = ['father_name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?><div class="form-error"><?php echo e($message); ?></div><?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+                    </div>
+                </div>
+                <div class="btn-group-row">
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                    <?php if($hasData): ?>
+                        <a href="<?php echo e(route('client.profile.edit')); ?>" class="btn btn-outline">Cancel</a>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php else: ?>
+            <div class="form-hint mb-2">Sensitive fields are masked.</div>
+            <div class="profile-grid">
+                <div class="profile-row">
+                    <span class="profile-k">TIN number</span>
+                    <span class="profile-v">
+                        <?php if($tinFull): ?>
+                            <span class="reveal-text" data-full="<?php echo e($tinFull); ?>" data-masked="<?php echo e($maskTin($tinFull)); ?>"><?php echo e($maskTin($tinFull)); ?></span>
+                            <button type="button" class="btn btn-outline btn-sm reveal-text-btn">Reveal</button>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="profile-row">
+                    <span class="profile-k">Mother&rsquo;s maiden name</span>
+                    <span class="profile-v">
+                        <?php if($maidenFull): ?>
+                            <span class="reveal-text" data-full="<?php echo e($maidenFull); ?>" data-masked="<?php echo e($maskName($maidenFull)); ?>"><?php echo e($maskName($maidenFull)); ?></span>
+                            <button type="button" class="btn btn-outline btn-sm reveal-text-btn">Reveal</button>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div class="profile-row">
+                    <span class="profile-k">Father&rsquo;s name</span>
+                    <span class="profile-v">
+                        <?php if($fatherFull): ?>
+                            <span class="reveal-text" data-full="<?php echo e($fatherFull); ?>" data-masked="<?php echo e($maskName($fatherFull)); ?>"><?php echo e($maskName($fatherFull)); ?></span>
+                            <button type="button" class="btn btn-outline btn-sm reveal-text-btn">Reveal</button>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </span>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+<?php $__env->stopSection(); ?>
+
+<?php $__env->startPush('scripts'); ?>
+    <script>
+        var profileLat = <?php echo json_encode($profile->latitude ? (float) $profile->latitude : null, 15, 512) ?>;
+        var profileLng = <?php echo json_encode($profile->longitude ? (float) $profile->longitude : null, 15, 512) ?>;
+    </script>
+    <script src="/js/client.js" defer></script>
+<?php $__env->stopPush(); ?>
+
+<?php echo $__env->make('layouts.dashboard', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH C:\Users\USER\Documents\EAS\eglianeas\resources\views/client/profile.blade.php ENDPATH**/ ?>

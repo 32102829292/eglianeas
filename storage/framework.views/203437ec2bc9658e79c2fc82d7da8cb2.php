@@ -1,0 +1,28 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
+    <meta name="theme-color" content="#1B1B3A">
+    <meta name="description" content="Egliane Accounting Services — bookkeeping, tax filing, BIR compliance, financial statements, payroll and consulting for your business.">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Egliane">
+    <title><?php echo $__env->yieldContent('title', 'Egliane Accounting Services'); ?> <?php echo e($title ?? ''); ?></title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/pwa-icons/icon-32.png">
+    <link rel="apple-touch-icon" href="/pwa-icons/apple-touch-icon.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/app.css?v=55">
+    <link rel="stylesheet" href="/css/auth.css?v=17">
+    <link rel="stylesheet" href="/css/dashboard.css?v=50">
+    <?php echo $__env->yieldPushContent('styles'); ?>
+</head>
+<?php /**PATH C:\Users\USER\Documents\EAS\eglianeas\resources\views/layouts/head.blade.php ENDPATH**/ ?>

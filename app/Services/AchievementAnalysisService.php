@@ -14,6 +14,7 @@ class AchievementAnalysisService
     public function __construct(
         private RuleBasedAchievementAnalyzer $rules,
         private AiAchievementAnalyzer $ai,
+        private DailyReportScoreCalculator $dailyScore,
     ) {}
 
     public static function levelForScore(int $score): string
@@ -99,6 +100,14 @@ class AchievementAnalysisService
         return $result;
     }
 
+    /**
+     * Automatic assessment of a Daily Accomplishment Report.
+     *
+     * The score no longer comes from reading the report text. It is calculated by
+     * DailyReportScoreCalculator: 90 points for the assigned tasks (plus urgent
+     * tasks at 80% of an assigned task's value) and 10 points for the problems and
+     * suggested solutions sections.
+     */
     public function analyze(DailyJournal $journal, bool $force = false, array $goals = []): DailyJournal
     {
         // Automatic analysis must never silently replace a reviewer's manual
@@ -107,48 +116,45 @@ class AchievementAnalysisService
             return $journal;
         }
 
-        $hash = $this->contentHash($journal, $goals);
+        $calc = $this->dailyScore->calculate($journal);
+
+        // The score depends on task completion too, so it is part of the hash:
+        // if a task is completed later, the next analysis recalculates.
+        $hash = hash('sha256', $this->contentHash($journal, $goals).'|'.$calc['score']);
 
         if (! $force && $journal->hasAssessment() && hash_equals((string) $journal->assessment_hash, $hash)) {
             return $journal;
         }
 
-        $aiConfigured = $this->ai->isConfigured();
-        $result = null;
+        $score = max(0, min(100, (int) round((float) $calc['score'])));
 
-        try {
-            $result = $this->ai->analyze($journal, $goals);
-        } catch (Throwable $exception) {
-            Log::warning('Achievement AI assessment failed; using rule-based fallback.', [
-                'daily_journal_id' => $journal->id,
-                'error' => $exception->getMessage(),
-            ]);
+        $categories = (array) config('achievements.categories', []);
+        $category = $categories[0] ?? 'Productivity';
+
+        $tags = [];
+        if ($score >= 90) {
+            $tags[] = 'Results-oriented';
+        }
+        if ((int) $calc['urgent_count'] > 0) {
+            $tags[] = 'Initiative';
+        }
+        if ($calc['problems_filled'] && $calc['solutions_filled']) {
+            $tags[] = 'Problem Solving';
         }
 
-        if ($result === null) {
-            $result = $this->rules->analyze($journal, $goals);
-
-            if ($aiConfigured) {
-                $result['explanation'] = 'Rule-based assessment (AI unavailable or invalid response): '
-                    .$result['explanation'];
-            }
-        }
-
-        $score = max(0, min(100, (int) ($result['score'] ?? 0)));
-
-        // Preserve the original AI/rule-based score on first automatic
-        // assessment. Never overwrite it on later manual reassessment so the
-        // score sheet can always show "Original AI score" vs "Final score".
+        // Preserve the original automatic score on first assessment. Never
+        // overwrite it on later manual reassessment so the score sheet can always
+        // show "Original AI score" vs "Final score".
         $originalAiScore = $journal->original_ai_score ?? $score;
 
         $journal->forceFill([
             'achievement_score' => $score,
             'original_ai_score' => $originalAiScore,
-            'achievement_category' => $result['category'],
+            'achievement_category' => $category,
             'achievement_level' => self::levelForScore($score),
-            'achievement_explanation' => $result['explanation'],
-            'recognition_tags' => array_values($result['tags'] ?? []),
-            'assessment_source' => $result['source'] ?? DailyJournal::ASSESSMENT_SOURCE_RULE_BASED,
+            'achievement_explanation' => $calc['explanation'],
+            'recognition_tags' => array_values($tags),
+            'assessment_source' => DailyJournal::ASSESSMENT_SOURCE_RULE_BASED,
             'assessment_status' => DailyJournal::ASSESSMENT_STATUS_PROVISIONAL,
             'assessed_at' => now(),
             'assessment_hash' => $hash,
@@ -240,9 +246,9 @@ class AchievementAnalysisService
     /**
      * Admin-only manual reassessment with per-criterion adjustments.
      *
-     * Preserves the original AI score and records each changed criterion with
-     * its reason. The final score is computed from the configured weights
-     * over the supplied criterion scores.
+     * Preserves the original automatic score and records each changed criterion
+     * with its reason. The final score is computed from the supplied weights over
+     * the supplied criterion scores (target completion and problems/solutions).
      *
      * @param  array<string, array{score: float|int, max: float|int, reason: string}>  $criteria
      * @param  array<string, float>  $weights
@@ -267,7 +273,7 @@ class AchievementAnalysisService
             ];
         }
 
-        // Compute the final score from available criteria using configured
+        // Compute the final score from available criteria using the supplied
         // weights. Criteria with null/missing data are excluded.
         $criterionValues = [];
         foreach ($normalizedCriteria as $criterion => $data) {
@@ -283,7 +289,6 @@ class AchievementAnalysisService
 
         $finalScore = (int) round(max(0, min(100, $finalScore)));
 
-        $levels = collect(config('achievements.levels', []))->pluck('label')->values()->all();
         $category = config('achievements.categories', [])[0] ?? 'Productivity';
 
         $journal->forceFill([
@@ -300,7 +305,7 @@ class AchievementAnalysisService
             'reviewed_at' => now(),
             'review_note' => $reason,
             'criterion_scores' => $normalizedCriteria,
-            // Preserve the original AI score on first manual reassessment.
+            // Preserve the original automatic score on first manual reassessment.
             // If the journal was never automatically assessed, original_ai_score
             // stays null and the final score stands alone.
             'original_ai_score' => $journal->original_ai_score ?? $journal->achievement_score,
@@ -335,6 +340,7 @@ class AchievementAnalysisService
             (string) $journal->problems_encountered,
             (string) $journal->suggested_solutions,
             (string) $journal->evidenceCount(),
+            (string) json_encode($journal->urgent_tasks ?? [], JSON_UNESCAPED_UNICODE),
             $goalsJson,
         ]));
     }

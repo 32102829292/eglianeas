@@ -1,0 +1,186 @@
+<?php
+    $categories = [
+        \App\Models\BillingLineItem::CATEGORY_BIR_REMITTANCE => 'BIR REMITTANCES',
+        \App\Models\BillingLineItem::CATEGORY_PROFESSIONAL_FEE => 'PROFESSIONAL FEES',
+        \App\Models\BillingLineItem::CATEGORY_BOOKKEEPING_FEE => 'BOOKKEEPING',
+        \App\Models\BillingLineItem::CATEGORY_POST_CLOSING_TB => 'POST-CLOSING TB',
+        \App\Models\BillingLineItem::CATEGORY_INVENTORY_LIST => 'INVENTORY LIST',
+        \App\Models\BillingLineItem::CATEGORY_OTHER_ATTACHMENT => 'OTHER ATTACHMENT',
+        \App\Models\BillingLineItem::CATEGORY_DATA_ENTRY => 'DATA ENTRY',
+    ];
+
+    $payments = $payments ?? \App\Support\BillingPaymentDetails::forPdf();
+    $gcashNumber = (string) ($payments['gcash_number'] ?? '');
+    $gcashQr = $payments['gcash_qr'] ?? null;
+    $bankAccounts = $payments['banks'] ?? [];
+
+    // DomPDF core fonts cannot render the peso glyph; use Php notation.
+    $peso = fn ($value) => 'Php '.number_format((float) ($value ?? 0), 2);
+
+    $paperSize = ($paperSize ?? 'a4') === 'letter' ? 'letter' : 'a4';
+    $density = $density ?? 'normal';
+    // Usable content height of one page: @page margins (10mm each) plus a small
+    // safety. The controller picks `$density` so the whole batch fits this much.
+    $pageContentMm = $pageContentMm ?? round(((($paperSize === 'letter') ? 279.4 : 297.0) - 22.0), 2);
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Billing Statements</title>
+    <style>
+        @page {
+            /* Must mirror the controller's paper selection — an explicit size here
+               would override DomPDF's setPaper(). */
+            size: <?php echo e($paperSize === 'letter' ? 'Letter' : 'A4'); ?> portrait;
+            margin: 10mm;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* DomPDF starts stacked block content ~6.5mm above the declared @page
+           margin; pad the body so the content begins at the full 10mm margin. */
+        body { font-family: Helvetica, Arial, sans-serif; font-size: 7pt; color: #111; padding-top: 10.2mm; }
+        table { width: 100%; border-collapse: collapse; }
+
+        /* Each statement is one pair of bordered cells (Taxpayer's Copy +
+           Egliane's Copy) rendered at its NATURAL height — nothing is clipped.
+           Pairs flow down the page; density is chosen so a whole batch fits
+           one page. A pair never splits across pages. */
+        .pair-wrap {
+            width: 100%;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 3.5mm;
+        }
+        .pair {
+            width: 100%;
+        }
+
+        .cell {
+            width: 50%;
+            border: 1pt solid #333;
+            padding: 1.5mm 2mm;
+            vertical-align: top;
+        }
+
+        .copy-tag {
+            text-align: right;
+            font-size: 5.8pt;
+            font-weight: bold;
+            letter-spacing: .6pt;
+            text-transform: uppercase;
+            color: #999;
+            padding-bottom: 1.5pt;
+        }
+
+        .head-row td { vertical-align: top; padding-bottom: 2pt; }
+        .brand { font-size: 7.6pt; font-weight: bold; color: #1B1B3A; letter-spacing: .4pt; }
+        .period { font-size: 6.4pt; color: #555; }
+        .client { font-weight: bold; font-size: 7.8pt; color: #1B1B3A; text-transform: uppercase; }
+        .paid-stamp {
+            display: inline-block;
+            border: 1.4pt solid #c0392b;
+            color: #c0392b;
+            font-size: 7.2pt;
+            font-weight: bold;
+            letter-spacing: 1pt;
+            padding: 1pt 4pt;
+            transform: rotate(-8deg);
+        }
+
+        .section-title { font-size: 5.9pt; font-weight: bold; color: #777; letter-spacing: .5pt; padding-top: 2pt; }
+        .item-row td { padding: .7pt 0; border-bottom: .3pt dotted #d5dade; }
+        .amount { text-align: right; white-space: nowrap; width: 48pt; }
+
+        .total-row td { border-top: 1.2pt solid #1B1B3A; padding-top: 2.5pt; font-weight: bold; font-size: 7.8pt; color: #1B1B3A; }
+
+        .sign-row td { padding-top: 3pt; color: #333; }
+        .signer { font-weight: bold; color: #1B1B3A; }
+        .note { font-size: 6.2pt; color: #666; }
+
+        /* Density tiers applied uniformly to the whole sheet to fit a batch on
+           one page. */
+        .compact { font-size: 6.4pt; }
+        .compact .brand { font-size: 6.9pt; }
+        .compact .client { font-size: 7pt; }
+        .compact .period { font-size: 5.8pt; }
+        .compact .section-title { font-size: 5.3pt; padding-top: 1.5pt; }
+        .compact .item-row td { padding: .5pt 0; }
+        .compact .total-row td { font-size: 7pt; padding-top: 2pt; }
+        .compact .sign-row td { padding-top: 2pt; }
+        .compact .note { font-size: 5.6pt; }
+
+        .tiny { font-size: 5.7pt; }
+        .tiny .brand { font-size: 6.2pt; }
+        .tiny .client { font-size: 6.4pt; }
+        .tiny .period { font-size: 5.2pt; }
+        .tiny .copy-tag { font-size: 5pt; }
+        .tiny .section-title { font-size: 4.8pt; padding-top: 1pt; }
+        .tiny .item-row td { padding: .3pt 0; }
+        .tiny .amount { width: 40pt; }
+        .tiny .total-row td { font-size: 6.3pt; padding-top: 1.5pt; }
+        .tiny .sign-row td { padding-top: 1.5pt; }
+        .tiny .note { font-size: 5pt; }
+
+        /* Payment details rendered INSIDE each receipt cell (once per copy),
+           compact so it fits comfortably. QRs sit on the right edge of the
+           cell, text lines on the left, so nothing crosses the centre divider. */
+        .cell-payments { border-top: .6pt solid #d5dade; margin-top: 1.6mm; padding-top: 1.2mm; }
+        .cell-payments-title {
+            font-weight: bold;
+            color: #1B1B3A;
+            letter-spacing: .5pt;
+            text-transform: uppercase;
+            font-size: 6pt;
+            padding-bottom: .8pt;
+        }
+        .cell-pmethod { width: 100%; border-collapse: collapse; }
+        .cell-pmethod td { vertical-align: middle; }
+        .cell-pinfo { text-align: left; padding-right: 2mm; }
+        .cell-pline { font-size: 6.2pt; color: #444; padding: .6pt 0; }
+        .cell-pline b { color: #1B1B3A; letter-spacing: .4pt; }
+        .cell-pqr { text-align: right; white-space: nowrap; }
+        .cell-pqr img { width: 8mm; height: 8mm; margin-left: 1.6mm; }
+        .cell-oversize { font-size: 5.6pt; color: #c0392b; font-weight: bold; padding-top: .8mm; }
+    </style>
+</head>
+<body>
+
+    <?php $__empty_1 = true; $__currentLoopData = $billings; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $billing): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+        <div class="pair-wrap">
+        <table class="pair">
+            <tr>
+                <td class="cell">
+                    <?php echo $__env->make('admin.billing.partials.statement-cell', [
+                        'copyLabel' => "Taxpayer's Copy",
+                    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                    <?php echo $__env->make('admin.billing.partials.payment-details', [
+                        'payments' => $payments,
+                        'gcashNumber' => $gcashNumber,
+                        'gcashQr' => $gcashQr,
+                        'bankAccounts' => $bankAccounts,
+                        'overflowIds' => $overflowIds ?? [],
+                        'billing' => $billing,
+                    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                </td>
+                <td class="cell">
+                    <?php echo $__env->make('admin.billing.partials.statement-cell', [
+                        'copyLabel' => "Egliane Accounting Services' Copy",
+                    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                    <?php echo $__env->make('admin.billing.partials.payment-details', [
+                        'payments' => $payments,
+                        'gcashNumber' => $gcashNumber,
+                        'gcashQr' => $gcashQr,
+                        'bankAccounts' => $bankAccounts,
+                        'overflowIds' => $overflowIds ?? [],
+                        'billing' => $billing,
+                    ], array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                </td>
+            </tr>
+        </table>
+        </div>
+    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+        <p>No statements selected.</p>
+    <?php endif; ?>
+
+</body>
+</html><?php /**PATH C:\Users\USER\Documents\EAS\eglianeas\resources\views/admin/billing/statements-pdf.blade.php ENDPATH**/ ?>

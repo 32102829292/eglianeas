@@ -12,6 +12,7 @@ use App\Services\AchievementAnalysisService;
 use App\Services\AchievementCriteriaService;
 use App\Services\AchievementRankingService;
 use App\Services\DailyJournalService;
+use App\Services\DailyReportScoreCalculator;
 use App\Services\StaffScoringService;
 use App\Services\TeamSupervisionService;
 use Illuminate\Http\RedirectResponse;
@@ -113,7 +114,7 @@ class DailyJournalController extends Controller
 
         // Urgent tasks: restore what the employee just typed if validation
         // failed (old input), otherwise nothing is pre-filled.
-        $urgentTasks = collect((array) old('urgent_tasks', []))
+        $urgentTasks = collect((array) old('urgent_tasks', $journal?->urgent_tasks ?? []))
             ->filter(fn ($task) => is_array($task)
                 && trim((string) ($task['description'] ?? '')) !== ''
                 && trim((string) ($task['reason'] ?? '')) !== '')
@@ -276,11 +277,24 @@ class DailyJournalController extends Controller
             }
         }
 
+        // Urgent tasks (work not in Goals for the Day). They are stored so the score can count them.
+        $urgentTasks = collect((array) $request->input('urgent_tasks', []))
+            ->filter(fn ($task) => is_array($task)
+                && trim((string) ($task['description'] ?? '')) !== ''
+                && trim((string) ($task['reason'] ?? '')) !== '')
+            ->map(fn ($task) => [
+                'description' => trim((string) $task['description']),
+                'reason' => trim((string) $task['reason']),
+            ])
+            ->values()
+            ->all();
+
         // Saved before the submit/draft branch so both paths keep the codes
         // and clients (submitJournal() does not need to know about them).
         $journal->forceFill([
             'achievement_codes' => $codes,
             'achievement_clients' => $achievementClients,
+            'urgent_tasks' => $urgentTasks,
         ])->save();
 
         if ($isSubmit) {
@@ -624,17 +638,13 @@ class DailyJournalController extends Controller
             'criteria.*.score' => ['required', 'numeric', 'between:0,100'],
             'criteria.*.max' => ['required', 'numeric', 'between:0,100'],
             'criteria.*.reason' => ['nullable', 'string', 'max:500'],
-            'weights.quality' => ['nullable', 'numeric', 'between:0,100'],
-            'weights.timeliness' => ['nullable', 'numeric', 'between:0,100'],
-            'weights.responsiveness' => ['nullable', 'numeric', 'between:0,100'],
-            'weights.client_feedback' => ['nullable', 'numeric', 'between:0,100'],
+            'weights.target_completion' => ['nullable', 'numeric', 'between:0,100'],
+            'weights.problems_solutions' => ['nullable', 'numeric', 'between:0,100'],
         ]);
 
         $weights = [
-            'quality' => (float) ($validated['weights']['quality'] ?? config('achievements.scoring_weights.quality', 50)),
-            'timeliness' => (float) ($validated['weights']['timeliness'] ?? config('achievements.scoring_weights.timeliness', 20)),
-            'responsiveness' => (float) ($validated['weights']['responsiveness'] ?? config('achievements.scoring_weights.responsiveness', 20)),
-            'client_feedback' => (float) ($validated['weights']['client_feedback'] ?? config('achievements.scoring_weights.client_feedback', 10)),
+            'target_completion' => (float) ($validated['weights']['target_completion'] ?? DailyReportScoreCalculator::TASK_POINTS),
+            'problems_solutions' => (float) ($validated['weights']['problems_solutions'] ?? DailyReportScoreCalculator::PROBLEMS_POINTS),
         ];
 
         app(AchievementAnalysisService::class)->manualReassess(
@@ -673,6 +683,9 @@ class DailyJournalController extends Controller
         $validated = $request->validate([
             'achievement_codes' => ['nullable', 'array'],
             'achievement_codes.*' => ['string', Rule::in($allowed)],
+            'achievement_clients' => ['nullable', 'array'],
+            'achievement_clients.*' => ['array'],
+            'achievement_clients.*.*' => ['integer'],
         ]);
 
         $codes = collect($validated['achievement_codes'] ?? [])
@@ -681,7 +694,10 @@ class DailyJournalController extends Controller
             ->values()
             ->all();
 
-        $dailyJournal->forceFill(['achievement_codes' => $codes])->save();
+        $dailyJournal->forceFill([
+            'achievement_codes' => $codes,
+            'achievement_clients' => $this->cleanAchievementClients((array) ($validated['achievement_clients'] ?? []), $codes),
+        ])->save();
 
         logger()->info('Admin updated journal activity codes.', [
             'journal_id' => $dailyJournal->id,
@@ -716,7 +732,10 @@ class DailyJournalController extends Controller
     }
 
     /**
-     * Display the detailed AI score sheet for a single assessed journal.
+     * Display the detailed score sheet for a single assessed journal.
+     *
+     * The score has two parts: tasks (90 points) and problems/solutions (10
+     * points). See DailyReportScoreCalculator for the exact rules.
      */
     public function scoreSheet(DailyJournal $dailyJournal): View
     {
@@ -734,108 +753,136 @@ class DailyJournalController extends Controller
 
         $dailyJournal->load(['user', 'reviewer', 'assessmentRevisions.reviewer']);
 
-        $criteriaService = app(AchievementCriteriaService::class);
+        $taskMax = (float) DailyReportScoreCalculator::TASK_POINTS;
+        $problemsMax = (float) DailyReportScoreCalculator::PROBLEMS_POINTS;
+
+        $breakdown = app(DailyReportScoreCalculator::class)->calculate($dailyJournal);
+        $nothingScheduled = $breakdown['mode'] === 'nothing_scheduled';
+
         $weights = [
-            'quality' => (float) config('achievements.scoring_weights.quality', 50),
-            'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
-            'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
-            'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+            'target_completion' => $taskMax,
+            'problems_solutions' => $problemsMax,
         ];
 
-        $start = $dailyJournal->required_date?->copy()->startOfDay() ?? now()->startOfDay();
-        $end = $dailyJournal->required_date?->copy()->endOfDay() ?? now()->endOfDay();
+        // Each part is shown out of 100 so it can be weighted (90 / 10) like before.
+        $criteria = [
+            'target_completion' => $nothingScheduled ? null : round($breakdown['task_points'] / $taskMax * 100, 1),
+            'problems_solutions' => round($breakdown['problems_points'] / $problemsMax * 100, 1),
+            'target_completion_explanation' => $nothingScheduled
+                ? 'No tasks were assigned or added as urgent for this day, so this part is not evaluated.'
+                : sprintf(
+                    '%d of %d assigned task(s) completed (%.1f points each). %d urgent task(s) added (%.1f points each). Task points: %.1f of %d.',
+                    $breakdown['assigned_completed'],
+                    $breakdown['assigned_total'],
+                    $breakdown['assigned_points_each'],
+                    $breakdown['urgent_count'],
+                    $breakdown['urgent_points_each'],
+                    $breakdown['task_points'],
+                    DailyReportScoreCalculator::TASK_POINTS
+                ),
+            'problems_solutions_explanation' => sprintf(
+                'Problems Encountered %s. Suggested Solutions %s. Each filled-in section (at least %d characters) earns %.0f points.',
+                $breakdown['problems_filled'] ? 'is filled in' : 'is missing or too short',
+                $breakdown['solutions_filled'] ? 'is filled in' : 'is missing or too short',
+                DailyReportScoreCalculator::MIN_TEXT_LENGTH,
+                $problemsMax / 2
+            ),
+            'target_completion_meta' => [
+                'assigned_total' => $breakdown['assigned_total'],
+                'assigned_completed' => $breakdown['assigned_completed'],
+                'urgent_count' => $breakdown['urgent_count'],
+                'mode' => $breakdown['mode'],
+            ],
+            'problems_solutions_meta' => [
+                'problems_filled' => $breakdown['problems_filled'],
+                'solutions_filled' => $breakdown['solutions_filled'],
+            ],
+        ];
 
-        $criteria = $criteriaService->analyze($dailyJournal->user, $start, $end);
-        $combined = $criteriaService->combine($criteria, $weights);
+        $combined = app(AchievementCriteriaService::class)->combine($criteria, $weights);
 
-        // Pre-compute per-criterion evidence text to keep the Blade template
-        // simple and avoid complex inline expressions.
-        $criterionEvidence = [];
-        foreach (['quality', 'timeliness', 'responsiveness', 'client_feedback'] as $key) {
-            $meta = $criteria[$key.'_meta'] ?? [];
-            $score = $criteria[$key] ?? null;
-            match ($key) {
-                'quality' => $criterionEvidence[$key] = 'Based on '.(int) ($meta['entries'] ?? 0).' assessed daily accomplishment report(s) in this period. Average quality score '.(float) ($meta['average'] ?? $score).'.',
-                'timeliness' => $criterionEvidence[$key] = (int) ($meta['evaluated'] ?? 0).' evaluable task(s): '.(int) ($meta['on_time'] ?? 0).' on time, '.(int) ($meta['late'] ?? 0).' late, '.(int) ($meta['overdue_not_completed'] ?? 0).' overdue. On-time rate '.(float) ($meta['on_time_rate'] ?? 0).'%.',
-                'responsiveness' => $criterionEvidence[$key] = (int) ($meta['evaluated'] ?? 0).' evaluated response(s): '.(int) ($meta['prompt'] ?? 0).' prompt, '.(int) ($meta['delayed'] ?? 0).' delayed, '.(int) ($meta['unanswered'] ?? 0).' unanswered. Average response time '.(($meta['avg_response_hours'] ?? null) !== null ? number_format((float) $meta['avg_response_hours'], 1).'h' : '—').'.',
-                'client_feedback' => $criterionEvidence[$key] = (int) ($meta['responses'] ?? 0).' verified feedback response(s): '.(int) ($meta['positive'] ?? 0).' positive, '.(int) ($meta['negative'] ?? 0).' negative, '.(int) ($meta['neutral'] ?? 0).' neutral. Average rating '.(($meta['average_rating'] ?? null) !== null ? number_format((float) $meta['average_rating'], 2).'/5' : '—').'.',
-            };
-        }
+        $criterionEvidence = [
+            'target_completion' => $nothingScheduled
+                ? 'No assigned work plan tasks or urgent tasks for this date.'
+                : $breakdown['assigned_completed'].' of '.$breakdown['assigned_total'].' assigned work plan task(s) were completed, plus '.$breakdown['urgent_count'].' urgent task(s) listed in the report.',
+            'problems_solutions' => 'Problems Encountered: '.($breakdown['problems_filled'] ? 'filled in' : 'missing or too short').'. Suggested Solutions: '.($breakdown['solutions_filled'] ? 'filled in' : 'missing or too short').'.',
+        ];
 
-        // Pre-compute explanation bullet points to avoid complex inline PHP
-        // in the Blade template.
-        $tMeta = $criteria['timeliness_meta'] ?? [];
-        $rMeta = $criteria['responsiveness_meta'] ?? [];
+        // Tasks behind the score: the day's assigned tasks and the urgent tasks.
+        $assignedTasks = WorkPlanTask::query()
+            ->where('user_id', $dailyJournal->user_id)
+            ->where('work_date', $dailyJournal->required_date->toDateString())
+            ->where('status', '!=', WorkPlanTask::STATUS_CANCELLED)
+            ->with('legend')
+            ->orderBy('id')
+            ->get();
+
+        $urgentTasks = collect((array) ($dailyJournal->urgent_tasks ?? []))
+            ->filter(fn ($task) => is_array($task) && trim((string) ($task['description'] ?? '')) !== '')
+            ->values();
+
+        // Urgent tasks written in Accomplishment details also count.
+        $detectedUrgent = collect(app(DailyReportScoreCalculator::class)->urgentFromDetails($dailyJournal))
+            ->map(fn ($line) => ['description' => $line, 'reason' => 'Written in Accomplishment details']);
+        $urgentTasks = $urgentTasks->concat($detectedUrgent)->values();
+
         $blockers = [];
-        if ((int) ($tMeta['late'] ?? 0) > 0) {
-            $blockers[] = (int) ($tMeta['late'] ?? 0).' task(s) completed after the deadline.';
+        if ($breakdown['assigned_total'] > $breakdown['assigned_completed']) {
+            $blockers[] = ($breakdown['assigned_total'] - $breakdown['assigned_completed']).' assigned task(s) were not completed.';
         }
-        if ((int) ($tMeta['overdue_not_completed'] ?? 0) > 0) {
-            $blockers[] = (int) ($tMeta['overdue_not_completed'] ?? 0).' task(s) overdue and not completed.';
+        if ($nothingScheduled) {
+            $blockers[] = 'No tasks were scheduled or added as urgent, so only the problems and solutions part could be scored.';
         }
-        if ((int) ($rMeta['delayed'] ?? 0) > 0) {
-            $blockers[] = (int) ($rMeta['delayed'] ?? 0).' response(s) delayed beyond 24 hours.';
+        if (! $breakdown['problems_filled']) {
+            $blockers[] = 'Problems Encountered is missing or too short.';
         }
-        if ((int) ($rMeta['unanswered'] ?? 0) > 0) {
-            $blockers[] = (int) ($rMeta['unanswered'] ?? 0).' assigned item(s) left unanswered.';
+        if (! $breakdown['solutions_filled']) {
+            $blockers[] = 'Suggested Solutions is missing or too short.';
         }
         if (empty($blockers)) {
             $blockers[] = 'No specific blockers identified from the available records.';
         }
 
         $improvements = [];
-        if ((int) ($tMeta['late'] ?? 0) > 0) {
-            $improvements[] = 'Complete assigned tasks on or before their deadlines to improve the timeliness score.';
+        if ($breakdown['assigned_total'] > $breakdown['assigned_completed']) {
+            $improvements[] = 'Complete the remaining assigned tasks. Each completed task adds '.number_format($breakdown['assigned_points_each'], 1).' points.';
         }
-        if ((int) ($rMeta['unanswered'] ?? 0) > 0) {
-            $improvements[] = 'Acknowledge assigned concerns promptly so they are not left unanswered.';
+        if (! $breakdown['problems_filled'] || ! $breakdown['solutions_filled']) {
+            $improvements[] = 'Describe the problems and suggest solutions (at least '.DailyReportScoreCalculator::MIN_TEXT_LENGTH.' characters each) to earn the 10 points.';
         }
-        if ((int) ($rMeta['delayed'] ?? 0) > 0) {
-            $improvements[] = 'Respond to assignments within 24 hours to improve the responsiveness score.';
+        if ($breakdown['urgent_count'] === 0 && $breakdown['assigned_total'] > 0) {
+            $improvements[] = 'Urgent work that is not in Goals for the Day can be added as an urgent task, and it earns extra points.';
         }
         if ($dailyJournal->evidenceCount() === 0) {
-            $improvements[] = 'Attach supporting evidence to accomplishment reports for stronger verification.';
+            $improvements[] = 'Attach supporting evidence to the report for stronger verification.';
         }
         if (empty($improvements)) {
-            $improvements[] = 'Maintain the current level of performance across all evaluated criteria.';
+            $improvements[] = 'Maintain the current level of performance.';
         }
 
         // Kaizen Strategy and Admin Concern evaluations that are linked to
-        // this staff member's Score Sheet for the journal's period. Included
-        // records are the ones contributing to the official score; pending and
-        // reversed records are shown so the source of each badge is traceable.
+        // this staff member's Score Sheet for the journal's period.
+        $start = $dailyJournal->required_date?->copy()->startOfDay() ?? now()->startOfDay();
         $scoreSheetTasks = app(StaffScoringService::class)
             ->taskEvaluationsForScoreSheet($dailyJournal->user, $start);
 
         // ------------------------------------------------------------------
-        // Build transparent score-calculation data for the employee-facing
-        // explanation. Every number traces back to its source so an employee
-        // can independently verify how the final score was derived.
-        //
-        // Weighted points are expressed as points out of 100:
-        //   points = score x (weight / 100)
-        // so a score of 85 at a 50% weight contributes 42.5 points.
+        // Transparent score-calculation data: points = score x (weight / 100).
         // ------------------------------------------------------------------
         $finalScore = $dailyJournal->finalScore();
         $isManual = $dailyJournal->assessment_source === 'reviewer';
 
         $criteriaNames = [
-            'quality' => 'Accomplishment Quality',
-            'timeliness' => 'Timeliness',
-            'responsiveness' => 'Immediate Responsiveness',
-            'client_feedback' => 'Client Feedback',
+            'target_completion' => 'Task Completion',
+            'problems_solutions' => 'Problems & Solutions',
         ];
-
-        $order = ['quality', 'timeliness', 'responsiveness', 'client_feedback'];
 
         $calculationCriteria = [];
         $totalOriginalWeight = 0.0;
         $totalAvailableWeight = 0.0;
         $totalWeightedPoints = 0.0;
 
-        // Iterate the canonical criteria so the order is always the same and
-        // an unexpected key in $criteria can never create a bogus row.
-        foreach ($order as $key) {
+        foreach (array_keys($criteriaNames) as $key) {
             $scoreOrNull = $criteria[$key] ?? null;
             $weight = (float) ($weights[$key] ?? 0);
             $totalOriginalWeight += $weight;
@@ -879,10 +926,8 @@ class DailyJournalController extends Controller
         $assessmentMethodLabel = $isManual ? 'Manual Reassessment' : 'Automatic Assessment';
         $assessmentMethodDetail = $isManual
             ? 'A reviewer manually set this score and may have overridden the automatic result.'
-            : 'An automatic rule-based assessment computed this score from your submitted records.';
+            : 'The score was calculated automatically from the assigned tasks, urgent tasks, and the problems and solutions sections.';
 
-        // Plain-language summary of what the score means. $finalScore can be
-        // null (not yet assessed), so guard it before comparing.
         $scoreMeaning = match (true) {
             $finalScore === null => 'This report has not been assessed yet.',
             $finalScore >= 90 => 'Outstanding performance across the evaluated criteria.',
@@ -894,6 +939,9 @@ class DailyJournalController extends Controller
 
         return view('daily-journal.score-sheet', [
             'journal' => $dailyJournal,
+            'breakdown' => $breakdown,
+            'assignedTasks' => $assignedTasks,
+            'urgentTasks' => $urgentTasks,
             'criteria' => $criteria,
             'combined' => $combined,
             'weights' => $weights,
@@ -934,6 +982,40 @@ class DailyJournalController extends Controller
 
         return redirect()->route('daily-journal.admin-monitor', ['date' => $date->toDateString()])
             ->with('status', "Daily journal for {$userName} on {$date->format('F j, Y')} deleted.");
+    }
+
+    /**
+     * Keep clients only for ticked codes that require a client, and only clients
+     * assigned to that code (any client account while none are assigned yet).
+     *
+     * @param  array<string, array<int, mixed>>  $input
+     * @param  array<int, string>  $codes
+     * @return array<string, array<int, int>>
+     */
+    private function cleanAchievementClients(array $input, array $codes): array
+    {
+        $clientLegends = WorkPlanLegend::active()
+            ->where('requires_client', true)
+            ->with('clients:id')
+            ->get()
+            ->keyBy('code');
+        $validClientIds = User::query()->where('role', User::ROLE_CLIENT)->pluck('id')->all();
+
+        return collect($input)
+            ->filter(fn ($ids, $code) => in_array($code, $codes, true) && $clientLegends->has($code))
+            ->map(function ($ids, $code) use ($clientLegends, $validClientIds) {
+                $assigned = $clientLegends[$code]->clients->pluck('id')->all();
+                $allowed = $assigned !== [] ? $assigned : $validClientIds;
+
+                return collect((array) $ids)
+                    ->map(fn ($id) => (int) $id)
+                    ->filter(fn ($id) => in_array($id, $allowed, true))
+                    ->unique()
+                    ->values()
+                    ->all();
+            })
+            ->filter()
+            ->all();
     }
 
     private function authorizeAdmin(): void

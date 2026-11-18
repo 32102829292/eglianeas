@@ -36,24 +36,19 @@
     $fmt = fn ($v, int $d = 1) => $v !== null ? number_format((float) $v, $d) : '—';
     $clamp = fn ($v) => max(0, min(100, (float) $v));
 
+    // The two parts of the score: tasks (90) and problems & solutions (10).
     $configWeights = [
-        'quality' => (float) config('achievements.scoring_weights.quality', 50),
-        'timeliness' => (float) config('achievements.scoring_weights.timeliness', 20),
-        'responsiveness' => (float) config('achievements.scoring_weights.responsiveness', 20),
-        'client_feedback' => (float) config('achievements.scoring_weights.client_feedback', 10),
+        'target_completion' => (float) ($weights['target_completion'] ?? 90),
+        'problems_solutions' => (float) ($weights['problems_solutions'] ?? 10),
     ];
     $configWeightTotal = array_sum($configWeights);
     $weightShare = fn (string $key) => $configWeightTotal > 0 ? ($configWeights[$key] / $configWeightTotal) * 100 : 0;
 
     $criteriaList = [
-        'quality' => ['name' => 'Accomplishment Quality', 'short' => 'Quality', 'color' => '#2563eb',
+        'target_completion' => ['name' => 'Task Completion', 'short' => 'Tasks', 'color' => '#2563eb',
             'icon' => '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="m9 14 2 2 4-4"/>'],
-        'timeliness' => ['name' => 'Timeliness', 'short' => 'Timeliness', 'color' => '#7c3aed',
-            'icon' => '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'],
-        'responsiveness' => ['name' => 'Immediate Responsiveness', 'short' => 'Responsiveness', 'color' => '#059669',
-            'icon' => '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'],
-        'client_feedback' => ['name' => 'Client Feedback', 'short' => 'Client Feedback', 'color' => '#0891b2',
-            'icon' => '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'],
+        'problems_solutions' => ['name' => 'Problems & Solutions', 'short' => 'Problems & Solutions', 'color' => '#7c3aed',
+            'icon' => '<path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/>'],
     ];
 
     /* ------------------------------------------------------------------
@@ -81,43 +76,32 @@
         $byScore = collect(array_keys($effective))->sortByDesc(fn ($k) => (float) $criteria[$k])->values();
         $strongestKey = $byScore->first();
         if ($evaluatedCount > 1) {
-            // Biggest realistic upside = largest possible gain in final-score points.
             $opportunityKey = collect($potentialGain)->sortDesc()->keys()->first();
-            if ($opportunityKey === $strongestKey && $evaluatedCount > 1) {
+            if ($opportunityKey === $strongestKey) {
                 $opportunityKey = $byScore->last();
             }
         }
     }
 
-    /* Radar geometry (viewBox 400 x 320, centre 200,160, radius 100). */
-    $cx = 200; $cy = 160; $R = 100;
-    $axes = ['quality' => [0, -1], 'timeliness' => [1, 0], 'responsiveness' => [0, 1], 'client_feedback' => [-1, 0]];
-    $pt = fn (string $k, float $v) => round($cx + $axes[$k][0] * $R * $v / 100, 1) . ',' . round($cy + $axes[$k][1] * $R * $v / 100, 1);
-    $ringPoints = fn (int $level) => implode(' ', array_map(fn ($k) => $pt($k, (float) $level), array_keys($axes)));
-    $radarPoints = implode(' ', array_map(fn ($k) => $pt($k, $clamp($criteria[$k] ?? 0)), array_keys($axes)));
-
     /* Findings (what went well). */
-    $qualityMeta = $criteria['quality_meta'] ?? [];
-    $tMeta = $criteria['timeliness_meta'] ?? [];
-    $rMeta = $criteria['responsiveness_meta'] ?? [];
     $positiveFindings = [];
-    if ((int) ($qualityMeta['entries'] ?? 0) > 0) {
-        $positiveFindings[] = ['title' => 'Accomplishment Quality assessed', 'detail' => 'Based on ' . (int) $qualityMeta['entries'] . ' assessed daily accomplishment report(s) in this period.', 'note' => 'Your quality score of ' . $fmt($criteria['quality'] ?? null) . ' / 100 was recorded from your submitted accomplishments.'];
+    if ((int) $breakdown['assigned_completed'] > 0) {
+        $positiveFindings[] = ['title' => 'Assigned tasks completed', 'detail' => (int) $breakdown['assigned_completed'] . ' of ' . (int) $breakdown['assigned_total'] . ' assigned task(s) were completed.', 'note' => 'Each completed task earns ' . number_format((float) $breakdown['assigned_points_each'], 1) . ' points.'];
     }
-    if ((int) ($tMeta['on_time'] ?? 0) > 0) {
-        $positiveFindings[] = ['title' => 'On-time task completion', 'detail' => (int) $tMeta['on_time'] . ' task(s) completed on or before the deadline.', 'note' => 'Completing tasks on time contributes positively to your timeliness score.'];
+    if ((int) $breakdown['urgent_count'] > 0) {
+        $positiveFindings[] = ['title' => 'Urgent tasks handled', 'detail' => (int) $breakdown['urgent_count'] . ' urgent task(s) outside Goals for the Day were added to the report.', 'note' => 'Each urgent task earns ' . number_format((float) $breakdown['urgent_points_each'], 1) . ' points, which is 80% of an assigned task.'];
     }
-    if ((int) ($tMeta['early'] ?? 0) > 0) {
-        $positiveFindings[] = ['title' => 'Early task completion', 'detail' => (int) $tMeta['early'] . ' task(s) completed before the deadline.', 'note' => 'Completing tasks early earns the maximum timeliness score.'];
+    if ($breakdown['problems_filled']) {
+        $positiveFindings[] = ['title' => 'Problems described', 'detail' => 'Problems Encountered was filled in.', 'note' => 'This earns 5 of the 10 problems and solutions points.'];
     }
-    if ((int) ($rMeta['prompt'] ?? 0) > 0) {
-        $positiveFindings[] = ['title' => 'Prompt responses', 'detail' => (int) $rMeta['prompt'] . ' response(s) within 24 hours.', 'note' => 'Responding promptly contributes positively to your responsiveness score.'];
+    if ($breakdown['solutions_filled']) {
+        $positiveFindings[] = ['title' => 'Solutions suggested', 'detail' => 'Suggested Solutions was filled in.', 'note' => 'This earns 5 of the 10 problems and solutions points.'];
     }
     if ($evidenceCount > 0) {
-        $positiveFindings[] = ['title' => 'Supporting evidence attached', 'detail' => $evidenceCount . ' evidence file(s) attached to your accomplishment reports.', 'note' => 'Evidence helps verify the work you completed.'];
+        $positiveFindings[] = ['title' => 'Supporting evidence attached', 'detail' => $evidenceCount . ' evidence file(s) attached to the report.', 'note' => 'Evidence helps verify the work that was completed.'];
     }
     if (empty($positiveFindings)) {
-        $positiveFindings[] = ['title' => 'No specific positive contributions identified', 'detail' => 'The available assessment data does not contain specific positive findings for this period.', 'note' => 'This may be because few or no records were available for evaluation.'];
+        $positiveFindings[] = ['title' => 'No specific positive contributions identified', 'detail' => 'The available data does not contain specific positive findings for this day.', 'note' => 'This may be because no tasks were completed and the report sections were left empty.'];
     }
     $excludedCriteria = isset($calculationCriteria) ? collect($calculationCriteria)->filter(fn ($c) => $c['status'] !== 'Evaluated')->values() : collect();
 
@@ -131,6 +115,7 @@
         $nav[] = ['es-calculation', 'Calculation'];
         $nav[] = ['es-findings', 'Findings'];
     }
+    $nav[] = ['es-tasks', 'Tasks'];
     $nav[] = ['es-criteria', 'Criteria'];
     $nav[] = ['es-sources', 'Sources'];
     if ($hasHistory) { $nav[] = ['es-history', 'History']; }
@@ -147,7 +132,7 @@
 <header class="es-hero">
     <div class="es-hero-bg" aria-hidden="true"></div>
     <div class="es-hero-top">
-        <span class="es-eyebrow">AI Score Sheet</span>
+        <span class="es-eyebrow">Score Sheet</span>
         <div class="es-hero-actions">
             <button type="button" class="es-btn es-btn--ghost" id="es-copy" data-copy="{{ $copyText }}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -208,11 +193,23 @@
 
     <dl class="es-kpis">
         <div class="es-kpi">
-            <dt>Criteria evaluated</dt>
-            <dd>{{ $evaluatedCount }} <small>/ {{ count($criteriaList) }}</small></dd>
+            <dt>Assigned tasks done</dt>
+            <dd>{{ $breakdown['assigned_completed'] }} <small>/ {{ $breakdown['assigned_total'] }}</small></dd>
         </div>
         <div class="es-kpi">
-            <dt>Original AI score</dt>
+            <dt>Urgent tasks</dt>
+            <dd>{{ $breakdown['urgent_count'] }}</dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Task points</dt>
+            <dd>{{ $fmt($breakdown['task_points']) }} <small>/ 90</small></dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Problems &amp; solutions</dt>
+            <dd>{{ $fmt($breakdown['problems_points']) }} <small>/ 10</small></dd>
+        </div>
+        <div class="es-kpi">
+            <dt>Original auto score</dt>
             <dd>{{ $fmt($originalAiScore) }}
                 @if ($hasManualOverride)
                     <small class="es-kpi-delta es-kpi-delta--{{ $manualAdjustment > 0 ? 'up' : 'down' }}">{{ $manualAdjustment > 0 ? '+' : '' }}{{ number_format((float) $manualAdjustment, 1) }} manual</small>
@@ -220,20 +217,8 @@
             </dd>
         </div>
         <div class="es-kpi">
-            <dt>Evidence files</dt>
-            <dd>{{ $evidenceCount }}</dd>
-        </div>
-        <div class="es-kpi">
-            <dt>Tasks on score sheet</dt>
-            <dd>{{ $tasksIncluded }} <small>/ {{ $scoreSheetTasks->count() }}</small></dd>
-        </div>
-        <div class="es-kpi">
             <dt>Submitted</dt>
             <dd class="es-kpi-text">{{ $submittedAt ? $submittedAt->format('M j, g:i A') : 'Not submitted' }}</dd>
-        </div>
-        <div class="es-kpi">
-            <dt>Assessed</dt>
-            <dd class="es-kpi-text">{{ $assessedAt ? $assessedAt->format('M j, g:i A') : 'Not assessed' }}</dd>
         </div>
     </dl>
 </header>
@@ -256,40 +241,39 @@
         <div class="es-empty">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <strong>No assessment data available</strong>
-            <p>No assessment data is available for this reporting period. The score sheet will be populated once an automatic or manual assessment is completed.</p>
+            <p>This report has not been assessed yet. The score sheet will be populated once an automatic or manual assessment is completed.</p>
         </div>
     @else
     <div class="es-overview-grid">
-        {{-- Radar --}}
-        <article class="es-card es-card--radar">
-            <h3 class="es-card-title">Performance profile</h3>
-            <svg class="es-radar" viewBox="0 0 400 320" role="img" aria-label="Radar chart of the four criterion scores">
-                @foreach ([25, 50, 75, 100] as $ring)
-                    <polygon points="{{ $ringPoints($ring) }}" class="es-radar-ring {{ $ring === 100 ? 'es-radar-ring--outer' : '' }}"/>
-                @endforeach
-                @foreach ($axes as $k => $dir)
-                    <line x1="{{ $cx }}" y1="{{ $cy }}" x2="{{ $cx + $dir[0] * $R }}" y2="{{ $cy + $dir[1] * $R }}" class="es-radar-axis"/>
-                @endforeach
-                <polygon points="{{ $radarPoints }}" class="es-radar-shape"/>
+        {{-- The two parts --}}
+        <article class="es-card">
+            <h3 class="es-card-title">The two parts of the score</h3>
+            <ul class="es-parts">
                 @foreach ($criteriaList as $k => $c)
                     @php $s = $criteria[$k] ?? null; @endphp
-                    @if ($s !== null)
-                        @php [$px, $py] = explode(',', $pt($k, $clamp($s))); @endphp
-                        <circle cx="{{ $px }}" cy="{{ $py }}" r="5" fill="{{ $c['color'] }}" class="es-radar-dot"><title>{{ $c['name'] }}: {{ $fmt($s) }} / 100</title></circle>
-                    @endif
+                    <li class="es-part {{ $s === null ? 'is-empty' : '' }}" style="--c: {{ $c['color'] }};">
+                        <div class="es-part-top">
+                            <span class="es-part-name">{{ $c['name'] }}</span>
+                            <span class="es-part-weight">{{ number_format($configWeights[$k], 0) }} points</span>
+                        </div>
+                        <div class="es-part-bar" role="presentation"><span style="width: {{ $s !== null ? $clamp($s) : 0 }}%;"></span></div>
+                        <div class="es-part-foot">
+                            @if ($s !== null)
+                                <strong>{{ number_format($contribution[$k], 1) }}</strong> of {{ number_format($configWeights[$k], 0) }} points earned
+                            @else
+                                Not evaluated for this day
+                            @endif
+                        </div>
+                    </li>
                 @endforeach
-                <text x="{{ $cx }}" y="38" text-anchor="middle" class="es-radar-label">{{ $criteriaList['quality']['short'] }} · {{ $fmt($criteria['quality'] ?? null, 0) }}</text>
-                <text x="{{ $cx + $R + 14 }}" y="{{ $cy + 4 }}" text-anchor="start" class="es-radar-label">{{ $criteriaList['timeliness']['short'] }} · {{ $fmt($criteria['timeliness'] ?? null, 0) }}</text>
-                <text x="{{ $cx }}" y="{{ $cy + $R + 28 }}" text-anchor="middle" class="es-radar-label">{{ $criteriaList['responsiveness']['short'] }} · {{ $fmt($criteria['responsiveness'] ?? null, 0) }}</text>
-                <text x="{{ $cx - $R - 14 }}" y="{{ $cy + 4 }}" text-anchor="end" class="es-radar-label">{{ $criteriaList['client_feedback']['short'] }} · {{ $fmt($criteria['client_feedback'] ?? null, 0) }}</text>
-            </svg>
-            <p class="es-card-foot">Criteria without data sit at the centre and are excluded from the score, never counted as zero.</p>
+            </ul>
+            <p class="es-card-foot">A part with no data is excluded and the remaining weight is renormalized, never counted as zero.</p>
         </article>
 
         {{-- Build-up --}}
         <article class="es-card es-card--build">
             <h3 class="es-card-title">How the final score is built</h3>
-            <div class="es-stack" role="img" aria-label="Stacked bar showing each criterion's contribution to the final score">
+            <div class="es-stack" role="img" aria-label="Stacked bar showing each part's contribution to the final score">
                 @foreach ($contribution as $k => $pts)
                     <span class="es-stack-seg" style="width: {{ round($pts, 2) }}%; background: {{ $criteriaList[$k]['color'] }};" title="{{ $criteriaList[$k]['name'] }}: {{ number_format($pts, 1) }} pts"></span>
                 @endforeach
@@ -317,7 +301,7 @@
         <article class="es-insight es-insight--good">
             <span class="es-insight-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>
             <div>
-                <span class="es-insight-label">Strongest criterion</span>
+                <span class="es-insight-label">Strongest part</span>
                 <strong>{{ $criteriaList[$strongestKey]['name'] }}</strong>
                 <p>{{ $fmt($criteria[$strongestKey]) }} / 100, contributing {{ number_format($contribution[$strongestKey], 1) }} points to the final score.</p>
             </div>
@@ -350,15 +334,15 @@
 {{-- ===================== CALCULATION ===================== --}}
 <section class="es-section" id="es-calculation" aria-labelledby="es-calc-title">
     <div class="es-section-head">
-        <h2 id="es-calc-title">How your score was calculated</h2>
-        <p>Each criterion score is multiplied by its weight. Criteria with no data are excluded and the remaining weights are renormalized.</p>
+        <h2 id="es-calc-title">How the score was calculated</h2>
+        <p>Each part is scored out of 100 and multiplied by its weight (90% tasks, 10% problems and solutions).</p>
     </div>
     <div class="es-card es-card--flush">
         <div class="es-table-wrap">
             <table class="es-table">
                 <thead>
                     <tr>
-                        <th scope="col">Criterion</th>
+                        <th scope="col">Part</th>
                         <th scope="col" class="num">Score</th>
                         <th scope="col" class="num">Weight</th>
                         <th scope="col" class="num">Weighted points</th>
@@ -407,7 +391,7 @@
             </table>
         </div>
         <div class="es-callout">
-            <strong>How this works:</strong> criteria with insufficient data are shown as "Not evaluated". Their weight is removed from the total and the remaining weights are used. If only Accomplishment Quality ({{ number_format($weightShare('quality'), 0) }}% weight) has data, your quality score becomes your final score because it is the only criterion measured.
+            <strong>How this works:</strong> the 90 task points are divided equally among the tasks assigned for the day, and a task earns its share once it is completed. Each urgent task that is not in Goals for the Day adds 80% of one assigned task's share. Problems Encountered and Suggested Solutions are worth 5 points each when filled in.
             @if (!empty($normalizationExplanation))
                 <span class="es-callout-extra">{{ $normalizationExplanation }}</span>
             @endif
@@ -424,7 +408,7 @@
 
     <div class="es-findings-grid">
         <article class="es-finding-card es-finding-card--good">
-            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>What you did well</h3>
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>What went well</h3>
             <ul>
                 @foreach ($positiveFindings as $f)
                 <li>
@@ -437,18 +421,18 @@
         </article>
 
         <article class="es-finding-card es-finding-card--bad">
-            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>What affected your score</h3>
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>What affected the score</h3>
             <ul>
                 @forelse ($blockers as $blocker)
                 <li><strong>Assessment finding</strong><p>{{ $blocker }}</p></li>
                 @empty
-                <li><p>Nothing negatively affected this score in the assessed period.</p></li>
+                <li><p>Nothing negatively affected this score.</p></li>
                 @endforelse
             </ul>
         </article>
 
         <article class="es-finding-card es-finding-card--muted">
-            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>Criteria not yet evaluated</h3>
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span>Parts not evaluated</h3>
             <ul>
                 @forelse ($excludedCriteria as $criterion)
                 <li>
@@ -457,18 +441,18 @@
                     <small>N/A means there was no data to measure. It is not counted as zero.</small>
                 </li>
                 @empty
-                <li><p>All criteria have been evaluated.</p></li>
+                <li><p>Both parts have been evaluated.</p></li>
                 @endforelse
             </ul>
         </article>
 
         <article class="es-finding-card es-finding-card--next">
-            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>How you can improve</h3>
+            <h3><span class="es-finding-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>How to improve</h3>
             <ul>
                 @forelse ($improvements as $improvement)
                 <li><strong>Recommended action</strong><p>{{ $improvement }}</p></li>
                 @empty
-                <li><p>No specific improvements were recommended for this period. Keep up the current approach.</p></li>
+                <li><p>No specific improvements were recommended. Keep up the current approach.</p></li>
                 @endforelse
             </ul>
         </article>
@@ -476,12 +460,77 @@
 </section>
 @endif
 
+{{-- ===================== TASKS BEHIND THE SCORE ===================== --}}
+<section class="es-section" id="es-tasks" aria-labelledby="es-tasks-title">
+    <div class="es-section-head">
+        <h2 id="es-tasks-title">Tasks behind the score</h2>
+        <p>
+            The day's assigned tasks share 90 points
+            @if ($breakdown['assigned_total'] > 0)
+                ({{ number_format((float) $breakdown['assigned_points_each'], 1) }} points each).
+            @else
+                (none were assigned for this date).
+            @endif
+            Urgent tasks outside Goals for the Day are worth 80% of an assigned task.
+        </p>
+    </div>
+
+    <div class="es-card es-card--flush">
+        @if ($assignedTasks->isEmpty() && $urgentTasks->isEmpty())
+            <div class="es-empty es-empty--compact"><p>No assigned or urgent tasks for this date.</p></div>
+        @else
+        <div class="es-table-wrap">
+            <table class="es-table">
+                <thead>
+                    <tr>
+                        <th scope="col">Type</th>
+                        <th scope="col">Task</th>
+                        <th scope="col">Status</th>
+                        <th scope="col" class="num">Points</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($assignedTasks as $task)
+                        @php $done = $task->isCompleted(); @endphp
+                        <tr class="{{ $done ? 'is-evaluated' : 'is-excluded' }}">
+                            <th scope="row">Assigned <span class="es-tag es-tag--muted">{{ $task->legend_code ?? '·' }}</span></th>
+                            <td>{{ $task->getLegendLabel() }}</td>
+                            <td><span class="es-tag es-tag--{{ $done ? 'ok' : 'muted' }}">{{ $done ? 'Completed' : 'Not completed' }}</span></td>
+                            <td class="num">{{ $done ? '+' . number_format((float) $breakdown['assigned_points_each'], 1) : '0.0' }}</td>
+                        </tr>
+                    @endforeach
+                    @foreach ($urgentTasks as $urgent)
+                        <tr class="is-evaluated">
+                            <th scope="row">Urgent</th>
+                            <td>
+                                {{ $urgent['description'] }}
+                                @if (! empty($urgent['reason']))
+                                    <small class="es-cell-note">Reason: {{ $urgent['reason'] }}</small>
+                                @endif
+                            </td>
+                            <td><span class="es-tag es-tag--ok">Listed</span></td>
+                            <td class="num">+{{ number_format((float) $breakdown['urgent_points_each'], 1) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr class="es-tr-total">
+                        <th scope="row" colspan="3">Task points (capped at 90)</th>
+                        <td class="num">{{ number_format((float) $breakdown['task_points'], 1) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        @endif
+    </div>
+</section>
+
 {{-- ===================== CRITERIA ===================== --}}
 <section class="es-section" id="es-criteria" aria-labelledby="es-criteria-title">
     <div class="es-section-head es-section-head--row">
         <div>
-            <h2 id="es-criteria-title">Criteria breakdown</h2>
-            <p>Each criterion is scored out of 100. Open a card to see the reasoning and evidence.</p>
+            <h2 id="es-criteria-title">Breakdown by part</h2>
+            <p>Each part is scored out of 100. Open a card to see the reasoning and evidence.</p>
         </div>
         <button type="button" class="es-btn es-btn--outline" id="es-toggle-all">Expand all</button>
     </div>
@@ -501,7 +550,7 @@
                     <span class="es-crit-main">
                         <span class="es-crit-name">{{ $criterion['name'] }}</span>
                         <span class="es-crit-meta">{{ number_format((float) $criterionWeight, 0) }}% weight
-                            <span class="es-tag es-tag--{{ $isEvaluated ? 'ok' : 'muted' }}">{{ $isEvaluated ? 'Evaluated' : 'Not yet evaluated' }}</span>
+                            <span class="es-tag es-tag--{{ $isEvaluated ? 'ok' : 'muted' }}">{{ $isEvaluated ? 'Evaluated' : 'Not evaluated' }}</span>
                         </span>
                     </span>
                     <span class="es-crit-score">
@@ -513,7 +562,7 @@
 
                 <div class="es-crit-body" id="es-crit-body-{{ $scoreKey }}" hidden>
                     <div class="es-field">
-                        <span class="es-field-label">{{ $isEvaluated ? 'Reason' : 'Missing requirements' }}</span>
+                        <span class="es-field-label">{{ $isEvaluated ? 'Reason' : 'Why it is not evaluated' }}</span>
                         <p class="{{ $isEvaluated ? '' : 'is-muted' }}">{{ $explanation }}</p>
                     </div>
                     @if ($isEvaluated)
@@ -524,7 +573,7 @@
                     @if (($potentialGain[$scoreKey] ?? 0) > 0.05)
                     <div class="es-field">
                         <span class="es-field-label">Room to grow</span>
-                        <p>Raising this criterion to 100 would add up to <strong>{{ number_format($potentialGain[$scoreKey], 1) }}</strong> points to the final score.</p>
+                        <p>Raising this part to 100 would add up to <strong>{{ number_format($potentialGain[$scoreKey], 1) }}</strong> points to the final score.</p>
                     </div>
                     @endif
                     @endif
@@ -658,7 +707,7 @@
     <div class="es-section-head es-section-head--row">
         <div>
             <h2 id="es-reassess-title">Manual reassessment</h2>
-            <p>Admin only. Adjust criterion scores (0–100). A reason is mandatory for every change and is saved to the history.</p>
+            <p>Admin only. Adjust the two part scores (0–100). A reason is mandatory for every change and is saved to the history.</p>
         </div>
         <button type="button" class="es-btn es-btn--outline" id="es-reassess-open" aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" aria-controls="es-reassess-panel">Manually reassess score</button>
     </div>
@@ -854,9 +903,7 @@
 @push('styles')
 <style>
 /* ============================================================
-   EAS Score Sheet — redesigned
-   Everything is scoped to .es so shared dashboard styles stay untouched.
-   Falls back gracefully when EAS design tokens are missing.
+   EAS Score Sheet — scoped to .es so shared dashboard styles stay untouched.
    ============================================================ */
 .es {
     --es-navy: var(--navy, #12305c);
@@ -955,14 +1002,15 @@
 
 /* ---------- Overview ---------- */
 .es-overview-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; }
-.es-radar { width: 100%; height: auto; max-height: 330px; display: block; }
-.es-radar-ring { fill: none; stroke: #e2e8f0; stroke-width: 1; }
-.es-radar-ring--outer { stroke: #cbd5e1; }
-.es-radar-axis { stroke: #e2e8f0; stroke-width: 1; }
-.es-radar-shape { fill: rgba(37, 99, 235, .18); stroke: #2563eb; stroke-width: 2.2; stroke-linejoin: round; animation: es-fade .9s ease both; transform-origin: 200px 160px; }
-@keyframes es-fade { from { opacity: 0; transform: scale(.6); } }
-.es-radar-dot { stroke: #fff; stroke-width: 2; }
-.es-radar-label { font-size: 12px; font-weight: 700; fill: var(--es-navy); }
+.es-parts { display: flex; flex-direction: column; gap: 18px; }
+.es-part.is-empty { opacity: .6; }
+.es-part-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.es-part-name { font-size: 15px; font-weight: 800; color: var(--es-navy); }
+.es-part-weight { font-size: 12px; font-weight: 700; color: var(--es-muted); }
+.es-part-bar { height: 12px; margin-top: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.es-part-bar span { display: block; height: 100%; border-radius: 999px; background: var(--c); transition: width .8s ease; }
+.es-part-foot { margin-top: 6px; font-size: 12.5px; color: var(--es-muted); }
+.es-part-foot strong { color: var(--es-navy); font-size: 15px; }
 
 .es-stack { display: flex; height: 18px; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
 .es-stack-seg { height: 100%; border-right: 2px solid var(--es-surface); transition: width .8s ease; }
@@ -1002,7 +1050,7 @@
 .es-empty p { max-width: 420px; font-size: 14px; }
 .es-empty--compact { padding: 24px; }
 
-/* ---------- Calculation table ---------- */
+/* ---------- Tables ---------- */
 .es-table-wrap { overflow-x: auto; }
 .es-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 13.5px; }
 .es-table thead th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--es-muted); background: var(--es-raised); border-bottom: 1px solid var(--es-border); white-space: nowrap; }
@@ -1011,6 +1059,7 @@
 .es-table td, .es-table tbody th, .es-table tfoot th { padding: 13px 16px; border-bottom: 1px solid var(--es-border); }
 .es-table tr.is-evaluated { background: #f7fef9; }
 .es-table tr.is-excluded { background: var(--es-raised); color: var(--es-muted); }
+.es-cell-note { display: block; margin-top: 2px; font-size: 12px; color: var(--es-muted); }
 .es-tr-total th, .es-tr-total td { background: #eef4fd; font-weight: 800; border-top: 2px solid var(--es-border); }
 .es-tr-available th, .es-tr-available td { background: #fef9e7; font-weight: 700; }
 .es-tr-final th, .es-tr-final td { background: #dbeafe; font-weight: 800; border-top: 2px solid var(--es-blue); border-bottom: 0; }
@@ -1057,7 +1106,7 @@
 .es-field p.is-muted { color: var(--es-muted); font-style: italic; }
 .es-field--manual { padding: 12px 14px; border-radius: 10px; background: #fef3c7; }
 
-/* ---------- Tasks ---------- */
+/* ---------- Kaizen / Admin Concern sources ---------- */
 .es-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 .es-chip { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--es-border); background: var(--es-surface); font-size: 12px; font-weight: 600; color: var(--es-muted); }
 .es-chip strong { color: var(--es-navy); font-variant-numeric: tabular-nums; }
@@ -1151,7 +1200,7 @@ a.es-task-title:hover { color: var(--es-blue); text-decoration: underline; }
     .es-hero { background: #12305c !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; box-shadow: none; }
     .es-crit-body[hidden] { display: grid !important; }
     .es-card, .es-insight, .es-crit, .es-finding-card, .es-tl-card { box-shadow: none; break-inside: avoid; }
-    .es-gauge-ring, .es-radar-shape { animation: none; }
+    .es-gauge-ring { animation: none; }
 }
 </style>
 @endpush

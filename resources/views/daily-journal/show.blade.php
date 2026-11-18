@@ -78,28 +78,23 @@
 
     $initial = mb_strtoupper(mb_substr($journal->user->name, 0, 1));
 
+    // Plain breakdown of an automatic score (tasks 90 + problems/solutions 10).
+    // A manually verified score keeps the reviewer's own explanation instead.
+    $scoreParts = ($journal->hasAssessment() && ! $journal->isManuallyAssessed())
+        ? app(\App\Services\DailyReportScoreCalculator::class)->calculate($journal)
+        : null;
+
     // Activity Legend codes the employee ticked, with their names for display.
     $activityCodes = collect($journal->achievement_codes ?? [])->filter()->values();
     $legendsByCode = $activityCodes->isNotEmpty()
         ? \App\Models\WorkPlanLegend::whereIn('code', $activityCodes->all())->get()->keyBy('code')
         : collect();
 
-    // Client names the employee chose for codes that need clients (e.g. F1 => [names]).
-    $clientNamesByCode = [];
-    $clientMap = (array) ($journal->achievement_clients ?? []);
-    if ($clientMap !== []) {
-        $clientNames = \App\Models\User::query()
-            ->withoutGlobalScopes()
-            ->whereIn('id', collect($clientMap)->flatten()->unique()->all())
-            ->pluck('name', 'id');
-
-        foreach ($clientMap as $code => $clientIds) {
-            $clientNamesByCode[$code] = collect($clientIds)
-                ->map(fn ($id) => $clientNames[$id] ?? null)
-                ->filter()
-                ->values();
-        }
-    }
+    // Client names the employee picked for codes that require a client (id => name).
+    $clientNames = \App\Models\User::whereIn(
+        'id',
+        collect($journal->achievement_clients ?? [])->flatten()->unique()->all()
+    )->pluck('name', 'id');
 
     // Admin-only editing of the codes. The button is only offered once the route is registered,
     // so this page keeps working before the route has been added.
@@ -108,7 +103,17 @@
     $codesHaveErrors = $errors->has('achievement_codes') || $errors->has('achievement_codes.*');
 
     $legendOptions = collect();
+    $clientLegends = collect();
+    $allClients = collect();
     if ($canEditCodes) {
+        $clientLegends = \App\Models\WorkPlanLegend::active()
+            ->where('requires_client', true)
+            ->with('clients:id,name')
+            ->orderBy('sort_order')
+            ->get();
+        $allClients = \App\Models\User::where('role', \App\Models\User::ROLE_CLIENT)
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $legendOptions = \App\Models\WorkPlanLegend::active()
             ->orderBy('category')
             ->orderBy('sort_order')
@@ -128,6 +133,7 @@
         }
     }
     $selectedCodes = collect(old('achievement_codes', $activityCodes->all()))->filter()->values()->all();
+    $savedClients = old('achievement_clients', $journal->achievement_clients ?? []);
 @endphp
 
 <div class="djr">
@@ -229,17 +235,13 @@
                                             @foreach ($activityCodes as $code)
                                                 <li class="djr-code">
                                                     <span class="djr-code-key">{{ $code }}</span>
-                                                    @if ($legendsByCode->has($code))
-                                                        <span class="djr-code-name">{{ $legendsByCode[$code]->name }}</span>
-                                                    @endif
-
-                                                    @if (! empty($clientNamesByCode[$code]) && $clientNamesByCode[$code]->isNotEmpty())
-                                                        <div class="djr-code-clients" aria-label="Clients for {{ $code }}">
-                                                            @foreach ($clientNamesByCode[$code] as $clientName)
-                                                                <span class="djr-client-chip">{{ $clientName }}</span>
-                                                            @endforeach
-                                                        </div>
-                                                    @endif
+                                                    <span class="djr-code-name">
+                                                        @if ($legendsByCode->has($code)){{ $legendsByCode[$code]->name }}@endif
+                                                        @php $pickedClientIds = $journal->achievement_clients[$code] ?? []; @endphp
+                                                        @if (! empty($pickedClientIds))
+                                                            <small class="djr-code-clients">{{ collect($pickedClientIds)->map(fn ($id) => $clientNames[$id] ?? 'Unknown client')->implode(', ') }}</small>
+                                                        @endif
+                                                    </span>
                                                 </li>
                                             @endforeach
                                         </ul>
@@ -287,6 +289,37 @@
                                                             @if ($option['name'] !== '')&ndash; {{ $option['name'] }}@endif
                                                         </span>
                                                     </label>
+                                                @endforeach
+                                            </div>
+                                        @endif
+
+                                        @if ($clientLegends->isNotEmpty())
+                                            <div class="djr-clients">
+                                                @foreach ($clientLegends as $legend)
+                                                    @php $clientOptions = $legend->clients->isNotEmpty() ? $legend->clients : $allClients; @endphp
+                                                    <div class="djr-client-block" data-client-block="{{ $legend->code }}" hidden>
+                                                        <label for="admin-client-pick-{{ $legend->code }}">
+                                                            Client(s) for <strong>{{ $legend->code }}</strong> &ndash; {{ $legend->name }}
+                                                        </label>
+                                                        <select id="admin-client-pick-{{ $legend->code }}" data-client-select>
+                                                            <option value="">Select a client&hellip;</option>
+                                                            @foreach ($clientOptions as $client)
+                                                                <option value="{{ $client->id }}">{{ $client->name }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                        <ul class="djr-chips" data-client-chips>
+                                                            @foreach (($savedClients[$legend->code] ?? []) as $clientId)
+                                                                @php $chosen = $allClients->firstWhere('id', (int) $clientId); @endphp
+                                                                @if ($chosen)
+                                                                    <li data-id="{{ $chosen->id }}">
+                                                                        <span>{{ $chosen->name }}</span>
+                                                                        <button type="button" data-client-remove aria-label="Remove {{ $chosen->name }}">&times;</button>
+                                                                        <input type="hidden" name="achievement_clients[{{ $legend->code }}][]" value="{{ $chosen->id }}">
+                                                                    </li>
+                                                                @endif
+                                                            @endforeach
+                                                        </ul>
+                                                    </div>
                                                 @endforeach
                                             </div>
                                         @endif
@@ -385,7 +418,69 @@
                             </div>
                         </div>
 
-                        <p class="dja-explanation">{{ $journal->achievement_explanation }}</p>
+                        @if ($scoreParts)
+                            @php
+                                $taskPct = max(0, min(100, $scoreParts['task_points'] / \App\Services\DailyReportScoreCalculator::TASK_POINTS * 100));
+                                $probPct = max(0, min(100, $scoreParts['problems_points'] / \App\Services\DailyReportScoreCalculator::PROBLEMS_POINTS * 100));
+                            @endphp
+                            <div class="dja-why">
+                                <h3 class="dja-why-title">Why this score</h3>
+
+                                @if ($scoreParts['mode'] === 'nothing_scheduled')
+                                    <div class="dja-why-note">
+                                        No tasks were assigned or added as urgent for this day, so only the problems and solutions part counts. It is scaled to 100.
+                                    </div>
+                                @endif
+
+                                <div class="dja-why-grid">
+                                    <div class="dja-why-card">
+                                        <div class="dja-why-head">
+                                            <span class="dja-why-name">Tasks</span>
+                                            @if ($scoreParts['mode'] === 'nothing_scheduled')
+                                                <span class="dja-why-pts">Not scored</span>
+                                            @else
+                                                <span class="dja-why-pts"><strong>{{ number_format($scoreParts['task_points'], 1) }}</strong> / 90</span>
+                                            @endif
+                                        </div>
+                                        @if ($scoreParts['mode'] !== 'nothing_scheduled')
+                                            <div class="dja-why-bar" role="presentation"><span style="width: {{ round($taskPct) }}%"></span></div>
+                                        @endif
+                                        <ul class="dja-why-list">
+                                            <li><span>Assigned tasks completed</span><b>{{ $scoreParts['assigned_total'] > 0 ? $scoreParts['assigned_completed'].' / '.$scoreParts['assigned_total'] : 'None assigned' }}</b></li>
+                                            <li>
+                                                <span>Urgent tasks added @if (($scoreParts['urgent_from_details'] ?? 0) > 0) <small>({{ $scoreParts['urgent_from_details'] }} written in Accomplishment details)</small>@endif</span>
+                                                <b>{{ $scoreParts['urgent_count'] }}</b>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="dja-why-card">
+                                        <div class="dja-why-head">
+                                            <span class="dja-why-name">Problems &amp; solutions</span>
+                                            <span class="dja-why-pts"><strong>{{ number_format($scoreParts['problems_points'], 1) }}</strong> / 10 @if ($scoreParts['mode'] === 'nothing_scheduled')<small>&times;10 = 100</small>@endif</span>
+                                        </div>
+                                        <div class="dja-why-bar dja-why-bar--violet" role="presentation"><span style="width: {{ round($probPct) }}%"></span></div>
+                                        <ul class="dja-why-list">
+                                            <li>
+                                                <span>Problems Encountered</span>
+                                                <b class="{{ $scoreParts['problems_filled'] ? 'is-ok' : 'is-no' }}">{{ $scoreParts['problems_filled'] ? 'Filled in (+5)' : 'Missing or too short (0)' }}</b>
+                                            </li>
+                                            <li>
+                                                <span>Suggested Solutions</span>
+                                                <b class="{{ $scoreParts['solutions_filled'] ? 'is-ok' : 'is-no' }}">{{ $scoreParts['solutions_filled'] ? 'Filled in (+5)' : 'Missing or too short (0)' }}</b>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <p class="dja-why-final">Final score <strong>{{ number_format($scoreParts['score'], 1) }}</strong> / 100</p>
+                            </div>
+                        @else
+                            <div class="dja-why dja-why--text">
+                                <h3 class="dja-why-title">Reviewer's explanation</h3>
+                                <p>{{ $journal->achievement_explanation }}</p>
+                            </div>
+                        @endif
 
                         @if (! empty($journal->recognition_tags))
                             <div class="dja-tags" aria-label="Recognition tags">
@@ -736,11 +831,10 @@
 .djr-head-tools { display: flex; align-items: center; gap: 10px; margin-left: auto; flex: none; flex-wrap: wrap; justify-content: flex-end; }
 .djr-card-head .djr-count { padding: 4px 12px; border-radius: 999px; background: var(--djr-tint); color: var(--djr-brand); font-size: .78rem; font-weight: 800; white-space: nowrap; }
 .djr-codes { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
-.djr-code { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: var(--djr-sunken); min-width: 0; }
+.djr-code { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--djr-line); border-radius: 10px; background: var(--djr-sunken); min-width: 0; }
 .djr-code-key { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; padding: 4px 10px; border-radius: 999px; background: #e4e6fb; color: var(--djr-brand); font-weight: 800; font-size: .85rem; }
 .djr-code-name { font-size: .88rem; font-weight: 600; overflow-wrap: anywhere; }
-.djr-code-clients { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
-.djr-client-chip { padding: 3px 10px; border-radius: 999px; background: #fff; border: 1px solid #c9cff0; color: var(--djr-ink); font-size: .78rem; font-weight: 600; overflow-wrap: anywhere; }
+.djr-code-clients { display: block; margin-top: 2px; color: var(--djr-muted); font-size: .78rem; font-weight: 500; }
 
 /* Admin code editor */
 .djr-codes-form { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--djr-line); border-left: 3px solid var(--djr-brand); border-radius: 12px; background: var(--djr-sunken); }
@@ -756,6 +850,16 @@
 .djr-codes-total { font-size: .82rem; color: var(--djr-muted); }
 .djr-codes-total strong { color: var(--djr-brand); font-variant-numeric: tabular-nums; }
 .djr-spacer { flex: 1; }
+
+/* Client pickers in the admin code editor */
+.djr-clients { display: grid; gap: 10px; }
+.djr-client-block { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--djr-line); border-left: 3px solid var(--djr-brand); border-radius: 12px; background: #fff; }
+.djr-client-block label { font-size: .86rem; font-weight: 700; }
+.djr-client-block select { width: 100%; padding: 9px 11px; border: 1px solid #cdd3ea; border-radius: 10px; background: #fff; color: var(--djr-ink); font: inherit; font-size: .9rem; box-sizing: border-box; }
+.djr-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.djr-chips li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px; background: var(--djr-tint); color: var(--djr-brand); font-size: .82rem; font-weight: 700; }
+.djr-chips button { width: 20px; height: 20px; border: 0; border-radius: 50%; background: transparent; color: #a93226; font-size: 1rem; line-height: 1; cursor: pointer; }
+.djr-chips button:hover { background: #fdecea; }
 
 /* Callout */
 .djr-callout { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; border: 1px solid rgba(169,50,38,.18); border-left: 3px solid #dc4c3f; border-radius: 14px; background: #fdecea; }
@@ -886,6 +990,30 @@ a.djr-file:hover { border-color: var(--djr-brand); background: var(--djr-tint); 
 .dja-history-top span { font-size: .75rem; color: var(--djr-muted); }
 .dja-history p { margin-top: 3px; font-size: .8rem; line-height: 1.5; color: var(--djr-muted); }
 
+/* "Why this score" breakdown */
+.dja-why { margin-top: 14px; padding: 16px; border: 1px solid var(--djr-line); border-radius: 14px; background: #fff; }
+.dja-why-title { font-size: .78rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--djr-muted); margin-bottom: 12px; }
+.dja-why-note { margin-bottom: 12px; padding: 10px 12px; border-radius: 10px; background: #eaf1fc; border: 1px solid #c4d6fb; color: #1e40af; font-size: .88rem; line-height: 1.5; font-weight: 600; }
+.dja-why-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dja-why-card { padding: 14px; border: 1px solid var(--djr-line); border-radius: 12px; background: var(--djr-sunken); }
+.dja-why-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dja-why-name { font-size: .98rem; font-weight: 800; color: var(--djr-ink); }
+.dja-why-pts { font-size: .85rem; font-weight: 700; color: var(--djr-muted); }
+.dja-why-pts strong { font-size: 1.35rem; color: var(--djr-ink); font-variant-numeric: tabular-nums; }
+.dja-why-bar { height: 10px; margin: 10px 0 12px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.dja-why-bar span { display: block; height: 100%; border-radius: 999px; background: #2563eb; }
+.dja-why-bar--violet span { background: #7c3aed; }
+.dja-why-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dja-why-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; color: var(--djr-ink); }
+.dja-why-list li > span { color: var(--djr-muted); font-weight: 600; }
+.dja-why-list b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.dja-why-list b.is-ok { color: #196f3d; }
+.dja-why-list b.is-no { color: #b42318; }
+.dja-why-final { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--djr-line); font-size: .95rem; font-weight: 700; color: var(--djr-muted); text-align: right; }
+.dja-why-final strong { font-size: 1.25rem; color: var(--djr-ink); }
+.dja-why--text p { font-size: .95rem; line-height: 1.65; color: var(--djr-ink); }
+@media (max-width: 700px) { .dja-why-grid { grid-template-columns: minmax(0, 1fr); } }
+
 /* Responsive */
 @media (max-width: 1100px) {
     .djr-grid { grid-template-columns: minmax(0, 1fr); }
@@ -947,15 +1075,75 @@ a.djr-file:hover { border-color: var(--djr-brand); background: var(--djr-tint); 
         editBtn.addEventListener('click', function () { setEditing(codesForm.hidden); });
         codesForm.querySelector('[data-codes-cancel]').addEventListener('click', function () {
             codesForm.reset();      // back to the saved selection
+            restoreChips();
             count();
             setEditing(false);
             editBtn.focus();
         });
         codesForm.querySelector('[data-codes-clear]').addEventListener('click', function () {
             boxes.forEach(function (b) { b.checked = false; });
+            syncClientBlocks();
             count();
         });
         boxes.forEach(function (b) { b.addEventListener('change', count); });
+
+        /* Client pickers: one block per code that requires a client, shown while its code is ticked. */
+        var clientBlocks = Array.prototype.slice.call(codesForm.querySelectorAll('[data-client-block]'));
+        var initialChips = clientBlocks.map(function (block) { return block.querySelector('[data-client-chips]').innerHTML; });
+
+        var syncClientBlocks = function () {
+            clientBlocks.forEach(function (block) {
+                var code = block.getAttribute('data-client-block');
+                var box = boxes.filter(function (b) { return b.value === code; })[0];
+                block.hidden = ! (box && box.checked);
+            });
+        };
+        var restoreChips = function () {
+            clientBlocks.forEach(function (block, i) { block.querySelector('[data-client-chips]').innerHTML = initialChips[i]; });
+            syncClientBlocks();
+        };
+
+        clientBlocks.forEach(function (block) {
+            var code = block.getAttribute('data-client-block');
+            var select = block.querySelector('[data-client-select]');
+            var chips = block.querySelector('[data-client-chips]');
+
+            select.addEventListener('change', function () {
+                var id = select.value;
+                if (! id) { return; }
+                if (! chips.querySelector('li[data-id="' + id + '"]')) {
+                    var name = select.options[select.selectedIndex].text;
+                    var li = document.createElement('li');
+                    li.setAttribute('data-id', id);
+
+                    var label = document.createElement('span');
+                    label.textContent = name;
+
+                    var remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.setAttribute('data-client-remove', '');
+                    remove.setAttribute('aria-label', 'Remove ' + name);
+                    remove.textContent = '\u00d7';
+
+                    var hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'achievement_clients[' + code + '][]';
+                    hidden.value = id;
+
+                    li.appendChild(label); li.appendChild(remove); li.appendChild(hidden);
+                    chips.appendChild(li);
+                }
+                select.value = '';
+            });
+
+            chips.addEventListener('click', function (e) {
+                var remove = e.target.closest('[data-client-remove]');
+                if (remove) { remove.closest('li').remove(); }
+            });
+        });
+
+        boxes.forEach(function (b) { b.addEventListener('change', syncClientBlocks); });
+        syncClientBlocks();
         count();
         setEditing(! codesForm.hidden);
     }

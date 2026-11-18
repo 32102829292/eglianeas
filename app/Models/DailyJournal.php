@@ -22,6 +22,7 @@ class DailyJournal extends Model
         'achievements',
         'achievement_codes',
         'achievement_clients',
+        'urgent_tasks',
         'suggested_solutions',
         'evidence_paths',
         'status',
@@ -51,6 +52,7 @@ class DailyJournal extends Model
             'evidence_paths' => 'array',
             'achievement_codes' => 'array',
             'achievement_clients' => 'array',
+            'urgent_tasks' => 'array',
             'submitted_at' => 'datetime',
             'reminded_at' => 'datetime',
             'reminder_count' => 'integer',
@@ -220,6 +222,33 @@ class DailyJournal extends Model
     public function finalScore(): ?int
     {
         return $this->achievement_score !== null ? (int) $this->achievement_score : null;
+    }
+
+    /**
+     * Client ids chosen for one Activity Legend code (e.g. "F1" => [3, 7]).
+     *
+     * @return array<int, int>
+     */
+    public function clientIdsForCode(string $code): array
+    {
+        $ids = ((array) ($this->achievement_clients ?? []))[$code] ?? [];
+
+        return array_values(array_map('intval', (array) $ids));
+    }
+
+    /**
+     * Every client id chosen on this report, across all codes.
+     *
+     * @return array<int, int>
+     */
+    public function allAchievementClientIds(): array
+    {
+        return collect((array) ($this->achievement_clients ?? []))
+            ->flatten()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function scopeForDate(Builder $query, Carbon $date): Builder
