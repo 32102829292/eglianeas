@@ -360,7 +360,33 @@ trait HandlesBookkeepingWorkflow
             'todayItems' => $todayItems,
             'clientGroups' => $clientGroups,
             'typeProgress' => $typeProgress,
+            'canCopyPrevious' => $this->canCopyPrevious($user, $period),
         ];
+    }
+
+    /**
+     * Whether "Copy last period's assignments" applies to $period: the viewer may
+     * set targets, the period has none yet, and an earlier period has some.
+     */
+    protected function canCopyPrevious(User $user, BookkeepingPeriod $period): bool
+    {
+        if (! $user->isOperational()) {
+            return false;
+        }
+
+        $planClass = $this->planClass();
+        $column = $planClass::PERIOD_START_COLUMN;
+
+        $hasTargets = $planClass::query()
+            ->whereDate($column, $period->startDate())
+            ->whereHas('targets')
+            ->exists();
+
+        return ! $hasTargets
+            && $planClass::query()
+                ->whereDate($column, '<', $period->startDate())
+                ->whereHas('targets')
+                ->exists();
     }
 
     /**
@@ -664,6 +690,13 @@ trait HandlesBookkeepingWorkflow
 
         $periodOptions = $period->options();
 
+        /* Default to the last assigned period: when nothing is set for this period
+           yet, the form opens pre-filled from the most recent earlier period's
+           assignments. Nothing is written until the form is submitted. */
+        $previousAssignments = $existing->isEmpty()
+            ? $this->previousPeriodAssignments($period)
+            : collect();
+
         $clients = User::query()
             ->where('role', User::ROLE_CLIENT)
             ->orderBy('name')
@@ -679,7 +712,159 @@ trait HandlesBookkeepingWorkflow
             'plan' => $plan,
             'taskTypes' => $planClass::TASK_TYPES,
             'assignableStaff' => $this->assignableStaff(),
+            'previousAssignments' => $previousAssignments,
         ];
+    }
+
+    /**
+     * The most recent planned period before $period that has targets.
+     */
+    protected function previousPlanBefore(BookkeepingPeriod $period): ?Model
+    {
+        $planClass = $this->planClass();
+
+        return $planClass::query()
+            ->whereDate($planClass::PERIOD_START_COLUMN, '<', $period->startDate())
+            ->whereHas('targets')
+            ->orderByDesc($planClass::PERIOD_START_COLUMN)
+            ->first();
+    }
+
+    /**
+     * The earlier period's assignments, grouped the way the staff-centered form
+     * submits them: one staff member, one task type, any number of clients.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    protected function previousPeriodAssignments(BookkeepingPeriod $period): Collection
+    {
+        $previousPlan = $this->previousPlanBefore($period);
+
+        if (! $previousPlan) {
+            return collect();
+        }
+
+        return $previousPlan->targets()
+            ->with('assignedStaff')
+            ->whereNotNull('assigned_staff_id')
+            ->get()
+            ->groupBy(fn (Model $t) => $t->assigned_staff_id.'|'.$t->task_type)
+            ->map(fn ($group) => [
+                'staff_id' => $group->first()->assigned_staff_id,
+                'staff' => $group->first()->assignedStaffDisplayName(),
+                'task_type' => $group->first()->task_type,
+                'target_date' => $group->first()->target_date,
+                'client_ids' => $group->pluck('client_id')->unique()->values()->all(),
+            ])
+            ->sortBy(fn ($row) => [$row['target_date']?->format('Y-m-d') ?? '9999', $row['staff']])
+            ->values();
+    }
+
+    /**
+     * Copies the most recent earlier period's assignments into the selected one.
+     *
+     * Only runs for a period with no targets yet, so it can never overwrite or
+     * duplicate existing work. Each target keeps its client, task type and staff
+     * member, its date moves forward by the same number of months as the period,
+     * and it starts fresh as Pending: status, notes, evidence and payment details
+     * are not carried over. Everything is written in one transaction.
+     *
+     * Public so the route can point straight at the concrete controller: it needs
+     * no model binding.
+     */
+    public function copyPrevious(Request $request): RedirectResponse
+    {
+        $user = auth()->user();
+        abort_unless($user->isOperational(), 403, 'Only operational accounts can set targets.');
+
+        $planClass = $this->planClass();
+        $targetClass = $this->targetClass();
+        $config = $this->bookkeepingConfig();
+
+        $period = $this->periodForSubmission($request->input($config['query_key']));
+        $back = redirect()->route($config['route_prefix'].'.index', [$config['query_key'] => $period->key()]);
+
+        $plan = $planClass::query()
+            ->whereDate($planClass::PERIOD_START_COLUMN, $period->startDate())
+            ->first();
+
+        if ($plan && $plan->targets()->exists()) {
+            return $back->with('status', 'This '.strtolower($config['unit']).' already has targets, so nothing was copied.');
+        }
+
+        $previousPlan = $this->previousPlanBefore($period);
+
+        if (! $previousPlan) {
+            return $back->withErrors(['action' => 'There is no earlier '.strtolower($config['unit']).' with assignments to copy.']);
+        }
+
+        $periodStart = Carbon::parse($period->startDate())->startOfDay();
+        $periodEnd = Carbon::parse($period->endDate())->startOfDay();
+        $monthShift = (int) Carbon::parse($previousPlan->{$planClass::PERIOD_START_COLUMN})
+            ->startOfMonth()
+            ->diffInMonths($periodStart->copy()->startOfMonth(), false);
+
+        $copied = \Illuminate\Support\Facades\DB::transaction(function () use (
+            $plan, $previousPlan, $planClass, $targetClass, $config, $period, $periodStart, $periodEnd, $monthShift, $user
+        ) {
+            if ($plan === null) {
+                $plan = $planClass::query()->create([
+                    'staff_id' => $user->id,
+                    $planClass::PERIOD_START_COLUMN => $period->startDate(),
+                    $planClass::PERIOD_END_COLUMN => $period->endDate(),
+                    'status' => $planClass::STATUS_NOT_STARTED,
+                ]);
+            }
+
+            $count = 0;
+
+            foreach ($previousPlan->targets()->get() as $source) {
+                $date = $source->target_date
+                    ? Carbon::parse($source->target_date)->startOfDay()->addMonthsNoOverflow($monthShift)
+                    : null;
+
+                // Keep the date inside the new period.
+                if ($date && ($date->lt($periodStart) || $date->gt($periodEnd))) {
+                    $date = $periodStart->copy();
+                }
+
+                $plan->targets()->create([
+                    'client_id' => $source->client_id,
+                    'task_type' => $source->task_type,
+                    'target_date' => $date?->format('Y-m-d'),
+                    'assigned_staff_id' => $source->assigned_staff_id,
+                    'assigned_staff_name' => $source->assigned_staff_name,
+                    'actual_status' => $targetClass::ACTUAL_STATUS_PENDING,
+                ]);
+
+                $count++;
+            }
+
+            $plan->syncOverallStatus();
+
+            $this->logActivity(
+                $user,
+                $config['activity_prefix'].'.targets_saved',
+                sprintf(
+                    '%s for %s copied from %s (%d task%s).',
+                    $config['noun_title'],
+                    $period->shortRangeLabel(),
+                    Carbon::parse($previousPlan->{$planClass::PERIOD_START_COLUMN})->format('M Y'),
+                    $count,
+                    $count === 1 ? '' : 's'
+                ),
+                $plan
+            );
+
+            return $count;
+        });
+
+        return $back->with('status', sprintf(
+            'Copied %d task%s from %s. Review them, then adjust as needed.',
+            $copied,
+            $copied === 1 ? '' : 's',
+            Carbon::parse($previousPlan->{$planClass::PERIOD_START_COLUMN})->format('F Y')
+        ));
     }
 
     /**

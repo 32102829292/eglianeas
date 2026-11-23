@@ -26,6 +26,14 @@
 
     $updatedByName = $lastUpdatedBy ? \App\Models\User::find($lastUpdatedBy)?->name : null;
     $visibleLimit  = 3;
+
+    // Codes that ask for a client: the ones flagged "Requires client name",
+    // plus Bookkeeping, Pickup of Documents and Return of Documents.
+    $clientList    = ($clients ?? collect());
+    $clientLegends = $legends->filter(function ($legend) {
+        return ! empty($legend->requires_client)
+            || preg_match('/bookkeeping|pick\s*-?\s*up|return\s+of\s+documents/i', $legend->name);
+    })->keyBy('code');
     $actorWeekStatus = $weekStatuses[$actor->id] ?? ['key' => 'not_started', 'label' => 'Not Started', 'locked' => ! $editingEnabled];
 @endphp
 
@@ -222,6 +230,9 @@
                                 <div class="wp-cell {{ $activeTasks->isNotEmpty() ? 'has-tasks' : 'is-empty' }} {{ $date->isToday() ? 'is-today' : '' }}"
                                      data-user-id="{{ $employee->id }}" data-date="{{ $dateStr }}">
 
+                                    {{-- Day label: only visible on small screens, where the header row is hidden. --}}
+                                    <span class="wp-cell-day" aria-hidden="true"><strong>{{ $date->format('D') }}</strong> {{ $date->format('M j') }}</span>
+
                                     <div class="wp-chip-list" data-wp-chips>
                                         @foreach ($activeTasks as $index => $task)
                                             <span class="wp-chip wp-chip-{{ $task->status }} {{ $index >= $visibleLimit ? 'wp-chip-extra' : '' }}"
@@ -265,6 +276,24 @@
                                                         </label>
                                                     @endforeach
                                                 </div>
+
+                                                {{-- Client dropdown: shown only while a client-requiring code is ticked. --}}
+                                                @foreach ($clientLegends as $legend)
+                                                    @php
+                                                        $options  = ($legend->clients ?? collect())->isNotEmpty() ? $legend->clients : $clientList;
+                                                        $savedFor = optional($activeTasks->firstWhere('legend_code', $legend->code))->client_name;
+                                                    @endphp
+                                                    <div class="wp-picker-client" data-wp-client="{{ $legend->code }}" hidden>
+                                                        <label>Client for <strong>{{ $legend->code }}</strong></label>
+                                                        <select name="legend_clients[{{ $legend->code }}]" data-wp-client-select>
+                                                            <option value="">Select a client…</option>
+                                                            @foreach ($options as $client)
+                                                                <option value="{{ $client->id }}" @selected($savedFor && $savedFor === $client->name)>{{ $client->name }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                @endforeach
+
                                                 <div class="wp-picker-actions">
                                                     <button type="submit" class="wp-btn wp-btn-primary wp-btn-sm">Save codes</button>
                                                 </div>
@@ -648,6 +677,11 @@
 .wp-picker-code { min-width: 28px; font-weight: 800; color: var(--wp-brand); }
 .wp-picker-name { color: var(--wp-muted); }
 .wp-picker-actions { margin-top: 10px; text-align: right; }
+.wp-picker { max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto; }
+.wp-picker-client { display: grid; gap: 4px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--wp-line); border-left: 3px solid var(--wp-brand); border-radius: 10px; background: var(--wp-sunken); }
+.wp-picker-client[hidden] { display: none; }
+.wp-picker-client label { font-size: .75rem; font-weight: 700; color: var(--wp-ink); }
+.wp-picker-client select { width: 100%; padding: 6px 8px; border: 1px solid #cdd3ea; border-radius: 8px; background: #fff; font: inherit; font-size: .8rem; color: var(--wp-ink); }
 
 /* ---------- Legend reference ---------- */
 .wp-legend-body { padding: 16px 20px 20px; }
@@ -689,9 +723,43 @@
 .wp-check small { color: var(--wp-muted); font-weight: 500; }
 
 /* ---------- Responsive ---------- */
+.wp-cell-day { display: none; }
+.wp-lock-actions { flex-wrap: wrap; }
+.wp-reason-input { flex: 1 1 200px; min-width: 0; }
+
 @media (max-width: 1200px) {
     .wp-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .wp-stat--wide { grid-column: 1 / -1; }
+}
+/* Tablet and phone: each employee becomes a card with the five days stacked inside it. */
+@media (max-width: 900px) {
+    .wp-scroll { overflow: visible; }
+    .wp-grid { display: block; min-width: 0; padding: 12px 0 2px; }
+    .wp-hcell { display: none; }
+    .wp-row { display: block; margin: 0 12px 14px; border: 1px solid var(--wp-line); border-radius: 14px; overflow: hidden; background: #fff; }
+    .wp-emp { position: static; border-right: 0; background: #f4f5fd; }
+    .wp-cell { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; min-height: 0; padding: 10px 14px; border-right: 0; }
+    .wp-cell-day { display: block; flex: 0 0 76px; font-size: .82rem; color: var(--wp-muted); }
+    .wp-cell-day strong { display: block; color: var(--wp-ink); font-size: .9rem; }
+    .wp-chip-list { flex: 1 1 140px; justify-content: flex-start; }
+    .wp-cell-edit-btn { position: static; opacity: 1; flex: none; }
+    .wp-total { flex-direction: row; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 0; }
+    .wp-track-sm { flex: 1; max-width: none; }
+    .wp-head-actions { width: 100%; }
+    .wp-lockbar { padding: 12px 14px; }
+    .wp-lock-actions { width: 100%; }
+    .wp-key { padding: 12px 14px; }
+}
+@media (max-width: 600px) {
+    .wp-head-actions .wp-btn { flex: 1 1 calc(50% - 8px); }
+    .wp-weeknav { gap: 6px; }
+    .wp-week-pill { flex: 1; justify-content: center; padding: 10px 8px; font-size: .88rem; }
+    .wp-today-btn { flex: 1 0 100%; text-align: center; }
+    .wp-legend-grid { grid-template-columns: minmax(0, 1fr); }
+    .wp-search { max-width: none; }
+    .wp-modal .modal-dialog { margin: 8px; }
+    /* The code picker becomes a bottom sheet so it never runs off a narrow screen. */
+    .wp-picker { left: 8px !important; right: 8px; top: auto !important; bottom: 8px; width: auto; max-height: 70vh; }
 }
 @media (max-width: 800px) {
     .wp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -801,8 +869,11 @@
     }
 
     function placePicker(picker, anchor) {
+        // On phones the picker is a bottom sheet positioned by CSS.
+        if (window.innerWidth <= 600) { picker.style.left = ''; picker.style.top = ''; return; }
+
         var rect = anchor.getBoundingClientRect();
-        var width = 280;
+        var width = Math.min(280, window.innerWidth - 16);
         var left = Math.min(Math.max(8, rect.left + rect.width / 2 - width / 2), window.innerWidth - width - 8);
         picker.style.left = left + 'px';
         picker.style.top = (rect.bottom + 6) + 'px';
@@ -848,6 +919,30 @@
         if (! event.target.closest('[data-wp-picker]')) { closePickers(null); }
     });
 
+    /* Show a client dropdown only while its code is ticked; clear it when unticked. */
+    function syncPickerClients(picker) {
+        picker.querySelectorAll('[data-wp-client]').forEach(function (block) {
+            var code = block.getAttribute('data-wp-client');
+            var box = Array.prototype.slice.call(picker.querySelectorAll('input[name="legend_codes[]"]'))
+                .filter(function (b) { return b.value === code; })[0];
+            var on = !! (box && box.checked);
+            block.hidden = ! on;
+            if (! on) { block.querySelector('select').value = ''; }
+        });
+    }
+
+    document.querySelectorAll('[data-wp-picker]').forEach(function (picker) {
+        syncPickerClients(picker);
+        picker.addEventListener('change', function (event) {
+            if (event.target.matches('input[name="legend_codes[]"]')) { syncPickerClients(picker); }
+        });
+        picker.querySelector('form').addEventListener('submit', function (event) {
+            var missing = Array.prototype.slice.call(picker.querySelectorAll('[data-wp-client]:not([hidden]) select'))
+                .filter(function (s) { return s.value === ''; })[0];
+            if (missing) { event.preventDefault(); missing.focus(); }
+        });
+    });
+
     document.addEventListener('input', function (event) {
         if (! event.target.matches('[data-wp-search]')) { return; }
         var picker = event.target.closest('[data-wp-picker]');
@@ -866,7 +961,13 @@
         var inside = event.target && event.target.closest && event.target.closest('[data-wp-picker]');
         if (! inside) { closePickers(null); }
     }, true);
-    window.addEventListener('resize', function () { closePickers(null); });
+    // Ignore height-only resizes: the on-screen keyboard on phones would otherwise close the picker.
+    var lastWidth = window.innerWidth;
+    window.addEventListener('resize', function () {
+        if (window.innerWidth === lastWidth) { return; }
+        lastWidth = window.innerWidth;
+        closePickers(null);
+    });
 })();
 </script>
 @endpush

@@ -308,6 +308,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::get('/weekly-bookkeeping-report', [AdminWeeklyBookkeepingController::class, 'report'])->name('weekly-bookkeeping.report');
     Route::post('/weekly-bookkeeping', [AdminWeeklyBookkeepingController::class, 'store'])->name('weekly-bookkeeping.store');
     Route::post('/weekly-bookkeeping/assign', [AdminWeeklyBookkeepingController::class, 'bulkAssign'])->name('weekly-bookkeeping.bulk-assign');
+    Route::post('/weekly-bookkeeping/copy-previous-week', [AdminWeeklyBookkeepingController::class, 'copyPreviousWeek'])->name('weekly-bookkeeping.copy-previous-week');
     Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
     Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
     Route::get('/weekly-bookkeeping/{bookkeeping}/task/{target}', [AdminWeeklyBookkeepingController::class, 'showTask'])->name('weekly-bookkeeping.task');

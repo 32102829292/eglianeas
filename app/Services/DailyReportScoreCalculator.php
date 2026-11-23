@@ -167,9 +167,23 @@ class DailyReportScoreCalculator
             ->count();
     }
 
+    /**
+     * A section counts as answered when it has real text, or when the staff member
+     * clearly states there was nothing to report ("n/a", "none", "no problems"...).
+     * Saying "n/a" for Problems Encountered is a valid answer, so it is not penalised.
+     */
     private function isFilled(?string $text): bool
     {
-        return mb_strlen(trim((string) $text)) >= self::MIN_TEXT_LENGTH;
+        $text = trim((string) $text);
+
+        if (mb_strlen($text) >= self::MIN_TEXT_LENGTH) {
+            return true;
+        }
+
+        return preg_match(
+            '/^\W*(n\/?a|not\s+applicable|none|nil|nothing|no\s+(problems?|issues?|concerns?|solutions?)|wala|walang\s+\w+)\W*$/iu',
+            $text
+        ) === 1;
     }
 
     private function explain(

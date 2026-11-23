@@ -241,7 +241,32 @@ class WeeklyBookkeepingController extends Controller
             'todayItems' => $todayItems,
             'clientGroups' => $clientGroups,
             'typeProgress' => $typeProgress,
+            'canCopyPrevious' => $this->canCopyPreviousWeek($user, $weekStartCarbon),
         ]);
+    }
+
+    /**
+     * Whether the "Copy last week's assignments" action applies to this week:
+     * the viewer may set targets, the week has none yet, and an earlier week has some.
+     */
+    private function canCopyPreviousWeek(User $user, Carbon $weekStart): bool
+    {
+        if (! $user->isOperational()) {
+            return false;
+        }
+
+        $date = $weekStart->copy()->startOfWeek()->format('Y-m-d');
+
+        $hasTargets = WeeklyBookkeeping::query()
+            ->whereDate('week_start', $date)
+            ->whereHas('targets')
+            ->exists();
+
+        return ! $hasTargets
+            && WeeklyBookkeeping::query()
+                ->whereDate('week_start', '<', $date)
+                ->whereHas('targets')
+                ->exists();
     }
 
     /**
@@ -477,6 +502,14 @@ class WeeklyBookkeepingController extends Controller
         $existingByClient = $existing->groupBy('client_id')
             ->map(fn ($targets) => $targets->groupBy('task_type'));
 
+        /* Default to the last assigned week: when nothing is set for this week
+           yet, hand the form the most recent earlier week's assignments (one
+           group per staff member + task type) so it opens pre-filled. Nothing is
+           written until the user submits the form. */
+        $previousAssignments = $existing->isEmpty()
+            ? $this->previousWeekAssignments($weekStartCarbon)
+            : collect();
+
         $weeks = [];
         for ($i = 0; $i < 12; $i++) {
             $date = now()->copy()->startOfWeek()->addWeeks($i);
@@ -498,7 +531,145 @@ class WeeklyBookkeepingController extends Controller
             'taskTypes' => WeeklyBookkeeping::TASK_TYPES,
             'upcomingWeeks' => $weeks,
             'assignableStaff' => $this->assignableStaff(),
+            'previousAssignments' => $previousAssignments,
         ]);
+    }
+
+    /**
+     * The assignments from the most recent planned week before $weekStart,
+     * grouped the way the staff-centered form submits them: one staff member,
+     * one task type, any number of clients.
+     *
+     * @return \Illuminate\Support\Collection<int, array<string, mixed>>
+     */
+    private function previousWeekAssignments(Carbon $weekStart): \Illuminate\Support\Collection
+    {
+        $previousPlan = WeeklyBookkeeping::query()
+            ->whereDate('week_start', '<', $weekStart->format('Y-m-d'))
+            ->whereHas('targets')
+            ->orderByDesc('week_start')
+            ->first();
+
+        if (! $previousPlan) {
+            return collect();
+        }
+
+        return $previousPlan->targets()
+            ->with('assignedStaff')
+            ->whereNotNull('assigned_staff_id')
+            ->get()
+            ->groupBy(fn (WeeklyBookkeepingTarget $t) => $t->assigned_staff_id.'|'.$t->task_type)
+            ->map(fn ($group) => [
+                'staff_id' => $group->first()->assigned_staff_id,
+                'staff' => $group->first()->assignedStaffDisplayName(),
+                'task_type' => $group->first()->task_type,
+                'target_date' => $group->first()->target_date,
+                'client_ids' => $group->pluck('client_id')->unique()->values()->all(),
+            ])
+            ->sortBy(fn ($row) => [$row['target_date']?->format('Y-m-d') ?? '9999', $row['staff']])
+            ->values();
+    }
+
+    /**
+     * Copies the most recent earlier week's assignments into the selected week.
+     *
+     * Only runs for a week that has no targets yet, so it can never overwrite or
+     * duplicate existing work. Each target keeps its client, task type and staff
+     * member, its target date moves forward by the same number of days as the
+     * week, and it starts fresh as Pending: status, notes, evidence and payment
+     * details are not carried over. Everything is written in one transaction.
+     */
+    public function copyPreviousWeek(Request $request): RedirectResponse
+    {
+        $user = auth()->user();
+        abort_unless($user->isOperational(), 403, 'Only operational accounts can set weekly targets.');
+
+        $validated = $request->validate(['week_start' => ['required', 'date']]);
+
+        $weekStart = Carbon::parse($validated['week_start'])->startOfWeek();
+        $weekEnd = $weekStart->copy()->endOfWeek();
+        $back = redirect()->route('admin.weekly-bookkeeping.index', ['week_start' => $weekStart->format('Y-m-d')]);
+
+        $plan = WeeklyBookkeeping::query()
+            ->whereDate('week_start', $weekStart->format('Y-m-d'))
+            ->first();
+
+        if ($plan && $plan->targets()->exists()) {
+            return $back->with('status', 'This week already has targets, so nothing was copied.');
+        }
+
+        $previousPlan = WeeklyBookkeeping::query()
+            ->whereDate('week_start', '<', $weekStart->format('Y-m-d'))
+            ->whereHas('targets')
+            ->orderByDesc('week_start')
+            ->first();
+
+        if (! $previousPlan) {
+            return $back->withErrors(['action' => 'There is no earlier week with assignments to copy.']);
+        }
+
+        $dayShift = (int) Carbon::parse($previousPlan->week_start)->startOfWeek()->diffInDays($weekStart, false);
+
+        $copied = DB::transaction(function () use ($plan, $previousPlan, $weekStart, $weekEnd, $dayShift, $user) {
+            if ($plan === null) {
+                $plan = WeeklyBookkeeping::query()->create([
+                    'staff_id' => $user->id,
+                    'week_start' => $weekStart->format('Y-m-d'),
+                    'week_end' => $weekEnd->format('Y-m-d'),
+                    'status' => WeeklyBookkeeping::STATUS_NOT_STARTED,
+                ]);
+            }
+
+            $count = 0;
+
+            foreach ($previousPlan->targets()->get() as $source) {
+                $date = $source->target_date
+                    ? Carbon::parse($source->target_date)->addDays($dayShift)->startOfDay()
+                    : null;
+
+                // Keep the date inside the new week.
+                if ($date && ($date->lt($weekStart->copy()->startOfDay()) || $date->gt($weekEnd->copy()->startOfDay()))) {
+                    $date = $weekStart->copy()->startOfDay();
+                }
+
+                $plan->targets()->create([
+                    'client_id' => $source->client_id,
+                    'task_type' => $source->task_type,
+                    'target_date' => $date?->format('Y-m-d'),
+                    'assigned_staff_id' => $source->assigned_staff_id,
+                    'assigned_staff_name' => $source->assigned_staff_name,
+                    'actual_status' => WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING,
+                ]);
+
+                $count++;
+            }
+
+            $plan->syncOverallStatus();
+
+            ActivityLog::record(
+                $user,
+                'weekly_bookkeeping.targets_saved',
+                sprintf(
+                    'Weekly target for %s – %s copied from the week of %s (%d task%s).',
+                    $weekStart->format('M j, Y'),
+                    $weekEnd->format('M j, Y'),
+                    Carbon::parse($previousPlan->week_start)->format('M j, Y'),
+                    $count,
+                    $count === 1 ? '' : 's'
+                ),
+                instance: null,
+                bookkeeping: $plan
+            );
+
+            return $count;
+        });
+
+        return $back->with('status', sprintf(
+            'Copied %d task%s from the week of %s. Review them, then adjust as needed.',
+            $copied,
+            $copied === 1 ? '' : 's',
+            Carbon::parse($previousPlan->week_start)->format('M j, Y')
+        ));
     }
 
     /**

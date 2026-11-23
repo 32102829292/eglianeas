@@ -8,6 +8,46 @@
         $startField = $config['start_field'];
         $periodStart = $period->startDate();
         $periodEnd = $period->endDate();
+
+        /*
+         * Default to last period's assignments. When nothing is assigned yet for
+         * this period, the form opens pre-filled from the previous period's
+         * assignment groups ($previousAssignments, supplied by the controller:
+         * staff_id, staff, task_type, target_date, client_ids). The target date is
+         * carried forward by one period and kept inside this period's range.
+         * Nothing is saved until the user presses "Add Assignment".
+         */
+        $shiftDate = function ($date) use ($config, $periodStart, $periodEnd) {
+            $min = \Illuminate\Support\Carbon::parse((string) $periodStart)->startOfDay();
+            $max = \Illuminate\Support\Carbon::parse((string) $periodEnd)->startOfDay();
+
+            if (! $date) {
+                return $min->toDateString();
+            }
+
+            $shifted = \Illuminate\Support\Carbon::parse((string) $date)->startOfDay();
+            $shifted = match ($config['kind']) {
+                'monthly' => $shifted->addMonthNoOverflow(),
+                'quarterly' => $shifted->addMonthsNoOverflow(3),
+                default => $shifted->addWeek(),
+            };
+
+            return $shifted->lt($min) ? $min->toDateString() : ($shifted->gt($max) ? $max->toDateString() : $shifted->toDateString());
+        };
+
+        $prevGroups = collect($previousAssignments ?? [])
+            ->filter(fn ($group) => ! empty($group['client_ids']))
+            ->map(fn ($group) => [
+                'staff_id' => (string) ($group['staff_id'] ?? ''),
+                'task_type' => (string) ($group['task_type'] ?? ''),
+                'date' => $shiftDate($group['target_date'] ?? null),
+                'client_ids' => array_map('intval', (array) $group['client_ids']),
+                'label' => trim(($group['staff'] ?? 'Unassigned').' · '.($taskTypes[$group['task_type'] ?? ''] ?? ($group['task_type'] ?? '')).' · '.count((array) $group['client_ids']).' '.(count((array) $group['client_ids']) === 1 ? 'client' : 'clients')),
+            ])
+            ->values();
+
+        $usePrevious = $existingByClient->isEmpty() && $prevGroups->isNotEmpty() && ! old('assigned_staff_id');
+        $prefill = $usePrevious ? $prevGroups->first() : null;
     @endphp
 
     <div class="page-head page-head-row">
@@ -48,13 +88,30 @@ in step and the month/quarter is still the organising unit. Built from the
         </div>
         <p class="form-hint">Assign a staff member, target date, task, and multiple clients.</p>
 
+        @if ($usePrevious)
+            <div class="assign-prefill" role="status">
+                <p>
+                    <b>Nothing is set for this {{ strtolower($config['unit']) }} yet.</b>
+                    The form is filled in from last {{ strtolower($config['unit']) }}&rsquo;s assignments. Review it, then press Add Assignment.
+                </p>
+                @if ($prevGroups->count() > 1)
+                    <label class="form-label" for="assignPrevPick">Last {{ strtolower($config['unit']) }}&rsquo;s assignments</label>
+                    <select id="assignPrevPick" class="form-control">
+                        @foreach ($prevGroups as $index => $group)
+                            <option value="{{ $index }}">{{ $group['label'] }}</option>
+                        @endforeach
+                    </select>
+                @endif
+            </div>
+        @endif
+
         <div class="form-grid three">
             <div>
                 <label class="form-label" for="assignStaff">Staff Member</label>
                 <select name="assigned_staff_id" id="assignStaff" class="form-control" required>
                     <option value="">Select staff member</option>
                     @foreach ($assignableStaff as $staffMember)
-                        <option value="{{ $staffMember->id }}">{{ $staffMember->name }}</option>
+                        <option value="{{ $staffMember->id }}" @selected((string) ($prefill['staff_id'] ?? old('assigned_staff_id')) === (string) $staffMember->id)>{{ $staffMember->name }}</option>
                     @endforeach
                 </select>
             </div>
@@ -62,6 +119,7 @@ in step and the month/quarter is still the organising unit. Built from the
             <div>
                 <label class="form-label" for="assignTargetDate">Target Date</label>
                 <input type="date" name="target_date" id="assignTargetDate" class="form-control"
+                       value="{{ old('target_date', $prefill['date'] ?? '') }}"
                        min="{{ $periodStart }}" max="{{ $periodEnd }}" required>
                 <p class="form-hint">
                     Within this {{ strtolower($config['unit']) }}: {{ $period->shortRangeLabel() }}
@@ -72,7 +130,7 @@ in step and the month/quarter is still the organising unit. Built from the
                 <label class="form-label" for="assignTaskType">Task Type</label>
                 <select name="task_type" id="assignTaskType" class="form-control" required>
                     @foreach ($taskTypes as $key => $label)
-                        <option value="{{ $key }}">{{ $label }}</option>
+                        <option value="{{ $key }}" @selected((string) ($prefill['task_type'] ?? old('task_type')) === (string) $key)>{{ $label }}</option>
                     @endforeach
                 </select>
             </div>
@@ -103,6 +161,7 @@ in step and the month/quarter is still the organising unit. Built from the
                             <input type="checkbox" class="assign-client-check"
                                    name="client_ids[]" value="{{ $client->id }}"
                                    data-assigned="{{ $assignedTasks }}"
+                                   @checked($prefill && in_array((int) $client->id, $prefill['client_ids'], true))
                                    aria-label="Select {{ $client->name }}">
                         </label>
 
@@ -582,6 +641,20 @@ in step and the month/quarter is still the organising unit. Built from the
     .assign-summary { margin-top: 14px; }
     .assign-summary .bk-t-summary-row:last-of-type { border-bottom: 0; }
     .assign-existing { font-style: normal; }
+    .assign-prefill {
+        display: grid;
+        gap: 6px;
+        margin: 0 0 14px;
+        padding: 10px 14px;
+        font-size: var(--text-md);
+        line-height: 1.45;
+        color: var(--navy);
+        background: var(--sky-light);
+        border: 1px solid #BFDBFE;
+        border-radius: var(--radius-sm);
+    }
+    .assign-prefill p { margin: 0; }
+    .assign-prefill select { max-width: 420px; }
 
 
     /* Mobile: client list -> target date -> target tasks */
@@ -770,6 +843,43 @@ in step and the month/quarter is still the organising unit. Built from the
     }
 })();
 </script>
+
+@if ($prevGroups->count() > 1 && $usePrevious)
+<script>
+(function () {
+    'use strict';
+
+    /* Switch which of last period's assignment groups fills the form. Runs after
+       the assignment script above, so the summary and Add button follow the
+       change events dispatched here. */
+    var pick = document.getElementById('assignPrevPick');
+    if (!pick) { return; }
+
+    var groups = @json($prevGroups);
+    var form = document.getElementById('assignForm');
+
+    function fire(el, type) { el.dispatchEvent(new Event(type, { bubbles: true })); }
+
+    pick.addEventListener('change', function () {
+        var group = groups[parseInt(pick.value, 10)];
+        if (!group) { return; }
+
+        var staff = document.getElementById('assignStaff');
+        var date = document.getElementById('assignTargetDate');
+        var task = document.getElementById('assignTaskType');
+
+        staff.value = group.staff_id; fire(staff, 'change');
+        date.value = group.date; fire(date, 'change');
+        task.value = group.task_type; fire(task, 'change');
+
+        form.querySelectorAll('.assign-client-check').forEach(function (check) {
+            var want = group.client_ids.indexOf(parseInt(check.value, 10)) !== -1;
+            if (check.checked !== want) { check.checked = want; fire(check, 'change'); }
+        });
+    });
+})();
+</script>
+@endif
 
 <script>
 (function () {

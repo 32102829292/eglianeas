@@ -184,7 +184,7 @@
                         <tr><td>Total ADD</td><td class="num" id="sumAdd">+₱{{ number_format($addTotal, 2) }}</td></tr>
                         <tr><td>Total LESS</td><td class="num" id="sumLess">-₱{{ number_format($lessTotal, 2) }}</td></tr>
                         <tr class="total-row"><td>ENDING BALANCE</td><td class="num" id="sumEnd">₱{{ number_format($endBal, 2) }}</td></tr>
-                        <tr><td>Actual Cashout</td><td class="num"><input type="number" step="0.01" name="actual_cash" value="{{ $actual !== null ? number_format($actual, 2, '.', '') : '' }}" onchange="calcTotals()"></td></tr>
+                        <tr><td>Actual Cash Count</td><td class="num"><input type="number" step="0.01" name="actual_cash" value="{{ $actual !== null ? number_format($actual, 2, '.', '') : '' }}" onchange="calcTotals()"></td></tr>
                         <tr class="total-row"><td>OVERAGE / (SHORTAGE)</td><td class="num" id="sumOS">₱{{ $overShort === null ? '0.00' : number_format($overShort, 2) }}</td></tr>
                     </tbody>
                 </table>
