@@ -145,7 +145,12 @@
                     <article class="ann-card @if ($announcement->hasImagePath()) has-cover @endif">
                         <div class="ann-thumb">
                             @if ($announcement->hasImagePath())
-                                <img src="{{ $announcement->imageUrl() }}" alt="" loading="lazy">
+                                <button type="button" class="ann-thumb-btn"
+                                        data-ann-lightbox="{{ $announcement->imageUrl() }}"
+                                        data-ann-lightbox-caption="{{ $announcement->title ?: 'Announcement' }}"
+                                        aria-label="View image larger">
+                                    <img src="{{ $announcement->imageUrl() }}" alt="" loading="lazy">
+                                </button>
                             @else
                                 <span class="ann-thumb-placeholder" aria-hidden="true">
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-5v12L3 13v-2z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
@@ -185,10 +190,70 @@
                 @endforelse
             </div>
         </div>
+
+        {{-- Image lightbox --}}
+        <div class="ann-lightbox" id="ann-lightbox" role="dialog" aria-modal="true" aria-label="Image viewer" hidden>
+            <button type="button" class="ann-lightbox-close" id="ann-lightbox-close" aria-label="Close">&times;</button>
+            <figure class="ann-lightbox-figure">
+                <img id="ann-lightbox-img" alt="">
+                <figcaption id="ann-lightbox-caption"></figcaption>
+            </figure>
+        </div>
     </div>
 @endsection
 
 @push('scripts')
+{{-- Lightbox styles (you can move these into your dashboard stylesheet) --}}
+<style>
+    .ann-thumb-btn {
+        display: block;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: zoom-in;
+    }
+    .ann-thumb-btn img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ann-thumb-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    #ann-preview-image { cursor: zoom-in; }
+
+    .ann-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(0, 0, 0, .82);
+    }
+    .ann-lightbox[hidden] { display: none; }
+    .ann-lightbox-figure { margin: 0; max-width: 100%; max-height: 100%; text-align: center; }
+    .ann-lightbox-figure img {
+        max-width: 100%;
+        max-height: 85vh;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+    }
+    .ann-lightbox-figure figcaption { margin-top: 12px; color: #fff; font-size: .9rem; }
+    .ann-lightbox-close {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        width: 40px;
+        height: 40px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .15);
+        color: #fff;
+        font-size: 28px;
+        line-height: 1;
+        cursor: pointer;
+    }
+    .ann-lightbox-close:hover { background: rgba(255, 255, 255, .3); }
+</style>
+
 <script>
 (function () {
     var input = document.getElementById('announcement_image');
@@ -308,6 +373,56 @@
 
     initCounters();
     renderPreview();
+})();
+</script>
+
+<script>
+(function () {
+    var box = document.getElementById('ann-lightbox');
+    if (!box) return;
+    var boxImg = document.getElementById('ann-lightbox-img');
+    var boxCap = document.getElementById('ann-lightbox-caption');
+    var closeBtn = document.getElementById('ann-lightbox-close');
+    var lastFocus = null;
+
+    function open(src, caption) {
+        if (!src) return;
+        lastFocus = document.activeElement;
+        boxImg.src = src;
+        boxCap.textContent = caption || '';
+        box.hidden = false;
+        document.body.style.overflow = 'hidden';
+        closeBtn.focus();
+    }
+
+    function close() {
+        box.hidden = true;
+        boxImg.removeAttribute('src');
+        document.body.style.overflow = '';
+        if (lastFocus && lastFocus.focus) lastFocus.focus();
+    }
+
+    document.addEventListener('click', function (e) {
+        var trigger = e.target.closest('[data-ann-lightbox]');
+        if (trigger) {
+            open(trigger.getAttribute('data-ann-lightbox'),
+                 trigger.getAttribute('data-ann-lightbox-caption'));
+            return;
+        }
+        // Live preview image in the composer
+        if (e.target.id === 'ann-preview-image' && e.target.getAttribute('src')) {
+            var t = document.getElementById('ann-preview-title');
+            open(e.target.getAttribute('src'), t ? t.textContent : '');
+        }
+    });
+
+    // Close on backdrop click (not on the image itself), X button, or Esc
+    box.addEventListener('click', function (e) {
+        if (e.target === box || e.target === closeBtn) close();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && !box.hidden) close();
+    });
 })();
 </script>
 @endpush
