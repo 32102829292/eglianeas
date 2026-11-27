@@ -12,6 +12,9 @@
             </p>
         </div>
         <div class="page-head-actions">
+            @if ($plan && $existingByClient->isNotEmpty())
+                <a href="{{ route('admin.weekly-bookkeeping.manage', $plan) }}" class="btn btn-primary btn-sm">Edit / Remove Assignments</a>
+            @endif
             <a href="{{ route('admin.weekly-bookkeeping.index') }}" class="btn btn-outline btn-sm">Back to tracker</a>
         </div>
     </div>
@@ -159,6 +162,12 @@
                 <div class="form-error">{{ $message }}</div>
             @enderror
             @error('target_date')
+                <div class="form-error">{{ $message }}</div>
+            @enderror
+            @error('selected_date')
+                <div class="form-error">{{ $message }}</div>
+            @enderror
+            @error('priority')
                 <div class="form-error">{{ $message }}</div>
             @enderror
             @error('client_ids')
@@ -582,36 +591,36 @@
             assignDatePreview.style.display = '';
         }
 
-/* Selected Date and Priority are shown only for the 'record' task type.
-   For Pick-Up, Return, Collect, and Payment the entire field containers
-   (including labels) are hidden, inputs are disabled and required state
-   is removed. */
-function setFieldVisibility() {
-    var isRecord = assignIsRecord();
+        /* Selected Date and Priority are shown only for the 'record' task type.
+           For Pick-Up, Return, Collect, and Payment the entire field containers
+           (including labels) are hidden, inputs are disabled and required state
+           is removed. */
+        function setFieldVisibility() {
+            var isRecord = assignIsRecord();
 
-    /* Selected Date wrapper is always visible — never hidden */
-    if (assignDateWrapper) {
-        assignDateWrapper.style.display = '';
-    }
+            /* Selected Date wrapper is always visible — never hidden */
+            if (assignDateWrapper) {
+                assignDateWrapper.style.display = '';
+            }
 
-    /* Selected Date input is always enabled and required */
-    if (assignDate) {
-        assignDate.disabled = false;
-        assignDate.required = true;
-    }
+            /* Selected Date input is always enabled and required */
+            if (assignDate) {
+                assignDate.disabled = false;
+                assignDate.required = true;
+            }
 
-    /* Priority wrapper: visible only for Record */
-    if (assignPriorityWrapper) {
-        assignPriorityWrapper.style.display = isRecord ? '' : 'none';
-    }
+            /* Priority wrapper: visible only for Record */
+            if (assignPriorityWrapper) {
+                assignPriorityWrapper.style.display = isRecord ? '' : 'none';
+            }
 
-    /* Priority select: enabled only for Record */
-    if (assignPriority) {
-        assignPriority.disabled = !isRecord;
-    }
+            /* Priority select: enabled only for Record */
+            if (assignPriority) {
+                assignPriority.disabled = !isRecord;
+            }
 
-    updatePreview();
-}
+            updatePreview();
+        }
 
         assignSearch.addEventListener('input', applyAssignFilter);
 

@@ -35,12 +35,87 @@
     $csCurrent = (int) ($csMap['Current']['count'] ?? 0);
     $csCurrentPct = $csTotal > 0 ? round($csCurrent / $csTotal * 100, 1) : 0.0;
 
-    $btRows = collect($analytics['charts']['businessType'] ?? [])->filter(fn ($r) => ((int) $r['count']) > 0)->values();
-    $lobRows = collect($analytics['charts']['lineOfBusiness'] ?? [])->filter(fn ($r) => ((int) $r['count']) > 0)->values();
+    // Client connection (Active / Disconnected), plus the 12-month trend.
+    $ccClients = \App\Models\User::with('profile')->where('role', \App\Models\User::ROLE_CLIENT)->get();
+    $ccStartDates = $ccClients->mapWithKeys(function ($c) {
+        $date = $c->profile?->date_started ?? $c->created_at;
+
+        return [$c->id => $date ? \Illuminate\Support\Carbon::parse($date)->startOfDay() : null];
+    });
+    $ccRecords = \App\Models\ClientDisconnection::whereIn('client_id', $ccStartDates->keys())->get();
+    $ccTrend = app(\App\Services\ClientGrowthStats::class)->monthly($ccStartDates, $ccRecords);
+
+    $ccDisconnected = $ccRecords->whereNull('reconnected_at')->unique('client_id')->count();
+    $ccActive = $ccClients->count() - $ccDisconnected;
+    $ccChange = end($ccTrend['connected']) - $ccTrend['connected'][0];
+    $ccSegments = collect([
+        ['label' => 'Active', 'value' => $ccActive, 'color' => 'var(--success)', 'tint' => '#B3E3C7'],
+        ['label' => 'Disconnected', 'value' => $ccDisconnected, 'color' => 'var(--danger)', 'tint' => '#F7C0BB'],
+    ])->filter(fn ($s) => $s['value'] > 0)->sortByDesc('value')->values();
+    $ccTotal = $ccSegments->sum('value');
+    $ccActivePct = $ccTotal > 0 ? round($ccActive / $ccTotal * 100, 1) : 0.0;
+
+    // Items that need action, shown first.
+    $overdue = (int) ($billingAlerts['overdue'] ?? 0);
+    $dueSoon = (int) ($billingAlerts['dueSoon'] ?? 0);
+    $outstanding = (float) ($billingAlerts['outstanding'] ?? 0);
+    $pendingFilings = (int) ($stats['pendingFilings'] ?? 0);
+
+    $quarters = collect($quarterlySummary ?? []);
+    $maxOutstanding = (float) (collect($topOutstanding ?? [])->max('total') ?? 0);
 @endphp
 
 @section('content')
+    <style>
+        .ds-section { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin: 28px 0 12px; }
+        .ds-section h2 { margin: 0; font-size: 1.05rem; color: var(--navy); }
+        .ds-section span { font-size: .8rem; color: #6B7280; }
+        .ds-grid { display: grid; gap: 16px; margin-bottom: 16px; }
+        .ds-grid > .card { margin: 0; min-width: 0; }
+        .ds-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .ds-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .ds-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .ds-alert { display: block; border-left: 4px solid #D1D5DB; color: inherit; text-decoration: none; }
+        a.ds-alert:hover, a.ds-alert:focus-visible { box-shadow: 0 6px 18px rgba(27,27,58,.10); }
+        .ds-alert.is-danger { border-left-color: var(--danger); }
+        .ds-alert.is-warn { border-left-color: var(--warning); }
+        .ds-alert.is-ok { border-left-color: var(--success); }
+        .ds-alert-label, .ds-alert-note { display: block; font-size: .8rem; color: #6B7280; }
+        .ds-alert-value { display: block; margin: 4px 0; font-size: 1.6rem; line-height: 1.2; color: var(--navy); overflow-wrap: anywhere; }
+        .ds-meter { height: 5px; margin-top: 6px; border-radius: 99px; background: rgba(27,27,58,.07); overflow: hidden; }
+        .ds-meter i { display: block; height: 100%; border-radius: inherit; background: var(--danger); }
+        .ds-chart { position: relative; height: 260px; }
+        .ds-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .ds-grid > .card, .ds-card { border-radius: 16px; border: 1px solid rgba(27,27,58,.07); box-shadow: 0 4px 16px rgba(27,27,58,.06); padding: 20px; }
+        .ds-alert { --tone: #6B7280; border-left-width: 1px; border-top: 4px solid var(--tone); background: linear-gradient(160deg, color-mix(in srgb, var(--tone) 13%, #fff), #fff 70%); transition: transform .15s, box-shadow .15s; }
+        .ds-alert.is-danger { --tone: var(--danger); border-top-color: var(--tone); }
+        .ds-alert.is-warn { --tone: var(--warning); border-top-color: var(--tone); }
+        .ds-alert.is-ok { --tone: var(--success); border-top-color: var(--tone); }
+        a.ds-alert:hover { transform: translateY(-2px); }
+        .ds-alert-value { font-size: 2rem; }
+        .ds-grid .analytics-value { font-size: 2.2rem; }
+        .ds-chart { height: 360px; }
+        .ds-donut { position: relative; height: 250px; }
+        .ds-donut-total { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+        .ds-donut-total b { font-size: 2rem; line-height: 1; color: var(--navy); }
+        .ds-donut-total small { color: #6B7280; }
+        .ds-legend { list-style: none; margin: 16px 0 0; padding: 0; font-size: .85rem; }
+        .ds-legend li { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(27,27,58,.06); }
+        .ds-legend i { width: 10px; height: 10px; border-radius: 50%; }
+        .ds-legend span { flex: 1; }
+        .ds-scroll { max-height: 320px; overflow-y: auto; }
+        .ds-scroll thead th { position: sticky; top: 0; z-index: 1; background: #fff; }
+        @media (max-width: 1100px) {
+            .ds-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .ds-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 720px) {
+            .ds-grid-4, .ds-grid-3, .ds-grid-2 { grid-template-columns: minmax(0, 1fr); }
+        }
+    </style>
+
     @include('partials.daily-journal-alert')
+
     <div class="page-head page-head-row page-head-dash">
         <div class="dash-headline">
             @php
@@ -90,166 +165,48 @@
         </form>
     </div>
 
-    <div class="stat-grid cols-4 dash-kpi">
-        <div class="stat-card">
-            <div class="stat-icon stat-icon-info">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <span class="stat-label">Clients</span>
-            <b class="stat-value">{{ $stats['clients'] ?? 0 }}</b>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon stat-icon-ok">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </div>
-            <span class="stat-label">Transactions</span>
-            <b class="stat-value">{{ $stats['transactions'] ?? 0 }}</b>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon stat-icon-info">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <span class="stat-label">Filings</span>
-            <b class="stat-value">{{ $stats['filings'] ?? 0 }}</b>
-        </div>
-        <div class="stat-card stat-warn">
-            <div class="stat-icon stat-icon-warn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <span class="stat-label">Pending filings</span>
-            <b class="stat-value">{{ $stats['pendingFilings'] ?? 0 }}</b>
+    {{-- 1. Needs attention --}}
+    <div class="ds-section"><h2>Needs attention</h2></div>
+    <div class="ds-grid ds-grid-4">
+        <a class="card ds-alert {{ $overdue > 0 ? 'is-danger' : 'is-ok' }}" href="{{ route('admin.billing.index') }}">
+            <span class="ds-alert-label">Overdue bills</span>
+            <b class="ds-alert-value">{{ number_format($overdue) }}</b>
+            <span class="ds-alert-note">Past due until marked paid</span>
+        </a>
+        <a class="card ds-alert {{ $dueSoon > 0 ? 'is-warn' : 'is-ok' }}" href="{{ route('admin.billing.index') }}">
+            <span class="ds-alert-label">Due within 7 days</span>
+            <b class="ds-alert-value">{{ number_format($dueSoon) }}</b>
+            <span class="ds-alert-note">Unpaid bills in the reminder window</span>
+        </a>
+        <a class="card ds-alert {{ $outstanding > 0 ? 'is-warn' : 'is-ok' }}" href="{{ route('admin.billing.index') }}">
+            <span class="ds-alert-label">Outstanding balance</span>
+            <b class="ds-alert-value">₱{{ number_format($outstanding, 2) }}</b>
+            <span class="ds-alert-note">Pending, unpaid and overdue</span>
+        </a>
+        <div class="card ds-alert {{ $pendingFilings > 0 ? 'is-warn' : 'is-ok' }}">
+            <span class="ds-alert-label">Pending filings</span>
+            <b class="ds-alert-value">{{ number_format($pendingFilings) }}</b>
+            <span class="ds-alert-note">Out of {{ number_format($stats['filings'] ?? 0) }} filings</span>
         </div>
     </div>
 
-    <div class="dash-analytics">
-        <div class="card analytics-card">
-            <div class="analytics-head">
-                <span class="analytics-title">Revenue collected ({{ $periodLabel }})</span>
-                <span class="analytics-icon analytics-icon-green">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                </span>
-            </div>
-            <div class="analytics-value">₱{{ number_format($periodRevenue, 0) }}</div>
-            <span class="analytics-trend">Paid billings in the selected period</span>
-        </div>
-
-        <div class="card analytics-card">
-            <div class="analytics-head">
-                <span class="analytics-title">New billings ({{ $periodLabel }})</span>
-                <span class="analytics-icon analytics-icon-blue">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-                </span>
-            </div>
-            <div class="analytics-value">{{ $periodNewBillings }}</div>
-            <span class="analytics-trend">Active billings created in the selected period</span>
-        </div>
-
-        <div class="card analytics-card">
-            <div class="card-head">
-                <h3 class="card-title">Billing Status Breakdown</h3>
-            </div>
-            <x-donut-chart :segments="$bsSegments->all()" :size="116" :thickness="13" :show-total-label="true" legend="right" :show-pct="true" />
-            @if ($bsTotal > 0)
-                <div class="summary-strip">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span>{{ $fmtPct($bsPaidPct) }}% of billings are paid</span>
-                </div>
-            @endif
-        </div>
-
-        <div class="card analytics-card">
-            <div class="card-head">
-                <h3 class="card-title">Client Account Status</h3>
-            </div>
-            <x-donut-chart :segments="$csSegments->all()" :size="116" :thickness="13" :show-total-label="true" legend="right" :show-pct="true" empty-text="No client data yet." />
-            @if ($csTotal > 0)
-                <div class="summary-strip">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <span>{{ $fmtPct($csCurrentPct) }}% of accounts are current</span>
-                </div>
-            @endif
-        </div>
-
-        <div class="card analytics-card">
-            <div class="card-head">
-                <h3 class="card-title">Business Types</h3>
-            </div>
-            @if ($btRows->isNotEmpty())
-                <div class="hbar">
-                    @foreach ($btRows as $row)
-                        <div class="hbar-row">
-                            <div class="hbar-label" title="{{ $row['label'] }}">{{ $row['label'] }}</div>
-                            <div class="hbar-track"><div class="hbar-fill hbar-blue" style="width:{{ max((float) ($row['pct'] ?? 0), 2.5) }}%"></div></div>
-                            <div class="hbar-value">{{ $row['count'] }}</div>
-                        </div>
-                    @endforeach
-                </div>
-            @else
-                <p class="chart-empty">Not enough data yet.</p>
-            @endif
-        </div>
-
-        <div class="card analytics-card">
-            <div class="card-head">
-                <h3 class="card-title">Lines of Business</h3>
-            </div>
-            @if ($lobRows->isNotEmpty())
-                <div class="hbar">
-                    @foreach ($lobRows as $row)
-                        <div class="hbar-row">
-                            <div class="hbar-label" title="{{ $row['label'] }}">{{ $row['label'] }}</div>
-                            <div class="hbar-track"><div class="hbar-fill hbar-green" style="width:{{ max((float) ($row['pct'] ?? 0), 2.5) }}%"></div></div>
-                            <div class="hbar-value">{{ $row['count'] }}</div>
-                        </div>
-                    @endforeach
-                </div>
-            @else
-                <p class="chart-empty">Not enough data yet.</p>
-            @endif
-        </div>
-    </div>
-
-    <div class="card">
+    <div class="card ds-card">
         <div class="card-head">
             <h3 class="card-title">Billing reminders</h3>
             <a href="{{ route('admin.billing.index') }}">Manage billing statements</a>
         </div>
-        <div class="alert-list">
-            <div class="alert-list-item @if ($billingAlerts['dueSoon'] ?? false) alert-warn @endif">
-                <div class="alert-list-main">
-                    <b>Bills due within 7 days</b>
-                    <small>Unpaid bills entering the reminder window. Reminders start one week before the due date.</small>
-                </div>
-                <span class="alert-list-count">{{ $billingAlerts['dueSoon'] ?? 0 }}</span>
-            </div>
-            <div class="alert-list-item @if ($billingAlerts['overdue'] ?? false) alert-danger @endif">
-                <div class="alert-list-main">
-                    <b>Overdue bills</b>
-                    <small>Past-due bills, escalated wording until marked paid.</small>
-                </div>
-                <span class="alert-list-count">{{ $billingAlerts['overdue'] ?? 0 }}</span>
-            </div>
-            <div class="alert-list-item @if (($billingAlerts['outstanding'] ?? 0) > 0) alert-warn @endif">
-                <div class="alert-list-main">
-                    <b>Outstanding balance</b>
-                    <small>Pending + unpaid + overdue billing totals.</small>
-                </div>
-                <span class="alert-list-count">₱{{ number_format($billingAlerts['outstanding'] ?? 0, 2) }}</span>
-            </div>
-        </div>
-
         @if ($dueBills->count())
-            <div class="table-wrap table-card-view">
+            <div class="table-wrap table-card-view ds-scroll">
                 <table class="table">
                     <thead>
-                        <tr><th>Client</th><th>Period</th><th>Total</th><th>Status</th><th>Due date</th></tr>
+                        <tr><th>Client</th><th>Period</th><th class="ds-num">Total</th><th>Status</th><th>Due date</th></tr>
                     </thead>
                     <tbody>
                         @foreach ($dueBills as $billing)
                             <tr>
                                 <td class="cell-name">{{ $billing->client?->name ?? '—' }}</td>
                                 <td>{{ $billing->periodTitle() }}</td>
-                                <td>{{ $billing->money($billing->total) }}</td>
+                                <td class="ds-num">{{ $billing->money($billing->total) }}</td>
                                 <td><span class="badge badge-{{ $billing->status }}">{{ $billing->statusLabel() }}</span></td>
                                 <td>{{ $billing->due_date?->format('M j, Y') ?? '—' }}</td>
                             </tr>
@@ -268,10 +225,79 @@
                     @endforeach
                 </div>
             </div>
+        @else
+            <p class="chart-empty">No billing reminders right now.</p>
         @endif
     </div>
 
-    <div class="grid-2">
+    {{-- 2. Performance for the selected period --}}
+    <div class="ds-section">
+        <h2>Performance</h2>
+        <span>{{ $periodLabel }}</span>
+    </div>
+    <div class="ds-grid ds-grid-2">
+        <div class="card analytics-card">
+            <div class="analytics-head">
+                <span class="analytics-title">Revenue collected</span>
+                <span class="analytics-icon analytics-icon-green" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                </span>
+            </div>
+            <div class="analytics-value">₱{{ number_format($periodRevenue, 0) }}</div>
+            <span class="analytics-trend">Paid billings in the selected period</span>
+        </div>
+        <div class="card analytics-card">
+            <div class="analytics-head">
+                <span class="analytics-title">New billings</span>
+                <span class="analytics-icon analytics-icon-blue" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                </span>
+            </div>
+            <div class="analytics-value">{{ number_format($periodNewBillings) }}</div>
+            <span class="analytics-trend">Active billings created in the selected period</span>
+        </div>
+    </div>
+
+    <div class="ds-grid">
+        <div class="card">
+            <div class="card-head"><h3 class="card-title">Fee &amp; remittance</h3></div>
+            @if ($quarters->isNotEmpty())
+                <div class="ds-chart"><canvas id="quarterlyFeeRemittanceChart" role="img" aria-label="Stacked bar chart of fee and remittance. Values are listed in the summary table."></canvas></div>
+            @else
+                <p class="chart-empty">No billing data for {{ $periodLabel }}.</p>
+            @endif
+        </div>
+        <div class="card">
+            <div class="card-head"><h3 class="card-title">{{ $periodLabel }} summary</h3></div>
+            <div class="table-wrap ds-scroll">
+                <table class="table">
+                    <thead><tr><th>Period</th><th class="ds-num">Fee</th><th class="ds-num">Remittance</th></tr></thead>
+                    <tbody>
+                        @forelse ($quarters as $quarter)
+                            <tr>
+                                <td>{{ $quarter['label'] }}</td>
+                                <td class="ds-num">₱{{ number_format($quarter['fee'], 2) }}</td>
+                                <td class="ds-num">₱{{ number_format($quarter['remittance'], 2) }}</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="3" class="empty-cell">No billing data for {{ $periodLabel }}.</td></tr>
+                        @endforelse
+                    </tbody>
+                    @if ($quarters->count() > 1)
+                        <tfoot>
+                            <tr>
+                                <th>Total</th>
+                                <th class="ds-num">₱{{ number_format($quarters->sum('fee'), 2) }}</th>
+                                <th class="ds-num">₱{{ number_format($quarters->sum('remittance'), 2) }}</th>
+                            </tr>
+                        </tfoot>
+                    @endif
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="ds-grid">
         <div class="card">
             <div class="card-head">
                 <h3 class="card-title">Highest outstanding clients</h3>
@@ -281,9 +307,10 @@
                 <div class="top-list">
                     @foreach ($topOutstanding as $row)
                         <div class="top-list-row">
-                            <div class="top-list-main">
+                            <div class="top-list-main" style="flex:1; min-width:0;">
                                 <b>{{ $row->client_name }}</b>
                                 <small class="muted">{{ $row->business_name }}</small>
+                                <div class="ds-meter" aria-hidden="true"><i style="width:{{ $maxOutstanding > 0 ? round($row->total / $maxOutstanding * 100, 1) : 0 }}%"></i></div>
                             </div>
                             <span class="top-list-amount">₱{{ number_format($row->total, 2) }}</span>
                         </div>
@@ -293,160 +320,50 @@
                 <p class="chart-empty">No outstanding balances yet.</p>
             @endif
         </div>
+    </div>
 
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Billing amounts by category</h3>
-                <a href="{{ route('admin.billing.index') }}">View statements</a>
-            </div>
-            <div class="chart-canvas-wrap">
-                @if (count($categoryChart['labels'] ?? []) > 0)
-                    <canvas id="categoryChart" height="220"></canvas>
+    {{-- 3. Clients --}}
+    <div class="ds-section">
+        <h2>Clients</h2>
+        <span>{{ number_format($stats['clients'] ?? 0) }} clients · {{ number_format($stats['transactions'] ?? 0) }} transactions</span>
+    </div>
+    <div class="ds-grid ds-grid-3">
+        @foreach ([
+            ['statusChart', 'Billing status', $bsSegments, $bsTotal, 'billings', $fmtPct($bsPaidPct).'% of billings are paid'],
+            ['accountChart', 'Client account status', $csSegments, $csTotal, 'accounts', $fmtPct($csCurrentPct).'% of accounts are current'],
+            ['connectionChart', 'Client connection', $ccSegments, $ccTotal, 'clients', $fmtPct($ccActivePct).'% of clients are active'],
+        ] as [$id, $title, $segments, $total, $unit, $note])
+            <div class="card">
+                <div class="card-head"><h3 class="card-title">{{ $title }}</h3></div>
+                @if ($total > 0)
+                    <div class="ds-donut">
+                        <canvas class="ds-donut-canvas" id="{{ $id }}" data-segments='@json($segments)' role="img" aria-label="{{ $title }}. {{ $note }}."></canvas>
+                        <div class="ds-donut-total"><b>{{ number_format($total) }}</b><small>{{ $unit }}</small></div>
+                    </div>
+                    <ul class="ds-legend">
+                        @foreach ($segments as $segment)
+                            <li><i style="background:{{ $segment['color'] }}"></i><span>{{ $segment['label'] }}</span><b>{{ $segment['value'] }}</b><small class="muted">{{ $fmtPct(round($segment['value'] / $total * 100, 1)) }}%</small></li>
+                        @endforeach
+                    </ul>
+                    <div class="summary-strip"><span>{{ $note }}</span></div>
                 @else
-                    <p class="chart-empty">Not enough data yet.</p>
+                    <p class="chart-empty">No data yet.</p>
                 @endif
             </div>
-        </div>
+        @endforeach
     </div>
 
-    <div class="grid-2">
-        <div class="card">
-            <div class="card-head"><h3 class="card-title">Fee &amp; remittance — {{ $periodLabel }}</h3></div>
-            @if (($quarterlySummary ?? collect())->isNotEmpty())
-                <div class="chart-canvas-wrap"><canvas id="quarterlyFeeRemittanceChart" height="220"></canvas></div>
-            @else
-                <p class="chart-empty">No billing data for {{ $periodLabel }}.</p>
-            @endif
-        </div>
-        <div class="card">
-            <div class="card-head"><h3 class="card-title">{{ $periodLabel }} summary</h3></div>
-            <div class="table-wrap">
-                <table class="table"><thead><tr><th>Period</th><th>Fee</th><th>Remittance</th></tr></thead><tbody>
-                    @forelse (($quarterlySummary ?? collect()) as $quarter)
-                        <tr><td>{{ $quarter['label'] }}</td><td>₱{{ number_format($quarter['fee'], 2) }}</td><td>₱{{ number_format($quarter['remittance'], 2) }}</td></tr>
-                    @empty
-                        <tr><td colspan="3" class="empty-cell">No billing data for {{ $periodLabel }}.</td></tr>
-                    @endforelse
-                </tbody></table>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid-2">
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Recent accounts</h3>
-                <a href="{{ route('admin.clients.index') }}">View all</a>
-            </div>
-            <div class="table-wrap table-card-view">
-                <table class="table">
-                    <thead>
-                        <tr><th>Name</th><th>Role</th><th>Joined</th></tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($recentUsers as $user)
-                            <tr>
-                                <td>
-                                    <div class="cell-name">{{ $user->name }}</div>
-                                    <small class="muted">{{ $user->business_name ?? $user->email }}</small>
-                                </td>
-                                <td><span class="badge badge-{{ $user->role }}">{{ ucfirst($user->role) }}</span></td>
-                                <td class="muted">{{ $user->created_at->diffForHumans() }}</td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="3" class="empty-cell">No accounts yet.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-                <div class="card-view-list">
-                    @forelse ($recentUsers as $user)
-                        <div class="cv-card">
-                            <div class="cv-row"><span class="cv-label">Name</span><span class="cv-value">{{ $user->name }}<br><small class="muted">{{ $user->business_name ?? $user->email }}</small></span></div>
-                            <div class="cv-row"><span class="cv-label">Role</span><span class="cv-value"><span class="badge badge-{{ $user->role }}">{{ ucfirst($user->role) }}</span></span></div>
-                            <div class="cv-row"><span class="cv-label">Joined</span><span class="cv-value">{{ $user->created_at->diffForHumans() }}</span></div>
-                        </div>
-                    @empty
-                        <p class="cv-card cv-empty">No accounts yet.</p>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-head">
-                <h3 class="card-title">Recent filings</h3>
-                <a href="{{ route('admin.dashboard') }}">Refresh</a>
-            </div>
-            <div class="table-wrap table-card-view">
-                <table class="table">
-                    <thead>
-                        <tr><th>Type</th><th>Client</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($recentFilings as $filing)
-                            <tr>
-                                <td>{{ $filing->type }}</td>
-                                <td class="cell-name">{{ $filing->client?->name ?? '—' }}</td>
-                                <td><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] ?? ucfirst($filing->status ?? 'unknown') }}</span></td>
-                            </tr>
-                        @empty
-                            <tr><td colspan="3" class="empty-cell">No filings yet.</td></tr>
-                        @endforelse
-                    </tbody>
-                </table>
-                <div class="card-view-list">
-                    @forelse ($recentFilings as $filing)
-                        <div class="cv-card">
-                            <div class="cv-row"><span class="cv-label">Type</span><span class="cv-value">{{ $filing->type }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Client</span><span class="cv-value">{{ $filing->client?->name ?? '—' }}</span></div>
-                            <div class="cv-row"><span class="cv-label">Status</span><span class="cv-value"><span class="badge badge-{{ $filing->status }}">{{ \App\Models\Filing::STATUSES[$filing->status] ?? ucfirst($filing->status ?? 'unknown') }}</span></span></div>
-                        </div>
-                    @empty
-                        <p class="cv-card cv-empty">No filings yet.</p>
-                    @endforelse
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
+    <div class="card ds-card">
         <div class="card-head">
-            <h3 class="card-title">Recent activity</h3>
-            @if (auth()->user()->isAdmin())
-                <a href="{{ route('admin.activity-logs') }}">View all</a>
-            @endif
+            <h3 class="card-title">Active vs disconnected clients</h3>
+            <a href="{{ route('admin.clients.disconnected') }}">View disconnected clients</a>
         </div>
-        <div class="table-wrap table-card-view">
-            <table class="table">
-                <thead>
-                    <tr><th>User</th><th>Action</th><th>Details</th><th>When</th></tr>
-                </thead>
-                <tbody>
-                    @forelse ($recentActivity as $log)
-                        <tr>
-                            <td class="cell-name">{{ $log->user?->name ?? 'Guest' }}</td>
-                            <td><code class="code-pill">{{ $log->action }}</code></td>
-                            <td class="muted">{{ $log->description }}</td>
-                            <td class="muted">{{ $log->created_at->diffForHumans() }}</td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="4" class="empty-cell">No activity yet.</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
-            <div class="card-view-list">
-                @forelse ($recentActivity as $log)
-                    <div class="cv-card">
-                        <div class="cv-row"><span class="cv-label">User</span><span class="cv-value">{{ $log->user?->name ?? 'Guest' }}</span></div>
-                        <div class="cv-row"><span class="cv-label">Action</span><span class="cv-value"><code class="code-pill">{{ $log->action }}</code></span></div>
-                        <div class="cv-row"><span class="cv-label">Details</span><span class="cv-value">{{ $log->description }}</span></div>
-                        <div class="cv-row"><span class="cv-label">When</span><span class="cv-value">{{ $log->created_at->diffForHumans() }}</span></div>
-                    </div>
-                @empty
-                    <p class="cv-card cv-empty">No activity yet.</p>
-                @endforelse
-            </div>
-        </div>
+        <p class="muted">
+            Last 12 months, month-end totals. Active clients
+            {{ $ccChange > 0 ? 'grew by '.$ccChange : ($ccChange < 0 ? 'fell by '.abs($ccChange) : 'did not change') }}
+            since {{ $ccTrend['labels'][0] }}.
+        </p>
+        <div class="ds-chart"><canvas id="clientTrendChart" role="img" aria-label="Line graph of active and disconnected clients per month"></canvas></div>
     </div>
 @endsection
 
@@ -456,70 +373,82 @@
 (function () {
     'use strict';
 
-    var catLabels = {!! json_encode($categoryChart['labels'] ?? []) !!};
-    var catTotals = {!! json_encode($categoryChart['totals'] ?? []) !!};
+    if (typeof Chart === 'undefined') return;
+
+    var clientTrend = @json($ccTrend);
     var quarterlySummary = {!! json_encode(collect($quarterlySummary ?? [])->values()->all()) !!};
 
     var isMobile = window.innerWidth <= 640;
     var gridLine = 'rgba(27,27,58,0.06)';
     var tick = { font: { size: isMobile ? 9 : 11 }, color: '#8A93A2' };
 
-    /* Billing amounts by category — vertical bar of ₱ totals */
-    if (document.getElementById('categoryChart')) {
-        new Chart(document.getElementById('categoryChart'), {
-            type: 'bar',
+    function peso(value) {
+        return '₱' + Number(value).toLocaleString('en-PH', { maximumFractionDigits: 2 });
+    }
+
+    function pesoShort(value) {
+        return '₱' + Number(value).toLocaleString('en-PH', { notation: 'compact', maximumFractionDigits: 1 });
+    }
+
+    /* Status doughnuts. Canvas cannot read CSS variables, so resolve them first. */
+    function resolveColor(color) {
+        var match = /^var\((--[\w-]+)\)$/.exec(color);
+        return match ? getComputedStyle(document.documentElement).getPropertyValue(match[1]).trim() : color;
+    }
+
+    document.querySelectorAll('.ds-donut-canvas').forEach(function (canvas) {
+        var segments = JSON.parse(canvas.dataset.segments);
+        new Chart(canvas, {
+            type: 'doughnut',
             data: {
-                labels: catLabels,
+                labels: segments.map(function (s) { return s.label; }),
                 datasets: [{
-                    label: 'Amount',
-                    data: catTotals,
-                    backgroundColor: 'rgba(90, 179, 240, 0.85)',
-                    borderRadius: 6,
-                }],
+                    data: segments.map(function (s) { return s.value; }),
+                    backgroundColor: segments.map(function (s) { return resolveColor(s.color); }),
+                    borderColor: '#fff',
+                    borderWidth: 3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '72%', plugins: { legend: { display: false } } }
+        });
+    });
+
+    /* Active vs disconnected clients */
+    var trendCanvas = document.getElementById('clientTrendChart');
+    if (trendCanvas) {
+        var success = resolveColor('var(--success)');
+        var danger = resolveColor('var(--danger)');
+        new Chart(trendCanvas, {
+            type: 'line',
+            data: {
+                labels: clientTrend.labels,
+                datasets: [
+                    { label: 'Active', data: clientTrend.connected, borderColor: success, backgroundColor: success, pointRadius: 3 },
+                    { label: 'Disconnected', data: clientTrend.disconnected, borderColor: danger, backgroundColor: danger, borderDash: [6, 4], pointRadius: 3 }
+                ]
             },
             options: {
-                indexAxis: 'x',
                 responsive: true,
                 maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function (ctx) { return '₱' + Number(ctx.raw).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-                        }
-                    }
+                    legend: { position: 'bottom' },
+                    tooltip: { callbacks: { footer: function (items) {
+                        var i = items[0].dataIndex;
+                        return 'Difference: ' + (clientTrend.connected[i] - clientTrend.disconnected[i]);
+                    } } }
                 },
                 scales: {
-                    x: {
-                        grid: { display: false },
-                        ticks: {
-                            font: { size: isMobile ? 9 : 11 },
-                            autoSkip: false,
-                            callback: function (value) {
-                                var label = this.getLabelForValue(value);
-                                if (!isMobile) return label;
-                                var max = Math.floor(((this.chart.chartArea || {}).right || 300) / 6);
-                                if (label.length > max) return label.substring(0, max - 1) + '\u2026';
-                                return label;
-                            }
-                        },
-                    },
-                    y: {
-                        beginAtZero: true,
-                        grid: { color: gridLine },
-                        ticks: {
-                            font: { size: isMobile ? 9 : 11 },
-                            color: '#8A93A2',
-                            callback: function (value) { return '₱' + value; }
-                        },
-                    },
-                },
-            },
+                    x: { grid: { display: false }, ticks: tick },
+                    y: { beginAtZero: true, grid: { color: gridLine }, ticks: Object.assign({ precision: 0 }, tick) }
+                }
+            }
         });
     }
 
-    if (document.getElementById('quarterlyFeeRemittanceChart') && quarterlySummary.length) {
-        new Chart(document.getElementById('quarterlyFeeRemittanceChart'), {
+    var quarterlyCanvas = document.getElementById('quarterlyFeeRemittanceChart');
+    if (quarterlyCanvas && quarterlySummary.length) {
+        new Chart(quarterlyCanvas, {
             type: 'bar',
             data: {
                 labels: quarterlySummary.map(function (row) { return row.label; }),
@@ -528,7 +457,18 @@
                     { label: 'Remittance', data: quarterlySummary.map(function (row) { return row.remittance; }), backgroundColor: 'rgba(39,174,96,.85)', borderRadius: 5 }
                 ]
             },
-            options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: gridLine }, ticks: { callback: function (v) { return '₱' + Number(v).toLocaleString(); } } } } }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    tooltip: { callbacks: { label: function (ctx) { return ctx.dataset.label + ': ' + peso(ctx.raw); } } }
+                },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: tick },
+                    y: { stacked: true, beginAtZero: true, grid: { color: gridLine }, ticks: Object.assign({ callback: pesoShort }, tick) }
+                }
+            }
         });
     }
 })();

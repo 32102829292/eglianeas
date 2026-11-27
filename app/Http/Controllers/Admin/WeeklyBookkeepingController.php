@@ -497,7 +497,18 @@ class WeeklyBookkeepingController extends Controller
             ->whereDate('week_start', $weekStartCarbon->format('Y-m-d'))
             ->first();
 
-        $existing = $plan ? $plan->targets()->get() : collect();
+        /* Load every relation the form reads in one go. Without this, each
+           target ran its own staff and week lookup, which is an N+1 that times
+           out on a slow database connection. */
+        $existing = $plan
+            ? $plan->targets()->with(['client', 'assignedStaff'])->get()
+            : collect();
+
+        if ($plan) {
+            // The parent week is already in memory, so reuse it instead of
+            // letting each target query it again.
+            $existing->each(fn ($t) => $t->setRelation('weeklyBookkeeping', $plan));
+        }
 
         $existingByClient = $existing->groupBy('client_id')
             ->map(fn ($targets) => $targets->groupBy('task_type'));
@@ -962,7 +973,7 @@ class WeeklyBookkeepingController extends Controller
         try {
             $date = Carbon::parse($raw);
         } catch (\Throwable) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 $errorKey => 'The target date is not a valid date.',
             ]);
         }
@@ -971,7 +982,7 @@ class WeeklyBookkeepingController extends Controller
         $to = $weekEnd->copy()->endOfDay();
 
         if ($date->startOfDay()->lt($from) || $date->startOfDay()->gt($to)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 $errorKey => 'The target date must fall between '
                     .$from->format('M j, Y').' and '.$to->format('M j, Y').'.',
             ]);
@@ -982,13 +993,15 @@ class WeeklyBookkeepingController extends Controller
 
     private function computeTargetDate(?Carbon $selectedDate, ?string $priority): ?Carbon
     {
-        if (! $selectedDate || ! $priority) return null;
+        if (! $selectedDate || ! $priority) {
+            return null;
+        }
 
         $selected = Carbon::createFromFormat('Y-m-d', $selectedDate->format('Y-m-d'))->startOfDay();
-        $offset   = match ($priority) {
-            'low'   => 0,
-            'medium'=> 1,
-            'high'  => 2,
+        $offset = match ($priority) {
+            'low' => 0,
+            'medium' => 1,
+            'high' => 2,
             default => 1,
         };
 
@@ -1083,18 +1096,13 @@ class WeeklyBookkeepingController extends Controller
         $weekStart = Carbon::parse((string) $request->input('week_start'))->startOfWeek();
         $weekEnd = $weekStart->copy()->endOfWeek();
 
-        $selectedDate = $request->filled('selected_date')
-            ? Carbon::parse($request->input('selected_date'))->startOfDay()
-            : null;
-
-        $priority = $request->input('priority');
-
         $validated = $request->validate([
             'week_start' => ['required', 'date'],
             'assigned_staff_id' => ['required', 'integer', 'exists:users,id'],
             'task_type' => ['required', 'in:pickup,record,return,payment'],
             'target_date' => [
                 'sometimes',
+                'nullable',
                 'date',
                 'after_or_equal:'.$weekStart->format('Y-m-d'),
                 'before_or_equal:'.$weekEnd->format('Y-m-d'),
@@ -1105,20 +1113,20 @@ class WeeklyBookkeepingController extends Controller
                 'after_or_equal:'.$weekStart->format('Y-m-d'),
                 'before_or_equal:'.$weekEnd->format('Y-m-d'),
             ],
-            'priority' => [
-                'nullable',
-                'string',
-                'in:low,medium,high',
-            ],
+            'priority' => ['nullable', 'string', 'in:low,medium,high'],
             'client_ids' => ['required', 'array', 'min:1'],
             'client_ids.*' => ['required', 'integer', 'exists:users,id'],
         ]);
+
+        $selectedDate = ! empty($validated['selected_date'])
+            ? Carbon::parse($validated['selected_date'])->startOfDay()
+            : null;
 
         // Only operational accounts may own a task, matching the client matrix.
         $assignee = $this->assignableStaff()->firstWhere('id', (int) $validated['assigned_staff_id']);
 
         if (! $assignee) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'assigned_staff_id' => 'The selected account cannot be assigned a task.',
             ]);
         }
@@ -1136,7 +1144,7 @@ class WeeklyBookkeepingController extends Controller
             ->all();
 
         if (count($validClientIds) !== count($clientIds)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
+            throw ValidationException::withMessages([
                 'client_ids' => 'One or more selected accounts are not clients.',
             ]);
         }
@@ -1161,22 +1169,19 @@ class WeeklyBookkeepingController extends Controller
         $taskType = $validated['task_type'];
         $taskLabel = WeeklyBookkeepingTarget::TASK_TYPES[$taskType] ?? $taskType;
 
-/* Compute the effective target_date:
- * - For 'record' task type: if both selected_date and priority are present,
- *   use computeTargetDate(); otherwise fall back to validated target_date if
- *   provided, otherwise use null (legacy compatibility).
- * - For all other task types: use the validated target_date if provided,
- *   otherwise preserve the existing target_date unchanged (backward compatible,
- *   no new deadline calculation). */
-$validatedTargetDate = data_get($validated, 'target_date');
+        /* The date the planner picked. The form posts it as `selected_date`; an
+           explicit `target_date` wins if one is ever sent. Record tasks derive
+           their deadline from the picked date plus the priority, and fall back to
+           the picked date when no priority was chosen. Every other task type uses
+           the picked date as is. */
+        $explicitDate = $validated['target_date'] ?? $validated['selected_date'] ?? null;
+        $explicitDate = $explicitDate ? Carbon::parse($explicitDate)->format('Y-m-d') : null;
 
-$targetDate = match ($taskType) {
-    'record' => $this->computeTargetDate(
-        $selectedDate,
-        $validated['priority'] ?? null
-    ) ?? ($validatedTargetDate ? Carbon::parse($validatedTargetDate)->format('Y-m-d') : null),
-    default => ($validatedTargetDate ? Carbon::parse($validatedTargetDate)->format('Y-m-d') : null),
-};
+        $targetDate = $taskType === 'record'
+            ? ($this->computeTargetDate($selectedDate, $validated['priority'] ?? null)?->format('Y-m-d') ?? $explicitDate)
+            : $explicitDate;
+
+        $dateLabel = $targetDate ? Carbon::parse($targetDate)->format('M j, Y') : 'Any day';
 
         $added = 0;
         $updated = 0;
@@ -1239,7 +1244,7 @@ $targetDate = match ($taskType) {
                         'Target added: %s — %s (Target date: %s, assigned to %s).',
                         $this->clientName($clientId),
                         $taskLabel,
-                        Carbon::parse($targetDate)->format('M j, Y'),
+                        $dateLabel,
                         $assignee->name
                     ),
                     instance: null,
@@ -1257,7 +1262,7 @@ $targetDate = match ($taskType) {
                 'Weekly target — %s assigned to %s (Target date: %s, %d client%s, %d added, %d updated, %d reassigned).',
                 $taskLabel,
                 $assignee->name,
-                Carbon::parse($targetDate)->format('M j, Y'),
+                $dateLabel,
                 count($clientIds),
                 count($clientIds) === 1 ? '' : 's',
                 $added,
@@ -1276,7 +1281,7 @@ $targetDate = match ($taskType) {
             $weekEnd->format('M j, Y'),
             count($clientIds),
             count($clientIds) === 1 ? '' : 's',
-            Carbon::parse($targetDate)->format('M j, Y')
+            $dateLabel
         );
 
         if ($wasNew) {
@@ -1287,6 +1292,296 @@ $targetDate = match ($taskType) {
            added without re-picking the week or rebuilding the form. */
         return redirect()
             ->route('admin.weekly-bookkeeping.create', ['week_start' => $weekStart->format('Y-m-d')])
+            ->with('status', $message);
+    }
+
+    /**
+     * One editable screen for a whole week: change the date or staff on any
+     * pending task, remove tasks, and add new ones.
+     */
+    public function manage(WeeklyBookkeeping $bookkeeping): View
+    {
+        $user = auth()->user();
+        abort_unless($user->isOperational(), 403, 'Only operational accounts can edit weekly targets.');
+
+        $bookkeeping->load(['targets.client', 'targets.assignedStaff']);
+
+        $priority = array_flip(array_keys(WeeklyBookkeeping::TASK_TYPES));
+
+        $targets = $bookkeeping->targets
+            ->sortBy(fn (WeeklyBookkeepingTarget $t) => [
+                $t->target_date?->format('Y-m-d') ?? '9999',
+                $priority[$t->task_type] ?? 99,
+                $t->displayClientName(),
+            ])
+            ->values();
+
+        return view('admin.weekly-bookkeeping.manage', [
+            'bookkeeping' => $bookkeeping,
+            'targets' => $targets,
+            'clients' => User::query()
+                ->where('role', User::ROLE_CLIENT)
+                ->orderBy('name')
+                ->get(['id', 'name', 'business_name']),
+            'assignableStaff' => $this->assignableStaff(),
+            'taskTypes' => WeeklyBookkeeping::TASK_TYPES,
+        ]);
+    }
+
+    /**
+     * Saves the edit screen in one transaction.
+     *
+     * Only Pending tasks can be changed or removed; once work has started the
+     * task is locked so the history stays accurate. A client can hold one task
+     * of each type per week, so a new row that repeats one is skipped.
+     */
+    public function updatePlan(Request $request, WeeklyBookkeeping $bookkeeping): RedirectResponse
+    {
+        $user = auth()->user();
+        abort_unless($user->isOperational(), 403, 'Only operational accounts can edit weekly targets.');
+
+        $from = $bookkeeping->week_start->copy()->startOfDay();
+        $to = $bookkeeping->week_end->copy()->startOfDay();
+        $dateRules = [
+            'nullable',
+            'date',
+            'after_or_equal:'.$from->format('Y-m-d'),
+            'before_or_equal:'.$to->format('Y-m-d'),
+        ];
+
+        $validated = $request->validate([
+            'targets' => ['nullable', 'array'],
+            'targets.*.assigned_staff_id' => ['nullable', 'integer', 'exists:users,id'],
+            'targets.*.target_date' => $dateRules,
+            'targets.*.remove' => ['nullable', 'boolean'],
+            'new' => ['nullable', 'array'],
+            'new.*.client_id' => ['nullable', 'integer', 'exists:users,id'],
+            'new.*.task_type' => ['nullable', 'in:pickup,record,return,payment'],
+            'new.*.assigned_staff_id' => ['nullable', 'integer', 'exists:users,id'],
+            'new.*.target_date' => $dateRules,
+        ]);
+
+        $assignable = $this->assignableStaff()->keyBy('id');
+
+        // Existing rows: any chosen staff member must be allowed to own a task.
+        foreach ($validated['targets'] ?? [] as $id => $row) {
+            $staffId = $row['assigned_staff_id'] ?? null;
+
+            if ($staffId && ! $assignable->has((int) $staffId)) {
+                throw ValidationException::withMessages([
+                    "targets.$id.assigned_staff_id" => 'The selected account cannot be assigned a task.',
+                ]);
+            }
+        }
+
+        // New rows: skip blank ones, and require a complete row otherwise.
+        $newRows = [];
+
+        foreach ($validated['new'] ?? [] as $index => $row) {
+            $clientId = $row['client_id'] ?? null;
+            $taskType = $row['task_type'] ?? null;
+            $staffId = $row['assigned_staff_id'] ?? null;
+            $date = $row['target_date'] ?? null;
+
+            if (! $clientId && ! $taskType && ! $staffId && ! $date) {
+                continue;
+            }
+
+            if (! $clientId || ! $taskType || ! $staffId) {
+                throw ValidationException::withMessages([
+                    "new.$index.client_id" => 'Each new task needs a client, a task type and a staff member.',
+                ]);
+            }
+
+            if (! $assignable->has((int) $staffId)) {
+                throw ValidationException::withMessages([
+                    "new.$index.assigned_staff_id" => 'The selected account cannot be assigned a task.',
+                ]);
+            }
+
+            $newRows[] = [
+                'client_id' => (int) $clientId,
+                'task_type' => $taskType,
+                'staff_id' => (int) $staffId,
+                'date' => $date ? Carbon::parse($date)->format('Y-m-d') : null,
+            ];
+        }
+
+        if ($newRows !== []) {
+            $wanted = array_values(array_unique(array_column($newRows, 'client_id')));
+            $valid = User::query()
+                ->whereIn('id', $wanted)
+                ->where('role', User::ROLE_CLIENT)
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            if (count($valid) !== count($wanted)) {
+                throw ValidationException::withMessages([
+                    'new' => 'One or more selected accounts are not clients.',
+                ]);
+            }
+        }
+
+        $result = DB::transaction(function () use ($bookkeeping, $validated, $newRows, $assignable, $user) {
+            $existing = $bookkeeping->targets()->get()->keyBy('id');
+
+            $updated = 0;
+            $removed = 0;
+            $added = 0;
+            $skipped = 0;
+
+            foreach ($validated['targets'] ?? [] as $id => $row) {
+                $target = $existing->get((int) $id);
+
+                // Ignore ids that are not part of this week, and lock any task
+                // whose work has started.
+                if (! $target || ! $target->isPending()) {
+                    continue;
+                }
+
+                if (! empty($row['remove'])) {
+                    if ($target->attachment_path && Storage::disk($this->evidenceDisk())->exists($target->attachment_path)) {
+                        Storage::disk($this->evidenceDisk())->delete($target->attachment_path);
+                    }
+
+                    $label = $target->taskLabel();
+                    $client = $target->displayClientName();
+
+                    $target->delete();
+                    $removed++;
+
+                    ActivityLog::record(
+                        $user,
+                        'weekly_bookkeeping.target_removed',
+                        "Target removed: {$client} — {$label}.",
+                        instance: null,
+                        bookkeeping: $bookkeeping
+                    );
+
+                    continue;
+                }
+
+                $changed = false;
+
+                $newStaffId = ($row['assigned_staff_id'] ?? null) ? (int) $row['assigned_staff_id'] : null;
+
+                if ($target->assigned_staff_id !== $newStaffId) {
+                    $previous = $target->assignedStaffDisplayName();
+                    $target->assigned_staff_id = $newStaffId;
+                    $target->assigned_staff_name = $newStaffId ? $assignable[$newStaffId]->name : null;
+                    $changed = true;
+
+                    ActivityLog::record(
+                        $user,
+                        'weekly_bookkeeping.target.reassigned',
+                        sprintf(
+                            '%s for %s reassigned from %s to %s.',
+                            $target->taskLabel(),
+                            $target->displayClientName(),
+                            $previous !== '' ? $previous : 'Unassigned',
+                            $newStaffId ? $assignable[$newStaffId]->name : 'Unassigned'
+                        ),
+                        instance: null,
+                        bookkeeping: $bookkeeping
+                    );
+                }
+
+                $newDate = ($row['target_date'] ?? null)
+                    ? Carbon::parse($row['target_date'])->format('Y-m-d')
+                    : null;
+
+                if ($newDate !== $target->target_date?->format('Y-m-d')) {
+                    $target->target_date = $newDate;
+                    $target->target_date_auto = false;
+                    $changed = true;
+                }
+
+                if ($changed) {
+                    $target->saveQuietly();
+                    $updated++;
+                }
+            }
+
+            // Pairs already in the week, after removals, so a new row cannot
+            // duplicate one (the week allows one task type per client).
+            $taken = $bookkeeping->targets()->get()
+                ->map(fn ($t) => $t->client_id.':'.$t->task_type)
+                ->all();
+
+            foreach ($newRows as $row) {
+                $key = $row['client_id'].':'.$row['task_type'];
+
+                if (in_array($key, $taken, true)) {
+                    $skipped++;
+
+                    continue;
+                }
+
+                $bookkeeping->targets()->create([
+                    'client_id' => $row['client_id'],
+                    'task_type' => $row['task_type'],
+                    'target_date' => $row['date'],
+                    'assigned_staff_id' => $row['staff_id'],
+                    'assigned_staff_name' => $assignable[$row['staff_id']]->name,
+                    'actual_status' => WeeklyBookkeepingTarget::ACTUAL_STATUS_PENDING,
+                ]);
+
+                $taken[] = $key;
+                $added++;
+
+                ActivityLog::record(
+                    $user,
+                    'weekly_bookkeeping.target_added',
+                    sprintf(
+                        'Target added: %s — %s (Target date: %s, assigned to %s).',
+                        $this->clientName($row['client_id']),
+                        WeeklyBookkeepingTarget::TASK_TYPES[$row['task_type']] ?? $row['task_type'],
+                        $row['date'] ? Carbon::parse($row['date'])->format('M j, Y') : 'Any day',
+                        $assignable[$row['staff_id']]->name
+                    ),
+                    instance: null,
+                    bookkeeping: $bookkeeping
+                );
+            }
+
+            $bookkeeping->syncOverallStatus();
+
+            ActivityLog::record(
+                $user,
+                'weekly_bookkeeping.targets_saved',
+                sprintf(
+                    'Weekly target for %s – %s edited (%d updated, %d added, %d removed).',
+                    $bookkeeping->week_start->format('M j, Y'),
+                    $bookkeeping->week_end->format('M j, Y'),
+                    $updated,
+                    $added,
+                    $removed
+                ),
+                instance: null,
+                bookkeeping: $bookkeeping
+            );
+
+            return compact('updated', 'added', 'removed', 'skipped');
+        });
+
+        $message = sprintf(
+            'Weekly target saved: %d updated, %d added, %d removed.',
+            $result['updated'],
+            $result['added'],
+            $result['removed']
+        );
+
+        if ($result['skipped'] > 0) {
+            $message .= sprintf(
+                ' %d new task%s skipped because that client already has that task this week.',
+                $result['skipped'],
+                $result['skipped'] === 1 ? ' was' : 's were'
+            );
+        }
+
+        return redirect()
+            ->route('admin.weekly-bookkeeping.manage', $bookkeeping)
             ->with('status', $message);
     }
 
@@ -1544,52 +1839,34 @@ $targetDate = match ($taskType) {
             return back()->withErrors(['action' => 'This task is finalized, so its remarks are read-only.']);
         }
 
-/* Balance columns are validated inside `targetWorkflowAttributes`, and
-       only when the submitted form actually carried them. */
-      $validated = $request->validate([
-          'target_date' => ['nullable', 'date'],
-          'notes' => ['nullable', 'string', 'max:1000'],
-          'selected_date' => ['nullable', 'date'],
-          'priority' => ['nullable', 'string', 'in:low,medium,high'],
-      ]);
+        /* Balance columns are validated inside `targetWorkflowAttributes`, and
+           only when the submitted form actually carried them. */
+        $validated = $request->validate([
+            'target_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+            'selected_date' => ['nullable', 'date'],
+            'priority' => ['nullable', 'string', 'in:low,medium,high'],
+        ]);
 
-/* The submitted date, falling back to what is already stored so a
-       remarks-only save never blanks the deadline. */
-      $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
+        /* The submitted date, falling back to what is already stored so a
+           remarks-only save never blanks the deadline. */
+        $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
 
-/* If selected_date and priority were both submitted and differ from what's
-       already on the target, recompute the deadline — but only for 'record'
-       task type. For other task types: use the submitted target_date if provided,
-       otherwise preserve the existing target_date. */
-      $submittedSelected = $validated['selected_date'] ?? null;
-      $submittedPriority = $validated['priority'] ?? null;
+        /* Record deadlines are derived: when both a picked date and a priority are
+           submitted, recompute. Every other task type just uses the submitted
+           target_date (or keeps the stored one). */
+        if ($target->task_type === 'record'
+            && filled($validated['selected_date'] ?? null)
+            && filled($validated['priority'] ?? null)) {
+            $computed = $this->computeTargetDate(
+                Carbon::parse($validated['selected_date']),
+                $validated['priority']
+            );
 
-      $taskType = $validated['task_type'] ?? '';
-      $isRecord = $taskType === 'record';
-
-      $currentSelected = $target->selected_date;
-      $currentPriority = $target->priority;
-
-      $hasNewSelected = $submittedSelected !== null && $submittedSelected !== '';
-      $hasNewPriority = $submittedPriority !== null && $submittedPriority !== '';
-
-      if ($isRecord && $hasNewSelected && $hasNewPriority) {
-          $computed = $this->computeTargetDate(
-              \Carbon::parse($submittedSelected),
-              $submittedPriority
-          );
-          if ($computed) {
-              $targetDate = $computed->format('Y-m-d');
-          }
-      } elseif (!$isRecord) {
-          /* For non-record tasks, use the submitted target_date if provided,
-             otherwise preserve the existing target_date. */
-          $targetDate = $validated['target_date'] ?? $target->target_date?->format('Y-m-d');
-      } elseif ($valuesChanged && $isRecord) {
-          /* For record, if only one of selected_date/priority changed,
-             keep existing target_date for legacy compatibility. */
-          $targetDate = $target->target_date?->format('Y-m-d') ?? $targetDate;
-      }
+            if ($computed) {
+                $targetDate = $computed->format('Y-m-d');
+            }
+        }
 
         /* A target date may only move inside the plan's own week, so a week can
            never end up holding work that belongs to another one. */
@@ -1639,7 +1916,7 @@ $targetDate = match ($taskType) {
             : [];
 
         $message = "Target updated: {$target->displayClientName()} — {$target->taskLabel()} (Target date: "
-            .$target->target_date?->format('M j, Y').').';
+            .($target->target_date?->format('M j, Y') ?? 'Any day').').';
 
         if ($refreshed !== []) {
             $labels = array_map(

@@ -5,6 +5,19 @@
 @endsection
 
 @section('content')
+    @php
+        /*
+         * Counts used by the two summary cards. Computed once here so each
+         * figure is derived a single time and both cards always agree.
+         * Presentation only — nothing is persisted.
+         */
+        $bkDone = $targets->filter(fn ($t) => $t->isCompleted())->count();
+        $bkInProgress = $targets->filter(fn ($t) => $t->isInProgress())->count();
+        $bkPending = $targets->filter(fn ($t) => $t->isPending())->count();
+        $bkMissed = $targets->filter(fn ($t) => ! $t->isCompleted() && $t->isPastDue())->count();
+        $bkClients = $targets->pluck('client_id')->unique()->count();
+    @endphp
+
     <div class="page-head page-head-row">
         <div>
             <h1>Weekly Target</h1>
@@ -51,7 +64,7 @@
                 </div>
                 <div class="info-field">
                     <span class="info-label">Target Clients</span>
-                    <div class="info-value">{{ $targets->pluck('client_id')->unique()->count() }}</div>
+                    <div class="info-value">{{ $bkClients }}</div>
                 </div>
                 <div class="info-field">
                     <span class="info-label">Target Tasks</span>
@@ -59,7 +72,12 @@
                 </div>
                 <div class="info-field wide">
                     <span class="info-label">Completion</span>
-                    <div class="info-value">{{ $bookkeeping->completionPercent() }}%</div>
+                    <div class="info-value">
+                        {{ $bookkeeping->completionPercent() }}%
+                        @if ($targets->count() > 0)
+                            <small class="muted">({{ $bkDone }} of {{ $targets->count() }} {{ \Illuminate\Support\Str::plural('task', $targets->count()) }})</small>
+                        @endif
+                    </div>
                 </div>
             </div>
         </div>
@@ -69,19 +87,19 @@
             <div class="info-grid">
                 <div class="info-field">
                     <span class="info-label">Completed</span>
-                    <div class="info-value"><span class="badge badge-success">{{ $targets->filter(fn($t) => $t->isCompleted())->count() }}</span></div>
+                    <div class="info-value"><span class="badge badge-success">{{ $bkDone }}</span></div>
                 </div>
                 <div class="info-field">
                     <span class="info-label">In Progress</span>
-                    <div class="info-value"><span class="badge badge-info">{{ $targets->filter(fn($t) => $t->isInProgress())->count() }}</span></div>
+                    <div class="info-value"><span class="badge badge-info">{{ $bkInProgress }}</span></div>
                 </div>
                 <div class="info-field">
                     <span class="info-label">Pending</span>
-                    <div class="info-value"><span class="badge badge-neutral">{{ $targets->filter(fn($t) => $t->isPending())->count() }}</span></div>
+                    <div class="info-value"><span class="badge badge-neutral">{{ $bkPending }}</span></div>
                 </div>
                 <div class="info-field">
                     <span class="info-label">Missed / Past due</span>
-                    <div class="info-value"><span class="badge badge-warn">{{ $targets->filter(fn($t) => ! $t->isCompleted() && $t->isPastDue())->count() }}</span></div>
+                    <div class="info-value"><span class="badge badge-warn">{{ $bkMissed }}</span></div>
                 </div>
             </div>
         </div>
@@ -100,23 +118,24 @@
             <span class="card-sub">{{ $targets->count() }} {{ \Illuminate\Support\Str::plural('task', $targets->count()) }}</span>
         </div>
 
-        @error('action')<div class="form-error" style="margin-bottom:12px;">{{ $message }}</div>@enderror
+        @error('action')<div class="form-error" style="margin-bottom:12px;" role="alert">{{ $message }}</div>@enderror
 
         @if ($targets->isNotEmpty())
             <div class="table-wrap table-card-view bk-table-wrap">
                 <table class="table table-hover align-middle mb-0 target-table bk-target-table">
+                    <caption class="visually-hidden">Target versus actual progress for each task this week</caption>
                     <thead class="thead-muted">
                         <tr>
-                            <th>Target Date</th>
-                            <th>Task Type</th>
-                            <th>Client</th>
-                            <th>Assigned Staff</th>
-                            <th class="text-center">Target</th>
-                            <th class="text-center">Actual</th>
-                            <th class="bk-col-remarks">Remarks</th>
-                            <th>Performed By</th>
-                            <th>Evidence</th>
-                            <th class="text-end">Actions</th>
+                            <th scope="col">Target Date</th>
+                            <th scope="col">Task Type</th>
+                            <th scope="col">Client</th>
+                            <th scope="col">Assigned Staff</th>
+                            <th scope="col" class="text-center">Target</th>
+                            <th scope="col" class="text-center">Actual</th>
+                            <th scope="col" class="bk-col-remarks">Remarks</th>
+                            <th scope="col">Performed By</th>
+                            <th scope="col">Evidence</th>
+                            <th scope="col" class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,15 +145,15 @@
                                     {{ $target->target_date?->format('D, M j') ?? '—' }}
                                 </td>
                                 <td data-col="Task Type" data-bk-task-title>
-                                    <span class="task-type-dot task-{{ $target->task_type }}"></span>
+                                    <span class="task-type-dot task-{{ $target->task_type }}" aria-hidden="true"></span>
                                     {{ $target->taskLabel() }}
                                 </td>
                                 <td data-col="Client">
                                     <div class="client-cell">
                                         @if ($target->client?->profile_image_path)
-                                            <img src="{{ $target->client->photoUrl() }}" alt="{{ $target->client->name }}" class="client-photo-sm">
+                                            <img src="{{ $target->client->photoUrl() }}" alt="{{ $target->client->name }}" class="client-photo-sm" loading="lazy">
                                         @else
-                                            <span class="avatar">{{ mb_strtoupper(mb_substr($target->client?->name ?? '?', 0, 1)) }}</span>
+                                            <span class="avatar" aria-hidden="true">{{ mb_strtoupper(mb_substr($target->client?->name ?? '?', 0, 1)) }}</span>
                                         @endif
                                         <div>
                                             <div class="fw-semibold">{{ $target->displayClientName() }}</div>
@@ -188,7 +207,7 @@
                                                 @csrf
                                                 <button type="submit" class="btn btn-primary btn-sm">Start</button>
                                             </form>
-                                            <form method="POST" action="{{ route('admin.weekly-bookkeeping.destroy-target', [$bookkeeping, $target]) }}" class="d-inline tb-actions-form" onsubmit="return confirm('Remove this target?');">
+                                            <form method="POST" action="{{ route('admin.weekly-bookkeeping.destroy-target', [$bookkeeping, $target]) }}" class="d-inline tb-actions-form" onsubmit="return confirm(@js('Remove '.$target->taskLabel().' for '.$target->displayClientName().' from this week’s target?'));">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="btn btn-outline btn-sm text-danger">Remove</button>
@@ -196,11 +215,11 @@
                                         @elseif ($target->isInProgress())
                                             <form method="POST" action="{{ route('admin.weekly-bookkeeping.upload-attachment', [$bookkeeping, $target]) }}" enctype="multipart/form-data" class="d-inline tb-actions-form">
                                                 @csrf
-                                                <input type="file" name="attachment" class="tb-file-input" accept="image/*,application/pdf,.doc,.docx" style="max-width:150px;">
+                                                <input type="file" name="attachment" class="tb-file-input" accept="image/*,application/pdf,.doc,.docx" aria-label="Proof file for {{ $target->taskLabel() }}" required>
                                                 <button type="submit" class="btn btn-outline btn-sm">Upload proof</button>
                                             </form>
                                             <form method="POST" action="{{ route('admin.weekly-bookkeeping.complete-target', [$bookkeeping, $target]) }}" class="d-inline tb-actions-form"
-                                                  onsubmit="return confirm('Mark this task completed?');">
+                                                  onsubmit="return confirm(@js('Mark '.$target->taskLabel().' for '.$target->displayClientName().' as completed?'));">
                                                 @csrf
                                                 {{-- Billing records how it was paid, matching the
                                                      workbook's "paid cash" / "paid gcash" cells. --}}
@@ -241,6 +260,9 @@
                     </tbody>
                 </table>
 
+                {{-- Card view (small screens). Offers the same actions as the table,
+                     including the payment details on Complete and re-assigning,
+                     so nothing is missing on a phone. --}}
                 <div class="card-view-list">
                     @foreach ($targets as $target)
                         <div class="cv-card">
@@ -299,7 +321,7 @@
                                             @csrf
                                             <button type="submit" class="btn btn-primary btn-sm">Start</button>
                                         </form>
-                                        <form method="POST" action="{{ route('admin.weekly-bookkeeping.destroy-target', [$bookkeeping, $target]) }}" class="d-inline" onsubmit="return confirm('Remove this target?');">
+                                        <form method="POST" action="{{ route('admin.weekly-bookkeeping.destroy-target', [$bookkeeping, $target]) }}" class="d-inline" onsubmit="return confirm(@js('Remove '.$target->taskLabel().' for '.$target->displayClientName().' from this week’s target?'));">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-outline btn-sm text-danger">Remove</button>
@@ -307,12 +329,37 @@
                                     @elseif ($target->isInProgress())
                                         <form method="POST" action="{{ route('admin.weekly-bookkeeping.upload-attachment', [$bookkeeping, $target]) }}" enctype="multipart/form-data" class="d-inline">
                                             @csrf
-                                            <input type="file" name="attachment" accept="image/*,application/pdf,.doc,.docx" style="max-width:150px;">
+                                            <input type="file" name="attachment" class="tb-file-input" accept="image/*,application/pdf,.doc,.docx" aria-label="Proof file for {{ $target->taskLabel() }}" required>
                                             <button type="submit" class="btn btn-outline btn-sm">Upload proof</button>
                                         </form>
-                                        <form method="POST" action="{{ route('admin.weekly-bookkeeping.complete-target', [$bookkeeping, $target]) }}" class="d-inline" onsubmit="return confirm('Mark this task completed?');">
+                                        <form method="POST" action="{{ route('admin.weekly-bookkeeping.complete-target', [$bookkeeping, $target]) }}" class="d-inline" onsubmit="return confirm(@js('Mark '.$target->taskLabel().' for '.$target->displayClientName().' as completed?'));">
                                             @csrf
+                                            @if ($target->task_type === 'payment')
+                                                <select name="payment_method" class="tb-mini-select" aria-label="Payment method">
+                                                    <option value="">Method…</option>
+                                                    @foreach ($paymentMethods as $methodKey => $methodLabel)
+                                                        <option value="{{ $methodKey }}">{{ $methodLabel }}</option>
+                                                    @endforeach
+                                                </select>
+                                                <input type="date" name="paid_at" class="tb-mini-select" aria-label="Payment date" value="{{ now()->format('Y-m-d') }}">
+                                                <input type="text" name="payment_reference" class="tb-mini-select" maxlength="255" placeholder="Bank / reference / description" aria-label="Bank, reference, or payment description (optional)">
+                                            @endif
                                             <button type="submit" class="btn btn-success btn-sm">Complete</button>
+                                        </form>
+                                    @endif
+
+                                    @if ($canReassign)
+                                        <form method="POST" action="{{ route('admin.weekly-bookkeeping.reassign-target', [$bookkeeping, $target]) }}" class="d-inline">
+                                            @csrf
+                                            <select name="assigned_staff_id" class="tb-mini-select" aria-label="Assign {{ $target->taskLabel() }} to">
+                                                <option value="">Unassigned</option>
+                                                @foreach ($assignableStaff as $member)
+                                                    <option value="{{ $member->id }}" @selected($target->assigned_staff_id === $member->id)>
+                                                        {{ $member->name }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                            <button type="submit" class="btn btn-outline btn-sm">Assign</button>
                                         </form>
                                     @endif
                                 </div>
@@ -337,6 +384,42 @@
         'bookkeeping' => $bookkeeping,
     ])
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    'use strict';
+
+    /* Start / Remove / Upload / Complete / Assign: block a double click from
+       posting the same action twice. A confirm() that was cancelled has already
+       prevented the submit, so the button is left enabled in that case. */
+    var forms = document.querySelectorAll('.tb-actions-form, .cv-card-actions form');
+
+    forms.forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (event.defaultPrevented) {
+                return;
+            }
+            var button = form.querySelector('button[type="submit"]:not([disabled])');
+            if (button) {
+                button.disabled = true;
+            }
+        });
+    });
+
+    // Coming back with the Back button can restore the page with buttons disabled.
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted) {
+            forms.forEach(function (form) {
+                form.querySelectorAll('button[disabled]').forEach(function (button) {
+                    button.disabled = false;
+                });
+            });
+        }
+    });
+});
+</script>
+@endpush
 
 @push('styles')
 <style>
@@ -367,11 +450,10 @@
     display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
 }
 
-        .evidence-links { display: inline-flex; gap: 10px; font-size: 13px; }
-        .evidence-links a { color: var(--primary, #6366f1); }
-        /* Long filenames truncate instead of stretching the table or card. */
-        .wk-file { display: block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
+.evidence-links { display: inline-flex; gap: 10px; font-size: 13px; }
+.evidence-links a { color: var(--primary, #6366f1); }
+/* Long filenames truncate instead of stretching the table or card. */
+.wk-file { display: block; max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .performer-badge.role-staff { background: var(--info-bg, #dbeafe); color: var(--info, #3b82f6); }
 .performer-badge.role-supervisor { background: var(--warn-bg, #fef3c7); color: var(--warn, #df6b00); }
@@ -379,6 +461,9 @@
 
 .tb-actions-form { margin-bottom: 4px; }
 .tb-file-input { display: block; max-width: 150px; font-size: 11px; margin-bottom: 4px; }
+/* Keep the action controls readable in the stacked card view too. */
+.cv-card-actions .tb-mini-select { max-width: 100%; }
+.cv-card-actions form { margin-bottom: 4px; }
 
 /* ---- Enhanced Target Schedule Stage UI ---- */
 .schedule-stage {
@@ -468,9 +553,13 @@
 .schedule-required-indicator {
     color: var(--sky-deep);
     font-size: 10px;
-    animation: pulse 2s infinite;
+    animation: schedule-pulse 2s infinite;
 }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes schedule-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@media (prefers-reduced-motion: reduce) {
+    .schedule-required-indicator { animation: none; }
+    .schedule-stage { transition: none; }
+}
 .schedule-hint-own {
     font-size: var(--text-xs);
     color: var(--sky-deep);

@@ -16,10 +16,17 @@
             'q' => $q !== '' ? $q : null,
         ]);
 
-        $weekUrl = fn ($start, $view = null) => route('admin.weekly-bookkeeping.index', array_merge($filterQuery, [
-            'week_start' => $start,
-            'view' => ($view === null || $view === 'week') ? null : $view,
-        ]));
+        // Week navigation keeps the selected status view (Pending, Completed, ...)
+        // along with the staff / task / client filters, so moving between weeks
+        // does not silently reset part of the filtered view.
+        $weekUrl = function ($start, $view = null) use ($filterQuery, $activeView) {
+            $view = $view ?? $activeView;
+
+            return route('admin.weekly-bookkeeping.index', array_merge($filterQuery, [
+                'week_start' => $start,
+                'view' => ($view === null || $view === 'week') ? null : $view,
+            ]));
+        };
 
         $viewUrl = fn ($view) => route('admin.weekly-bookkeeping.index', array_filter(array_merge($filterQuery, [
             'week_start' => $activeWeekStart,
@@ -52,28 +59,27 @@
          */
         $plan = $plans->first();
 
+        // One place for the role wording, used for the plan owner and for the
+        // staff shown on each task row.
+        $roleLabel = fn ($role) => match ($role) {
+            'supervisor' => 'Supervisor',
+            'staff' => 'Staff',
+            'admin' => 'Admin',
+            default => ucfirst((string) $role),
+        };
+
         // The plan's staff is resolved from $owners, which the controller already
         // loaded for the filter dropdown, so showing the owner costs no extra
         // query. A staff id that is no longer assignable simply shows as unknown.
         $planStaff = $plan && $plan->staff_id ? $owners->firstWhere('id', $plan->staff_id) : null;
         $planOwnerName = $planStaff?->name ?? '';
-        $planOwnerRole = $planStaff ? match ($planStaff->role) {
-            'supervisor' => 'Supervisor',
-            'staff' => 'Staff',
-            'admin' => 'Admin',
-            default => ucfirst((string) $planStaff->role),
-        } : '';
+        $planOwnerRole = $planStaff ? $roleLabel($planStaff->role) : '';
 
         // Role shown under an assigned name on a task row, from the same
         // already-loaded staff list. Items carry the staff *name* only, so the
         // lookup is by name; a name that is no longer assignable just has no
         // role line. No extra query.
-        $staffRoleByName = $owners->mapWithKeys(fn ($u) => [$u->name => match ($u->role) {
-            'supervisor' => 'Supervisor',
-            'staff' => 'Staff',
-            'admin' => 'Admin',
-            default => ucfirst((string) $u->role),
-        }]);
+        $staffRoleByName = $owners->mapWithKeys(fn ($u) => [$u->name => $roleLabel($u->role)]);
 
         $planStatus = match (true) {
             $weekTotal === 0 => ['Not started', 'idle'],
@@ -134,11 +140,17 @@
 
         <div class="page-head-actions">
             <a href="{{ route('admin.weekly-bookkeeping.report', ['week_start' => $activeWeekStart]) }}" class="btn btn-outline">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 Print Report
             </a>
+            @if ($plan && auth()->user()->isOperational())
+                <a href="{{ route('admin.weekly-bookkeeping.manage', $plan) }}" class="btn btn-outline">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    Edit Targets
+                </a>
+            @endif
             <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}" class="btn btn-primary">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Set Weekly Target
             </a>
         </div>
@@ -147,10 +159,10 @@
     {{-- ============ WEEK NAVIGATOR ============ --}}
     <div class="wk-weekbar">
         <a href="{{ $weekUrl($prevWeekStart) }}" class="wk-weeknav" rel="prev" aria-label="Previous week">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
         </a>
 
-        <div class="wk-weeklabel">
+        <div class="wk-weeklabel" aria-live="polite">
             <b>{{ $weekLabel }}</b>
             <span>
                 @if ($isCurrentWeek)
@@ -162,7 +174,7 @@
         </div>
 
         <a href="{{ $weekUrl($nextWeekStart) }}" class="wk-weeknav" rel="next" aria-label="Next week">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
         </a>
 
         @unless ($isCurrentWeek)
@@ -241,7 +253,7 @@
     {{-- ============ FILTERS (collapsible) ============ --}}
     <details class="wk-filters"{!! $hasActiveFilters ? ' open' : '' !!}>
         <summary class="wk-filters-summary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
             <span>Filters</span>
             @if ($activeFilterCount > 0)
                 <span class="wk-filters-count">{{ $activeFilterCount }}</span>
@@ -252,8 +264,6 @@
         </summary>
 
         <form method="GET" action="{{ route('admin.weekly-bookkeeping.index') }}" class="wk-filters-form">
-            <input type="hidden" name="week_start" value="{{ $activeWeekStart }}">
-
             <label class="wk-field">
                 <span>Week</span>
                 <select name="week_start" onchange="this.form.submit()">
@@ -339,6 +349,7 @@
         @else
             <div class="table-scroll">
                 <table class="table wk-grid wk-grid-dense">
+                    <caption class="visually-hidden">Bookkeeping tasks for {{ $weekLabel }}</caption>
                     <thead>
                         <tr>
                             <th scope="col" class="wk-col-date">Target Date</th>
@@ -375,7 +386,10 @@
                                     </td>
                                 </tr>
                                 @foreach ($taskGroup['rows'] as $row)
-                                    @php($t = $row['target'])
+                                    @php
+                                        $t = $row['target'];
+                                        $assignedName = $t->assignedStaffDisplayName();
+                                    @endphp
                                     <tr class="wk-row wk-row-{{ $t->effectiveStatus() }}">
                                         <td class="wk-date">
                                             <span class="wk-day">{{ $t->target_date?->format('D') ?? '—' }}</span>
@@ -385,11 +399,11 @@
                                         <td class="wk-client" title="{{ $t->displayClientName() }}">{{ $t->displayClientName() }}</td>
                                         <td class="wk-staff">
                                             <span class="wk-person">
-                                                <span class="wk-person-name">{{ $t->assignedStaffDisplayName() !== '' ? $t->assignedStaffDisplayName() : 'Unassigned' }}</span>
-                                                <span class="wk-person-sub {{ $t->assignedStaffDisplayName() === '' ? 'is-empty' : '' }}">
-                                                    {{ $t->assignedStaffDisplayName() === ''
+                                                <span class="wk-person-name">{{ $assignedName !== '' ? $assignedName : 'Unassigned' }}</span>
+                                                <span class="wk-person-sub {{ $assignedName === '' ? 'is-empty' : '' }}">
+                                                    {{ $assignedName === ''
                                                         ? 'No staff assigned'
-                                                        : ($staffRoleByName[$t->assignedStaffDisplayName()] ?? 'Assigned') }}
+                                                        : ($staffRoleByName[$assignedName] ?? 'Assigned') }}
                                                 </span>
                                             </span>
                                         </td>
@@ -408,7 +422,7 @@
                                             @endif
                                         </td>
                                         <td class="wk-col-actions">
-                                            <button type="button" class="btn btn-ghost btn-sm wk-open" data-bs-toggle="modal" data-bs-target="#bkTaskModal" data-bk-task-id="{{ $t->id }}" data-bk-booking-id="{{ $t->weekly_bookkeeping_id }}">Open</button>
+                                            <button type="button" class="btn btn-ghost btn-sm wk-open" data-bs-toggle="modal" data-bs-target="#bkTaskModal" data-bk-task-id="{{ $t->id }}" data-bk-booking-id="{{ $t->weekly_bookkeeping_id }}" aria-label="Open details for {{ $t->displayClientName() }} – {{ $t->taskLabel() }}">Open</button>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -418,44 +432,108 @@
                 </table>
             </div>
 
-            {{-- Workbook side columns: work not finished, and billing not paid. --}}
+            {{-- Workbook side columns: work not finished, and billing not paid.
+                 Unfinished work is grouped by task type so a long list stays
+                 scannable. Presentation only: every row below comes from the
+                 rows the controller already loaded. --}}
             @if (in_array($activeView, ['week', 'unfinished', 'unpaid'], true))
-                <div class="wk-side">
+                @php
+                    $unfinishedByType = collect($taskTypes)
+                        ->map(fn ($label, $typeKey) => [
+                            'label' => $label,
+                            'rows' => $unfinishedRows->filter(fn ($r) => $r['target']->task_type === $typeKey)->values(),
+                        ])
+                        ->filter(fn ($g) => $g['rows']->isNotEmpty());
+
+                    // A task type missing from $taskTypes still shows, under "Other".
+                    $knownTypeKeys = collect($taskTypes)->keys();
+                    $unfinishedOther = $unfinishedRows
+                        ->reject(fn ($r) => $knownTypeKeys->contains($r['target']->task_type))
+                        ->values();
+                    if ($unfinishedOther->isNotEmpty()) {
+                        $unfinishedByType->put('other', ['label' => 'Other', 'rows' => $unfinishedOther]);
+                    }
+                @endphp
+
+                <div class="wk-side wk-side-v2">
                     <div class="wk-side-card">
-                        <h3>Uncollected / Unfinished</h3>
+                        <div class="wk-side-head">
+                            <h3>Uncollected / Unfinished</h3>
+                            @if ($unfinishedRows->isNotEmpty())
+                                <span class="wk-side-count">{{ $unfinishedRows->count() }}</span>
+                            @endif
+                        </div>
+
                         @if ($unfinishedRows->isEmpty())
-                            <p class="wk-side-empty">Nothing outstanding this week.</p>
+                            <p class="wk-side-empty wk-side-ok">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                Nothing outstanding this week.
+                            </p>
                         @else
-                            <ul class="wk-side-list">
-                                @foreach ($unfinishedRows as $sideRow)
-                                    <li>
-                                        <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
-                                            <b>{{ $sideRow['target']->displayClientName() }}</b>
-                                            <span>{{ $sideRow['target']->taskLabel() }}</span>
-                                            <em class="wk-side-status is-bad">{{ $sideRow['target']->effectiveStatusLabel() }}</em>
-                                        </a>
-                                    </li>
+                            <p class="wk-side-hint">Grouped by task. Open tasks show their due date; overdue or in-progress ones are flagged.</p>
+
+                            <div class="wk-side-scroll" tabindex="0" role="region" aria-label="Uncollected and unfinished tasks">
+                                @foreach ($unfinishedByType as $group)
+                                    <details class="wk-side-group" open>
+                                        <summary>
+                                            <span class="wk-side-group-name">{{ $group['label'] }}</span>
+                                            <span class="wk-side-group-count">{{ $group['rows']->count() }}</span>
+                                        </summary>
+                                        <ul class="wk-side-rows">
+                                            @foreach ($group['rows'] as $sideRow)
+                                                @php
+                                                    $st = $sideRow['target'];
+                                                    $stLate = ! $st->isCompleted() && $st->isPastDue();
+                                                    $stPlain = $st->isPending() && ! $stLate;
+                                                @endphp
+                                                <li>
+                                                    <a class="wk-side-row" href="{{ route('admin.weekly-bookkeeping.show', $st->weekly_bookkeeping_id) }}#target-{{ $st->id }}" aria-label="Open {{ $st->displayClientName() }}, {{ $group['label'] }}">
+                                                        <b class="wk-side-client" title="{{ $st->displayClientName() }}">{{ $st->displayClientName() }}</b>
+                                                        <span class="wk-side-when">{{ $st->target_date?->format('D, M j') ?? 'Any day' }}</span>
+                                                        @unless ($stPlain)
+                                                            <em class="wk-side-chip {{ $stLate ? 'is-bad' : 'is-info' }}">{{ $st->effectiveStatusLabel() }}</em>
+                                                        @endunless
+                                                    </a>
+                                                </li>
+                                            @endforeach
+                                        </ul>
+                                    </details>
                                 @endforeach
-                            </ul>
+                            </div>
                         @endif
                     </div>
 
                     <div class="wk-side-card">
-                        <h3>Unpaid</h3>
+                        <div class="wk-side-head">
+                            <h3>Unpaid</h3>
+                            @if ($unpaidRows->isNotEmpty())
+                                <span class="wk-side-count is-warn">{{ $unpaidRows->count() }}</span>
+                            @endif
+                        </div>
+
                         @if ($unpaidRows->isEmpty())
-                            <p class="wk-side-empty">No unpaid billing this week.</p>
+                            <p class="wk-side-empty wk-side-ok">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                                No unpaid billing this week.
+                            </p>
                         @else
-                            <ul class="wk-side-list">
-                                @foreach ($unpaidRows as $sideRow)
-                                    <li>
-                                        <a href="{{ route('admin.weekly-bookkeeping.show', $sideRow['target']->weekly_bookkeeping_id) }}#target-{{ $sideRow['target']->id }}">
-                                            <b>{{ $sideRow['target']->displayClientName() }}</b>
-                                            <span>{{ $sideRow['target']->taskLabel() }}</span>
-                                            <em class="wk-side-status is-warn">Unpaid</em>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            </ul>
+                            <div class="wk-side-scroll" tabindex="0" role="region" aria-label="Unpaid billing">
+                                <ul class="wk-side-rows">
+                                    @foreach ($unpaidRows as $sideRow)
+                                        @php
+                                            $st = $sideRow['target'];
+                                            $stLate = ! $st->isCompleted() && $st->isPastDue();
+                                        @endphp
+                                        <li>
+                                            <a class="wk-side-row" href="{{ route('admin.weekly-bookkeeping.show', $st->weekly_bookkeeping_id) }}#target-{{ $st->id }}" aria-label="Open unpaid billing for {{ $st->displayClientName() }}">
+                                                <b class="wk-side-client" title="{{ $st->displayClientName() }}">{{ $st->displayClientName() }}</b>
+                                                <span class="wk-side-when">{{ $st->target_date?->format('D, M j') ?? 'Any day' }}</span>
+                                                <em class="wk-side-chip {{ $stLate ? 'is-bad' : 'is-warn' }}">{{ $stLate ? $st->effectiveStatusLabel() : 'Unpaid' }}</em>
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
                         @endif
                     </div>
                 </div>
@@ -586,7 +664,7 @@
                         </div>
                         <div>
                             <b>{{ $hasActiveFilters ? 'No tasks match these filters.' : 'No targets set for this week.' }}</b>
-                            <span>{{ $hasActiveFilters ? 'Try clearing the filters to see the whole week.' : 'Add a weekly target to start tracking this week&rsquo;s work.' }}</span>
+                            <span>{{ $hasActiveFilters ? 'Try clearing the filters to see the whole week.' : 'Add a weekly target to start tracking this week’s work.' }}</span>
                         </div>
                         @unless ($hasActiveFilters)
                             <a href="{{ route('admin.weekly-bookkeeping.create', ['week_start' => $activeWeekStart]) }}" class="btn btn-primary btn-sm">Set Weekly Target</a>
@@ -727,35 +805,112 @@
 
         </div>
     </details>
+
+    {{-- ============ TASK DETAILS MODAL ============ --}}
+    {{-- Kept inside the content section. Markup placed after @endsection is
+         echoed before the layout's <!DOCTYPE>, which can push the page into
+         quirks mode. --}}
+    <div class="modal fade" id="bkTaskModal" tabindex="-1" aria-labelledby="bkTaskModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bkTaskModalTitle">Task Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="bkTaskModalBody" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+                    <div class="text-center py-4">Loading...</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    'use strict';
+
+    /* ---- Tracker action forms: block a double click posting twice ---- */
+    document.querySelectorAll('form.d-inline').forEach(function (form) {
+        form.addEventListener('submit', function () {
+            var button = form.querySelector('button[type="submit"]:not([disabled])');
+            if (button) {
+                button.disabled = true;
+            }
+        });
+    });
+
+    /* ---- Task details modal ---- */
     const modalEl = document.getElementById('bkTaskModal');
-    if (!modalEl) return;
-    const modal = new bootstrap.Modal(modalEl);
+    if (!modalEl || typeof bootstrap === 'undefined') return;
+    bootstrap.Modal.getOrCreateInstance(modalEl);
+
     const body = document.getElementById('bkTaskModalBody');
     const title = document.getElementById('bkTaskModalTitle');
+    const csrfField = '@csrf';
+    const patchField = '@method("PATCH")';
+    // Built from the named route so the URL never drifts from routes/web.php.
+    const taskUrlTemplate = '{{ route('admin.weekly-bookkeeping.task', ['__BOOKING__', '__TASK__'], false) }}';
+
     let currentTask = null;
     let currentRoutes = null;
+    // Every open gets a new id; a slow response from an earlier open is ignored.
+    let loadId = 0;
+
+    // Everything the server sends is escaped before it goes into innerHTML.
+    function esc(value) {
+        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, function (c) {
+            return map[c];
+        });
+    }
+
+    function field(label, valueHtml) {
+        return '<div class="bk-modal-field"><span class="bk-modal-label">' + label + '</span><span class="bk-modal-value">' + valueHtml + '</span></div>';
+    }
+
+    function section(titleText, bodyHtml, bodyAttrs, bodyClass) {
+        return '<div class="bk-modal-section">'
+            + '<div class="bk-modal-section-header"><div class="bk-modal-section-title">' + titleText + '</div></div>'
+            + '<div class="bk-modal-section-body' + (bodyClass ? ' ' + bodyClass : '') + '"' + (bodyAttrs ? ' ' + bodyAttrs : '') + '>' + bodyHtml + '</div>'
+            + '</div>';
+    }
 
     function evidencePanelHtml(data, task, routes) {
         let html = '';
         if (data.evidence && data.evidence.has) {
-            html += '<div class="d-flex flex-wrap align-items-center gap-2"><span class="bk-badge bk-badge-inprogress">Evidence Submitted</span><a class="btn btn-sm btn-outline-primary" href="' + data.evidence.view_url + '" target="_blank" rel="noopener">View</a><a class="btn btn-sm btn-outline-secondary" href="' + data.evidence.download_url + '" download>Download</a>' + (data.evidence.name ? '<span class="small text-muted">' + data.evidence.name + '</span>' : '') + '</div>';
+            html += '<div class="d-flex flex-wrap align-items-center gap-2"><span class="bk-badge bk-badge-inprogress">Evidence Submitted</span>'
+                + '<a class="btn btn-sm btn-outline-primary" href="' + esc(data.evidence.view_url) + '" target="_blank" rel="noopener">View</a>'
+                + '<a class="btn btn-sm btn-outline-secondary" href="' + esc(data.evidence.download_url) + '" download>Download</a>'
+                + (data.evidence.name ? '<span class="small text-muted">' + esc(data.evidence.name) + '</span>' : '')
+                + '</div>';
         } else {
             html += '<span class="text-muted">No evidence submitted yet</span>';
         }
         if (task.can_manage && routes.upload) {
-            html += '<form id="bkEvidenceForm" method="POST" action="' + routes.upload + '" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">@csrf<div class="col-md-6"><input type="file" name="attachment" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" required></div><div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-primary">Upload Evidence</button></div><div class="col-12" data-bk-evidence-error></div></form>';
+            html += '<form id="bkEvidenceForm" method="POST" action="' + esc(routes.upload) + '" enctype="multipart/form-data" class="row g-2 align-items-end mt-2">'
+                + csrfField
+                + '<div class="col-md-6"><input type="file" name="attachment" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx" aria-label="Evidence file" required></div>'
+                + '<div class="col-auto"><button type="submit" class="btn btn-sm btn-outline-primary">Upload Evidence</button></div>'
+                + '<div class="col-12" data-bk-evidence-error></div></form>';
         }
         return html;
     }
 
     body.addEventListener('submit', function (event) {
         const form = event.target;
-        if (!form || form.id !== 'bkEvidenceForm') return;
+        if (!form) return;
+
+        // Any other form in the modal (Start, Complete, Update): block double submits.
+        if (form.id !== 'bkEvidenceForm') {
+            const once = form.querySelector('button:not([type="button"]):not([disabled])');
+            if (once) once.disabled = true;
+            return;
+        }
+
         event.preventDefault();
 
         const button = form.querySelector('button[type="submit"]');
@@ -793,6 +948,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     panel.innerHTML = evidencePanelHtml({ evidence: data.evidence }, currentTask, currentRoutes);
                     const flash = document.createElement('div');
                     flash.className = 'alert alert-success py-1 px-2 small mb-2';
+                    flash.setAttribute('role', 'status');
                     flash.textContent = data.message || 'Evidence uploaded.';
                     panel.insertBefore(flash, panel.firstChild);
                 }
@@ -804,6 +960,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (errorBox) {
                     errorBox.textContent = message;
                     errorBox.className = 'col-12 text-danger small';
+                    errorBox.setAttribute('role', 'alert');
                 }
                 if (button) {
                     button.disabled = false;
@@ -812,54 +969,95 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     });
 
+    // The explanation is only needed when the date actually changes, so a
+    // remarks-only update is not blocked by an empty explanation box.
+    function wireDateExplanation() {
+        const dateInput = body.querySelector('input[name="target_date"]');
+        const explanation = body.querySelector('input[name="explanation"]');
+        if (!dateInput || !explanation) return;
+        const sync = function () {
+            explanation.required = dateInput.value !== dateInput.defaultValue;
+        };
+        dateInput.addEventListener('input', sync);
+        sync();
+    }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+        loadId++;
+    });
+
     modalEl.addEventListener('show.bs.modal', function (event) {
         const btn = event.relatedTarget;
+        if (!btn) return;
         const taskId = btn.getAttribute('data-bk-task-id');
         const bookingId = btn.getAttribute('data-bk-booking-id');
-        const prefix = '{{ $prefix }}';
+        const requestId = ++loadId;
+
         title.textContent = 'Task Details';
         currentTask = null;
         currentRoutes = null;
-        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 small text-muted">Loading task details...</div></div>';
-        fetch('/admin/' + prefix + '/' + bookingId + '/task/' + taskId, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
-            .then(r => {
-                if(!r.ok){
+        body.innerHTML = '<div class="text-center py-4" role="status"><div class="spinner-border text-primary" aria-hidden="true"></div><div class="mt-2 small text-muted">Loading task details...</div></div>';
+
+        const url = taskUrlTemplate
+            .replace('__BOOKING__', encodeURIComponent(bookingId))
+            .replace('__TASK__', encodeURIComponent(taskId));
+
+        fetch(url, { headers: { 'Accept': 'application/json' }, cache: 'no-store', credentials: 'same-origin' })
+            .then(function (r) {
+                if (!r.ok) {
                     throw new Error('Request failed: ' + r.status);
                 }
                 return r.json();
             })
-.then(data => {
+            .then(function (data) {
+                if (requestId !== loadId) return;
+
                 const t = data.target || {};
                 const routes = data.routes || {};
                 const badge = t.is_completed ? 'bk-badge bk-badge-completed' : (t.is_in_progress ? 'bk-badge bk-badge-inprogress' : 'bk-badge bk-badge-pending');
                 let html = '';
+
+                if (t.client_name) {
+                    title.textContent = 'Task Details — ' + t.client_name + (t.task_label ? ' · ' + t.task_label : '');
+                }
+
+                // Task overview
                 html += '<div class="bk-modal-section">';
-                html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Task Overview</div><span class="'+badge+'">'+(t.status_label||t.status||'—')+'</span></div>';
+                html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Task Overview</div><span class="' + badge + '">' + esc(t.status_label || t.status || '—') + '</span></div>';
                 html += '  <div class="bk-modal-section-body"><div class="bk-modal-grid">';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Client</span><span class="bk-modal-value">'+(t.client_name||'—')+'</span></div>';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Task Type</span><span class="bk-modal-value">'+(t.task_label||t.task_type||'—')+'</span></div>';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Assigned Staff</span><span class="bk-modal-value">'+(t.assigned_staff||'Unassigned')+'</span></div>';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Target Date</span><span class="bk-modal-value">'+(t.target_date_label||'—')+(t.date_auto?' <span class="text-muted">(Automatic)</span>':' <span class="text-muted">(Manually adjusted)</span>')+'</span></div>';
+                html += field('Client', esc(t.client_name || '—'));
+                html += field('Task Type', esc(t.task_label || t.task_type || '—'));
+                html += field('Assigned Staff', esc(t.assigned_staff || 'Unassigned'));
+                html += field('Target Date', esc(t.target_date_label || '—') + (t.date_auto ? ' <span class="text-muted">(Automatic)</span>' : ' <span class="text-muted">(Manually adjusted)</span>'));
                 html += '  </div></div>';
                 html += '</div>';
 
+                // Actual progress
                 html += '<div class="bk-modal-section">';
                 html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Actual Progress</div></div>';
                 html += '  <div class="bk-modal-section-body"><div class="bk-modal-grid">';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Started</span><span class="bk-modal-value">'+(t.started_at||'—')+'</span></div>';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Completed</span><span class="bk-modal-value">'+(t.ended_at||'—')+'</span></div>';
-                html += '    <div class="bk-modal-field"><span class="bk-modal-label">Performed By</span><span class="bk-modal-value">'+(t.performed_by||'—')+(t.performed_by_role? ' ('+t.performed_by_role+')':'')+'</span></div>';
-                html += '  </div>'+(t.duration? '<div class="small text-muted mt-2">Duration: '+t.duration+(t.timing_label?' ('+t.timing_label+')':'')+'</div>':'')+'</div>';
+                html += field('Started', esc(t.started_at || '—'));
+                html += field('Completed', esc(t.ended_at || '—'));
+                html += field('Performed By', esc(t.performed_by || '—') + (t.performed_by_role ? ' (' + esc(t.performed_by_role) + ')' : ''));
+                html += '  </div>' + (t.duration ? '<div class="small text-muted mt-2">Duration: ' + esc(t.duration) + (t.timing_label ? ' (' + esc(t.timing_label) + ')' : '') + '</div>' : '') + '</div>';
                 html += '</div>';
 
+                // Target date & remarks
                 html += '<div class="bk-modal-section">';
-                html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Target Date & Remarks</div></div>';
+                html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Target Date &amp; Remarks</div></div>';
                 html += '  <div class="bk-modal-section-body">';
-                html += '    <div class="mb-2"><span class="bk-modal-label">Remarks / Notes</span><div class="mt-1">'+(t.notes ? t.notes.replace(/\n/g,'<br>') : '<span class="text-muted">No remarks</span>')+'</div></div>';
-                html += '    '+(t.can_manage && routes.update_target ? '<form method="POST" action="'+routes.update_target+'" class="row g-2 align-items-end">@csrf @method("PATCH")<div class="col-md-4"><label class="form-label small mb-1">Target Date</label><input type="date" name="target_date" class="form-control form-control-sm" value="'+(t.target_date||'')+'"></div><div class="col-md-4"><label class="form-label small mb-1">Explanation for date change <span class="text-danger">*</span></label><input type="text" name="explanation" class="form-control form-control-sm" placeholder="Required if changing date" required></div><div class="col-md-4"><label class="form-label small mb-1">Remarks/Notes</label><input type="text" name="notes" class="form-control form-control-sm" placeholder="Add/update notes" value="'+(t.notes? String(t.notes).replace(/"/g,'"'):'')+'"></div><div class="col-12"><button class="btn btn-sm btn-outline-secondary">Update Target Date & Remarks</button></div></form>' : '');
+                html += '    <div class="mb-2"><span class="bk-modal-label">Remarks / Notes</span><div class="mt-1">' + (t.notes ? esc(t.notes).replace(/\n/g, '<br>') : '<span class="text-muted">No remarks</span>') + '</div></div>';
+                if (t.can_manage && routes.update_target) {
+                    html += '    <form method="POST" action="' + esc(routes.update_target) + '" class="row g-2 align-items-end">' + csrfField + patchField
+                        + '<div class="col-md-4"><label class="form-label small mb-1">Target Date</label><input type="date" name="target_date" class="form-control form-control-sm" value="' + esc(t.target_date || '') + '"></div>'
+                        + '<div class="col-md-4"><label class="form-label small mb-1">Explanation for date change <span class="text-muted">(required if the date changes)</span></label><input type="text" name="explanation" class="form-control form-control-sm" placeholder="Required if changing date"></div>'
+                        + '<div class="col-md-4"><label class="form-label small mb-1">Remarks/Notes</label><input type="text" name="notes" class="form-control form-control-sm" placeholder="Add/update notes" value="' + esc(t.notes || '') + '"></div>'
+                        + '<div class="col-12"><button type="submit" class="btn btn-sm btn-outline-secondary">Update Target Date &amp; Remarks</button></div></form>';
+                }
                 html += '  </div>';
                 html += '</div>';
 
+                // Evidence
                 html += '<div class="bk-modal-section">';
                 html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Evidence</div></div>';
                 html += '  <div class="bk-modal-section-body" data-bk-evidence>';
@@ -867,26 +1065,28 @@ document.addEventListener('DOMContentLoaded', function () {
                 html += '  </div>';
                 html += '</div>';
 
-                if(t.is_payment){
+                // Payment details
+                if (t.is_payment) {
                     html += '<div class="bk-modal-section">';
                     html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Payment Details</div></div>';
                     html += '  <div class="bk-modal-section-body"><div class="bk-modal-grid">';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Status</span><span class="bk-modal-value">'+(t.payment_label||'—')+'</span></div>';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Date</span><span class="bk-modal-value">'+(t.payment_at_label||'—')+'</span></div>';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Method</span><span class="bk-modal-value">'+(t.payment_method_label||'Not specified')+'</span></div>';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Bank / Reference / Description</span><span class="bk-modal-value">'+(t.payment_reference||'—')+'</span></div>';
-                    html += '    <div class="bk-modal-field"><span class="bk-modal-label">Payment Detail</span><span class="bk-modal-value">'+(t.payment_detail||'—')+'</span></div>';
+                    html += field('Payment Status', esc(t.payment_label || '—'));
+                    html += field('Payment Date', esc(t.payment_at_label || '—'));
+                    html += field('Payment Method', esc(t.payment_method_label || 'Not specified'));
+                    html += field('Bank / Reference / Description', esc(t.payment_reference || '—'));
+                    html += field('Payment Detail', esc(t.payment_detail || '—'));
                     html += '  </div></div>';
                     html += '</div>';
                 }
 
+                // Task history
                 html += '<div class="bk-modal-section">';
                 html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Task History</div></div>';
                 html += '  <div class="bk-modal-section-body">';
-                if(data.history && data.history.length){
+                if (data.history && data.history.length) {
                     html += '    <div class="bk-timeline">';
-                    data.history.forEach(function(h){
-                        html += '      <div class="bk-timeline-item"><div class="bk-timeline-dot"></div><div class="bk-timeline-content"><div class="bk-timeline-title">'+(h.action||'Activity')+'</div><div>'+ (h.description||'') +'</div><div class="bk-timeline-meta">'+(h.user_name? h.user_name+' • ':'')+(h.created_at||'')+'</div></div></div>';
+                    data.history.forEach(function (h) {
+                        html += '      <div class="bk-timeline-item"><div class="bk-timeline-dot"></div><div class="bk-timeline-content"><div class="bk-timeline-title">' + esc(h.action || 'Activity') + '</div><div>' + esc(h.description || '') + '</div><div class="bk-timeline-meta">' + (h.user_name ? esc(h.user_name) + ' • ' : '') + esc(h.created_at || '') + '</div></div></div>';
                     });
                     html += '    </div>';
                 } else {
@@ -895,41 +1095,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 html += '  </div>';
                 html += '</div>';
 
-                if(t.can_manage){
+                // Task operations
+                if (t.can_manage) {
                     html += '<div class="bk-modal-section">';
                     html += '  <div class="bk-modal-section-header"><div class="bk-modal-section-title">Task Operations</div></div>';
                     html += '  <div class="bk-modal-section-body d-flex flex-wrap gap-2">';
-                    if(routes.start){ html += '<form method="POST" action="'+routes.start+'">@csrf<button class="btn btn-sm btn-primary">Start Task</button></form>'; }
-                    if(routes.complete){ html += '<form method="POST" action="'+routes.complete+'">@csrf<button class="btn btn-sm btn-success">Mark Complete</button></form>'; }
+                    if (routes.start) { html += '<form method="POST" action="' + esc(routes.start) + '">' + csrfField + '<button type="submit" class="btn btn-sm btn-primary">Start Task</button></form>'; }
+                    if (routes.complete) { html += '<form method="POST" action="' + esc(routes.complete) + '">' + csrfField + '<button type="submit" class="btn btn-sm btn-success">Mark Complete</button></form>'; }
                     html += '  </div>';
                     html += '</div>';
                 }
+
                 body.innerHTML = html;
                 currentTask = t;
                 currentRoutes = routes;
+                wireDateExplanation();
             })
-            .catch(() => { body.innerHTML = '<div class="text-center text-danger py-4">Failed to load task details.<br><button class="btn btn-sm btn-outline-secondary mt-2" onclick="location.reload()">Reload Page</button></div>'; });
+            .catch(function () {
+                if (requestId !== loadId) return;
+                body.innerHTML = '<div class="text-center text-danger py-4" role="alert">Failed to load task details.<br><button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="location.reload()">Reload Page</button></div>';
+            });
     });
 });
 </script>
 @endpush
-
-<div class="modal fade" id="bkTaskModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="bkTaskModalTitle">Task Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="bkTaskModalBody" style="max-height: calc(100vh - 200px); overflow-y: auto;">
-            <div class="text-center py-4">Loading...</div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        </div>
-    </div>
-</div>
-</div>
 
 @push('styles')
     @include('admin.bookkeeping.partials.styles')
@@ -948,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', function () {
         .bk-modal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.6rem 0.9rem; }
         .bk-modal-field { display: flex; flex-direction: column; gap: 0.25rem; }
         .bk-modal-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7280; }
-        .bk-modal-value { font-weight: 600; color: #111827; }
+        .bk-modal-value { font-weight: 600; color: #111827; overflow-wrap: anywhere; }
         .bk-badge { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
         .bk-badge-pending { background: #f3f4f6; color: #374151; }
         .bk-badge-inprogress { background: #e8f4ff; color: #1d4ed8; }
@@ -967,21 +1156,47 @@ document.addEventListener('DOMContentLoaded', function () {
     </style>
 @endpush
 
-@push('scripts')
-<script>
-(function () {
-    'use strict';
+@push('styles')
+    <style>
+        /* ---- Uncollected / Unfinished and Unpaid cards ---- */
+        .wk-side.wk-side-v2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+        .wk-side-v2 .wk-side-card { background: var(--surface, #fff); border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+        .wk-side-v2 .wk-side-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .wk-side-v2 .wk-side-head h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+        .wk-side-count { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 700; background: #fef2f2; color: #b91c1c; }
+        .wk-side-count.is-warn { background: #fffbeb; color: #b45309; }
+        .wk-side-hint { margin: 0 0 8px; font-size: .78rem; color: var(--muted-text, #6b7280); }
+        .wk-side-v2 .wk-side-empty { margin: 4px 0 0; font-size: .85rem; color: var(--muted-text, #6b7280); }
+        .wk-side-ok { display: flex; align-items: center; gap: 6px; color: #047857 !important; }
 
-    /* Guards the tracker's inline action forms (Start, etc.) against a double
-       click posting the same action twice. Filters and links are unaffected. */
-    document.querySelectorAll('form.d-inline').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            var button = form.querySelector('button[type="submit"]:not([disabled])');
-            if (button) {
-                button.disabled = true;
-            }
-        });
-    });
-})();
-</script>
+        /* Long lists scroll inside the card instead of stretching the page. */
+        .wk-side-scroll { max-height: 440px; overflow-y: auto; margin: 0 -6px; padding: 0 6px; }
+        .wk-side-scroll:focus-visible { outline: 2px solid var(--primary, #6366f1); outline-offset: 2px; border-radius: 6px; }
+
+        .wk-side-group { border-top: 1px solid var(--border-light, #eef0f3); }
+        .wk-side-group:first-child { border-top: 0; }
+        .wk-side-group > summary { display: flex; align-items: center; gap: 8px; padding: 8px 0; cursor: pointer; list-style: none; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted-text, #6b7280); position: sticky; top: 0; background: var(--surface, #fff); z-index: 1; }
+        .wk-side-group > summary::-webkit-details-marker { display: none; }
+        .wk-side-group > summary::before { content: ""; width: 6px; height: 6px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform .15s ease; }
+        .wk-side-group[open] > summary::before { transform: rotate(45deg); }
+        .wk-side-group-count { margin-left: auto; font-weight: 600; letter-spacing: 0; text-transform: none; }
+
+        .wk-side-rows { list-style: none; margin: 0; padding: 0; }
+        .wk-side-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; text-decoration: none; color: inherit; }
+        .wk-side-row:hover, .wk-side-row:focus-visible { background: var(--surface-sunken, #f3f4f6); }
+        .wk-side-client { flex: 1 1 auto; min-width: 0; font-size: .84rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wk-side-when { flex: 0 0 auto; font-size: .78rem; color: var(--muted-text, #6b7280); white-space: nowrap; }
+        .wk-side-chip { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-style: normal; font-weight: 700; white-space: nowrap; }
+        .wk-side-chip.is-bad { background: #fef2f2; color: #b91c1c; }
+        .wk-side-chip.is-warn { background: #fffbeb; color: #b45309; }
+        .wk-side-chip.is-info { background: #e8f4ff; color: #1d4ed8; }
+
+        @media (max-width: 900px) {
+            .wk-side.wk-side-v2 { grid-template-columns: 1fr; }
+            .wk-side-scroll { max-height: 360px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .wk-side-group > summary::before { transition: none; }
+        }
+    </style>
 @endpush

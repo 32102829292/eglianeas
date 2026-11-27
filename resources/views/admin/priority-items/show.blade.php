@@ -219,7 +219,7 @@
                     <h2 class="pri-detail-card-title mb-0"><span aria-hidden="true">&#128206;</span> Evidence @if ($evidenceCount > 0)<span class="badge badge-info">{{ $evidenceCount }}</span>@endif</h2>
                     @if ($canManageChecklist || $item->isVisibleTo(auth()->user()))
                         <button type="button" class="btn btn-primary btn-sm pri-detail-btn-add-evidence" data-bs-toggle="modal" data-bs-target="#addEvidenceModal">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Add Evidence
                         </button>
                     @endif
@@ -252,12 +252,12 @@
                                     <div class="pri-detail-evidence-name" title="{{ $evidence->original_name }}">{{ $evidence->original_name }}</div>
                                     <div class="pri-detail-evidence-sub">
                                         @if ($evidence->mime_type)
-                                            <span class="badge badge-info">{{ $evidence->mime_type }}</span>
+                                            <span class="badge badge-info pri-detail-evidence-type" title="{{ $evidence->mime_type }}">{{ $evidence->mime_type }}</span>
                                         @else
-                                            <span class="badge badge-info">file</span>
+                                            <span class="badge badge-info pri-detail-evidence-type">file</span>
                                         @endif
-                                        &middot; {{ $evidence->uploader->name ?? '—' }}
-                                        &middot; {{ $evidence->created_at?->format('M j, Y g:i A') }}
+                                        <span class="pri-detail-evidence-by">{{ $evidence->uploader->name ?? '—' }}</span>
+                                        <span class="pri-detail-evidence-date">{{ $evidence->created_at?->format('M j, Y g:i A') }}</span>
                                     </div>
                                 </div>
                                 <div class="pri-detail-evidence-actions">
@@ -299,18 +299,13 @@
                     <h2 class="pri-detail-card-title">Checklist</h2>
                     @if ($canManageChecklist)
                         <button type="button" class="btn btn-primary btn-sm pri-detail-btn-add-item" data-bs-toggle="modal" data-bs-target="#addChecklistModal">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                             Add Item
                         </button>
                     @endif
                 </div>
             </div>
             <div class="pri-detail-card-body">
-                @php
-                    $checklistTotal = $item->checklistItems->count();
-                    $checklistDone = $item->checklistItems->where('completed', true)->count();
-                @endphp
-
                 @if ($checklistTotal > 0)
                     <div class="pri-detail-checklist-progress {{ $checklistComplete ? 'is-complete' : '' }}">
                         <div class="pri-detail-checklist-bar">
@@ -321,8 +316,8 @@
                     </div>
                     @if ($checklistComplete)
                         <div class="pri-detail-checklist-done">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                            All checklist items completed
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="14" height="14" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                            <span>All checklist items completed</span>
                             <span class="pri-detail-checklist-done-note">This does not mark the item as completed on its own.</span>
                         </div>
                     @endif
@@ -330,7 +325,7 @@
 
                 @if ($item->checklistItems->isNotEmpty())
                     <div class="pri-detail-checklist-table-wrap">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 pri-detail-checklist-table">
                             <thead class="thead-muted">
                                 <tr>
                                     <th style="width: 40px;">#</th>
@@ -344,21 +339,21 @@
                             <tbody>
                                 @foreach ($item->checklistItems->sortBy('sort_order') as $index => $checklistItem)
                                     <tr class="{{ $checklistItem->completed ? 'table-success' : '' }}">
-                                        <td>{{ $index + 1 }}</td>
-                                        <td>
+                                        <td class="pri-cl-num">{{ $index + 1 }}</td>
+                                        <td class="pri-cl-item">
                                             <div class="d-flex align-items-center gap-2">
-                                                <input type="checkbox" class="form-check-input" {{ $checklistItem->completed ? 'checked' : '' }} data-checklist-item="{{ $checklistItem->id }}" data-url="{{ route('admin.priority-items.checklist.toggle', $item) }}">
-                                                <span class="{{ $checklistItem->completed ? 'text-decoration-line-through text-muted' : '' }}">{{ $checklistItem->title }}</span>
+                                                <input type="checkbox" class="form-check-input flex-shrink-0" {{ $checklistItem->completed ? 'checked' : '' }} data-checklist-item="{{ $checklistItem->id }}" data-url="{{ route('admin.priority-items.checklist.toggle', $item) }}">
+                                                <span class="pri-cl-title {{ $checklistItem->completed ? 'text-decoration-line-through text-muted' : '' }}">{{ $checklistItem->title }}</span>
                                             </div>
                                         </td>
-                                        <td class="text-center">
+                                        <td class="text-center" data-label="Status">
                                             <span class="badge {{ $checklistItem->completed ? 'badge-success' : 'badge-warn' }}">
                                                 {{ $checklistItem->completed ? 'Done' : 'Pending' }}
                                             </span>
                                         </td>
-                                        <td class="text-center">{{ $checklistItem->completer->name ?? '—' }}</td>
-                                        <td class="text-center">{{ $checklistItem->completed_at?->format('M j, Y g:i A') ?? '—' }}</td>
-                                        <td class="text-end">
+                                        <td class="text-center" data-label="Completed By">{{ $checklistItem->completer->name ?? '—' }}</td>
+                                        <td class="text-center" data-label="Completed At">{{ $checklistItem->completed_at?->format('M j, Y g:i A') ?? '—' }}</td>
+                                        <td class="text-end pri-cl-actions">
                                             @if ($canManageChecklist)
                                                 <button type="button" class="btn btn-outline btn-sm" data-bs-toggle="modal" data-bs-target="#editChecklistModal"
                                                         data-checklist-id="{{ $checklistItem->id }}"
@@ -546,8 +541,17 @@
 @push('styles')
 <style>
 /* ============================================================
-   Priority List - Task Details Page (Premium)
+   Priority List - Task Details Page (Premium, responsive)
+   Breakpoints: 1100px (stack two-column rows), 900px (stack
+   main grid), 640px (phone layout).
    ============================================================ */
+
+.pri-task-hero,
+.pri-detail-grid,
+.pri-detail-grid-two,
+.pri-detail-card {
+    min-width: 0;
+}
 
 /* ---------- Task Hero Header -- Dark Navy --*/
 .pri-task-hero {
@@ -564,14 +568,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
+    gap: 20px 24px;
     flex-wrap: wrap;
     position: relative;
     z-index: 2;
 }
 
 .pri-task-hero-left {
-    flex: 1;
+    flex: 1 1 320px;
     min-width: 0;
 }
 
@@ -598,12 +602,12 @@
 .pri-task-hero-title {
     margin: 0 0 10px;
     font-family: var(--font-head);
-    font-size: 24px;
+    font-size: clamp(20px, 2.4vw, 24px);
     font-weight: 700;
     color: #FFFFFF;
     letter-spacing: -0.02em;
     line-height: 1.3;
-    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .pri-task-hero-desc {
@@ -611,7 +615,7 @@
     font-size: 15px;
     color: #CBD5E1;
     line-height: 1.55;
-    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .pri-task-hero-badges {
@@ -623,17 +627,25 @@
 .pri-task-hero-actions {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 10px;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+}
+
+.pri-task-hero-actions form {
+    margin: 0;
 }
 
 .pri-task-hero-actions .btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     font-weight: 600;
     padding: 9px 18px;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .pri-task-hero-actions .btn svg {
@@ -671,8 +683,6 @@
 }
 
 /* ---------- Reusable: outline button on dark backgrounds --*/
-/* Apply to any .btn-outline used on dark (navy) headers so text/icon and
-   border are visible in all states. */
 .btn-outline-on-dark {
     color: #FFFFFF;
     border-color: rgba(255, 255, 255, 0.5);
@@ -693,22 +703,26 @@
 /* ---------- Status Strip (subtle) --*/
 .pri-status-strip {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     padding: 12px 18px;
     border-radius: var(--radius-card);
     margin-bottom: 20px;
     font-size: 14px;
     font-weight: 500;
+    line-height: 1.5;
 }
 
 .pri-status-strip-icon {
     flex: 0 0 auto;
     font-size: 18px;
+    line-height: 1.3;
 }
 
 .pri-status-strip-text {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .pri-status-strip-overdue {
@@ -754,14 +768,8 @@
 /* ---------- Main Grid --*/
 .pri-detail-grid {
     display: grid;
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
     gap: 20px;
-}
-
-@media (max-width: 900px) {
-    .pri-detail-grid {
-        grid-template-columns: 1fr;
-    }
 }
 
 /* ---------- Cards --*/
@@ -793,8 +801,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
+    gap: 10px 14px;
     flex-wrap: wrap;
+    width: 100%;
 }
 
 .pri-detail-card-title {
@@ -811,12 +820,28 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-width: 0;
+}
+
+.pri-detail-btn-add-evidence,
+.pri-detail-btn-add-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.pri-detail-btn-add-evidence svg,
+.pri-detail-btn-add-item svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
 }
 
 /* ---------- Task Information --*/
 .pri-detail-info-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
     gap: 16px;
     margin-bottom: 18px;
 }
@@ -824,7 +849,9 @@
 .pri-detail-info-cell {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 4px;
+    min-width: 0;
 }
 
 .pri-detail-info-label {
@@ -844,12 +871,18 @@
     margin-top: 4px;
 }
 
+.pri-detail-description-block + .pri-detail-description-block {
+    margin-top: 14px;
+}
+
 .pri-detail-description-text {
     font-size: 14.5px;
     color: var(--text);
     line-height: 1.6;
     white-space: pre-wrap;
+    overflow-wrap: anywhere;
     padding: 14px 16px;
+    margin-top: 6px;
     border-radius: var(--radius-sm);
     background: #F8FAFC;
     border: 1px solid var(--border-subtle);
@@ -861,7 +894,9 @@
     margin-bottom: 18px;
 }
 
-.pri-detail-deadline-label {
+.pri-detail-deadline-label,
+.pri-detail-urgency-label,
+.pri-detail-guidance-label {
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -874,13 +909,13 @@
 .pri-detail-deadline-value {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px 12px;
     flex-wrap: wrap;
     margin-bottom: 8px;
 }
 
 .pri-detail-deadline-date {
-    font-size: 20px;
+    font-size: clamp(17px, 2vw, 20px);
     font-weight: 700;
     color: var(--navy);
     letter-spacing: -0.02em;
@@ -904,26 +939,6 @@
     margin-top: 4px;
 }
 
-.pri-detail-urgency-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-    margin-bottom: 6px;
-    display: block;
-}
-
-.pri-detail-guidance-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted-text);
-    margin-bottom: 6px;
-    display: block;
-}
-
 .pri-detail-urgency-value {
     display: flex;
     align-items: center;
@@ -938,6 +953,8 @@
     padding: 8px 12px;
     border-radius: var(--radius-sm);
     border: 1px solid #BAE6FD;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 /* ---------- Assigned Staff --*/
@@ -945,6 +962,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    min-width: 0;
 }
 
 .pri-detail-staff-current,
@@ -983,6 +1001,7 @@
     font-weight: 700;
     color: var(--navy);
     letter-spacing: -0.01em;
+    overflow-wrap: anywhere;
 }
 
 .pri-detail-staff-role {
@@ -1020,7 +1039,8 @@
     color: var(--muted-text);
 }
 
-.pri-detail-assignment .inline-assign-form {
+.pri-detail-assignment .inline-assign-form,
+.pri-detail-staff .inline-assign-form {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1028,9 +1048,10 @@
     width: 100%;
 }
 
-.pri-detail-assignment .inline-assign-form select.form-control-sm {
-    flex: 1;
-    min-width: 150px;
+.pri-detail-assignment .inline-assign-form select.form-control-sm,
+.pri-detail-staff .inline-assign-form select.form-control-sm {
+    flex: 1 1 150px;
+    min-width: 0;
     height: 44px;
     padding: 10px 14px;
     font-size: 14px;
@@ -1039,7 +1060,8 @@
     background: #fff;
 }
 
-.pri-detail-assignment .inline-assign-form button.btn-primary.btn-sm {
+.pri-detail-assignment .inline-assign-form button.btn-primary.btn-sm,
+.pri-detail-staff .inline-assign-form button.btn-primary.btn-sm {
     height: 44px;
     padding: 10px 20px;
     font-size: 14px;
@@ -1051,15 +1073,10 @@
 /* ---------- Two-Column Row (Evidence + Checklist) --*/
 .pri-detail-grid-two {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
-    margin-top: 0;
-}
-
-@media (max-width: 900px) {
-    .pri-detail-grid-two {
-        grid-template-columns: 1fr;
-    }
+    margin-top: 20px;
+    align-items: start;
 }
 
 /* ---------- Evidence --*/
@@ -1072,18 +1089,22 @@
 
 .pri-detail-evidence-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
     gap: 14px;
 }
 
+/* Card layout: icon + info on the first row, actions on their own row below.
+   This keeps filenames readable even in a narrow half-width column. */
 .pri-detail-evidence-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px 14px;
     padding: 14px;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
     background: #F8FAFC;
+    min-width: 0;
 }
 
 .pri-detail-evidence-icon {
@@ -1095,44 +1116,81 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
     color: #64748b;
 }
 
 .pri-detail-evidence-meta {
-    flex: 1;
     min-width: 0;
 }
 
 .pri-detail-evidence-name {
-    display: block;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
     font-size: 14px;
     font-weight: 600;
+    line-height: 1.35;
     color: var(--navy);
-    overflow-wrap: break-word;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .pri-detail-evidence-sub {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--muted-text);
-    margin-top: 4px;
     flex-wrap: wrap;
+    gap: 4px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--muted-text);
+    margin-top: 6px;
+    min-width: 0;
+}
+
+.pri-detail-evidence-type {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pri-detail-evidence-by,
+.pri-detail-evidence-date {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.pri-detail-evidence-by::after {
+    content: "\00B7";
+    margin-left: 8px;
 }
 
 .pri-detail-evidence-actions {
+    grid-column: 1 / -1;
     display: flex;
-    gap: 6px;
-    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+}
+
+.pri-detail-evidence-actions form {
+    margin: 0;
+}
+
+.pri-detail-evidence-actions .btn {
+    white-space: nowrap;
 }
 
 .pri-detail-evidence-empty {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 14px;
-    padding: 28px;
+    justify-content: center;
+    gap: 10px;
+    padding: 28px 20px;
     text-align: center;
     color: var(--muted-text);
     background: #F8FAFC;
@@ -1167,7 +1225,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     margin-bottom: 16px;
     padding: 14px;
     border-radius: 10px;
@@ -1176,18 +1235,20 @@
 }
 
 .pri-detail-checklist-bar {
-    flex: 1;
+    flex: 1 1 120px;
     height: 8px;
     border-radius: 4px;
     background: #E2E8F0;
     overflow: hidden;
 }
+
 .pri-detail-checklist-bar span {
     display: block;
     height: 100%;
     background: var(--navy);
     border-radius: 4px;
 }
+
 .pri-detail-checklist-progress.is-complete .pri-detail-checklist-bar span {
     background: #16A34A;
 }
@@ -1209,8 +1270,9 @@
 .pri-detail-checklist-done {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 12px;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    margin-bottom: 16px;
     padding: 14px;
     border-radius: 10px;
     background: #DCFCE7;
@@ -1218,7 +1280,12 @@
     color: #166534;
 }
 
+.pri-detail-checklist-done svg {
+    flex: none;
+}
+
 .pri-detail-checklist-done-note {
+    flex: 1 1 100%;
     font-size: 13px;
     color: #166534;
     opacity: 0.9;
@@ -1226,8 +1293,26 @@
 
 .pri-detail-checklist-table-wrap {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-sm);
+}
+
+.pri-detail-checklist-table {
+    min-width: 560px;
+}
+
+.pri-cl-title {
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.pri-cl-actions {
+    white-space: nowrap;
+}
+
+.pri-cl-actions form {
+    margin: 0;
 }
 
 .pri-detail-empty-state {
@@ -1266,7 +1351,7 @@
     margin: 0;
     display: grid;
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 0;
 }
 
 .pri-detail-list li {
@@ -1294,6 +1379,7 @@
     flex: 1;
     min-width: 0;
     color: var(--text);
+    overflow-wrap: anywhere;
 }
 
 /* ---------- Completion Action --*/
@@ -1327,7 +1413,7 @@
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: 16px 20px;
     flex-wrap: wrap;
 }
 
@@ -1336,6 +1422,7 @@
     align-items: center;
     gap: 14px;
     min-width: 0;
+    flex: 1 1 280px;
 }
 
 .pri-completion-icon {
@@ -1378,6 +1465,10 @@
     flex-shrink: 0;
 }
 
+.pri-completion-actions form {
+    margin: 0;
+}
+
 .pri-completion-btn {
     display: inline-flex;
     align-items: center;
@@ -1386,6 +1477,7 @@
     font-weight: 600;
     padding: 11px 22px;
     font-size: 14px;
+    white-space: nowrap;
 }
 
 .pri-completion-btn svg {
@@ -1403,10 +1495,35 @@
     margin-top: 20px;
 }
 
-/* ---------- Responsive --*/
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+/* Laptops / small desktops: evidence + checklist stack so each
+   gets full width instead of two cramped columns. */
+@media (max-width: 1100px) {
+    .pri-detail-grid-two {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+    .pri-detail-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pri-task-hero-actions {
+        justify-content: flex-start;
+        width: 100%;
+    }
+}
+
+/* Phones */
 @media (max-width: 640px) {
     .pri-task-hero {
-        padding: 22px 24px;
+        padding: 20px 18px;
+        margin-bottom: 16px;
     }
 
     .pri-task-hero-inner {
@@ -1416,11 +1533,7 @@
     }
 
     .pri-task-hero-left {
-        gap: 8px;
-    }
-
-    .pri-task-hero-title {
-        font-size: 21px;
+        flex: 0 0 auto;
     }
 
     .pri-task-hero-actions {
@@ -1429,56 +1542,214 @@
         gap: 8px;
     }
 
-    .pri-task-hero-actions .btn {
-        width: 100%;
-        justify-content: center;
-    }
-
+    .pri-task-hero-actions .btn,
     .pri-task-hero-actions form {
         width: 100%;
     }
 
+    .pri-status-strip {
+        padding: 12px 14px;
+        margin-bottom: 16px;
+    }
+
+    .pri-detail-grid,
+    .pri-detail-grid-two {
+        gap: 16px;
+    }
+
+    .pri-detail-grid-two,
+    .pri-completion-card,
+    .pri-detail-card-record {
+        margin-top: 16px;
+    }
+
+    .pri-detail-card-head {
+        padding: 14px 16px;
+    }
+
+    .pri-detail-card-body {
+        padding: 16px;
+    }
+
+    .pri-detail-card-title-wrapper {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pri-detail-btn-add-evidence,
+    .pri-detail-btn-add-item {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .pri-detail-info-row {
+        grid-template-columns: 1fr;
+    }
+
+    .pri-detail-staff-current,
+    .pri-detail-staff-empty {
+        padding: 14px;
+    }
+
+    .pri-detail-assignment .inline-assign-form,
+    .pri-detail-staff .inline-assign-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pri-detail-assignment .inline-assign-form select,
+    .pri-detail-assignment .inline-assign-form button,
+    .pri-detail-staff .inline-assign-form select,
+    .pri-detail-staff .inline-assign-form button {
+        width: 100%;
+    }
+
+    /* Evidence: buttons share the row evenly */
+    .pri-detail-evidence-actions .btn,
+    .pri-detail-evidence-actions form {
+        flex: 1 1 auto;
+    }
+
+    .pri-detail-evidence-actions form .btn {
+        width: 100%;
+    }
+
+    /* Checklist table -> stacked cards */
+    .pri-detail-checklist-table-wrap {
+        overflow-x: visible;
+        border: 0;
+    }
+
+    .pri-detail-checklist-table {
+        min-width: 0;
+    }
+
+    .pri-detail-checklist-table thead {
+        display: none;
+    }
+
+    .pri-detail-checklist-table,
+    .pri-detail-checklist-table tbody,
+    .pri-detail-checklist-table tr,
+    .pri-detail-checklist-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .pri-detail-checklist-table tr {
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-sm);
+    }
+
+    .pri-detail-checklist-table tr:last-child {
+        margin-bottom: 0;
+    }
+
+    .pri-detail-checklist-table td {
+        padding: 4px 0;
+        border: 0;
+        background: transparent;
+        text-align: left !important;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-num {
+        display: none;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-item {
+        padding-bottom: 8px;
+        font-weight: 600;
+    }
+
+    .pri-detail-checklist-table td[data-label] {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 13px;
+    }
+
+    .pri-detail-checklist-table td[data-label]::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted-text);
+        flex-shrink: 0;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-actions {
+        display: flex;
+        gap: 8px;
+        padding-top: 10px;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-actions:empty {
+        display: none;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-actions .btn {
+        flex: 1 1 auto;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-actions form {
+        flex: 1 1 auto;
+    }
+
+    .pri-detail-checklist-table td.pri-cl-actions form .btn {
+        width: 100%;
+    }
+
+    /* Record list: label above value */
+    .pri-detail-list li {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .pri-detail-k {
+        min-width: 0;
+    }
+
+    /* Completion card */
     .pri-completion-body {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .pri-completion-info {
+        flex: 0 0 auto;
     }
 
     .pri-completion-actions {
         width: 100%;
     }
 
-    .pri-completion-actions form {
-        width: 100%;
-    }
-
+    .pri-completion-actions form,
     .pri-completion-actions .btn {
         width: 100%;
-        justify-content: center;
     }
 
-    .pri-detail-assignment .inline-assign-form {
-        flex-direction: column;
-    }
-
-    .pri-detail-assignment .inline-assign-form select,
-    .pri-detail-assignment .inline-assign-form button {
+    .pri-completion-badge {
         width: 100%;
+        text-align: center;
+    }
+}
+
+@media (max-width: 380px) {
+    .pri-task-hero-title {
+        font-size: 19px;
     }
 
-    .pri-detail-card-head {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
+    .pri-detail-card-body {
+        padding: 14px;
     }
 
-    .pri-detail-card-title-wrapper {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 10px;
-    }
-
-    .pri-detail-info-row {
-        grid-template-columns: 1fr;
+    .pri-detail-evidence-card {
+        padding: 12px;
+        gap: 10px 12px;
     }
 }
 </style>

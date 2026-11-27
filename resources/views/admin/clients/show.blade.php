@@ -1,5 +1,6 @@
 @php
     $canManage = auth()->user()->canManageClients();
+    $disconnection = \App\Models\ClientDisconnection::where('client_id', $client->getKey())->whereNull('reconnected_at')->latest('id')->first();
     $maskTin = function (?string $value): string {
         if (! $value) { return ''; }
         $clean = preg_replace('/\D/', '', $value) ?? '';
@@ -40,9 +41,29 @@
             <a href="{{ route('admin.distribution.show', $client) }}" class="btn btn-outline">Document Distribution</a>
             @if ($canManage)
                 <a href="{{ route('admin.clients.edit', $client) }}" class="btn btn-primary">Edit profile</a>
+                @if (! $disconnection)
+                    <button type="button" class="btn btn-outline danger" data-bs-toggle="modal" data-bs-target="#disconnectModal{{ $client->getKey() }}">Disconnect</button>
+                @endif
             @endif
+            <a href="{{ route('admin.clients.disconnected') }}" class="btn btn-outline">Disconnected Clients</a>
         </div>
     </div>
+
+    @if ($disconnection)
+        <div class="card">
+            <div class="card-head">
+                <h2 class="card-title text-danger">Disconnected</h2>
+                @if ($canManage)
+                    <form method="POST" action="{{ route('admin.clients.reconnect', $client->getKey()) }}" class="inline-form" onsubmit="return egliane.confirm.form(this, { title: 'Reconnect this client?', message: 'The client will return to the connected list.', confirmLabel: 'Reconnect' });">
+                        @csrf
+                        <button type="submit" class="btn btn-primary btn-sm">Reconnect</button>
+                    </form>
+                @endif
+            </div>
+            <p class="card-sub">{{ $disconnection->reasonLabel() }} &middot; {{ $disconnection->disconnected_at->format('M j, Y') }}</p>
+            @if ($disconnection->details)<p class="pre-wrap">{{ $disconnection->details }}</p>@endif
+        </div>
+    @endif
 
     <div class="profile-meta">
         <div class="profile-meta-chip">
@@ -351,6 +372,10 @@
             @endif
         </div>
     </div>
+
+    @if ($canManage && ! $disconnection)
+        @include('admin.clients.partials.disconnect-modal', ['client' => $client])
+    @endif
 
     {{-- Add BIR Form Modal --}}
     @if ($canManage)

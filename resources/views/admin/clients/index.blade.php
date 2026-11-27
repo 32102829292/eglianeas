@@ -28,6 +28,15 @@
     // authorization enforced by BirFormTypeController@store so the action is
     // never offered to a user the store endpoint would reject with a 403.
     $canManageBirCodes = (bool) auth()->user()?->canManageBirCodes();
+
+    // Which clients on this page are currently disconnected (one query).
+    $disconnectedIds = \App\Models\ClientDisconnection::whereNull('reconnected_at')
+        ->whereIn('client_id', collect($clients->items())->map(fn ($entry) => $entry['user']->id))
+        ->pluck('client_id');
+
+    // Total open disconnections (for the "All Clients" count when no filter is applied).
+    $openDisconnectedTotal = \App\Models\ClientDisconnection::whereNull('reconnected_at')
+        ->distinct()->count('client_id');
 @endphp
 
 @section('content')
@@ -37,6 +46,7 @@
             <p>Manage client accounts, their information, and account status.</p>
         </div>
         <div class="page-head-actions">
+            <a href="{{ route('admin.clients.disconnected') }}" class="btn btn-outline btn-sm">Disconnected Clients</a>
             @if (auth()->user()->canManageClients())
                 <a href="{{ route('admin.clients.create') }}" class="btn btn-primary btn-sm">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -105,7 +115,7 @@
 
     <div class="card card-data">
         <div class="card-head">
-            <span class="card-title">{{ $hasActiveFilters ? 'Matching Clients' : 'All Clients' }} <span class="count-pill">{{ $clients->total() }}</span></span>
+            <span class="card-title">{{ $hasActiveFilters ? 'Matching Clients' : 'All Clients' }} <span class="count-pill">{{ max($clients->total() - ($hasActiveFilters ? 0 : $openDisconnectedTotal), 0) }}</span></span>
             <div class="sort-controls" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                 <label class="form-label mb-0" style="font-size: 12px;">Sort by:</label>
                 <form method="GET" action="{{ route('admin.clients.index') }}" style="display: inline-flex; align-items: center; gap: 6px;">
@@ -178,6 +188,7 @@
                 <tbody>
                     @forelse ($clients as $entry)
                         @php($client = $entry['user'])
+                        @continue($disconnectedIds->contains($client->id))
                         <tr data-filter-row>
                             <td data-col="Business">
                                 <div class="fw-semibold">{{ $client->business_name ?: $client->name }}</div>
@@ -253,14 +264,9 @@
                                                     </button>
                                                 </form>
                                                 <div class="dropdown-divider"></div>
-                                                <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this client?', message: 'Are you sure you want to delete this client? This action can be undone by support.', danger: true, confirmLabel: 'Delete' });">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="dropdown-item btn-item dropdown-item-danger">
-                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                                        Delete client
-                                                    </button>
-                                                </form>
+                                                <button type="button" class="dropdown-item btn-item dropdown-item-danger" data-bs-toggle="modal" data-bs-target="#disconnectModal{{ $client->id }}">
+                                                    Disconnect client
+                                                </button>
                                             </div>
                                         </div>
                                     @endif
@@ -284,6 +290,7 @@
             <div class="card-view-list">
                 @forelse ($clients as $entry)
                     @php($client = $entry['user'])
+                    @continue($disconnectedIds->contains($client->id))
                     <div class="cv-card">
                         <div class="cv-card-head">
                             <div class="cv-head-main">
@@ -319,14 +326,9 @@
                                             </button>
                                         </form>
                                         <div class="dropdown-divider"></div>
-                                        <form method="POST" action="{{ route('admin.clients.destroy', $client) }}" onsubmit="return egliane.confirm.form(this, { title: 'Delete this client?', message: 'Are you sure you want to delete this client? This action can be undone by support.', danger: true, confirmLabel: 'Delete' });">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="dropdown-item btn-item dropdown-item-danger">
-                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                                Delete client
-                                            </button>
-                                        </form>
+                                        <button type="button" class="dropdown-item btn-item dropdown-item-danger" data-bs-toggle="modal" data-bs-target="#disconnectModal{{ $client->id }}">
+                                            Disconnect client
+                                        </button>
                                     </div>
                                 </div>
                             @endif
@@ -345,6 +347,14 @@
         </div>
         {{ $clients->links('pagination.simple') }}
     </div>
+
+    @if (auth()->user()->canManageClients())
+        @foreach ($clients as $entry)
+            @if (! $disconnectedIds->contains($entry['user']->id))
+                @include('admin.clients.partials.disconnect-modal', ['client' => $entry['user']])
+            @endif
+        @endforeach
+    @endif
 
     @if ($canManageBirCodes)
         {{--
@@ -405,6 +415,10 @@
         });
         // Keep aria-expanded truthful for every dropdown on the page, whichever
         // branch above opened or closed the menu.
+        // Close the "More actions" menu when the disconnect modal opens.
+        document.addEventListener('show.bs.modal', function () {
+            document.querySelectorAll('.dropdown-menu').forEach(function (m) { m.style.display = 'none'; });
+        });
         var syncDropdowns = function () {
             document.querySelectorAll('[data-dropdown]').forEach(function (toggle) {
                 var menu = document.getElementById(toggle.getAttribute('data-dropdown'));

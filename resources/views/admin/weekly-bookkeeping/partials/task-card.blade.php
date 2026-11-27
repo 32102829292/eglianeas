@@ -27,19 +27,29 @@
     $offsets = \App\Models\WeeklyBookkeepingTarget::SEQUENCE_OFFSETS;
     $balanceStatuses = \App\Models\WeeklyBookkeepingTarget::PAYMENT_STATUSES;
     [$windowStart, $windowEnd] = $target->planWindow();
+
+    // A finished task is never flagged as overdue.
+    $isOverdue = ! $target->isCompleted() && $target->isPastDue();
+    $cardName = $target->taskLabel().' · '.$target->displayClientName();
 @endphp
 
-<article class="wk-task-card" id="target-{{ $target->id }}">
+{{-- The id is "task-card-…" rather than "target-…": the Target vs Actual table on
+     the same page already uses "target-…" for its rows, and an id must be unique.
+     Links such as show#target-12 therefore land on the table row, as intended. --}}
+<article class="wk-task-card" id="task-card-{{ $target->id }}">
     <header class="wk-task-card-header">
         <div class="wk-task-card-main">
-            <span class="task-type-dot task-{{ $target->task_type }}"></span>
+            <span class="task-type-dot task-{{ $target->task_type }}" aria-hidden="true"></span>
             <h3 class="wk-task-card-title">
-                {{ $target->taskLabel() }} · {{ $target->displayClientName() }}
+                {{ $cardName }}
             </h3>
             <div class="wk-task-card-meta">
                 <span class="wk-task-card-date">
                     {{ $target->target_date?->format('D, M j') ?? '—' }}
                 </span>
+                @if ($isOverdue)
+                    <span class="wk-task-card-late">Overdue</span>
+                @endif
                 @include('admin.bookkeeping.partials.task-status-badge', ['target' => $target])
                 @if ($target->dateIsAutomatic())
                     <span class="wk-timeline-flag is-auto">Auto-scheduled (follows Pick-Up)</span>
@@ -64,8 +74,9 @@
         </div>
         <div class="wk-task-card-actions-toggle">
             <details class="wk-task-details">
-                <summary class="wk-task-summary-toggle">
-                    <span class="wk-task-toggle-text">Expand</span>
+                <summary class="wk-task-summary-toggle" aria-label="Show or hide details for {{ $cardName }}">
+                    <span class="wk-task-toggle-text wk-toggle-open-label">Expand</span>
+                    <span class="wk-task-toggle-text wk-toggle-close-label">Collapse</span>
                 </summary>
                 <div class="wk-task-card-body">
                     <div class="wk-task-card-grid">
@@ -83,15 +94,16 @@
                                             name="target_date"
                                             class="schedule-input"
                                             value="{{ $target->target_date?->format('Y-m-d') }}"
+                                            aria-describedby="date-hint-{{ $target->id }}"
                                             @if ($windowStart) min="{{ $windowStart->format('Y-m-d') }}" @endif
                                             @if ($windowEnd) max="{{ $windowEnd->format('Y-m-d') }}" @endif
                                         >
                                         @if ($target->dateIsAutomatic())
-                                            <small class="schedule-hint schedule-hint-auto">
+                                            <small class="schedule-hint schedule-hint-auto" id="date-hint-{{ $target->id }}">
                                                 Auto-scheduled (follows Pick-Up). Change it to take this task out of the sequence.
                                             </small>
                                         @else
-                                            <small class="schedule-hint">Manually set (won’t follow Pick-Up changes).</small>
+                                            <small class="schedule-hint" id="date-hint-{{ $target->id }}">Manually set (won’t follow Pick-Up changes).</small>
                                         @endif
                                     </div>
                                     <button type="submit" class="btn btn-primary btn-sm schedule-save">Save Changes</button>
@@ -120,7 +132,7 @@
                                     <div class="schedule-field">
                                         <label class="schedule-label" for="notes-{{ $target->id }}">
                                             Remarks <span class="text-muted">(Optional)</span>
-                                            <span class="schedule-required-indicator" title="You can add notes to your own task">●</span>
+                                            <span class="schedule-required-indicator" aria-hidden="true">●</span>
                                         </label>
                                         <textarea
                                             id="notes-{{ $target->id }}"
@@ -130,7 +142,10 @@
                                             maxlength="1000"
                                             placeholder="Add notes for this task (e.g., why it was delayed, client feedback, etc.)"
                                         >{{ $target->notes }}</textarea>
-                                        <small class="schedule-hint schedule-hint-own">Your notes are saved with this task and visible to supervisors.</small>
+                                        <small class="wk-count" data-wk-count="notes-{{ $target->id }}" data-max="1000"></small>
+                                        <small class="schedule-hint schedule-hint-own">
+                                            {{ $isOwnTask ? 'Your notes' : 'Notes' }} are saved with this task and visible to supervisors.
+                                        </small>
                                     </div>
                                     <button type="submit" class="btn btn-primary btn-sm schedule-save">Save Changes</button>
                                 </form>
@@ -141,7 +156,7 @@
                                     data-bs-target="#bkRemarksModal"
                                     data-bk-remarks-for="{{ $target->id }}"
                                     data-bk-remarks-value="{{ $target->notes }}"
-                                    data-bk-task-title="{{ $target->taskLabel() }} · {{ $target->displayClientName() }}"
+                                    data-bk-task-title="{{ $cardName }}"
                                     style="margin-top:8px;"
                                 >
                                     Quick edit remarks
@@ -179,12 +194,14 @@
                                                 type="number"
                                                 step="0.01"
                                                 min="0"
+                                                inputmode="decimal"
                                                 name="balance_amount"
                                                 class="schedule-input"
                                                 value="{{ $target->balance_amount }}"
                                                 placeholder="0.00"
+                                                aria-describedby="balance-hint-{{ $target->id }}"
                                             >
-                                            <small class="schedule-hint">Required while the status is With Balance. Leave empty otherwise.</small>
+                                            <small class="schedule-hint" id="balance-hint-{{ $target->id }}">Required while the status is With Balance. Leave empty otherwise.</small>
                                             <label class="schedule-label" for="balnote-{{ $target->id }}">Balance Note</label>
                                             <input
                                                 id="balnote-{{ $target->id }}"
@@ -289,7 +306,7 @@
                                 <form method="POST" action="{{ route('admin.weekly-bookkeeping.upload-attachment', [$bookkeeping, $target]) }}" enctype="multipart/form-data" class="tb-actions-form" style="margin-top:8px;">
                                     @csrf
                                     <input type="file" name="attachment" class="tb-file-input" accept="image/*,application/pdf,.doc,.docx"
-                                           aria-label="Evidence file for {{ $target->taskLabel() }} — {{ $target->displayClientName() }}">
+                                           aria-label="Evidence file for {{ $cardName }}" required>
                                     <button type="submit" class="btn btn-outline btn-sm">Upload proof</button>
                                 </form>
                             @endif
@@ -309,8 +326,10 @@
                                         <button type="submit" class="btn btn-outline btn-sm text-danger">Remove</button>
                                     </form>
                                 @elseif ($target->isInProgress())
+                                    {{-- The names go through @js so an apostrophe in a client name
+                                         (e.g. "Myra's Eatery") cannot break the inline handler. --}}
                                     <form method="POST" action="{{ route('admin.weekly-bookkeeping.complete-target', [$bookkeeping, $target]) }}" class="d-inline tb-actions-form"
-                                          onsubmit="return egliane.confirm.form(this, { title: 'Mark this task completed?', message: 'This records the {{ $target->taskLabel() }} work for {{ $target->displayClientName() }} as finished.', confirmLabel: 'Complete' });">
+                                          onsubmit="return egliane.confirm.form(this, { title: 'Mark this task completed?', message: @js('This records the '.$target->taskLabel().' work for '.$target->displayClientName().' as finished.'), confirmLabel: 'Complete' });">
                                         @csrf
                                         @if ($isPayment)
                                             <select name="payment_method" class="tb-mini-select" aria-label="Payment method">
@@ -348,3 +367,69 @@
         </div>
     </header>
 </article>
+
+{{-- Shared by every card on the page; @once keeps it from repeating per task. --}}
+@once
+    @push('styles')
+    <style>
+        /* One summary, two labels: the right one shows for the current state. */
+        .wk-task-details:not([open]) .wk-toggle-close-label { display: none; }
+        .wk-task-details[open] .wk-toggle-open-label { display: none; }
+
+        .wk-task-card-late {
+            display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 999px;
+            font-size: 11px; font-weight: 700; background: #fef2f2; color: #b91c1c;
+        }
+        .wk-count { align-self: flex-end; font-size: 11px; color: var(--muted, #6b7280); }
+        .wk-count.is-near { color: #b45309; font-weight: 600; }
+    </style>
+    @endpush
+
+    @push('scripts')
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        'use strict';
+
+        /* Remarks character counter, so the 1000-character limit is no surprise. */
+        document.querySelectorAll('[data-wk-count]').forEach(function (out) {
+            var field = document.getElementById(out.getAttribute('data-wk-count'));
+            if (!field) { return; }
+            var max = parseInt(out.getAttribute('data-max'), 10) || 1000;
+
+            function update() {
+                var length = field.value.length;
+                out.textContent = length + ' / ' + max;
+                out.classList.toggle('is-near', length >= max * 0.9);
+            }
+
+            field.addEventListener('input', update);
+            update();
+        });
+
+        /* Block a double click from posting the same card form twice. A confirm
+           that was cancelled has already prevented the submit, so its button is
+           left enabled. */
+        var forms = document.querySelectorAll('.wk-task-card form');
+
+        forms.forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (event.defaultPrevented) { return; }
+                var button = form.querySelector('button[type="submit"]:not([disabled])');
+                if (button) { button.disabled = true; }
+            });
+        });
+
+        // Coming back with the Back button can restore the page with buttons disabled.
+        window.addEventListener('pageshow', function (event) {
+            if (event.persisted) {
+                forms.forEach(function (form) {
+                    form.querySelectorAll('button[disabled]').forEach(function (button) {
+                        button.disabled = false;
+                    });
+                });
+            }
+        });
+    });
+    </script>
+    @endpush
+@endonce

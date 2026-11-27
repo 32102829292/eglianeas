@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Disconnectable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +16,7 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasPushSubscriptions, Notifiable, SoftDeletes;
+    use Disconnectable, HasFactory, HasPushSubscriptions, Notifiable, SoftDeletes;
 
     public const ROLE_ADMIN = 'admin';
 

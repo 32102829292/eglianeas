@@ -48,6 +48,13 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        // Counted separately because $dueBills is limited to 8 rows.
+        $dueSoonCount = Billing::query()
+            ->whereIn('status', [Billing::STATUS_UNPAID, Billing::STATUS_OVERDUE])
+            ->whereDate('due_date', '>=', now()->toDateString())
+            ->whereDate('due_date', '<=', now()->addDays(7)->toDateString())
+            ->count();
+
         $billingStatusCounts = Billing::query()
             ->whereIn('status', Billing::ACTIVE_STATUSES)
             ->selectRaw('status, count(*) as count, sum(total) as total')
@@ -62,18 +69,27 @@ class DashboardController extends Controller
 
         $draftCount = (int) Billing::query()->where('status', Billing::STATUS_DRAFT)->count();
 
+        // Profiles of deleted clients stay in the table, so leave them out of the charts.
+        $currentClientIds = User::query()
+            ->where('role', User::ROLE_CLIENT)
+            ->whereNull('deleted_at')
+            ->select('id');
+
         $clientStatusCounts = ClientProfile::query()
+            ->whereIn('user_id', $currentClientIds)
             ->selectRaw('status, count(*) as count')
             ->groupBy('status')
             ->pluck('count', 'status');
 
         $businessTypeCounts = ClientProfile::query()
+            ->whereIn('user_id', $currentClientIds)
             ->selectRaw("COALESCE(NULLIF(business_type, ''), 'Unspecified') as bucket, count(*) as count")
             ->groupBy('bucket')
             ->orderByDesc('count')
             ->pluck('count', 'bucket');
 
         $lobCounts = ClientProfile::query()
+            ->whereIn('user_id', $currentClientIds)
             ->selectRaw("COALESCE(NULLIF(line_of_business, ''), 'Unspecified') as bucket, count(*) as count")
             ->groupBy('bucket')
             ->orderByDesc('count')
@@ -158,12 +174,13 @@ class DashboardController extends Controller
                 'filings' => Filing::count(),
                 'pendingFilings' => Filing::query()->where('status', Filing::STATUS_PENDING)->count(),
             ],
+            'clientConnection' => $this->clientConnection(),
             'recentUsers' => User::query()->latest()->limit(8)->get(),
             'recentFilings' => Filing::query()->with('client')->latest()->limit(8)->get(),
             'recentActivity' => ActivityLog::query()->with('user')->latest()->limit(10)->get(),
             'dueBills' => $dueBills,
             'billingAlerts' => [
-                'dueSoon' => $dueBills->where('due_date', '>=', now()->startOfDay())->count(),
+                'dueSoon' => $dueSoonCount,
                 'overdue' => (int) ($billingStatusCounts[Billing::STATUS_OVERDUE] ?? 0),
                 'outstanding' => (float) (
                     ($billingStatusTotals[Billing::STATUS_PENDING] ?? 0)
@@ -178,6 +195,26 @@ class DashboardController extends Controller
                 'charts' => $charts,
             ],
         ]);
+    }
+
+    /**
+     * Active vs disconnected clients for the dashboard chart.
+     *
+     * A disconnected client is one that has been deleted (users.deleted_at is set).
+     * Global scopes are removed so that deleted rows can be counted.
+     *
+     * @return array{active: int, disconnected: int}
+     */
+    private function clientConnection(): array
+    {
+        $clients = User::query()
+            ->withoutGlobalScopes()
+            ->where('role', User::ROLE_CLIENT);
+
+        return [
+            'active' => (clone $clients)->whereNull('deleted_at')->count(),
+            'disconnected' => (clone $clients)->whereNotNull('deleted_at')->count(),
+        ];
     }
 
     private function barData(array $map, callable $countFor): Collection
