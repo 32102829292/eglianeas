@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\BirFormsController as AdminBirFormsController;
 use App\Http\Controllers\Admin\BirFormTypeController;
 use App\Http\Controllers\Admin\CashDailyPositionController as AdminCashDailyPositionController;
 use App\Http\Controllers\Admin\ChatbotController as AdminChatbotController;
+use App\Http\Controllers\Admin\ClientDisconnectionController;
 use App\Http\Controllers\Admin\ClientController as AdminClientController;
 use App\Http\Controllers\Admin\CollectionController as AdminCollectionController;
 use App\Http\Controllers\Admin\ConfidentialityController as AdminConfidentialityController;
@@ -248,6 +249,7 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::delete('/billings/{billing}', [AdminBillingController::class, 'destroy'])->name('billing.destroy');
 
     Route::get('/clients', [AdminClientController::class, 'index'])->name('clients.index');
+    Route::get('/disconnected-clients', [ClientDisconnectionController::class, 'index'])->name('clients.disconnected');
     Route::get('/clients/export/xlsx', [AdminClientController::class, 'exportXlsx'])->name('clients.exportXlsx');
     Route::get('/clients/export/pdf', [AdminClientController::class, 'exportPdf'])->name('clients.exportPdf');
     Route::get('/clients/{client}/requirements/{document}', [AdminClientController::class, 'requirementDocument'])
@@ -262,6 +264,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
         Route::post('/clients/{client}/companies', [AdminClientController::class, 'storeCompany'])->name('clients.companies.store');
         Route::put('/clients/{client}/companies/{company}', [AdminClientController::class, 'updateCompany'])->name('clients.companies.update');
         Route::delete('/clients/{client}', [AdminClientController::class, 'destroy'])->name('clients.destroy');
+        Route::post('/clients/{client}/disconnect', [ClientDisconnectionController::class, 'store'])->whereNumber('client')->name('clients.disconnect');
+        Route::post('/clients/{client}/reconnect', [ClientDisconnectionController::class, 'reconnect'])->whereNumber('client')->name('clients.reconnect');
         Route::post('/clients/{client}/info-entries', [AdminClientController::class, 'storeInfoEntry'])->name('clients.storeInfoEntry');
         Route::put('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'updateInfoEntry'])->name('clients.updateInfoEntry');
         Route::delete('/clients/{client}/info-entries/{entry}', [AdminClientController::class, 'destroyInfoEntry'])->name('clients.destroyInfoEntry');
@@ -311,6 +315,8 @@ Route::middleware(['auth', 'role:admin,staff,supervisor', 'admin.confidentiality
     Route::post('/weekly-bookkeeping/copy-previous-week', [AdminWeeklyBookkeepingController::class, 'copyPreviousWeek'])->name('weekly-bookkeeping.copy-previous-week');
     Route::get('/weekly-bookkeeping/{bookkeeping}', [AdminWeeklyBookkeepingController::class, 'show'])->name('weekly-bookkeeping.show');
     Route::get('/weekly-bookkeeping/{bookkeeping}/history', [AdminWeeklyBookkeepingController::class, 'history'])->name('weekly-bookkeeping.history');
+    Route::get('/weekly-bookkeeping/{bookkeeping}/manage', [AdminWeeklyBookkeepingController::class, 'manage'])->name('weekly-bookkeeping.manage');
+    Route::put('/weekly-bookkeeping/{bookkeeping}/plan', [AdminWeeklyBookkeepingController::class, 'updatePlan'])->name('weekly-bookkeeping.update-plan');
     Route::get('/weekly-bookkeeping/{bookkeeping}/task/{target}', [AdminWeeklyBookkeepingController::class, 'showTask'])->name('weekly-bookkeeping.task');
     Route::post('/weekly-bookkeeping/{bookkeeping}/owner', [AdminWeeklyBookkeepingController::class, 'updateOwner'])->name('weekly-bookkeeping.update-owner');
     Route::post('/weekly-bookkeeping/{bookkeeping}/target/{target}/start', [AdminWeeklyBookkeepingController::class, 'startTarget'])->name('weekly-bookkeeping.start-target');

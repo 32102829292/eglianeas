@@ -45,7 +45,9 @@
                     <button type="button" class="btn btn-outline danger" data-bs-toggle="modal" data-bs-target="#disconnectModal{{ $client->getKey() }}">Disconnect</button>
                 @endif
             @endif
-            <a href="{{ route('admin.clients.disconnected') }}" class="btn btn-outline">Disconnected Clients</a>
+            @if ($canManage)
+                <a href="{{ route('admin.clients.disconnected') }}" class="btn btn-outline">Disconnected Clients</a>
+            @endif
         </div>
     </div>
 

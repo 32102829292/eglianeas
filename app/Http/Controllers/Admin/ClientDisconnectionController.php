@@ -14,6 +14,8 @@ class ClientDisconnectionController extends Controller
 {
     public function index(Request $request, ClientGrowthStats $stats)
     {
+        abort_unless($request->user()->canManageClients(), 403);
+
         $relation = config('disconnection.profile_relation');
         $clients = $this->clientsQuery()->with($relation)->get();
 

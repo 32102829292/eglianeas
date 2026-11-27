@@ -356,7 +356,9 @@
     <div class="card ds-card">
         <div class="card-head">
             <h3 class="card-title">Active vs disconnected clients</h3>
-            <a href="{{ route('admin.clients.disconnected') }}">View disconnected clients</a>
+            @if (auth()->user()->canManageClients())
+                <a href="{{ route('admin.clients.disconnected') }}">View disconnected clients</a>
+            @endif
         </div>
         <p class="muted">
             Last 12 months, month-end totals. Active clients
