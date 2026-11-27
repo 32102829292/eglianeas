@@ -9,9 +9,13 @@ use App\Models\WorkPlanTask;
  * Scores one Daily Accomplishment Report out of 100.
  *
  *  - 90 points: tasks. The 90 points are divided equally among the tasks assigned
- *    for the day (Goals for the Day). A task earns its share only once it is
- *    completed. Each urgent task (not in the goals) adds 80% of one assigned
- *    task's share. Every urgent task the staff member lists counts as done.
+ *    for the day (Goals for the Day). A task earns its share once it is completed
+ *    OR once its activity code is ticked on the report. Each urgent task (not in the
+ *    goals) adds 80% of one assigned task's share. Urgent tasks are:
+ *      - entries in the Urgent Task form,
+ *      - lines written as "Urgent ..." in the accomplishment details,
+ *      - activity codes ticked on the report that are not among today's goals.
+ *    Every urgent task the staff member lists counts as done.
  *  - 10 points: Problems Encountered (5) + Suggested Solutions (5), each only
  *    when it is actually filled in.
  *
@@ -34,6 +38,12 @@ class DailyReportScoreCalculator
     public const MIN_TEXT_LENGTH = 10;
 
     /**
+     * Activity codes that never count as an urgent task (e.g. non-working day).
+     * Add more codes here if needed.
+     */
+    public const NON_URGENT_CODES = ['S'];
+
+    /**
      * @return array<string, mixed>
      */
     public function calculate(DailyJournal $journal): array
@@ -44,10 +54,34 @@ class DailyReportScoreCalculator
             ->where('status', '!=', WorkPlanTask::STATUS_CANCELLED)
             ->get();
 
+        // Activity codes the staff member ticked on the report (e.g. X, Z, T8)
+        $selectedCodes = collect((array) ($journal->achievement_codes ?? []))
+            ->map(fn ($code) => strtoupper(trim((string) $code)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        $assignedCodes = $assigned
+            ->map(fn (WorkPlanTask $task) => strtoupper(trim((string) $task->legend_code)))
+            ->filter()
+            ->unique();
+
         $assignedTotal = $assigned->count();
-        $assignedDone = $assigned->filter(fn (WorkPlanTask $task) => $task->isCompleted())->count();
+
+        // A goal counts as done if it was marked completed OR its code was ticked on the report
+        $assignedDone = $assigned->filter(
+            fn (WorkPlanTask $task) => $task->isCompleted()
+                || $selectedCodes->contains(strtoupper(trim((string) $task->legend_code)))
+        )->count();
+
+        // Ticked codes that are not in today's goals count as urgent tasks
+        $codeUrgent = $selectedCodes
+            ->reject(fn ($code) => $assignedCodes->contains($code))
+            ->reject(fn ($code) => in_array($code, self::NON_URGENT_CODES, true))
+            ->values();
+
         $detectedUrgent = $this->urgentFromDetails($journal);
-        $urgentCount = $this->urgentCount($journal) + count($detectedUrgent);
+        $urgentCount = $this->urgentCount($journal) + count($detectedUrgent) + $codeUrgent->count();
 
         $mode = 'normal';
         $assignedShare = 0.0;
@@ -93,6 +127,7 @@ class DailyReportScoreCalculator
             'assigned_points_each' => round($assignedShare, 2),
             'urgent_count' => $urgentCount,
             'urgent_from_details' => count($detectedUrgent),
+            'urgent_from_codes' => $codeUrgent->count(),
             'urgent_points_each' => round($urgentShare, 2),
             'problems_filled' => $problemsFilled,
             'solutions_filled' => $solutionsFilled,
